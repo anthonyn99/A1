@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pull-backups — fold every device's encrypted snapshot into `Index Backups/`.
+ * pull-backups — fold every device's encrypted snapshot into `Backup/Index Backups/`.
  *
  * WHY THIS EXISTS
  * A1Backup keeps an encrypted copy in each device's IndexedDB and mirrors it to
@@ -57,7 +57,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'Index Backups');
+const OUT = path.join(ROOT, 'Backup', 'Index Backups');
 const WORKER = process.env.A1B_WORKER || 'https://index-backups.av1-2.workers.dev';
 // Read-only pull secret: env var first, then the gitignored file, so a
 // scheduled task needs no arguments and no human.
@@ -197,10 +197,10 @@ async function main() {
   }
 
   if (DO_COMMIT) {
-    const changed = execFileSync('git', ['status', '--porcelain', 'Index Backups'],
+    const changed = execFileSync('git', ['status', '--porcelain', 'Backup/Index Backups'],
       { cwd: ROOT, encoding: 'utf8' }).trim();
     if (!changed) { console.log('\n  Nothing changed; no commit.'); return; }
-    execFileSync('git', ['add', 'Index Backups'], { cwd: ROOT });
+    execFileSync('git', ['add', 'Backup/Index Backups'], { cwd: ROOT });
     execFileSync('git', ['commit', '-m', 'backups: pull ' + new Date().toISOString().slice(0, 10)],
       { cwd: ROOT });
     console.log('\n  Committed.');

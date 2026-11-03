@@ -1,7 +1,7 @@
 {
   "name": "a1-taskhub",
   "private": true,
-  "description": "Test tooling for the single-file apps. They have no build step and ship as-is. The Shield desktop agent under desktop/shield is the one exception and builds with cargo.",
+  "description": "Test tooling for the single-file apps. They have no build step and ship as-is. The Shield desktop agent under Shield/desktop is the one exception and builds with cargo.",
   "scripts": {
     "test": "node tests/run-all.js"
   },

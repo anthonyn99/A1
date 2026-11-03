@@ -42,7 +42,7 @@ globalThis.CustomEvent = class {
 };
 
 const { store } = await import(
-  new URL('../js/modules/store.js', import.meta.url).href
+  new URL('../StudyOS/js/modules/store.js', import.meta.url).href
 );
 
 // ── Before studyos.js boots, every read must degrade, not throw ────────────

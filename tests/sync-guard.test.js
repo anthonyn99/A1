@@ -120,7 +120,7 @@ section('Static: exactly ONE page may force-own the shared Firestore cache');
   // MAGI stays open for hours beside TaskHub. When it held the lease, TaskHub's
   // forced re-take on every wake left MAGI's client without primary, and every
   // write after that failed ("Sync failed" with nothing done). It uses memory.
-  const magi = fs.readFileSync(path.join(dir, 'magi.html'), 'utf8');
+  const magi = fs.readFileSync(path.join(dir, 'magi/magi.html'), 'utf8');
   t('magi.html does not use the shared persistent cache',
     !/persistentLocalCache\s*\(/.test(magi) && /memoryLocalCache\s*\(/.test(magi),
     'magi.html must initialise Firestore with memoryLocalCache().');
@@ -848,7 +848,7 @@ t('A save is a transaction that writes only if the head is still on our version'
   'The doc and its head must move together, and only from the version this device saw.');
 t('A refused save merges with the newer copy instead of overwriting it',
   /window\.THMerge\.syncMerge\(base \? base\.doc : null, mine, theirs\)/.test(HTML) &&
-  /<script src="taskhub-merge\.js"><\/script>/.test(HTML));
+  /<script src="TaskHub\/taskhub-merge\.js"><\/script>/.test(HTML));
 t('The merge is built from the CURRENT state, so edits made meanwhile are kept',
   /const fresh = rebuild && rebuild\(\); if \(fresh\) mine = _casStrip\(fresh\);/.test(HTML));
 t('Each payload records the version it was built on',

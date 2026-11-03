@@ -4,7 +4,7 @@
 #  Sends your work to GitHub. Cloudflare picks it up from there and updates the
 #  live apps automatically, so there is no website to open and nothing to click.
 #
-#  Run it by double-clicking "Push Changes.bat" in the V1 folder.
+#  Run it by double-clicking "Push Changes.bat" in V1\scripts.
 #
 #  Written to be SAFE rather than clever: it shows what changed and asks before
 #  sending anything, it never force-pushes, and it stops with a plain-English

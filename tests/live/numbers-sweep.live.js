@@ -1,5 +1,5 @@
 // LIVE test -- A1's one numbers face on Tony's side (theme overhaul phase 10,
-// docs/theme-overhaul-plan.md §2 "NUMBERS"): Inter, weight 500, tabular
+// docs/Theme/theme-overhaul-plan.md §2 "NUMBERS"): Inter, weight 500, tabular
 // figures, in Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList
 // (Tony), RiftIQ (WarRoom and ProView) and MAGI. Veda's sides keep theirs.
 // Not run by run-all.js.
@@ -156,7 +156,7 @@ async function scan(c, label, scope) {
   // ── MyList: Tony's profile on Inter, Veda's untouched ──────────────────
   for (const who of ['tony', 'veda']) {
     console.log('mylist.html (' + who + ')');
-    await load(c, 'mylist.html', { boot: MYLIST_BOOT(who), wait: 4500 });
+    await load(c, 'MyList/mylist.html', { boot: MYLIST_BOOT(who), wait: 4500 });
     const prof = await evalJs(c, "document.body.getAttribute('data-profile')||''");
     ok('mylist: profile is ' + who, prof === who, prof);
     const r = await probe(c, '#lists-bar', '<span class="list-chip"><span class="cnt">12</span></span>', '.cnt');
@@ -189,8 +189,8 @@ async function scan(c, label, scope) {
   await scan(c, 'riftiq');
 
   // ── MAGI: numbers Inter, code stays mono ───────────────────────────────
-  console.log('magi.html');
-  await load(c, 'magi.html', { wait: 5000 });
+  console.log('magi/magi.html');
+  await load(c, 'magi/magi.html', { wait: 5000 });
   await bodyTabular(c, 'magi');
   for (const cls of ['sd-count', 'repo-num', 'code-auto-cd', 'br-step-n', 'au-line-time', 'node-meta', 'core-count', 'fc-num']) {
     const r = await probe(c, 'body', '<span class="' + cls + '">12</span>', '.' + cls);

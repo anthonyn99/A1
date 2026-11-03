@@ -4,7 +4,7 @@
  * WHAT IT DOES
  * Every clickable control answers the cursor the same way: a dim control lifts a
  * step, a bright one settles a step. That is StudyOS's behaviour, ported out —
- * see V1/css/studyos.css, where `.btn` goes bg3 (#26272A) -> bg4 (#2e2f33) on
+ * see V1/StudyOS/css/studyos.css, where `.btn` goes bg3 (#26272A) -> bg4 (#2e2f33) on
  * hover and `.btn.primary` goes to `opacity: .88`. Roughly +20% and -12%.
  *
  * WHY IT MEASURES INSTEAD OF DECLARING
@@ -46,7 +46,7 @@
  * (brightness(.94) + 1px down) until the pointer lets go. Keyboard focus gets
  * MAGI's 2px accent ring. The accent is read from --fx-ac on the subtree
  * (default MAGI purple #c0aeea). This is how the theme overhaul
- * (docs/theme-overhaul-plan.md) carries MAGI's mechanics into inline-styled
+ * (docs/Theme/theme-overhaul-plan.md) carries MAGI's mechanics into inline-styled
  * React and hand-built DOM that have no classes to hang CSS on; removing the
  * attribute puts a subtree straight back on the measured behaviour above.
  * The press writes the `translate` property, never `transform`, for the same

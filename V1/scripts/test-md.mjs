@@ -15,7 +15,7 @@ const t = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra == null ? '' : '\n       ' + JSON.stringify(extra).slice(0, 300))); }
 };
 
-const { renderMarkdown, inline, escapeHtml } = await import(new URL('../js/modules/md.js', import.meta.url).href);
+const { renderMarkdown, inline, escapeHtml } = await import(new URL('../StudyOS/js/modules/md.js', import.meta.url).href);
 
 console.log('\nescaping');
 {
@@ -61,7 +61,7 @@ console.log('\ninline');
 
 console.log('\ncard sides');
 {
-  const { renderCard, closeEnough } = await import(new URL('../js/modules/md.js', import.meta.url).href);
+  const { renderCard, closeEnough } = await import(new URL('../StudyOS/js/modules/md.js', import.meta.url).href);
   const h = renderCard('In ⟪…⟫, rows are <b>unique</b> and ⟦BCNF⟧ is **stricter**.');
   t('a hidden blank becomes a styled hole', h.includes('<span class="cz-hole">[…]</span>'), h);
   t('a revealed blank is highlighted', h.includes('<mark class="cz-ans">BCNF</mark>'), h);

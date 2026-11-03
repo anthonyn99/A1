@@ -207,7 +207,7 @@ if ($tasks.Count) { Ok "starts at every logon (scheduled task)" } elseif ($NoAut
 
 Write-Host ""
 Write-Host "Done. The engine is running. What only $((Get-Culture).TextInfo.ToTitleCase($Who)) can do, all in the console:" -ForegroundColor White
-Write-Host "  1. Open https://anthonyn99.github.io/A1/magi.html on this PC, pick $((Get-Culture).TextInfo.ToTitleCase($Who)), unlock."
+Write-Host "  1. Open https://anthonyn99.github.io/A1/magi/magi.html on this PC, pick $((Get-Culture).TextInfo.ToTitleCase($Who)), unlock."
 Write-Host "     (If Chrome asks to let the page reach devices on this network, Allow -- that is this engine.)"
 Write-Host "  2. Accounts > each council unit > Sign in: a Chrome window opens; sign in by hand."
 Write-Host "  3. Accounts > Coding agents: Claude uses this PC's Claude Code login (already signed in if"

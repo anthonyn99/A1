@@ -47,8 +47,8 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(t, i) { this.type = t; this.detail = (i || {}).detail; } };
 
-const deck = await import(new URL('../js/modules/deck.js', import.meta.url).href);
-const fsrs = await import(new URL('../js/modules/fsrs.js', import.meta.url).href);
+const deck = await import(new URL('../StudyOS/js/modules/deck.js', import.meta.url).href);
+const fsrs = await import(new URL('../StudyOS/js/modules/fsrs.js', import.meta.url).href);
 
 const NOTE = {
   id: 'n1', title: 'Normalization',

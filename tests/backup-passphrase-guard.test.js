@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { webcrypto } = require('crypto');
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'backup.js'), 'utf8');
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'Backup/backup.js'), 'utf8');
 
 let pass = 0; const failures = [];
 function t(name, cond, detail) {
@@ -235,7 +235,7 @@ async function main() {
       };
       sandbox.self = sandbox;
       vm.createContext(sandbox);
-      vm.runInContext(SRC, sandbox, { filename: 'backup.js' });
+      vm.runInContext(SRC, sandbox, { filename: 'Backup/backup.js' });
       return { A1: sandbox.window.A1Backup, store };
     }
 

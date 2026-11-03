@@ -1,4 +1,4 @@
-// StudyOS's notes are V's Notebook (V1/js/sos-notebook.js, 2026-10-29): one
+// StudyOS's notes are V's Notebook (V1/StudyOS/js/sos-notebook.js, 2026-10-29): one
 // instance (key stn, store dashboards/studyos_notebook) shown in the Quick
 // Notes view (folder 'quick') and in each Notes module's modal (folder = the
 // module id). Real StudyOS page, real Notebook, fake Firestore.
@@ -24,7 +24,7 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const { firebaseMock } = require('./fake-firebase.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/V1/studyos.html';
+const URL = 'https://anthonyn99.github.io/A1/V1/StudyOS/studyos.html';
 const ORIGIN = 'https://anthonyn99.github.io';
 const S = 'dashboards/studyos_notebook';
 let pass = 0, fail = 0;
@@ -83,7 +83,7 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
 
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 860, deviceScaleFactor: 1, mobile: false });
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))});
     var L = ${JSON.stringify(LOCAL)}; for (var k in L) localStorage.setItem(k, L[k]); 1`);
   await boot();

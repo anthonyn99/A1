@@ -1,6 +1,6 @@
 // node tests/backup-merge.test.js — the three-way TaskHub restore merge.
 'use strict';
-const M = require('../backup-merge.js');
+const M = require('../Backup/backup-merge.js');
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fails++; };
 const titles = (a) => (a || []).map((x) => x.title);

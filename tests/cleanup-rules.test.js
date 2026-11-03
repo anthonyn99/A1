@@ -26,8 +26,8 @@ const { JSDOM } = require('jsdom');
 
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const RULES = JSON.parse(read('cleanup-rules.json'));
-const SWEEP = read('sweep.js');
+const RULES = JSON.parse(read('Rules/cleanup-rules.json'));
+const SWEEP = read('Shared/sweep.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -78,7 +78,7 @@ function walk(dir, out) {
     if (['node_modules', '.git', '.venv', 'profiles', 'data', 'artifacts', 'tests', 'docs', 'Index Backups'].includes(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
-    else if (/\.(html|js|mjs|py)$/.test(e.name) && e.name !== 'sweep.js' && !ignored(p)) out.push(p);
+    else if (/\.(html|js|mjs|py)$/.test(e.name) && e.name !== 'Shared/sweep.js' && !ignored(p)) out.push(p);
   }
   return out;
 }
@@ -108,13 +108,15 @@ for (const it of RULES.items) {
 }
 // Every A1-Priv page loads the sweep, so an item for any of them just works.
 // A forwarding stub (A1-Priv's solace.html → Everwell) is not a program and runs nothing.
-// Read from A1-Priv itself: M.read sends solace.html to A1, which has none.
-const isStub = (page) => { const s = fs.readFileSync(path.join(M.PRIV, page), 'utf8'); return s.length < 4000 && /location\.replace\('https:/.test(s); };
-for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html') && !isStub(f)) : []) {
+// A1-Priv lists every published page in host/pages.json (each program in its
+// own folder); M.read finds it there.
+const PRIV_PAGES = path.join(M.PRIV, 'host', 'pages.json');
+for (const page of fs.existsSync(PRIV_PAGES) ? Object.keys(JSON.parse(fs.readFileSync(PRIV_PAGES, 'utf8'))).filter((k) => k !== '_') : []) {
   const prog = page.replace(/\.html$/, '');
   ok(`A1-Priv ${page} loads sweep.js as data-program="${prog}"`,
-    new RegExp(`<script src="https://anthonyn99\\.github\\.io/A1/sweep\\.js" data-program="${prog}" defer></script>`).test(M.read(page)));
+    new RegExp(`<script src="https://anthonyn99\\.github\\.io/A1/Shared/sweep\\.js" data-program="${prog}" defer></script>`).test(M.read(page)));
 }
+if (fs.existsSync(M.PRIV)) ok('A1-Priv publishes its pages from host/pages.json', fs.existsSync(PRIV_PAGES));
 for (const it of RULES.items.filter((i) => i.store === 'localStorage')) {
   for (const k of [...(it.exact || []), ...(it.prefix || [])]) {
     const hits = usedBy(k, it.origin);
@@ -131,21 +133,23 @@ for (const it of RULES.items.filter((i) => i.store === 'firestore')) {
 console.log('\nWiring');
 const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'firestore', 'indexeddb'].includes(i.store)).map((i) => i.program));
 for (const prog of browserPrograms) {
-  // Root pages load sweep.js beside them; V1 pages (StudyOS) load ../sweep.js.
-  const page = (fs.existsSync(path.join(ROOT, prog + '.html')) || M.isMoved(prog + '.html')) ? prog + '.html' : 'V1/' + prog + '.html';
+  // Each program's page, in its own folder (docs/layout.md); A1-Priv's by name.
+  const PAGE_OF = { index: 'index.html', magi: 'magi/magi.html', mylist: 'MyList/mylist.html', shield: 'Shield/shield.html',
+    studyos: 'V1/StudyOS/studyos.html', wellness: 'V1/Wellness/wellness.html', shruti: 'Shruti/shruti.html' };
+  const page = PAGE_OF[prog] || prog + '.html';
   if (M.isMoved(page) && !M.has(page)) { M.skipNote(page); continue; }
   const html = M.isMoved(page) ? M.read(page) : fs.existsSync(path.join(ROOT, page)) ? read(page) : '';
   // A moved page loads it from A1's host by absolute URL.
   ok(`${page} loads sweep.js as data-program="${prog}"`,
-    new RegExp(`<script src="(\\.\\./|https://anthonyn99\\.github\\.io/A1/)?sweep\\.js" data-program="${prog}" defer></script>`).test(html));
+    new RegExp(`<script src="((?:\\.\\./)*|https://anthonyn99\\.github\\.io/A1/)Shared/sweep\\.js" data-program="${prog}" defer></script>`).test(html));
 }
-const sos = read('V1/js/studyos.js');
+const sos = read('V1/StudyOS/js/studyos.js');
 ok('studyos.js: the orphan-file adapter waits for applied server state',
   /ready: \(\) => !!\(window\._fbSosServerSeen && window\._fbSosServerSeen\(\)\)/.test(sos));
 ok('studyos.js: the adapter never lists a file stamped within a day', /now - Number\(m\[1\]\) < 864e5\) continue;/.test(sos));
 ok('studyos.js: the adapter re-checks the reference before deleting', /if \(_sosReferencedFileIds\(\)\.has\(id\)\) throw/.test(sos));
 ok('studyos.js: removing a class or module drops its files', (sos.match(/_sosDropFilesOf\(/g) || []).length >= 5);
-const fbs = read('V1/js/firebase-sync.js');
+const fbs = read('V1/StudyOS/js/firebase-sync.js');
 const snapAt = fbs.indexOf('_sosUnsubscribe = onSnapshot(');
 const snapSrc = fbs.slice(snapAt, fbs.indexOf('}, (err) =>', snapAt));
 ok('firebase-sync.js: StudyOS unlocks writes only AFTER emitting the server data',
@@ -171,7 +175,7 @@ for (const it of RULES.items.filter((i) => i.store === 'kv')) {
   ok(`${it.id}: no KV list (no discovery pass)`, !/\.list\(/.test(src.slice(src.indexOf('async function dropStaleToken'), src.indexOf('async function dropStaleToken') + 400)));
 }
 
-const launch = read('trading-auto-launch/launch.py');
+const launch = read('tools/trading-auto-launch/launch.py');
 for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch')) {
   ok(`${it.id}: launch.py keeps the same ${it.capDays} days`, new RegExp(`^LOG_KEEP_DAYS = ${it.capDays}$`, 'm').test(launch));
   ok(`${it.id}: launch.py trims on every run`, /args = parser\.parse_args\(\)\r?\n\s+trim_logs\(\)/.test(launch));

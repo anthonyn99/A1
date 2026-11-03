@@ -38,9 +38,9 @@ const ROOT = path.join(__dirname, '..');
 // different origin, where neither localStorage nor a BroadcastChannel is shared
 // with this one, so it can only ever have the window-name pairing.
 const PAGES = [
-  'index.html', 'magi.html', 'riftiq.html', 'tradehub.html', 'shield.html',
-  'mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
-  'V1/wellness.html', 'everwell.html', 'Shruti/shruti.html',
+  'index.html', 'magi/magi.html', 'riftiq.html', 'tradehub.html', 'Shield/shield.html',
+  'MyList/mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
+  'V1/Wellness/wellness.html', 'everwell.html', 'Shruti/shruti.html',
 ];
 
 let pass = 0, fail = 0;
@@ -49,7 +49,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const syncPath = path.join(ROOT, 'tabsync.js');
+const syncPath = path.join(ROOT, 'Shared/tabsync.js');
 ok('tabsync.js exists at the repo root', fs.existsSync(syncPath));
 if (!fs.existsSync(syncPath)) { console.log('\n  1 failed'); process.exit(1); }
 const sync = fs.readFileSync(syncPath, 'utf8');
@@ -59,7 +59,7 @@ console.log('\nEvery A1 page answers for its tab');
 // TradeHub, Insight, Vault and Vault/ live in ../A1-Priv and load the shared
 // file by absolute URL (tests/moved.js).
 const M = require('./moved');
-const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('tabsync.js') + '["\']');
+const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('Shared/tabsync.js') + '["\']');
 for (const p of PAGES) {
   if (M.isMoved(p) && !M.has(p)) { M.skipNote(p); continue; }
   ok(p + ' loads tabsync.js', LOADS.test(M.read(p)));

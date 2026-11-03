@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {

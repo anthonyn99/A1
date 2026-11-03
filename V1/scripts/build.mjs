@@ -26,7 +26,8 @@ const dist = resolve(root, "dist");
 // Each app: where its canonical HTML lives, and the URL path it is served at.
 // `out: ""` means the site root; anything else becomes a subdirectory.
 //
-// `assets` lists sibling directories/files the HTML loads RELATIVE TO ITSELF.
+// `assets` lists sibling directories/files the HTML loads RELATIVE TO ITSELF,
+// taken from the folder the HTML sits in (StudyOS/ for StudyOS).
 // Single-file apps omit it (TradeBoard and Finance inline everything). StudyOS
 // does not: studyos.html resolves css/, js/, config/ and assets/ relative to its
 // own location, so those must land beside it in dist/ or every one of them 404s.
@@ -45,16 +46,17 @@ const APPS = [
   { name: "Finance", src: "Finance/finance.html", out: "finance" },
   {
     name: "StudyOS",
-    src: "studyos.html",
+    src: "StudyOS/studyos.html",
     out: "studyos",
     // vendor/ holds third-party runtime files under VERSIONED folder names
     // (e.g. vendor/anthropic-sdk-0.129.0/), so a new version is a new path.
     assets: ["css", "js", "config", "assets", "vendor", "manifest.webmanifest", "studyos-sw.js"],
-    // sweep.js + cleanup-rules.json live at the A1 repo root. studyos.html loads
-    // "../sweep.js", which from /studyos/ is the site root; without these the
-    // Cloudflare build 404'd it and StudyOS's self-cleanup never ran there.
+    // sweep.js and its rules live in A1's Shared/ and Rules/. studyos.html
+    // loads "../../Shared/sweep.js", which from /studyos/ is /Shared/sweep.js,
+    // and sweep.js reads ../Rules/cleanup-rules.json beside it; without these
+    // the Cloudflare build 404'd it and StudyOS's self-cleanup never ran there.
     rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"],
-                ["../sweep.js", "sweep.js"], ["../cleanup-rules.json", "cleanup-rules.json"]],
+                ["../Shared/sweep.js", "Shared/sweep.js"], ["../Rules/cleanup-rules.json", "Rules/cleanup-rules.json"]],
   },
 ];
 
@@ -75,7 +77,7 @@ for (const app of APPS) {
 
   // Sibling assets the HTML loads relative to itself.
   for (const rel of app.assets ?? []) {
-    const from = resolve(root, rel);
+    const from = resolve(root, dirname(app.src), rel);
     if (!existsSync(from)) {
       console.warn(`build: SKIP ${app.name} asset — ${rel} not found`);
       continue;
@@ -91,6 +93,7 @@ for (const app of APPS) {
       console.warn(`build: SKIP ${app.name} root file — ${rel} not found`);
       continue;
     }
+    mkdirSync(dirname(resolve(dist, dest)), { recursive: true });
     copyFileSync(from, resolve(dist, dest));
     console.log(`build:   + /${dest} (site root)`);
   }

@@ -21,8 +21,8 @@ const vm = require('vm');
 // in this list the day it ships. The programs that moved to A1-Priv are checked
 // by A1-Priv's own tests/syntax-check.js.
 const FILES = [
-  'index.html', 'shield.html', 'mylist.html', 'V1/wellness.html',
-  'magi.html',
+  'index.html', 'Shield/shield.html', 'MyList/mylist.html', 'V1/Wellness/wellness.html',
+  'magi/magi.html',
   // Program folders (Shruti moves as one folder).
   'Shruti/shruti.html',
 ];
@@ -34,7 +34,7 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // inline, so the HTML scanner below never sees them — a syntax error here is
 // just as fatal (backup.js runs on every page load) and would otherwise ship
 // unnoticed.
-const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'tni.js', 'hoverfx.js', 'resizegrip.js', 'tabsync.js', 'catdebrief.js', path.join('LifeHub', 'lifehub.js'),
+const ROOT_SCRIPTS = ['Backup/backup.js', 'Shared/dragsort.js', 'Shared/tni.js', 'Shared/hoverfx.js', 'Shared/resizegrip.js', 'Shared/tabsync.js', 'Shared/catdebrief.js', path.join('LifeHub', 'lifehub.js'),
   // Notebook (the journals): every .js in the folder, so a new file is checked the day it lands.
   ...(function nb(dir) {
     const abs = path.join(__dirname, '..', dir);

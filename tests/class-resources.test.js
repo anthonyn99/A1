@@ -6,7 +6,7 @@
  * The launch feature spans four files that must agree with each other, and two
  * of those agreements are invisible at any single edit site:
  *
- *   1. THE PATH REGEX. index.html, shield.html and V1/js/studyos.js each hold
+ *   1. THE PATH REGEX. index.html, shield.html and V1/StudyOS/js/studyos.js each hold
  *      their own copy of _isLocalPath. A string one file calls a local path and
  *      another calls a URL either opens a dead browser tab or silently launches
  *      nothing - and nothing in either app errors when it happens. The first
@@ -36,9 +36,9 @@ function section(s) { console.log('\n' + s); }
 
 const R = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const INDEX   = R('index.html');
-const SHIELD  = R('shield.html');
-const STUDYOS = R('V1/js/studyos.js');
-const MIRROR  = R('V1/js/taskmirror.js');
+const SHIELD  = R('Shield/shield.html');
+const STUDYOS = R('V1/StudyOS/js/studyos.js');
+const MIRROR  = R('V1/StudyOS/js/taskmirror.js');
 
 // ---------------- Part 1: the path regex must be byte-identical -------------
 section('Path classifier is byte-identical across all three copies');
@@ -312,8 +312,8 @@ t('editing app to web clears the stale path',
  * two-site class on its own. */
 section('Class websites reach Shield');
 
-const PROC = R('desktop/shield/src-tauri/src/proc.rs');
-const LIB  = R('desktop/shield/src-tauri/src/lib.rs');
+const PROC = R('Shield/desktop/src-tauri/src/proc.rs');
+const LIB  = R('Shield/desktop/src-tauri/src/lib.rs');
 
 t('the desktop doc carries websites, not just native apps',
   /kind === 'app'[\s\S]{0,200}?url:\s*r\.url/.test(MIRROR),

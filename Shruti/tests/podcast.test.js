@@ -27,14 +27,14 @@ const frames = (buf) => { const out = []; let at = 0; while (at + 4 <= buf.lengt
 (async () => {
   console.log('\nThe files');
   const babel = require('@babel/parser');
-  let err = null; try { babel.parse(read('podcast.js'), { sourceType: 'module' }); } catch (e) { err = e.message; }
+  let err = null; try { babel.parse(read('app/podcast.js'), { sourceType: 'module' }); } catch (e) { err = e.message; }
   ok('podcast.js parses as a module', !err, err);
   globalThis.atob = globalThis.atob || ((b) => Buffer.from(b, 'base64').toString('binary'));
   // core.js reads the profile from the page; podcast.js listens for page events.
   global.window = { SHRUTI_PROFILES: { tony: { label: 'Tony', doc: 'shruti' }, veda: { label: 'Veda', doc: 'shruti_veda' } }, SHRUTI_PROFILE: 'tony' };
   global.addEventListener = () => {};
-  const POD = await import(pathToFileURL(path.join(DIR, 'podcast.js')).href);
-  const T = await import(pathToFileURL(path.join(DIR, 'text.js')).href);
+  const POD = await import(pathToFileURL(path.join(DIR, 'app/podcast.js')).href);
+  const T = await import(pathToFileURL(path.join(DIR, 'app/text.js')).href);
   const silence = fs.readFileSync(path.join(DIR, 'tools', 'silence.mp3'));
   ok('the page\'s silent clip is tools/silence.mp3', Buffer.from(POD.SILENCE_B64, 'base64').equals(silence));
   const sf = frames(silence);

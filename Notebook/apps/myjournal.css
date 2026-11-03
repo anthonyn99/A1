@@ -31,7 +31,7 @@
     --card2:      #2c2c31;
     --border:     #34343a;
     --border2:    #45454c;
-    /* MAGI's palette (theme overhaul phase 2, docs/theme-overhaul-plan.md §2).
+    /* MAGI's palette (theme overhaul phase 2, docs/Theme/theme-overhaul-plan.md §2).
        --ac is the accent; --gold is kept for stars, warnings and the locked
        lock only. --purple / --purple2 / --cyan are aliases for the rules this
        journal shares with Veda's (#tj-root, #bj-root pairs) and for script. */

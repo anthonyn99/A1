@@ -108,7 +108,7 @@ const font = (sel) => `return (() => { const e = document.querySelector(${JSON.s
 
 const MD = [
   'Here is the ranking.', '',
-  '| # | File | Size |', '|---|---|---|', '| 1 | `index.html` | 2.5 MB |', '| 2 | `magi.html` | 1.2 MB |', '',
+  '| # | File | Size |', '|---|---|---|', '| 1 | `index.html` | 2.5 MB |', '| 2 | `magi/magi.html` | 1.2 MB |', '',
   'Run this in PowerShell:', '',
   '```powershell',
   "Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch '\\\\profiles\\\\' } | Sort-Object Length -Descending | Select-Object -First 20 FullName, Length",

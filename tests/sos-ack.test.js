@@ -37,7 +37,7 @@ function section(s) { console.log('\n' + s); }
 
 // ------------------------- Part 1: static guards -------------------------
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const TMJS = fs.readFileSync(path.join(__dirname, '..', 'V1', 'js', 'taskmirror.js'), 'utf8');
+const TMJS = fs.readFileSync(path.join(__dirname, '..', 'V1', 'StudyOS', 'js', 'taskmirror.js'), 'utf8');
 
 section('Static: TaskHub reads its own ack back');
 

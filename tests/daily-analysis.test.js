@@ -15,7 +15,7 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const LAUNCH = path.join(ROOT, 'trading-auto-launch', 'launch.py');
+const LAUNCH = path.join(ROOT, 'tools', 'trading-auto-launch', 'launch.py');
 const SRC = fs.readFileSync(LAUNCH, 'utf8').replace(/\r\n/g, '\n');
 
 let pass = 0, fail = 0;
@@ -81,7 +81,7 @@ print(json.dumps({"opened": opened, "focused": focused, "marked": st, "gate": le
   catch (e) { return { err: 'unparsable: ' + (r.stdout || '').slice(0, 200) }; }
 }
 
-const MAGI = { ok: true, text: 'Daily prompt', name: 'Daily', aiUrl: 'https://anthonyn99.github.io/A1/magi.html', magiUnits: ['chatgpt', 'claude'], searches: ['finviz.com'] };
+const MAGI = { ok: true, text: 'Daily prompt', name: 'Daily', aiUrl: 'https://anthonyn99.github.io/A1/magi/magi.html', magiUnits: ['chatgpt', 'claude'], searches: ['finviz.com'] };
 const CHAT = { ok: true, text: 'Daily prompt', name: 'Daily', aiUrl: 'https://chatgpt.com/', searches: ['finviz.com'] };
 const decode = (u) => JSON.parse(Buffer.from(/#tb=([^&]+)/.exec(u)[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
 

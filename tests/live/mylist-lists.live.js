@@ -25,7 +25,7 @@
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/mylist.html';
+const URL = 'https://anthonyn99.github.io/A1/MyList/mylist.html';
 const mk = (name, extra) => Object.assign({ id: 'L_' + name.replace(/\W+/g, '').toLowerCase(), name, stores: [], items: [], createdAt: 1 }, extra || {});
 const it = (id, name, extra) => Object.assign({ id, name, qty: '', store: '', desc: '', done: false }, extra || {});
 const FIXTURE = {

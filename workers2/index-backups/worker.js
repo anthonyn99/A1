@@ -9,7 +9,7 @@
 // a silent failure hides.
 //
 // This is the off-device sink. Every device pushes its encrypted snapshot here,
-// and a script on a desktop later folds those into `Index Backups/` in the repo
+// and a script on a desktop later folds those into `Backup/Index Backups/` in the repo
 // so there is a copy that outlives all of the hardware.
 //
 // WHAT THIS WORKER CAN AND CANNOT SEE

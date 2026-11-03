@@ -28,7 +28,7 @@ const ok = (name, cond, extra) => {
 (async () => {
   console.log('\nThe files');
   const babel = require('@babel/parser');
-  for (const f of ['generate.js', 'media.js', 'library.js', 'video.js', 'podcast.js', 'narrate.js']) {
+  for (const f of ['app/generate.js', 'app/media.js', 'app/library.js', 'app/video.js', 'app/podcast.js', 'app/narrate.js']) {
     let err = null; try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; }
     ok(f + ' parses as a module', !err, err);
   }
@@ -38,12 +38,12 @@ const ok = (name, cond, extra) => {
   globalThis.btoa = globalThis.btoa || ((s) => Buffer.from(s, 'binary').toString('base64'));
   const calls = [];
   global.fetch = async (url, o = {}) => { calls.push({ url, method: o.method || 'GET' }); return { ok: true, status: 200, json: async () => ({ ok: true, connected: true }) }; };
-  const G = await import(pathToFileURL(path.join(DIR, 'generate.js')).href);
-  const M = await import(pathToFileURL(path.join(DIR, 'media.js')).href);
-  const VID = await import(pathToFileURL(path.join(DIR, 'video.js')).href);
-  const C = await import(pathToFileURL(path.join(DIR, 'core.js')).href);
+  const G = await import(pathToFileURL(path.join(DIR, 'app/generate.js')).href);
+  const M = await import(pathToFileURL(path.join(DIR, 'app/media.js')).href);
+  const VID = await import(pathToFileURL(path.join(DIR, 'app/video.js')).href);
+  const C = await import(pathToFileURL(path.join(DIR, 'app/core.js')).href);
   ok('they load in Node', typeof G.run === 'function' && typeof M.record === 'function');
-  ok('every module the page loads is wired: app.js sets generate.js up', /G\.setUI\(/.test(read('app.js')) && /import \* as G from '\.\/generate\.js'/.test(read('app.js')));
+  ok('every module the page loads is wired: app.js sets generate.js up', /G\.setUI\(/.test(read('app/app.js')) && /import \* as G from '\.\/generate\.js'/.test(read('app/app.js')));
 
   const lessons = JSON.parse(read('books/gita/lessons.json'));
   const ch2 = JSON.parse(read('books/gita/ch02.json'));
@@ -84,7 +84,7 @@ const ok = (name, cond, extra) => {
   ok('coverage names what is missing', JSON.stringify(G.coverage('podcast', pod, ['L1', 'L2', 'L3']).missing) === '["L3"]');
 
   console.log('\nLabelled replies, as each unit sends them');
-  const F = await import(pathToFileURL(path.join(DIR, 'formats.js')).href);
+  const F = await import(pathToFileURL(path.join(DIR, 'app/formats.js')).href);
   const pctx = { hosts, lessonIds: ['L1', 'L2', 'L3'] };
   const gpt = 'Sure! Here is the episode.\n\n**PART:** Welcome\n**Ava:** Welcome back to Shruti.\n**Andrew:** Glad to be here.\n\n**PART:** Lesson 1 · Do your duty **[L1]**\n**A:** Duty first.\nIt carries on here.\n**B:** Agreed.\n\nEND';
   const p1 = F.parseReply('podcast', gpt, pctx);
@@ -241,7 +241,7 @@ const ok = (name, cond, extra) => {
   ok('a continuation that writes the cut item again replaces it; one that just goes on is joined on its word', jv === 'SCENE 1\nNARRATION: a.\n\nSCENE 2\nNARRATION: b.\nEND' && jp === 'PART: Welcome\nA: Hello there.\nB: Hi.' && jp2.split('Lesson 2').length === 2 && /B: two\.\nEND$/.test(jp2), JSON.stringify([jv, jp, jp2]));
 
   console.log('\nVoices and captions always match (Tony, 2026-10-22)');
-  const O2 = await import(pathToFileURL(path.join(DIR, 'orca.js')).href);
+  const O2 = await import(pathToFileURL(path.join(DIR, 'app/orca.js')).href);
   ok('edgeClip: whole 144-byte frames of 24 kHz 48 kbps only', O2.edgeClip(frames(6048)) && !O2.edgeClip(frames(6048).subarray(0, 6000)) && !O2.edgeClip(new Uint8Array(6048)));
   let calls2 = 0;
   const flaky = async (a) => { calls2++; return calls2 === 1 ? { audio: new Blob([new Uint8Array(5000)]), engine: 'aura', words: null } : fake(() => 6048)(a); };

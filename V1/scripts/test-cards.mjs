@@ -20,7 +20,7 @@
 //       generator that handles one strands half her material.
 //
 // Run with:  npm run test:cards
-import * as C from '../js/modules/cards.js';
+import * as C from '../StudyOS/js/modules/cards.js';
 
 let pass = 0, fail = 0;
 const t = (name, cond, extra) => {

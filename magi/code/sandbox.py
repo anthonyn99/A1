@@ -548,7 +548,7 @@ ENGINE_REPO_WHY = {
 # A1 SHIPS what is applied: auto commit/push sends every change to main
 # right away, GitHub Pages serves the pages, and these paths
 # deploy on push (.github/workflows). Said on the approval card, per file.
-ENGINE_REPO_DEPLOYS = ("workers/", "workers2/", "V1/workers/", "desktop/shield/")
+ENGINE_REPO_DEPLOYS = ("workers/", "workers2/", "V1/workers/", "Shield/desktop/")
 # Refused in A1 outright: a workflow runs with the repository's secrets, and
 # with the push automatic, approving the diff would be the only gate.
 ENGINE_REPO_DENY = {".github/": "A1 is pushed right away and a workflow runs "

@@ -108,8 +108,8 @@ const show = (c, id) => evalJs(c, `var e = document.getElementById(${JSON.string
 
   // ── Every program ────────────────────────────────────────────────────────
   console.log('\nPrograms');
-  const PAGES = ['index.html', 'index.html?profile=veda', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html',
-    'V1/studyos.html', 'V1/wellness.html', 'backup-restore.html', 'backup-export.html',
+  const PAGES = ['index.html', 'index.html?profile=veda', 'magi/magi.html', 'MyList/mylist.html', 'Shield/shield.html', 'Shruti/shruti.html',
+    'V1/StudyOS/studyos.html', 'V1/Wellness/wellness.html', 'Backup/backup-restore.html', 'Backup/backup-export.html',
     'oneinbox.html', 'tradehub.html', 'insight.html', 'vault.html', 'everwell.html', 'riftiq.html'];
   for (const p of PAGES) {
     await go(c, BASE + p, 4000);

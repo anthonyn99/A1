@@ -630,10 +630,10 @@ def test_asking_again_for_nothing_new_ends_the_requests(tmp_path, monkeypatch):
 
 
 def test_missing_mentions_need_an_admission_and_a_real_unsent_file():
-    files = ["V1/js/modules/ai.js", "V1/js/modules/breakdown.js", "a/x.js", "b/x.js"]
+    files = ["V1/StudyOS/js/modules/ai.js", "V1/StudyOS/js/modules/breakdown.js", "a/x.js", "b/x.js"]
     said = "I did not have `ai.js` or `x.js` or `nope.js`, so this is inferred. `breakdown.js` too."
-    assert context.missing_mentions(said, files, {"V1/js/modules/breakdown.js"}) == \
-        ["V1/js/modules/ai.js"]                        # x.js is ambiguous, nope.js unreal
+    assert context.missing_mentions(said, files, {"V1/StudyOS/js/modules/breakdown.js"}) == \
+        ["V1/StudyOS/js/modules/ai.js"]                        # x.js is ambiguous, nope.js unreal
     assert context.missing_mentions("It is in `ai.js`.", files, set()) == []   # no admission
 
 

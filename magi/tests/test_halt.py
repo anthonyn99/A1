@@ -33,7 +33,7 @@ from magi.errors import FailureKind  # noqa: E402
 from magi.providers.base import Answer  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
 
 
 class StubbornProvider:

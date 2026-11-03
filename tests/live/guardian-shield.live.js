@@ -11,7 +11,7 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 400) : '')); }
 };
-const URL_ = 'https://anthonyn99.github.io/A1/shield.html';
+const URL_ = 'https://anthonyn99.github.io/A1/Shield/shield.html';
 const recs = {}; let n = 0, down = false;
 const ver = (k) => (recs[k] ? 'v' + recs[k].salt : null);
 const setRec = (k, pw) => { recs[k] = { pw, salt: ++n }; };

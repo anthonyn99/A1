@@ -19,15 +19,15 @@ const vm = require('vm');
 const M = require('./moved');
 
 const ROOT = path.join(__dirname, '..');
-const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('apphead.js') + '["\']');
+const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('Shared/apphead.js') + '["\']');
 
 // page → the marks it must show (static data-a1-app or a React AppIcon).
 const PAGES = {
   'index.html': ['taskhub', 'journal', 'gita'],
-  'mylist.html': ['mylist'],
+  'MyList/mylist.html': ['mylist'],
   'oneinbox.html': ['oneinbox'],
-  'magi.html': ['magi'],
-  'V1/wellness.html': ['wellness'],
+  'magi/magi.html': ['magi'],
+  'V1/Wellness/wellness.html': ['wellness'],
   'tradehub.html': ['tradehub'],
   'insight.html': ['insight'],
   'vault.html': ['vault'],
@@ -36,7 +36,7 @@ const PAGES = {
 };
 // Shield and Everwell draw their own mark (Shield's is the model; Everwell's
 // is its start-screen button), but Shield still uses the shared pill.
-const PILL_ONLY = ['shield.html'];
+const PILL_ONLY = ['Shield/shield.html'];
 const COPIES = [
   ['PriceWatch', 'popup.html', 'pricewatch'],
   ['Vault', 'popup.html', 'vault'],
@@ -49,7 +49,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const srcPath = path.join(ROOT, 'apphead.js');
+const srcPath = path.join(ROOT, 'Shared/apphead.js');
 const src = fs.readFileSync(srcPath);
 // Load it in a bare sandbox to learn the glyph names.
 const sandbox = { window: {}, document: { readyState: 'complete', getElementById: () => null, createElement: () => ({}), head: { appendChild() {} }, querySelectorAll: () => [] }, navigator: {}, setTimeout, clearTimeout, WeakMap };
@@ -82,12 +82,12 @@ for (const name of PILL_ONLY) {
 
 // The old per-program indicators are gone.
 const GONE = [
-  ['mylist.html', /class="sync-pill"/],
+  ['MyList/mylist.html', /class="sync-pill"/],
   ['oneinbox.html', /class="syncind"/],
   ['insight.html', /class="syncind"/],
   ['riftiq.html', /class="syncind"/],
-  ['shield.html', /class="sync" id="sync"/],
-  ['V1/wellness.html', /class="wl-sync"/],
+  ['Shield/shield.html', /class="sync" id="sync"/],
+  ['V1/Wellness/wellness.html', /class="wl-sync"/],
   ['index.html', /syncStatus==="saving"\?"Syncing…"/],
   ['tradehub.html', /syncLabel/],
 ];

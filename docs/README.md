@@ -9,12 +9,13 @@ Everwell) are in A1-Priv's own `docs/`.
 
 | Doc | What it is |
 | --- | --- |
-| [a1-priv-move-plan.md](a1-priv-move-plan.md) | Moving programs to the private repo. Done 2026-10-10; its last section is the recipe for moving another one |
-| [apphead.md](apphead.md) | The app mark beside every title and Everwell's sync pill, shared through `apphead.js` (2026-10-13) |
-| [controls.md](controls.md) | A1's own form controls in every program, both sides, shared through `controls.js`: selects, date/time pickers, checkboxes, colour picker, tooltips (2026-11-02) |
-| [popups.md](popups.md) | Every popup's backdrop (TaskHub's dim + blur), click-outside-to-close and the drag guard, in every program, through `popups.js` (2026-11-03) |
-| [profilepick.md](profilepick.md) | The one profile picker (Shruti's title screen) in Index, MyList, Shield, MAGI, Shruti and ORCA, through `profilepick.js` (2026-10-27) |
-| [theme-overhaul-plan.md](theme-overhaul-plan.md) | MAGI's look and drag on Tony's side. Done 2026-10-03; §0 says what to do with a new theme ask, §2 is the spec |
+| [layout.md](layout.md) | **Where every file goes** in A1 (and, by the same rules, A1-Priv): one folder per program, `Shared/`, `Rules/`, `tests/`, `tools/`, `V1/`. `tests/layout.test.js` enforces it (2026-11-03) |
+| [A1-Priv/a1-priv-move-plan.md](A1-Priv/a1-priv-move-plan.md) | Moving programs to the private repo. Done 2026-10-10; its last section is the recipe for moving another one |
+| [Shared/apphead.md](Shared/apphead.md) | The app mark beside every title and Everwell's sync pill, shared through `apphead.js` (2026-10-13) |
+| [Shared/controls.md](Shared/controls.md) | A1's own form controls in every program, both sides, shared through `controls.js`: selects, date/time pickers, checkboxes, colour picker, tooltips (2026-11-02) |
+| [Shared/popups.md](Shared/popups.md) | Every popup's backdrop (TaskHub's dim + blur), click-outside-to-close and the drag guard, in every program, through `popups.js` (2026-11-03) |
+| [Shared/profilepick.md](Shared/profilepick.md) | The one profile picker (Shruti's title screen) in Index, MyList, Shield, MAGI, Shruti and ORCA, through `profilepick.js` (2026-10-27) |
+| [Theme/theme-overhaul-plan.md](Theme/theme-overhaul-plan.md) | MAGI's look and drag on Tony's side. Done 2026-10-03; §0 says what to do with a new theme ask, §2 is the spec |
 
 ## By project
 
@@ -27,7 +28,7 @@ Everwell) are in A1-Priv's own `docs/`.
 | [PriceWatch/](PriceWatch/) | The extension, and `STORE_NOTES.md` (per-store notes; read before touching a store module) |
 | [TaskHub/](TaskHub/) | `notifications.md` (how a reminder reaches a phone; live vs dead series; worker timing), `taskhub-archive-handoff.md` (read before touching the day-archiver), `plans-section-design.md` (the Plans section's spec), `catalyst-debrief.md` (the Catalysts ▶ that debriefs an event in MAGI), `ai-prep.md` (AI prep on both TaskHubs: who owns which doc, the generated TH-PREP block), `backup-restore.md` (Settings → Restore: where backups come from, what a restore writes, undo), `versioned-save.md` (how a save checks the version it was built on and merges instead of overwriting; the 2026-10-19 reset), `drag-and-drop.md` (both TaskHubs drag with A1Drag: what goes where, thDragRef, testing) |
 | [../Shruti/docs/](../Shruti/docs/) | **Shruti** (read / listen / watch / study; the Gita first). Its docs stay inside `Shruti/` so the program moves as one folder: `README.md` (the contract), `plan.md` (§0 is the session hand-off) |
-| [shield/](shield/) | The Shield desktop agent |
+| [Shield/](Shield/) | The Shield desktop agent |
 | [tools/](tools/) | App Check maintenance |
 | [workers2/](workers2/) | The Cloudflare account-2 deploy lane |
-| [V1/](V1/) | Veda's earlier suite (StudyOS, Finance, TradeBoard, Launcher); `notebook.md`: StudyOS's notes and TradeBoard's Strats are V's Notebook (2026-10-29); `tradeboard-ui-redesign.md`: TradeBoard's Control, News and Market Summary in TradeHub's layout (2026-10-29); `studyos-ui-overhaul.md`: StudyOS's redesign, its rules (no browser UI, every delete asks, A1Drag) and its Guardian lock (2026-10-29) |
+| [V1/](V1/) | Veda's suite (StudyOS, Wellness, Finance, TradeBoard, Launcher): `README.md` and `README_FOR_CLAUDE.md` at the top; `Suite/` (architecture, data model, pipeline, setup, security, testing); `StudyOS/notebook.md` (StudyOS's notes and TradeBoard's Strats are V's Notebook, 2026-10-29) and `StudyOS/studyos-ui-overhaul.md` (StudyOS's redesign, its rules and its Guardian lock, 2026-10-29); `TradeBoard/tradeboard-ui-redesign.md` (TradeBoard in TradeHub's layout, 2026-10-29); `Wellness/` (the tracker's design) |

@@ -47,7 +47,7 @@ function fakeFirestore() {
 (async () => {
   console.log('\nThe files');
   const babel = require('@babel/parser');
-  for (const f of ['extract.js', 'books.js', 'order.js', 'import.js', 'library.js', 'study/hub.js', 'study/ui.js', 'study/flashcards.js', 'study/quiz.js', 'study/slides.js', 'study/mindmap.js', 'generate.js']) {
+  for (const f of ['app/extract.js', 'app/books.js', 'app/order.js', 'app/import.js', 'app/library.js', 'app/study/hub.js', 'app/study/ui.js', 'app/study/flashcards.js', 'app/study/quiz.js', 'app/study/slides.js', 'app/study/mindmap.js', 'app/generate.js']) {
     let err = null; try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; }
     ok(f + ' parses as a module', !err, err);
   }
@@ -57,20 +57,20 @@ function fakeFirestore() {
   global.document = { addEventListener() {}, querySelector() { return null; } };
   global.CustomEvent = class { constructor(t, o) { this.type = t; this.detail = o && o.detail; } };
   global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
-  const X = await import(pathToFileURL(path.join(DIR, 'extract.js')).href);
-  const C = await import(pathToFileURL(path.join(DIR, 'core.js')).href);
-  const OR = await import(pathToFileURL(path.join(DIR, 'order.js')).href);
-  const B = await import(pathToFileURL(path.join(DIR, 'books.js')).href);
-  const M = await import(pathToFileURL(path.join(DIR, 'media.js')).href);
-  const G = await import(pathToFileURL(path.join(DIR, 'generate.js')).href);
-  const H = await import(pathToFileURL(path.join(DIR, 'study/hub.js')).href);
-  const U = await import(pathToFileURL(path.join(DIR, 'study/ui.js')).href);
+  const X = await import(pathToFileURL(path.join(DIR, 'app/extract.js')).href);
+  const C = await import(pathToFileURL(path.join(DIR, 'app/core.js')).href);
+  const OR = await import(pathToFileURL(path.join(DIR, 'app/order.js')).href);
+  const B = await import(pathToFileURL(path.join(DIR, 'app/books.js')).href);
+  const M = await import(pathToFileURL(path.join(DIR, 'app/media.js')).href);
+  const G = await import(pathToFileURL(path.join(DIR, 'app/generate.js')).href);
+  const H = await import(pathToFileURL(path.join(DIR, 'app/study/hub.js')).href);
+  const U = await import(pathToFileURL(path.join(DIR, 'app/study/ui.js')).href);
   ok('they load in Node', typeof X.fromPdf === 'function' && typeof B.save === 'function' && typeof OR.sortable === 'function');
-  ok('the library reads imported books through books.js, shipped ones from the repo', /isShipped\(id\) \? getJSON\('books\/' \+ id \+ '\/book\.json'\) : B\.get\(id\)/.test(read('library.js')) && /B\.chapter\(id, file\)/.test(read('library.js')));
-  ok('only shipped books fetch shipped media and study sets', ['podcast.js', 'video.js', 'narrate.js'].every((f) => /if \(!C\.isShipped\(book\)\) return Promise\.resolve\(\{\}\);/.test(read(f))) && /!C\.isShipped\(book\) \? Promise\.resolve\(\{\}\)/.test(read('study/hub.js')));
-  ok('a personal book\'s media is read from the person\'s own doc', ['podcast.js', 'video.js', 'narrate.js'].every((f) => /M\.docFor\(book\)\.get\('assets\./.test(read(f)) && !/C\.shared\.get\('assets\./.test(read(f))));
-  ok('pdf.js comes from A1\'s vendored copy, JSZip pinned from cdnjs', /'\.\.\/V1\/vendor\/pdfjs-6\.3\.289\/'/.test(read('import.js')) && fs.existsSync(path.join(DIR, '..', 'V1', 'vendor', 'pdfjs-6.3.289', 'pdf.min.mjs')) && /cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/3\.10\.1\/jszip\.min\.js/.test(read('import.js')));
-  ok('the README says how to move Shruti with pdf.js outside it', /V1\/vendor\/pdfjs-6\.3\.289/.test(read('docs/README.md')));
+  ok('the library reads imported books through books.js, shipped ones from the repo', /isShipped\(id\) \? getJSON\('books\/' \+ id \+ '\/book\.json'\) : B\.get\(id\)/.test(read('app/library.js')) && /B\.chapter\(id, file\)/.test(read('app/library.js')));
+  ok('only shipped books fetch shipped media and study sets', ['app/podcast.js', 'app/video.js', 'app/narrate.js'].every((f) => /if \(!C\.isShipped\(book\)\) return Promise\.resolve\(\{\}\);/.test(read(f))) && /!C\.isShipped\(book\) \? Promise\.resolve\(\{\}\)/.test(read('app/study/hub.js')));
+  ok('a personal book\'s media is read from the person\'s own doc', ['app/podcast.js', 'app/video.js', 'app/narrate.js'].every((f) => /M\.docFor\(book\)\.get\('assets\./.test(read(f)) && !/C\.shared\.get\('assets\./.test(read(f))));
+  ok('pdf.js comes from A1\'s vendored copy, JSZip pinned from cdnjs', /'\.\.\/\.\.\/V1\/StudyOS\/vendor\/pdfjs-6\.3\.289\/'/.test(read('app/import.js')) && fs.existsSync(path.join(DIR, '..', 'V1', 'StudyOS', 'vendor', 'pdfjs-6.3.289', 'pdf.min.mjs')) && /cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/3\.10\.1\/jszip\.min\.js/.test(read('app/import.js')));
+  ok('the README says how to move Shruti with pdf.js outside it', /V1\/StudyOS\/vendor\/pdfjs-6\.3\.289/.test(read('docs/README.md')));
 
   console.log('\nText');
   ok('a word broken over a line is put back', X.joinLines(['the cour-', 'age of Arjuna']) === 'the courage of Arjuna');
@@ -249,7 +249,7 @@ function fakeFirestore() {
   await B.save('shared', Object.assign({}, book, { id: sharedId, title: 'Ours' }), chapters.slice(0, 1).concat([X.toChapter(2, 'Two', [{ t: 'Gamma.', h: 0 }])]));
   ok('a Shared book goes to the shared doc and its texts beside it', C.shared.get('books.' + sharedId + '.title') === 'Ours' && ff.docs.has('dashboards/shruti_shared/texts/' + sharedId + '_ch01') && M.docFor(sharedId) === C.shared);
   // Read back with an empty cache (another device).
-  const B2 = await import(pathToFileURL(path.join(DIR, 'books.js')).href + '?fresh');
+  const B2 = await import(pathToFileURL(path.join(DIR, 'app/books.js')).href + '?fresh');
   const back = await B2.chapter(id, 'ch02');
   ok('a chapter reads back exactly, from its parts', JSON.stringify(back) === JSON.stringify(chapters[1]) && ff.docs.has('dashboards/shruti/texts/' + id + '_ch02~1') === (B.parts(JSON.stringify(chapters[1])).length > 1));
   const gb = await B.get(id);

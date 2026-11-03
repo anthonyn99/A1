@@ -550,7 +550,7 @@ var CSS = [
 '*{box-sizing:border-box}',
 'button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}',
 '.ov{position:fixed;inset:0;z-index:2147483000;display:flex;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(7px) saturate(.9);backdrop-filter:blur(7px) saturate(.9);font-family:var(--f);color:var(--tx);-webkit-font-smoothing:antialiased}',
-/* Tony: MAGI tokens (magi.html :root, docs/theme-overhaul-plan.md §2). */
+/* Tony: MAGI tokens (magi.html :root, docs/Theme/theme-overhaul-plan.md §2). */
 '.ov[data-theme=tony]{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#34343a;--bd:rgba(255,255,255,.06);--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--ac:#c0aeea;--acl:#dbd0f5;--onac:#1a1a1d;--red:#d68a7c;--ring:rgba(192,174,234,.16);--f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--fd:"Manrope","Inter",system-ui,sans-serif;--r:8px;--rb:6px;--btn-fs:10px;--btn-tt:uppercase;--btn-ls:1px;--title-fs:22px;--title-w:800;--title-ls:-.3px}',
 /* Veda: her TaskHub palette (index.html VD_T, Notebook/apps/brainstorm.css) — Lora titles, Inter body. */
 '.ov[data-theme=veda]{--bg:#1B1C1E;--s1:#26272A;--s2:#2E2F33;--s3:#303135;--bd:#3D3E43;--bdl:#4A4B51;--tx:#ECECEE;--txd:#AFB0B5;--txm:#76777C;--ac:#8D769A;--acl:#A892B0;--onac:#ffffff;--red:#E07A6F;--ring:rgba(141,118,154,.24);--f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--fd:"Lora",Georgia,serif;--r:6px;--rb:6px;--btn-fs:13px;--btn-tt:none;--btn-ls:0;--title-fs:24px;--title-w:700;--title-ls:-.2px}',

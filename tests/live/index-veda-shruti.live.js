@@ -34,7 +34,7 @@ async function run(c, label, vedaLinks, flag) {
   const c = await connect({ mock: firebaseMock({}) });
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-  const a = await run(c, 'no shruti yet:', [{ id: 'shield', label: 'Shield', url: ORIGIN + '/A1/shield.html' }], false);
+  const a = await run(c, 'no shruti yet:', [{ id: 'shield', label: 'Shield', url: ORIGIN + '/A1/Shield/shield.html' }], false);
   ok('Shruti is added to her links, once, and the flag is saved', a.links.filter((x) => /shruti\.html/i.test(x)).length === 1 && a.flag, JSON.stringify(a));
   ok('…and shows in her header', a.btn >= 1, a.btn);
   const b = await run(c, 'her own shruti:', [{ id: 'mine1', label: 'Shruti', url: ORIGIN + '/A1/Shruti/shruti.html?x=1' }], false);

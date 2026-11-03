@@ -74,9 +74,9 @@ globalThis.fetch = async (url, init = {}) => {
 };
 const reply = (obj) => new Response(JSON.stringify({ choices: [{ message: { content: typeof obj === 'string' ? obj : JSON.stringify(obj) }, finish_reason: 'stop' }] }), { status: 200 });
 
-const bd = await import(new URL('../js/modules/breakdown.js', import.meta.url).href);
-const ai = await import(new URL('../js/modules/ai.js', import.meta.url).href);
-const deck = await import(new URL('../js/modules/deck.js', import.meta.url).href);
+const bd = await import(new URL('../StudyOS/js/modules/breakdown.js', import.meta.url).href);
+const ai = await import(new URL('../StudyOS/js/modules/ai.js', import.meta.url).href);
+const deck = await import(new URL('../StudyOS/js/modules/deck.js', import.meta.url).href);
 
 // ── Validation ────────────────────────────────────────────────────────────
 console.log('\nvalidateTopics');
@@ -326,7 +326,7 @@ t('a file that is not a PDF, Word or slides is refused with a clear message', th
 
 console.log('\nslide decks go through the bridge as a PDF');
 {
-  const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
+  const pipeline = await import(new URL('../StudyOS/js/modules/pipeline.js', import.meta.url).href);
   const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
   t('.pptx / .ppt are breakable, a .xlsx or .txt is not',
     pipeline.isBreakable({ name: 'Ch 2.pptx', mime: PPTX }) && pipeline.isBreakable({ name: 'old.ppt', mime: '' })
@@ -381,7 +381,7 @@ console.log('\nslide decks go through the bridge as a PDF');
 
 console.log('\nWord documents go through the bridge as a PDF');
 {
-  const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
+  const pipeline = await import(new URL('../StudyOS/js/modules/pipeline.js', import.meta.url).href);
   const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   t('Word formats are breakable, by mime or by name',
     [{ name: 'a', mime: DOCX }, { name: 'a', mime: 'application/msword' }, { name: 'a', mime: 'application/rtf' },

@@ -22,7 +22,7 @@
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
 // The private programs (TradeHub, Insight, Vault) moved to their own host on
-// 2026-10-10 (docs/a1-priv-move-plan.md). Same pages, same Firebase project.
+// 2026-10-10 (docs/A1-Priv/a1-priv-move-plan.md). Same pages, same Firebase project.
 const PRIV_ORIGIN = 'https://a1-priv.av1.workers.dev';
 
 // MAGI is the one A1 program that is not only a page: its engine serves

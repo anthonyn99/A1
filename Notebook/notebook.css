@@ -5,7 +5,7 @@
 
 /* ── docx-css-tony ── */
 /* The DOCX editor in MAGI's look, for Tony only (theme overhaul phase 2,
-   docs/theme-overhaul-plan.md). The rules above are shared with Veda's
+   docs/Theme/theme-overhaul-plan.md). The rules above are shared with Veda's
    Brainstorm Journal and stay as they are; this sheet only adds to them.
    In-sheet rules scope by #tj-root. The menus, dialogs and toasts are
    appended to <body>, so they scope by body[data-th-profile="tony"], which

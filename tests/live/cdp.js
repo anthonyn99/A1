@@ -109,7 +109,7 @@ async function connect(opts) {
 // file://; its Origin is "null", which the engine now refuses because any
 // website can produce it too (see "Who may drive the engine" in docs/MAGI/magi.md).
 const PAGES = 'https://anthonyn99.github.io/A1/';
-const PAGES_URL = PAGES + 'magi.html';
+const PAGES_URL = PAGES + 'magi/magi.html';
 // A1_ROOT serves a DIFFERENT checkout under the same origin -- e.g. a
 // `git worktree` of an older tag, for a before/after comparison
 // (tests/live/theme-shots.live.js).
@@ -199,17 +199,24 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
       return;
     }
-    const rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
+    let rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
     // TradeHub, Insight, Vault (+ Vault/), RiftIQ (and Everwell, built there) are in ../A1-Priv since 2026-10-10;
     // A1 has no copy. Serve the real pages from that checkout, still
     // under this origin, so their tests exercise the code that ships.
-    const priv = path.join(A1, '..', 'A1-Priv');
-    const moved = MOVED.test(rel) && fs.existsSync(path.join(priv, rel));
+    // Each A1-Priv program sits in its own folder there (host/pages.json maps
+    // the served page to its source; RiftIQ's riftiq-live/ moved with it).
+    const priv = process.env.A1_PRIV ? path.resolve(process.env.A1_PRIV) : path.join(A1, '..', 'A1-Priv');
+    let privRel = rel;
+    try { privRel = JSON.parse(fs.readFileSync(path.join(priv, 'host', 'pages.json'), 'utf8'))[rel] || rel; } catch (e) {}
+    if (/^riftiq-live\//.test(rel) && fs.existsSync(path.join(priv, 'RiftIQ', rel))) privRel = 'RiftIQ/' + rel;
+    const moved = (MOVED.test(rel) || /^riftiq-live\//.test(rel)) && fs.existsSync(path.join(priv, privRel));
     const base = moved ? priv : A1;
+    const served = rel;
+    if (moved) rel = privRel;
     // EW_PAGE_FILE / TH_PAGE_FILE / TB_PAGE_FILE: serve a work-in-progress copy
     // of everwell.html, tradehub.html or Veda's tradeboard.html (outside the
     // repos, so the auto-deploy never ships it half-built) in its place.
-    const wip = (rel === 'everwell.html' && process.env.EW_PAGE_FILE) || (rel === 'tradehub.html' && process.env.TH_PAGE_FILE)
+    const wip = (served === 'everwell.html' && process.env.EW_PAGE_FILE) || (served === 'tradehub.html' && process.env.TH_PAGE_FILE)
       || (rel === 'V1/TradeBoard/tradeboard.html' && process.env.TB_PAGE_FILE);
     const file = wip ? path.resolve(wip) : path.resolve(base, rel);
     if (!wip && (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile())) {

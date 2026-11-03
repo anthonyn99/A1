@@ -36,18 +36,18 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const HOSTS = {
   'oneinbox.html': { lock: 'guardian', mounts: 'tony' },
   'tradehub.html': { lock: 'guardian', mounts: 'tony' },
-  'mylist.html':   { lock: 'guardian', mounts: 'follow' },
+  'MyList/mylist.html':   { lock: 'guardian', mounts: 'follow' },
   'insight.html':  { lock: 'guardian', mounts: 'tony' },
   'vault.html':    { lock: 'guardian', mounts: 'tony' },
   'everwell.html': { lock: 'guardian', mounts: 'tony' },
-  'shield.html':   { lock: 'guardian', mounts: 'follow' },
+  'Shield/shield.html':   { lock: 'guardian', mounts: 'follow' },
   'riftiq.html':   { lock: 'guardian', mounts: 'tony' },
-  'magi.html':     { lock: '#lockScreen', mounts: 'follow' },
+  'magi/magi.html':     { lock: '#lockScreen', mounts: 'follow' },
   'Shruti/shruti.html': { lock: 'guardian', mounts: 'follow' },
-  'V1/studyos.html': { lock: 'guardian', mounts: 'veda' },
+  'V1/StudyOS/studyos.html': { lock: 'guardian', mounts: 'veda' },
 };
 // Deliberately without it: Veda's own program.
-const NEVER = ['V1/wellness.html'];
+const NEVER = ['V1/Wellness/wellness.html'];
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -103,7 +103,7 @@ for (const [file, want] of Object.entries(HOSTS)) {
   }
 }
 
-console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
+console.log('\nPrograms that moved to A1-Priv (docs/A1-Priv/a1-priv-move-plan.md)');
 {
   const moved = ['tradehub', 'insight', 'vault', 'riftiq', 'oneinbox'];
   for (const p of moved) ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
@@ -126,17 +126,23 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   ok('a stored OneInbox tile on the old address is moved to the new host',
     mv('https://anthonyn99.github.io/A1/oneinbox.html') === 'https://a1-priv.av1.workers.dev/oneinbox.html');
   ok('...keeping its query and hash', mv('https://anthonyn99.github.io/A1/oneinbox.html?x=1#msg=a') === 'https://a1-priv.av1.workers.dev/oneinbox.html?x=1#msg=a');
-  ok('...and no other page is touched', mv('https://anthonyn99.github.io/A1/mylist.html') === 'https://anthonyn99.github.io/A1/mylist.html'
+  ok('...and no other page is touched', mv('https://anthonyn99.github.io/A1/MyList/mylist.html') === 'https://anthonyn99.github.io/A1/MyList/mylist.html'
     && mv('https://anthonyn99.github.io/A1/oneinbox.html.bak') === 'https://anthonyn99.github.io/A1/oneinbox.html.bak');
   // Wellness moved into V1/ (2026-11-02): Veda's stored tile follows it, the
   // default points there, and the old address still forwards.
   ok("a stored Wellness tile is moved to V1/, query and hash kept",
-    mv('https://anthonyn99.github.io/A1/wellness.html?a=1#b') === 'https://anthonyn99.github.io/A1/V1/wellness.html?a=1#b');
-  ok('…and a tile already on V1/ is left alone', mv('https://anthonyn99.github.io/A1/V1/wellness.html') === 'https://anthonyn99.github.io/A1/V1/wellness.html');
-  ok("Veda's default Wellness tile points at V1/", /\{ id: 'wellness', name: 'Wellness', url: BASE \+ 'V1\/wellness\.html'/.test(src));
-  const stub = fs.existsSync(path.join(ROOT, 'wellness.html')) ? fs.readFileSync(path.join(ROOT, 'wellness.html'), 'utf8') : '';
-  ok('the old wellness.html address forwards to V1/, keeping query and hash',
-    /location\.replace\('V1\/wellness\.html' \+ location\.search \+ location\.hash\)/.test(stub) && stub.length < 1500);
+    mv('https://anthonyn99.github.io/A1/wellness.html?a=1#b') === 'https://anthonyn99.github.io/A1/V1/Wellness/wellness.html?a=1#b');
+  ok('…and a tile already on V1/ is left alone', mv('https://anthonyn99.github.io/A1/V1/Wellness/wellness.html') === 'https://anthonyn99.github.io/A1/V1/Wellness/wellness.html');
+  ok("Veda's default Wellness tile points at V1/Wellness/", /\{ id: 'wellness', name: 'Wellness', url: BASE \+ 'V1\/Wellness\/wellness\.html'/.test(src));
+  // Every moved page's old address forwards through the one 404.html, keeping
+  // the query and hash; no per-page stub files.
+  const nf = fs.readFileSync(path.join(ROOT, '404.html'), 'utf8');
+  ok('the old wellness.html address forwards to V1/Wellness/, keeping query and hash',
+    /'wellness\.html': 'V1\/Wellness\/wellness\.html'/.test(nf) && /location\.replace\(m\[1\] \+ to \+ location\.search \+ location\.hash\)/.test(nf)
+    && !fs.existsSync(path.join(ROOT, 'wellness.html')));
+  for (const [from, to] of [['magi.html', 'magi/magi.html'], ['mylist.html', 'MyList/mylist.html'], ['shield.html', 'Shield/shield.html']]) {
+    ok('404.html forwards ' + from + ' and LifeHub moves stored ' + from + ' tiles', nf.includes("'" + from + "': '" + to + "'") && src.includes("to: BASE + '" + to + "'"));
+  }
   ok('migrate() applies it as a patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /MOVED_PAGES\.forEach/.test(src) && /patchOp\(m\.id, \{ url: m\.url \}\)/.test(src));
 }
 
@@ -167,7 +173,7 @@ for (const f of NEVER) {
 
 console.log('\nSame tabs as TaskHub');
 const index = read('index.html');
-const tabsync = read('tabsync.js');
+const tabsync = read('Shared/tabsync.js');
 ok('same a1tab_ window-name prefix', /'a1tab_'/.test(src) && /\/\^a1tab_\(\.\+\)\$\//.test(tabsync));
 ok('same a1tab: heartbeat prefix', /'a1tab:'\s*\+/.test(src) && /LS_PREFIX\s*=\s*'a1tab:'/.test(tabsync));
 ok('same a1tabs channel', /new BroadcastChannel\('a1tabs'\)/.test(src));
@@ -206,7 +212,7 @@ ok("the desktop Shield tile is the agent's installed path, per profile",
 ok('lists still on shieldopen:show are moved to the path, once', /LEGACY_SHIELD_LINK = 'shieldopen:show'/.test(src) && /function migrate\(/.test(src));
 
 console.log('\nLocal programs');
-const shieldHtml = read('shield.html');
+const shieldHtml = read('Shield/shield.html');
 const localRe = (code) => (/function _?isLocalPath\(u\)\s*\{\s*return ([^\r\n]+)/.exec(code) || [])[1];
 ok('the local-path test is identical in lifehub.js, index.html and shield.html',
   !!localRe(src) && localRe(src) === localRe(index) && localRe(src) === localRe(shieldHtml),
@@ -216,7 +222,7 @@ ok('LifeHub sends shieldopen:lh:<profile>:<id>',
 ok('shield.html pushes those same keys into the agent map, merged with the others',
   /_lastLhLinks = out;/.test(shieldHtml) && /Object\.keys\(_lastLhLinks\)/.test(shieldHtml) && shieldHtml.includes('/^lh:(tony|veda):[A-Za-z0-9_-]+$/'));
 ok('shield.html starts it only where there is an agent (inside attachNavorder)', /_classAppsListen\(\);\s*_whenLifeHub\(\);/.test(shieldHtml));
-const rs = fs.readFileSync(path.join(ROOT, 'desktop', 'shield', 'src-tauri', 'src', 'lib.rs'), 'utf8');
+const rs = fs.readFileSync(path.join(ROOT, 'Shield', 'desktop', 'src-tauri', 'src', 'lib.rs'), 'utf8');
 ok('the agent pins the lh: link grammar in a test', /fn lifehub_link_path_is_its_map_key\(/.test(rs));
 ok('the agent still understands shieldopen:show (old links in the wild)', /fn is_show_link\(/.test(rs) && /is_show_link\(&url\)/.test(rs));
 
@@ -249,7 +255,7 @@ console.log('\nIcons');
     fnSrc('destKey'), fnSrc('a1IconFor'), 'this.f = a1IconFor;'].join('\n'), Object.assign(ib, { URL }));
   const f = ib.f || (() => 'missing');
   ok('an automatic tile on the private host gets its built-in icon (Everwell)', f('https://a1-priv.av1.workers.dev/everwell.html') === 'everwell', f('https://a1-priv.av1.workers.dev/everwell.html'));
-  ok('…and on A1\'s host', f('https://anthonyn99.github.io/A1/magi.html') === 'magi');
+  ok('…and on A1\'s host', f('https://anthonyn99.github.io/A1/magi/magi.html') === 'magi');
   ok('another site with a same-named page does not', f('https://example.com/everwell.html') === '');
 
   // A local program: its built-in icon by file name (a Shield tile showed "S").
@@ -269,8 +275,8 @@ console.log('\nIcons');
   // A program changes its favicon: LifeHub's copy must change with it, or the
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
-  const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
-    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'V1/wellness.html', studyos: 'V1/studyos.html', shruti: 'Shruti/shruti.html' };
+  const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'MyList/mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
+    everwell: '../A1-Priv/everwell.html', shield: 'Shield/shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi/magi.html', taskhub: 'index.html', wellness: 'V1/Wellness/wellness.html', studyos: 'V1/StudyOS/studyos.html', shruti: 'Shruti/shruti.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
   const favicon = (f) => {
@@ -322,8 +328,8 @@ ok('a retry can never stack a second listener (generation guard)', /if \(gen !==
 ok('it revalidates itself on load and swaps in a newer deploy',
   /fetch\(BOOT\.src, \{ cache: 'no-cache'/.test(src) && /txt\.indexOf\(String\(main\)\)/.test(src) && /'lhfresh='/.test(src));
 ok('hosts that need it after load wait for lifehub:ready',
-  /dispatchEvent\(new Event\('lifehub:ready'\)\)/.test(src) && /addEventListener\('lifehub:ready'/.test(read('shield.html')));
-ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s*=/.test(read('magi.html')));
+  /dispatchEvent\(new Event\('lifehub:ready'\)\)/.test(src) && /addEventListener\('lifehub:ready'/.test(read('Shield/shield.html')));
+ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s*=/.test(read('magi/magi.html')));
 
 // 2026-11-03: after an overnight sleep no tile opened anything until a refresh.
 // The extension had been reloaded, its bridge in the page was orphaned and never

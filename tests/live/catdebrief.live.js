@@ -66,7 +66,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
   const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(SHOTS, name + '.png'), Buffer.from(r.result.data, 'base64')); };
   const seed = async (extra) => {
     await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-    await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+    await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
     await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1b_disabled','1');
       ${extra || ''}
       sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/market_calendar': { events: ${JSON.stringify(EVENTS)}, savedAt: Date.now() }, 'dashboards/catalyst_debrief': ${JSON.stringify(CFG)} })); 1`);
@@ -116,7 +116,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       ok(`in ${who}'s profile`, p && p.p === who, p && p.p);
       ok(`with ${who}'s units from the settings doc`, p && p.units.join() === CFG[who].units.join(), p && p.units);
       ok('debriefing that release, by name and time', p && /^The September CPI Report just came out \(8:30 AM ET, /.test(p.q), p && p.q.slice(0, 80));
-      ok('and it asks MAGI to run it', p && p.run === 1 && nav.nav.startsWith(ORIGIN + '/A1/magi.html#tb='));
+      ok('and it asks MAGI to run it', p && p.run === 1 && nav.nav.startsWith(ORIGIN + '/A1/magi/magi.html#tb='));
       await js(`window.__opened.length = 0; [...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/earnings/.test(b.getAttribute('aria-label'))).click(); 1`);
       await sleep(400);
       const e = decode(JSON.parse(await js(`return JSON.stringify(window.__opened.find(x=>x.nav));`)).nav);
@@ -152,7 +152,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
   ok('…and the debrief held for her console', await js(`return (HANDOFF && HANDOFF.q === 'Debrief the September CPI Report') || document.getElementById('composer').value === 'Debrief the September CPI Report';`));
   // An open Tony console receives Veda's link: it switches, prompt kept.
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/magi.html' });
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/magi/magi.html' });
   await sleep(4000);
   ok('the console starts as Tony', await js(`return PROFILE.id;`) === 'tony');
   await js(`location.hash = ${JSON.stringify(D_LINK.slice(D_LINK.indexOf('#')))}; 1`);

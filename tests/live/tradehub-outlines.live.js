@@ -50,7 +50,7 @@ const AUDIT = `
   const tab = async (id) => { await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent); if(t) t.click(); 1`); await sleep(1100); };
   const click = (sel, re) => js(`var b=[...document.querySelectorAll('${sel}')].find(x=>x.offsetParent&&${re}.test(x.innerText)); if(b) b.click(); 1`).then(() => sleep(500));
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
     sessionStorage.setItem('__fakefs_docs', JSON.stringify({
       'dashboards/tradeboard_prompts': { prompts: [{ id: 'p_a', name: 'Alpha', text: 'A' }, { id: 'p_b', name: 'Bravo', text: 'B' }] },

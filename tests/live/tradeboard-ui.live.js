@@ -98,7 +98,7 @@ const worker = {
 
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false });
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))}); 1`);
   await boot();
 

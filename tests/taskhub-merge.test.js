@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** THMerge.syncMerge — two devices saved the same TaskHub at once. Run: node tests/taskhub-merge.test.js */
 'use strict';
-const { syncMerge } = require('../taskhub-merge.js');
+const { syncMerge } = require('../TaskHub/taskhub-merge.js');
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '  ok    ' : '  FAIL  ') + m); if (!c) fails++; };
 const ids = (a) => (a || []).map((x) => x.id).join(',');

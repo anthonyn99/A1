@@ -19,7 +19,7 @@ const { firebaseMock } = require('./fake-firebase.js');
 const label = process.argv[2] || 'shield';
 const profiles = (process.argv[3] || 'tony,veda').split(',');
 const widths = (process.argv[4] || '1280,520,390').split(',').map(Number);
-const URL_ = 'https://anthonyn99.github.io/A1/shield.html';
+const URL_ = 'https://anthonyn99.github.io/A1/Shield/shield.html';
 
 const T0 = Date.parse('2026-10-20T15:31:00');
 const tgt = (id, label, type, value, hide) => ({ id, label, match: { type, value }, hideIcons: !!hide });
@@ -87,7 +87,7 @@ async function shot(c, name, w) {
 async function open(c, p, emg) {
   // A page with no scripts: a running Shield here would persist its own fake
   // store over the seed below.
-  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/apphead.js' }); await sleep(600);
+  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/Shared/apphead.js' }); await sleep(600);
   const docs = {}; docs['dashboards/shield_' + p] = seedDoc();
   const ls = { sh_device_id: 'dev_me', sh_fav_profile: p, sh_view: 'home' };
   ls['sh_hist_' + p + '_dev_me'] = JSON.stringify(HIST);

@@ -31,14 +31,14 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
 (async () => {
   console.log('\nThe files');
   const babel = require('@babel/parser');
-  let err = null; try { babel.parse(read('video.js'), { sourceType: 'module' }); } catch (e) { err = e.message; }
+  let err = null; try { babel.parse(read('app/video.js'), { sourceType: 'module' }); } catch (e) { err = e.message; }
   ok('video.js parses as a module', !err, err);
   global.window = { SHRUTI_PROFILES: { tony: { label: 'Tony', doc: 'shruti' }, veda: { label: 'Veda', doc: 'shruti_veda' } }, SHRUTI_PROFILE: 'tony' };
   global.addEventListener = () => {};
-  const VID = await import(pathToFileURL(path.join(DIR, 'video.js')).href);
-  const T = await import(pathToFileURL(path.join(DIR, 'text.js')).href);
+  const VID = await import(pathToFileURL(path.join(DIR, 'app/video.js')).href);
+  const T = await import(pathToFileURL(path.join(DIR, 'app/text.js')).href);
   ok('it loads in Node and names its seven layouts', VID.LAYOUTS.join() === 'title,verse,story,lesson,compare,steps,closing');
-  ok('the library lights Watch from videos.json', /VID\.shipped\(id\)/.test(read('library.js')) && /vids && vids\[String\(n\)\]/.test(read('library.js')));
+  ok('the library lights Watch from videos.json', /VID\.shipped\(id\)/.test(read('app/library.js')) && /vids && vids\[String\(n\)\]/.test(read('app/library.js')));
 
   const lessons = JSON.parse(read('books/gita/lessons.json'));
   const index = JSON.parse(read('books/gita/media/videos.json'));
@@ -113,8 +113,8 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
   ok('tokenAt follows the voice', VID.tokenAt(cc, words, 0) === 0 && VID.tokenAt(cc, words, 1.1) === 2 && VID.tokenAt(cc, words, 3.1) === 7 && VID.tokenAt(cc, words, -1) === -1, [0, 1.1, 3.1].map((t) => VID.tokenAt(cc, words, t)).join());
 
   console.log('\nThe artwork (art.js) and the music (2026-10-22)');
-  const ART = await import(pathToFileURL(path.join(DIR, 'art.js')).href);
-  const FMT = await import(pathToFileURL(path.join(DIR, 'formats.js')).href);
+  const ART = await import(pathToFileURL(path.join(DIR, 'app/art.js')).href);
+  const FMT = await import(pathToFileURL(path.join(DIR, 'app/formats.js')).href);
   ok('every artwork a unit may name has a drawing', FMT.ART.every((a) => ART.MOTIFS.includes(a)), FMT.ART.filter((a) => !ART.MOTIFS.includes(a)).join());
   ok('a scene\'s own art is used, unknown names dropped', ART.pick({ art: ['lotus', 'zebra', 'conch'] }).join() === 'lotus,conch');
   ok('words choose it for the shipped scripts', ART.pick({ layout: 'story', headline: 'The conches sound', say: 'Krishna blew his conch.' })[0] === 'conch' && ART.pick({ layout: 'story', headline: 'A warrior in tears', say: 'Arjuna sat in his chariot.' }).includes('chariot'));

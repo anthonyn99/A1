@@ -29,10 +29,10 @@
      it defines window.A1Backup and then does NOTHING until an app calls
      register(). Placed here so it is defined before the deferred Firebase
      module runs. See backup.js for the full contract. -->
-<script src="backup.js"></script>
+<script src="Backup/backup.js"></script>
 <!-- Three-way merge for two TaskHub saves that raced (window.THMerge). The
      versioned save (_casWrite) uses it when another device saved first. -->
-<script src="taskhub-merge.js"></script>
+<script src="TaskHub/taskhub-merge.js"></script>
 <!-- ── Cache-Control: forces browser to always revalidate, never serve stale GitHub Pages assets ── -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -85,7 +85,7 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
   color:var(--gold-primary);
 }
 /* The TaskHub wordmark wears MAGI's: the light accent (--acl) in Manrope
-   (theme overhaul phase 1, docs/theme-overhaul-plan.md). */
+   (theme overhaul phase 1, docs/Theme/theme-overhaul-plan.md). */
 .suite-title.th-wordmark{color:#dbd0f5;}
 /* ── Suite hover-glow standard ─────────────────────────────────────────────
    Every hoverable control in the suite lights up at ONE brightness: a 1px ring
@@ -180,7 +180,7 @@ html,body{height:100%;}
 }
 #tony-app-nav .tn-btn,#tony-app-nav .tn-star,#tn-mobile-select,#tn-settings-btn,#tn-dd-trigger{pointer-events:auto;}
 /* ── Chrome buttons: MAGI's .btn recipe (magi.html .btn / .navitem) ────────
-   Theme overhaul, phase 1 (docs/theme-overhaul-plan.md). Transparent fill,
+   Theme overhaul, phase 1 (docs/Theme/theme-overhaul-plan.md). Transparent fill,
    purple label, a quiet --bdl hairline. Hover lifts (brightness 1.15) and the
    outline turns accent; a press sinks 1px. The CURRENT app wears MAGI's
    .navitem.active: a 16% accent tint with the light accent label — no glow.
@@ -6059,22 +6059,22 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- MAGI's drag to reorder and corner resize grip, shared by every program
      (theme overhaul, phases 1b and 2). In the head, so they exist before any
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
-<script src="dragsort.js?v=20261101a"></script>
-<script src="resizegrip.js"></script>
+<script src="Shared/dragsort.js?v=20261101a"></script>
+<script src="Shared/resizegrip.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
-<script src="scrollbar.js"></script>
+<script src="Shared/scrollbar.js"></script>
 <!-- A1's own form controls (controls.js): no select, date, time, checkbox,
      colour or tooltip is left for the browser to draw. Before any page code. -->
-<script src="controls.js"></script>
+<script src="Shared/controls.js"></script>
 <!-- A1's popups (popups.js): every popup backdrop dims and blurs like TaskHub's,
      a click outside closes it, a drag that ends outside never does. -->
-<script src="popups.js"></script>
+<script src="Shared/popups.js"></script>
 <!-- The app mark beside each title and Everwell's sync pill (apphead.js),
      shared by every A1 program; TaskHub's React headers use its components. -->
-<script src="apphead.js"></script>
+<script src="Shared/apphead.js"></script>
 <!-- The one profile picker (profilepick.js), shared with every program that has profiles. -->
-<script src="profilepick.js"></script>
+<script src="Shared/profilepick.js"></script>
 </head>
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
@@ -6111,11 +6111,11 @@ try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('
   </div>
 </div>
 <!-- ══ Icon set (window.TNI): tni.js, shared with Notebook. ══ -->
-<script src="tni.js?v=20261009a"></script>
+<script src="Shared/tni.js?v=20261009a"></script>
 <!-- ══ Catalysts debrief (window.A1Debrief): the ▶ on a catalyst card, ten
      minutes after the release, opens MAGI on a debrief of that event. Shared
      with TradeHub's Catalysts settings, so unpinned. ══ -->
-<script src="catdebrief.js"></script>
+<script src="Shared/catdebrief.js"></script>
 <!-- ══ VDI — Veda's icon set. Same Lucide-style 24px grid / 1.5 stroke as TNI,
         but its own registry so Tony's chrome is never touched by a change made
         for Veda. Two differences from TNI, both learned from the emoji they
@@ -6392,7 +6392,7 @@ const CL  = ["work","finance","study","health","personal","urgent","other"];
 // purpose; never make them differ.
 //
 // TH_SEL() is Tony's selected-state shadow (theme overhaul,
-// docs/theme-overhaul-plan.md). It reaches the call sites through the theme
+// docs/Theme/theme-overhaul-plan.md). It reaches the call sites through the theme
 // object — THEMES.dark.SEL — and every site calls (T.SEL||GLOW)(...), so the
 // components BOTH profiles share (HabitModal, TimePicker, DayPicker,
 // PlanPanel…) keep Veda's glow when handed VD_T.
@@ -6412,7 +6412,7 @@ const TH_SEL=()=>"none";
 
 const THEMES = {
   // MAGI's palette (magi.html :root) since the theme overhaul, phase 1
-  // (docs/theme-overhaul-plan.md): purple is the identity, GOLD the kept accent.
+  // (docs/Theme/theme-overhaul-plan.md): purple is the identity, GOLD the kept accent.
   dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#34343a",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#c0aeea",ACL:"#dbd0f5",ACD:"#9a86c9",ACG:"rgba(192,174,234,0.12)",SEL:TH_SEL,GOLD:"#e0b874",GRN:"#a4b986",ERR:"#d68a7c",BLUE:"#8fa6d8",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
 };
 // Task-category colors. Dark = soft pastels (light text on dark bg). Light = deeper
@@ -12023,7 +12023,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window._sosMirrorLatest = d.items || {};
       _a1b('dashboards/studyos_mirror', d);
       // Per-class launchable resources, published as a side table rather than
-      // on each item (see V1/js/taskmirror.js buildClasses). Set inside this
+      // on each item (see V1/StudyOS/js/taskmirror.js buildClasses). Set inside this
       // callback, i.e. AFTER the fromCache return above, so it can never carry
       // cached-doc data. Read at click time by _sosLaunchClass; it never enters
       // `data`, so it touches neither the reconcile signature nor any write.
@@ -17027,7 +17027,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 // ── Profile selection overlay — pure JS, no React deps ────────
 (function(){
   const PROFILES={
-    // Tony's colour is MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+    // Tony's colour is MAGI purple since the theme overhaul (docs/Theme/theme-overhaul-plan.md).
     tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u269C\uFE0E",color:"#c0aeea"},
     veda:{key:"profile_veda_unlocked",label:"Veda",emoji:"✦",color:"#8D769A"}
   };
@@ -17066,7 +17066,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   }
 
   // Which profile is on screen, for CSS and hoverfx. The theme overhaul
-  // (docs/theme-overhaul-plan.md) gives Tony MAGI's look; the dialogs, app lock,
+  // (docs/Theme/theme-overhaul-plan.md) gives Tony MAGI's look; the dialogs, app lock,
   // settings and voice overlays are SHARED and appended to <body>, so they read
   // body[data-th-profile="tony"] to know whose colours to wear, and
   // data-hoverfx="magi" on <body> gives them MAGI's hover/press. Veda and the
@@ -17247,7 +17247,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     if(thUn)thUn.style.display=main==="tony"?"inline-flex":"none";
     if(vdUn)vdUn.style.display=main==="veda"?"inline-flex":"none";
     const thBd="#45454c";
-    const thAc="#c0aeea";   // MAGI purple (theme overhaul, docs/theme-overhaul-plan.md)
+    const thAc="#c0aeea";   // MAGI purple (theme overhaul, docs/Theme/theme-overhaul-plan.md)
     if(thBtn){
       thBtn.textContent=main==="tony"?"Main":"Set as main";
       const isTony=main==="tony";
@@ -19976,7 +19976,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=59c842e54f"></script>
+<script src="Notebook/notebook.js?v=47d3e852fa"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ profile: 'veda' });</script>
@@ -20000,7 +20000,7 @@ window._updateTonyNavActive = function(app) {
   if(!nav) return;
   // Show nav bar for all Tony apps
   nav.style.display = 'flex';
-  // MAGI purple (theme overhaul phase 1, docs/theme-overhaul-plan.md) with
+  // MAGI purple (theme overhaul phase 1, docs/Theme/theme-overhaul-plan.md) with
   // MAGI's --bdl hairline. Every program button is the same purple now, RiftIQ
   // included, so nothing below special-cases it any more.
   nav.style.setProperty('--tn-ac', '#c0aeea');
@@ -20257,7 +20257,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function profile(){return window._activeProfile==='veda'?'veda':'tony';}
 function bridge(){return profile()==='veda'?window._vdVoice:window._thVoice;}
 function ui(){return profile()==='veda'?window._vdVoiceUI:window._thVoiceUI;}
-// Tony: MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+// Tony: MAGI purple since the theme overhaul (docs/Theme/theme-overhaul-plan.md).
 function accent(){return profile()==='veda'?'#8D769A':'#c0aeea';}
 function themeVars(){
   var cs=getComputedStyle(document.body);
@@ -20858,7 +20858,7 @@ window._THV={
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
   + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
   /* Tony's profile wears MAGI's sheet (magi.html .sheet / .sheet-box /
-     .sheet-hd) since the theme overhaul (docs/theme-overhaul-plan.md). Veda's
+     .sheet-hd) since the theme overhaul (docs/Theme/theme-overhaul-plan.md). Veda's
      dialogs keep everything above. */
   + 'body[data-th-profile="tony"] #uim-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);}'
   + 'body[data-th-profile="tony"] #uim-box{background:#232327;border-color:rgba(255,255,255,.06);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.5);}'
@@ -21005,7 +21005,7 @@ window._THV={
      result without either cost. If the read path is genuinely unavailable we fall
      back to a real reload so the gesture is never a silent no-op.
 
-     Gesture heuristics follow V1/js/pulltorefresh.js, which was tuned against a
+     Gesture heuristics follow V1/StudyOS/js/pulltorefresh.js, which was tuned against a
      real problem: on mobile browsers whose chrome auto-hides, the way to bring the
      address bar BACK is an upward drag near the top of the page — the same region
      this watches. Every ambiguous gesture must resolve to "not a refresh".
@@ -22908,7 +22908,7 @@ window._everwellClick = function(){
 // nav, and a button that vanishes when a PC sleeps is harder to understand than
 // a page that explains itself.
 window._magiClick = function(){
-  var URL_MAGI = _legacyOpenUrl('tony','magi','https://anthonyn99.github.io/A1/magi.html');
+  var URL_MAGI = _legacyOpenUrl('tony','magi','https://anthonyn99.github.io/A1/magi/magi.html');
   var w = window._tnOpenTab(URL_MAGI, 'magi');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('MAGI opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22948,7 +22948,7 @@ window._mcDebrief = function(events, profile, macroET){
 // like his other external programs.
 window._shieldClick = function(profile){
   profile = (profile === 'veda') ? 'veda' : 'tony';
-  var URL_SHIELD = _legacyOpenUrl(profile,'shield','https://anthonyn99.github.io/A1/shield.html');
+  var URL_SHIELD = _legacyOpenUrl(profile,'shield','https://anthonyn99.github.io/A1/Shield/shield.html');
   var tab = 'shield_' + profile;
   var open = function(){
     var w = window._tnOpenTab(URL_SHIELD, tab);
@@ -23097,7 +23097,7 @@ function _lh(){ return (window.LifeHub && window.LifeHub.watch) ? window.LifeHub
 // ── Veda's Shield — the one program still seeded into a links list. It opens
 // through _shieldClick (named tab, popup-blocked fallback, her veda_shield lock).
 var LEGACY_PROGRAMS = [
-  { id:'shield', label:'Shield', url:'https://anthonyn99.github.io/A1/shield.html',
+  { id:'shield', label:'Shield', url:'https://anthonyn99.github.io/A1/Shield/shield.html',
     profiles:['veda'], lockIds:{ veda:'veda_shield' }, openFn:'_shieldClick' }
 ];
 function _lpProfiles(p){ return (p && p.profiles) || ['tony']; }
@@ -24351,7 +24351,7 @@ if(document.readyState==='loading'){
 
 var GEAR_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
-// Tony: MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+// Tony: MAGI purple since the theme overhaul (docs/Theme/theme-overhaul-plan.md).
 var ACCENT={ tony:'#c0aeea', veda:'#8D769A' };
 
 // ── Inject Veda settings gear before each ✦ profile switcher (self-healing) ──
@@ -24925,7 +24925,7 @@ async function refreshBackup(){
 // also flushes TaskHub's pending save, so no open copy here can write back over
 // the restore.
 function renderRestoreRow(container,profile){
-  var href='backup-restore.html?profile='+profile;
+  var href='Backup/backup-restore.html?profile='+profile;
   try{ if(window.A1Backup&&A1Backup.device) href+='&device='+encodeURIComponent(A1Backup.device()); }catch(e){}
   container.innerHTML='<div class="thset-row thset-rs">'+
     '<div class="thset-rs-txt"><span class="thset-label">Restore</span>'+
@@ -25078,9 +25078,9 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      nav is deliberately NOT in the list: it already answers the cursor with its
      own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
-<script src="tabsync.js"></script>
+<script src="Shared/tabsync.js"></script>
 <!-- LifeHub, headless: Tony's External Links are its list (the nav module's
      TONY'S EXTERNAL LINKS). No launcher element here; the header buttons are the display. -->
 <script src="LifeHub/lifehub.js" defer data-lock="guardian"></script>
-<script src="sweep.js" data-program="index" defer></script>
-<script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>
+<script src="Shared/sweep.js" data-program="index" defer></script>
+<script src="Shared/hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>

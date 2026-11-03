@@ -1,4 +1,4 @@
-// Theme overhaul phase 7 (docs/theme-overhaul-plan.md): Vault and the Vault
+// Theme overhaul phase 7 (docs/Theme/theme-overhaul-plan.md): Vault and the Vault
 // Launcher extension are MAGI. Real mouse and touch input over CDP, asserting
 // what Vault SAVES.
 //

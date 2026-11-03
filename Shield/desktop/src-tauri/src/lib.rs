@@ -1,0 +1,1119 @@
+//! Shield desktop agent — the part of Shield that can actually close things.
+//!
+//! `shield.html` is loaded from https://anthonyn99.github.io/A1/Shield/shield.html, not
+//! bundled. That is deliberate and load-bearing:
+//!   · the auth Worker pins CORS to that exact origin (workers/taskhub-reminders/worker.js:23),
+//!   · Firebase App Check's reCAPTCHA site key is registered for it and is SHARED
+//!     by every A1 app — re-registering it breaks the whole suite an hour later,
+//!   · Firestore rejects a `file://` / `tauri://` origin outright.
+//! Loading the live page sidesteps all three and leaves exactly one copy of the
+//! UI to maintain.
+//!
+//! The consequence is that the window needs the network. The tray menu and the
+//! global hotkeys deliberately do NOT: they read the last configuration the page
+//! pushed into %APPDATA%\Shield\state.json and run entirely in Rust. Closing
+//! apps must work when the internet is down, when the page has never been
+//! opened on this boot, and when there is no window at all.
+
+mod history;
+mod iconpos;
+mod proc;
+mod remote;
+mod shortcuts;
+mod state;
+mod watchdog;
+
+use serde::Deserialize;
+use serde_json::json;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use proc::{LaunchItem, Target};
+use state::EmergencyCfg;
+use watchdog::{Triggers, Watchdog};
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const GRACEFUL_MS: u64 = 1500;
+/// Kept in step with tauri.conf.json's window url and the capability's
+/// remote.urls. tests/agent-contract.test.js checks all three agree.
+const PAGE_URL: &str = "https://anthonyn99.github.io/A1/Shield/shield.html";
+
+/// Human labels for the global hotkeys, defined next to the keys they describe
+/// so the two cannot drift apart. The UI shows these rather than hardcoding its
+/// own copy.
+const HK_CLOSE_LABEL: &str = "Ctrl+Shift+X";
+const HK_EMG_LABEL: &str = "Ctrl+Shift+L";
+/// G for global. Deliberately not adjacent to L on the keyboard: this one
+/// reaches every device on the profile, and a slipped finger should not be able
+/// to turn a local lockdown into one.
+const HK_ALL_LABEL: &str = "Ctrl+Shift+G";
+
+/// Whether each hotkey actually registered.
+///
+/// Windows refuses a combination another application already owns, and Shield
+/// carries on without it — so a label must only ever be shown for a key that
+/// really works. Advertising a shortcut that does nothing is worse than
+/// advertising none.
+static HK_CLOSE_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static HK_EMG_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static HK_ALL_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub struct Ctx {
+    pub wd: Watchdog,
+    pub triggers: Triggers,
+    pub poller: remote::Poller,
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+fn lock_workstation() {
+    unsafe {
+        let _ = windows::Win32::System::Shutdown::LockWorkStation();
+    }
+}
+
+fn tray_icon_bytes(alert: bool) -> &'static [u8] {
+    if alert {
+        include_bytes!("../icons/icon-alert.ico")
+    } else {
+        include_bytes!("../icons/icon.ico")
+    }
+}
+
+/// Repaint the tray and tell any open window what just happened.
+///
+/// The tray icon turning red is the only feedback there is when Emergency Mode
+/// was triggered by a hotkey with no window open, so it is not decoration.
+fn publish(app: &AppHandle, active: bool) {
+    if let Some(tray) = app.tray_by_id("shield") {
+        if let Ok(img) = tauri::image::Image::from_bytes(tray_icon_bytes(active)) {
+            let _ = tray.set_icon(Some(img));
+        }
+        let _ = tray.set_tooltip(Some(if active { "Shield — LOCKED" } else { "Shield" }));
+    }
+    let s = state::get();
+    let _ = app.emit(
+        "shield://state",
+        json!({
+            "emergency": { "active": s.emergency_active, "at": s.emergency_at,
+                           "source": s.emergency_source, "entryId": s.entry_id },
+            "watchdog": active,
+        }),
+    );
+}
+
+/// Collapse a repeated trigger of the same action into one run.
+///
+/// Holding a global hotkey makes Windows repeat the key, and the plugin
+/// delivers every repeat as a fresh `Pressed`. Each one was running a full
+/// cycle: Ctrl+Shift+G once produced three lockdowns, three history entries and
+/// three Worker writes inside a second. A double-click on a tray item does the
+/// same thing for the same reason.
+///
+/// One second is comfortably longer than a key-repeat interval (~30ms after the
+/// initial delay) and far shorter than any real second press — nobody raises an
+/// emergency, changes their mind, and raises it again inside a second.
+const REFIRE_MS: u64 = 1000;
+static LAST_CLOSE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_EMG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_ALL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn fire_once(slot: &std::sync::atomic::AtomicU64) -> bool {
+    use std::sync::atomic::Ordering;
+    let now = state::now_ms();
+    let prev = slot.load(Ordering::SeqCst);
+    // Per action, so Ctrl+Shift+X immediately followed by Ctrl+Shift+L still
+    // does both - only a repeat of the SAME action is swallowed.
+    if now.saturating_sub(prev) < REFIRE_MS {
+        return false;
+    }
+    slot.store(now, Ordering::SeqCst);
+    true
+}
+
+/// The whole of Emergency Mode, in the order that matters.
+///
+/// Capture and close first, bookkeeping after. Everything before the return is
+/// synchronous local work: no network call sits between pressing the button and
+/// the applications going away.
+fn engage_emergency(app: &AppHandle, ctx: &Ctx, source: &str) -> serde_json::Value {
+    // A remote command is by definition profile-wide; a local one is this
+    // device only, unless the caller says otherwise (see engage_emergency_all).
+    let scope = if source == "remote" { "global" } else { "local" };
+    engage_emergency_scoped(app, ctx, source, scope)
+}
+
+fn engage_emergency_scoped(app: &AppHandle, ctx: &Ctx, source: &str, scope: &str) -> serde_json::Value {
+    let s = state::get();
+    let cfg = s.emergency.clone();
+    let entry_id = history::new_id();
+
+    let results = proc::capture_and_kill(&cfg.targets, GRACEFUL_MS);
+    let hidden = shortcuts::hide(&entry_id, &cfg.targets);
+
+    if cfg.watchdog {
+        ctx.wd.start(cfg.targets.clone());
+    }
+
+    let entry = history::record(&entry_id, "emergency", scope, source, &results, &hidden);
+
+    state::update(|st| {
+        st.emergency_active = true;
+        st.emergency_at = entry.at;
+        st.emergency_source = source.to_string();
+        st.entry_id = entry_id.clone();
+    });
+
+    // Last, because it takes the screen away from the user and everything above
+    // must already have happened by then.
+    if cfg.lock_workstation {
+        lock_workstation();
+    }
+
+    publish(app, true);
+    json!({ "entryId": entry_id, "at": entry.at, "results": results, "hidden": hidden })
+}
+
+/// Emergency Mode here, then on every other device of the profile.
+///
+/// Order is not negotiable: the machine in front of the user locks down first,
+/// synchronously, and only then does anything touch the network. A ten-second
+/// HTTP timeout must never sit between the key press and the applications going
+/// away — and if there is no internet at all, the local lockdown still has to
+/// happen in full.
+///
+/// The page has an 800 ms hold on this action because a click is easy to make by
+/// accident. A three-key chord is its own guard, so there is no equivalent here.
+fn engage_emergency_all(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
+    // Scope "global" so History and the takeover screen say "all devices" —
+    // this device did the raising, so the SOURCE is still local.
+    let mut out = engage_emergency_scoped(app, ctx, "local", "global");
+    let s = state::get();
+    let name = if s.device_name.is_empty() { "This PC".to_string() } else { s.device_name.clone() };
+    let v = remote::publish(&s.profile, &s.guard_key, true, &s.device_id, &name);
+    // Remember the version we just published, so the poller does not read our
+    // own signal back twenty seconds later and treat it as news.
+    if let Some(v) = v {
+        state::update(|st| { if v > st.remote_v { st.remote_v = v; } });
+    }
+    let ok = v.is_some();
+    // Whether the other devices heard is the entire point of this action, and it
+    // is invisible from the tray. The window learns via the event below; with no
+    // window open, launch.log is the record.
+    log_event("emergency-all", if ok { "published" } else { "publish FAILED — this device only" });
+    let _ = app.emit("shield://global", json!({ "ok": ok, "active": true }));
+    out["global"] = json!(ok);
+    out
+}
+
+fn disengage_emergency(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
+    ctx.wd.stop();
+    // Restore EVERY stash, not just this entry's.
+    //
+    // A second emergency raised before the first was lifted mints a new entry
+    // id and overwrites `state.entry_id`, orphaning the earlier stash — so
+    // restoring only the current one left icons hidden with nothing pointing at
+    // them. Emergency Mode ending means nothing Shield hid stays hidden, and
+    // that is the only contract worth having here.
+    let restored = shortcuts::restore_all();
+    state::update(|st| {
+        st.emergency_active = false;
+        st.emergency_source = String::new();
+        st.entry_id = String::new();
+    });
+    publish(app, false);
+    json!({ "restored": restored })
+}
+
+fn run_closer(app: &AppHandle) -> serde_json::Value {
+    run_closer_excluding(app, "local", &[])
+}
+
+/// The Program Closer, optionally sparing some targets.
+///
+/// `spare` exists for the auto-trigger: opening League must not close League,
+/// even when the closer list happens to include it.
+///
+/// Sparing happens at TWO levels, and both are needed. Dropping closer entries
+/// whose id equals a fired trigger's covers a target shared between the lists.
+/// It does NOT cover the ordinary case: a trigger row and a closer row naming
+/// the same app are created separately and carry different ids, so the id check
+/// spared nothing and the closer promptly killed the app that had just been
+/// opened. `capture_and_kill_sparing` therefore also skips, per process,
+/// anything a fired trigger itself matches.
+fn run_closer_excluding(app: &AppHandle, source: &str, spare: &[Target]) -> serde_json::Value {
+    let s = state::get();
+    let list: Vec<Target> = s
+        .closer
+        .iter()
+        .filter(|t| !spare.iter().any(|x| x.id == t.id))
+        .cloned()
+        .collect();
+    let entry_id = history::new_id();
+    let results = proc::capture_and_kill_sparing(&list, GRACEFUL_MS, spare);
+    let entry = history::record(&entry_id, "closer", "local", source, &results, &[]);
+    let _ = app.emit(
+        "shield://closed",
+        json!({ "entryId": entry_id, "source": source,
+                "by": spare.first().map(|t| t.display()).unwrap_or_default() }),
+    );
+    json!({ "entryId": entry_id, "at": entry.at, "results": results })
+}
+
+/// Watch for a profile-wide emergency raised from another device.
+///
+/// This is the piece that makes "Emergency - all my devices" reach a machine
+/// whose browser is closed. The page cannot do it: its Firestore listener only
+/// exists while the window is open.
+fn arm_remote(app: &AppHandle) {
+    let handle = app.clone();
+    let ctx = app.state::<Ctx>();
+    ctx.poller.start(move |r| {
+        let s = state::get();
+        let ctx = handle.state::<Ctx>();
+        if r.active && !s.emergency_active {
+            log_event("remote-emergency", &format!("on by {}", r.by_name));
+            engage_emergency(&handle, &ctx, "remote");
+        } else if !r.active && s.emergency_active {
+            // The Worker already verified the passcode before it would accept
+            // an OFF, so this device does not ask again - the check happened
+            // server-side, which is stronger than the UI-only check it replaces.
+            log_event("remote-emergency", "off");
+            disengage_emergency(&handle, &ctx);
+        }
+    });
+}
+
+/// Point the trigger watcher at the current configuration.
+///
+/// Two callbacks: one for the app starting (close things), one for it quitting
+/// (put them back, if Reopen-after-trigger is on). The ON/OFF switch is read at
+/// the moment the trigger EXITS rather than captured when it fired, so turning
+/// the feature off while a game is running means nothing reopens when it closes
+/// — which is what someone reaching for that switch mid-session wants.
+fn arm_triggers(app: &AppHandle) {
+    let handle = app.clone();
+    let exit_handle = app.clone();
+    let list = state::get().triggers;
+    let ctx = app.state::<Ctx>();
+    ctx.triggers.set(
+        list,
+        move |fired| {
+            let names: Vec<String> = fired.iter().map(|t| t.display()).collect();
+            log_event("auto-close", &names.join(", "));
+            let res = run_closer_excluding(&handle, "trigger", &fired);
+            let entry = res
+                .get("entryId")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            // Every trigger that fired in this pass owes the same entry: they
+            // fired together and one close covered all of them.
+            fired.iter().map(|t| (t.id.clone(), entry.clone())).collect()
+        },
+        move |entry_id, label| {
+            if !state::get().reopen_after_trigger {
+                return;
+            }
+            let Some(e) = history::get(entry_id) else { return };
+            if e.reverted {
+                return; // already put back by hand
+            }
+            let groups: Vec<(String, Vec<proc::LaunchItem>)> =
+                e.items.into_iter().map(|i| (i.label, i.launch)).collect();
+            if groups.iter().all(|(_, l)| l.is_empty()) {
+                return;
+            }
+            let results = proc::launch(&groups);
+            let n = results.iter().filter(|r| r.status == "launched").count();
+            log_event("auto-reopen", &format!("{label} closed — reopened {n}"));
+            history::mark_reverted(entry_id);
+            let _ = exit_handle.emit(
+                "shield://reopened",
+                json!({ "entryId": entry_id, "by": label, "count": n }),
+            );
+        },
+    );
+}
+
+// ── commands ────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct SetConfig {
+    #[serde(default)]
+    profile: String,
+    /// Token for the emergency endpoint. See `state::AgentState::guard_key`.
+    #[serde(default, rename = "guardKey")]
+    guard_key: String,
+    #[serde(default, rename = "deviceName")]
+    device_name: String,
+    #[serde(default)]
+    closer: Vec<Target>,
+    #[serde(default)]
+    triggers: Vec<Target>,
+    #[serde(default, rename = "reopenAfterTrigger")]
+    reopen_after_trigger: bool,
+    #[serde(default)]
+    emergency: EmergencyCfg,
+}
+
+/// The page pushes its device configuration down on every change.
+///
+/// Without this the tray and the hotkeys would have nothing to act on, which
+/// would make the agent useless in exactly the situation it exists for.
+#[tauri::command]
+fn sh_set_config(app: AppHandle, cfg: SetConfig) -> serde_json::Value {
+    // Filter protected processes here as well as in the kill path. Config
+    // arrives from Firestore and may have been written by an older build or a
+    // different device, so input validation cannot live only at the UI.
+    let clean = |v: Vec<Target>| -> Vec<Target> {
+        v.into_iter().filter(|t| !proc::is_denied(&t.r#match.value)).collect()
+    };
+    state::update(|st| {
+        if !cfg.profile.is_empty() {
+            st.profile = cfg.profile.clone();
+        }
+        // Only ever overwritten with a real token. A page that has not fetched
+        // one yet pushes an empty string, and clearing a working token on that
+        // basis would take the agent off the remote channel until the next
+        // successful mint.
+        if !cfg.guard_key.is_empty() {
+            st.guard_key = cfg.guard_key.clone();
+        }
+        if !cfg.device_name.is_empty() {
+            st.device_name = cfg.device_name.clone();
+        }
+        st.closer = clean(cfg.closer.clone());
+        st.triggers = clean(cfg.triggers.clone());
+        st.reopen_after_trigger = cfg.reopen_after_trigger;
+        st.emergency = EmergencyCfg {
+            targets: clean(cfg.emergency.targets.clone()),
+            lock_workstation: cfg.emergency.lock_workstation,
+            watchdog: cfg.emergency.watchdog,
+        };
+    });
+    arm_triggers(&app);
+    json!({ "ok": true })
+}
+
+#[tauri::command]
+fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
+    let s = state::get();
+    json!({
+        "version": VERSION,
+        "platform": "windows",
+        "deviceId": state::device_id(),
+        "reopenAfterTrigger": s.reopen_after_trigger,
+        "emergency": { "active": s.emergency_active, "at": s.emergency_at,
+                       "source": s.emergency_source, "entryId": s.entry_id },
+        "watchdog": ctx.wd.is_running(),
+        // null for a key Windows refused, so the UI can stay quiet about it.
+        "hotkeys": {
+            "close": if HK_CLOSE_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_CLOSE_LABEL) } else { None },
+            "emergency": if HK_EMG_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_EMG_LABEL) } else { None },
+            "all": if HK_ALL_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_ALL_LABEL) } else { None },
+        },
+        "targets": { "closer": s.closer.len(), "emergency": s.emergency.targets.len(),
+                     "triggers": s.triggers.len() },
+        "caps": {
+            "kill": true, "watchdog": true, "hideIcons": true,
+            "lockWorkstation": true, "tray": true, "launch": true
+        }
+    })
+}
+
+#[tauri::command]
+fn sh_enumerate() -> serde_json::Value {
+    let (running, shortcuts) = proc::enumerate();
+    json!({ "running": running, "shortcuts": shortcuts })
+}
+
+/// The full app picker payload: what is installed, and what is running.
+///
+/// One command rather than two because the two lists have to be reconciled
+/// before they are useful — an installed app that is running should say so, and
+/// a running process that has a shortcut should not also appear as a separate
+/// anonymous row. Doing that here keeps the page from having to re-implement
+/// path matching in JavaScript.
+#[tauri::command]
+fn sh_apps() -> serde_json::Value {
+    let mut installed = shortcuts::list_installed_apps();
+    let running = proc::running_apps();
+
+    for app in installed.iter_mut() {
+        app.running = running.iter().any(|r| {
+            r.exe.eq_ignore_ascii_case(&app.exe)
+                || (!app.folder.is_empty() && {
+                    let base = app.folder.to_ascii_lowercase();
+                    let rp = r.exe.to_ascii_lowercase();
+                    rp.strip_prefix(&base)
+                        .map(|rest| rest.starts_with('\\') || rest.starts_with('/'))
+                        .unwrap_or(false)
+                })
+        });
+    }
+
+    // Anything running that no shortcut accounts for is still worth offering —
+    // portable apps and things launched from a folder have no .lnk at all.
+    let extra: Vec<&proc::RunningApp> = running
+        .iter()
+        .filter(|r| {
+            !installed
+                .iter()
+                .any(|a| a.exe.eq_ignore_ascii_case(&r.exe) || a.file.eq_ignore_ascii_case(&r.file))
+        })
+        .collect();
+
+    json!({
+        "installed": installed,
+        "running": running,
+        "runningOnly": extra,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct KillArgs {
+    #[serde(default)]
+    targets: Vec<Target>,
+    /// Report what would be closed without closing it. Nothing is recorded in
+    /// history either — a preview is not an action.
+    #[serde(default, rename = "dryRun")]
+    dry_run: bool,
+}
+
+/// Close the Program Closer targets.
+///
+/// `targets` may be supplied by the caller; when it is empty the stored config
+/// is used, which is what the tray path relies on.
+#[tauri::command]
+fn sh_kill(app: AppHandle, args: KillArgs) -> serde_json::Value {
+    if args.dry_run {
+        let list = if args.targets.is_empty() { state::get().closer } else { args.targets };
+        return json!({ "dryRun": true, "results": proc::capture_and_kill_opt(&list, 0, true) });
+    }
+    if !args.targets.is_empty() {
+        state::update(|st| {
+            st.closer = args.targets.iter().filter(|t| !proc::is_denied(&t.r#match.value)).cloned().collect();
+        });
+    }
+    run_closer(&app)
+}
+
+#[derive(Deserialize)]
+pub struct EmergencyArgs {
+    #[serde(default)]
+    targets: Vec<Target>,
+    #[serde(default)]
+    watchdog: Option<bool>,
+    #[serde(default, rename = "lockWorkstation")]
+    lock_workstation: Option<bool>,
+    #[serde(default)]
+    source: Option<String>,
+}
+
+#[tauri::command]
+fn sh_emergency_on(app: AppHandle, ctx: State<'_, Ctx>, args: EmergencyArgs) -> serde_json::Value {
+    if !args.targets.is_empty() || args.watchdog.is_some() || args.lock_workstation.is_some() {
+        state::update(|st| {
+            if !args.targets.is_empty() {
+                st.emergency.targets =
+                    args.targets.iter().filter(|t| !proc::is_denied(&t.r#match.value)).cloned().collect();
+            }
+            if let Some(w) = args.watchdog {
+                st.emergency.watchdog = w;
+            }
+            if let Some(l) = args.lock_workstation {
+                st.emergency.lock_workstation = l;
+            }
+        });
+    }
+    engage_emergency(&app, &ctx, args.source.as_deref().unwrap_or("local"))
+}
+
+#[tauri::command]
+fn sh_emergency_off(app: AppHandle, ctx: State<'_, Ctx>) -> serde_json::Value {
+    disengage_emergency(&app, &ctx)
+}
+
+#[derive(Deserialize)]
+pub struct LaunchArgs {
+    #[serde(default, rename = "entryId")]
+    entry_id: String,
+    #[serde(default)]
+    items: Vec<LaunchGroup>,
+}
+#[derive(Deserialize)]
+pub struct LaunchGroup {
+    #[serde(default)]
+    label: String,
+    #[serde(default)]
+    launch: Vec<LaunchItem>,
+}
+
+/// Reopen what was closed.
+///
+/// The page normally passes the manifest it holds; when it passes only an
+/// `entryId`, the agent's own copy is used — which is how a tray-initiated
+/// close is reverted after the page is opened later.
+#[tauri::command]
+fn sh_launch(args: LaunchArgs) -> serde_json::Value {
+    let groups: Vec<(String, Vec<LaunchItem>)> = if !args.items.is_empty() {
+        args.items.into_iter().map(|g| (g.label, g.launch)).collect()
+    } else if let Some(e) = history::get(&args.entry_id) {
+        e.items.into_iter().map(|i| (i.label, i.launch)).collect()
+    } else {
+        vec![]
+    };
+    let results = proc::launch(&groups);
+    if !args.entry_id.is_empty() {
+        history::mark_reverted(&args.entry_id);
+    }
+    json!({ "results": results })
+}
+
+#[derive(Deserialize)]
+pub struct SetLinksArgs {
+    #[serde(default)]
+    links: std::collections::HashMap<String, String>,
+}
+
+/// shield.html pushes this down whenever TaskHub's navorder doc changes,
+/// filtered to just the External Link buttons whose "url" is actually a local
+/// path (see shield.html's navorder listener). Replaces the whole map — it is
+/// a derived mirror of Firestore, not something built up incrementally here.
+#[tauri::command]
+fn sh_set_links(args: SetLinksArgs) -> serde_json::Value {
+    state::update(|st| st.local_links = args.links);
+    json!({ "ok": true })
+}
+
+#[tauri::command]
+fn sh_restore_icons(args: serde_json::Value) -> serde_json::Value {
+    let id = args.get("entryId").and_then(|v| v.as_str()).unwrap_or("");
+    let n = if id.is_empty() { shortcuts::restore_all() } else { shortcuts::restore(id) };
+    json!({ "restored": n })
+}
+
+#[tauri::command]
+fn sh_pull_history(args: serde_json::Value) -> serde_json::Value {
+    let since = args.get("since").and_then(|v| v.as_u64()).unwrap_or(0);
+    json!({ "entries": history::since(since) })
+}
+
+#[tauri::command]
+fn sh_lock_workstation() -> serde_json::Value {
+    lock_workstation();
+    json!({ "ok": true })
+}
+
+/// Resolve one `shieldopen:<id>` deep link against the synced local-links map
+/// and open it.
+///
+/// The id is opaque by design (see `state::AgentState::local_links`): an id
+/// this agent has never been told about — Shield never installed, navorder
+/// hasn't synced yet, or the link came from somewhere other than TaskHub —
+/// resolves to nothing and silently does nothing, the same failure mode as any
+/// other unrecognised custom-protocol link.
+/// The class id in a `shieldopen:class/<classId>` link, if it is one.
+///
+/// Split out from `open_from_link` so the grammar is testable without a Tauri
+/// runtime or global state. StudyOS class ids are `Date.now()` strings, so the
+/// accepted character set is deliberately narrow: it also keeps the
+/// `cls:<classId>:<resourceId>` key grammar unambiguous, since an id containing
+/// ':' could otherwise be crafted to alias another class's namespace.
+fn class_id_of(id: &str) -> Option<&str> {
+    let cid = id.strip_prefix("class/")?;
+    if cid.is_empty() || !cid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return None;
+    }
+    Some(cid)
+}
+
+/// `shieldopen:show` — bring the agent's own window forward.
+///
+/// LifeHub (LifeHub/lifehub.js) lists "Shield" as an app, but the desktop agent
+/// has no page a browser could open: its window IS shield.html. A link is the
+/// only way a page can reach it, and every other link is deliberately
+/// invisible (see the single-instance handler), so raising the window gets a
+/// verb of its own rather than riding on an id.
+fn is_show_link(url: &url::Url) -> bool {
+    // `shieldopen:show` carries it as the path; `shieldopen://show` as the host.
+    let path = url.path().trim_matches('/');
+    path == "show" || (path.is_empty() && url.host_str() == Some("show"))
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::{class_id_of, is_show_link};
+
+    #[test]
+    fn show_verb_parses_in_both_spellings() {
+        assert!(is_show_link(&url::Url::parse("shieldopen:show").unwrap()));
+        assert!(is_show_link(&url::Url::parse("shieldopen://show").unwrap()));
+        assert!(!is_show_link(&url::Url::parse("shieldopen:class/123").unwrap()));
+        assert!(!is_show_link(&url::Url::parse("shieldopen:showx").unwrap()));
+    }
+
+    /// Pins what `url::Url::path()` actually yields for our scheme, because the
+    /// whole verb hangs off it. `shieldopen:x` is cannot-be-a-base so the path
+    /// is the bare id; the `//` spelling parses as an authority and keeps a
+    /// leading slash, which is why open_from_link trims one.
+    #[test]
+    fn url_path_shape_is_what_we_assume() {
+        let u = url::Url::parse("shieldopen:class/1712345678901").unwrap();
+        assert_eq!(u.path(), "class/1712345678901");
+        let u2 = url::Url::parse("shieldopen://class/1712345678901").unwrap();
+        assert_eq!(u2.path().trim_start_matches('/'), "1712345678901");
+    }
+
+    /// LifeHub's local-program tiles send `shieldopen:lh:<profile>:<id>` and
+    /// shield.html stores the path under that same `lh:<profile>:<id>` key
+    /// (LifeHub/lifehub.js localKey). The colons must survive parsing, or
+    /// the lookup in open_from_link misses and the tile silently does nothing.
+    #[test]
+    fn lifehub_link_path_is_its_map_key() {
+        let u = url::Url::parse("shieldopen:lh:tony:shield").unwrap();
+        assert_eq!(u.path().trim_start_matches('/'), "lh:tony:shield");
+        assert!(!is_show_link(&u));
+        assert_eq!(class_id_of(u.path()), None);
+        let v = url::Url::parse("shieldopen:lh:veda:my-app_2").unwrap();
+        assert_eq!(v.path(), "lh:veda:my-app_2");
+    }
+
+    #[test]
+    fn accepts_a_studyos_class_id() {
+        assert_eq!(class_id_of("class/1712345678901"), Some("1712345678901"));
+    }
+
+    #[test]
+    fn a_plain_link_id_is_not_a_class() {
+        assert_eq!(class_id_of("abc123"), None);
+    }
+
+    #[test]
+    fn empty_and_malformed_ids_are_refused() {
+        assert_eq!(class_id_of("class/"), None);
+        // A ':' would let a crafted id reach into another class's key namespace.
+        assert_eq!(class_id_of("class/x:y"), None);
+        assert_eq!(class_id_of("class/../etc"), None);
+        assert_eq!(class_id_of("class/a b"), None);
+    }
+
+    /// The prefix must not match a longer class id that merely starts the same
+    /// way — `cls:12:` must never collect `cls:123:`'s apps.
+    #[test]
+    fn key_prefix_does_not_leak_into_a_similar_class() {
+        let prefix = format!("cls:{}:", class_id_of("class/12").unwrap());
+        assert!("cls:12:r1".starts_with(&prefix));
+        assert!(!"cls:123:r1".starts_with(&prefix));
+    }
+}
+
+fn open_from_link(url: &url::Url) {
+    // `shieldopen:<id>` parses as cannot-be-a-base, so path() is the bare id with
+    // no leading slash (verified against url 2.x). The trim covers the
+    // `shieldopen://<id>` spelling, which parses as an authority and does carry
+    // one.
+    let id = url.path().trim_start_matches('/');
+    if id.is_empty() {
+        return;
+    }
+    // `shieldopen:class/<classId>` — open every native app the user attached to
+    // that StudyOS class, launched from a TaskHub card. Same opacity property as
+    // a plain id: the class id resolves only against paths this agent already
+    // synced from the class-apps document, so a page that merely knows the
+    // scheme name still cannot name a path of its own.
+    if let Some(cid) = class_id_of(id) {
+        let prefix = format!("cls:{cid}:");
+        let mut hits: Vec<(String, String)> = state::get()
+            .local_links
+            .iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        // HashMap order is nondeterministic, so without this the same click
+        // launches the same apps in a different order every time.
+        hits.sort_by(|a, b| a.0.cmp(&b.0));
+        // Off-thread: this is called both from the deep-link callback and from
+        // get_current() during setup, and neither should block while a class
+        // with several apps is staggered open.
+        std::thread::spawn(move || {
+            // Websites are launched together, as one process handed every url —
+            // that is what puts them all in a single new browser WINDOW instead
+            // of scattering across whatever window the OS's per-url `start`
+            // handoff happens to reuse (see open_class_web_grouped). A real
+            // Chrome/Brave "tab group" (the named, colored group strip) is only
+            // creatable by a browser extension via chrome.tabGroups — not
+            // reachable from a spawned process — so one dedicated window is the
+            // grouping this can actually provide. Native apps have no window to
+            // share in the first place, so they still go one process per
+            // resource, exactly as before.
+            let (web, apps): (Vec<String>, Vec<String>) =
+                hits.into_iter().map(|(_, target)| target).partition(|t| proc::is_web_url(t));
+            if !web.is_empty() {
+                let _ = proc::open_class_web_grouped(&web);
+                // Give the browser a moment to claim the foreground before any
+                // native apps start landing their own windows on top of it.
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            for target in apps {
+                let _ = proc::open_target(&target);
+                // Several launches fired in the same instant race for the
+                // foreground, and Windows' foreground-lock heuristics then pick
+                // an arbitrary winner. A short gap makes the last one land on
+                // top, which is what someone clicking "open my class" expects.
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+        });
+        return;
+    }
+    if let Some(path) = state::get().local_links.get(id) {
+        let _ = proc::open_path(path);
+    }
+}
+
+// ── tray + hotkeys ──────────────────────────────────────────────────────────
+
+fn show_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// Load the UI, defeating the HTTP cache.
+///
+/// GitHub Pages serves the page with a cache lifetime and WebView2 honours it,
+/// so after an update the agent kept showing the old build — including bugs
+/// that were already fixed. The page's own no-cache <meta> tags are advisory
+/// and ignored for the document itself. A changing query string is the only
+/// reliable answer. Same origin, so localStorage, the capability match and App
+/// Check are all unaffected.
+/// Append a line to %APPDATA%\Shield\launch.log.
+///
+/// The window can only appear from a tray action or from a second launch
+/// handing off to this one. When someone says "it opened by itself", the useful
+/// question is which of those happened — and without a record the answer is
+/// guesswork. Every start and every hand-off is logged with its reason.
+fn log_event(kind: &str, detail: &str) {
+    use std::io::Write;
+    let dir = shortcuts::shield_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("launch.log")) {
+        let _ = writeln!(f, "{} pid={} {} {}", state::now_ms(), std::process::id(), kind, detail);
+    }
+}
+
+fn navigate_fresh(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let url = format!("{}?v={}-{}", PAGE_URL, VERSION, state::now_ms());
+        if let Ok(parsed) = url.parse() {
+            let _ = w.navigate(parsed);
+        }
+    }
+}
+
+fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+    let close = MenuItem::with_id(app, "close", "Close Apps", true, None::<&str>)?;
+    let emg = MenuItem::with_id(app, "emergency", "EMERGENCY", true, None::<&str>)?;
+    let emg_all = MenuItem::with_id(app, "emergency-all", "EMERGENCY — All My Devices", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open Shield", true, None::<&str>)?;
+    // The UI is served from the web and updates independently of this binary,
+    // so there has to be a way to pick up a new page without restarting the
+    // agent — which would mean tearing down an active lockdown to get a bug fix.
+    let reload = MenuItem::with_id(app, "reload", "Reload UI", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Shield", true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&close, &emg, &emg_all, &sep, &open, &reload, &quit])?;
+
+    TrayIconBuilder::with_id("shield")
+        .icon(tauri::image::Image::from_bytes(tray_icon_bytes(false))?)
+        .tooltip("Shield")
+        .menu(&menu)
+        // The menu must NOT open on a plain left click: left-click opens the
+        // window, right-click gets the emergency menu.
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, ev| {
+            let ctx = app.state::<Ctx>();
+            match ev.id().as_ref() {
+                "close" => {
+                    if fire_once(&LAST_CLOSE) {
+                        run_closer(app);
+                    }
+                }
+                "emergency" => {
+                    // From the tray this is a single click by design. The whole
+                    // point is speed; the passcode guards getting OUT, not in.
+                    if fire_once(&LAST_EMG) {
+                        engage_emergency(app, &ctx, "local");
+                    }
+                }
+                "emergency-all" => {
+                    if fire_once(&LAST_ALL) {
+                        engage_emergency_all(app, &ctx);
+                    }
+                }
+                "open" => show_window(app),
+                "reload" => { navigate_fresh(app); show_window(app); }
+                "quit" => {
+                    // Leaving the desktop permanently missing its icons would be
+                    // a far worse bug than an emergency ending early, so put the
+                    // shortcuts back on the way out.
+                    ctx.wd.stop();
+                    shortcuts::restore_all();
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|tray, ev| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
+                log_event("tray-click", "");
+                show_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+
+    // Ctrl+Shift+X → close apps, Ctrl+Shift+L → emergency here,
+    // Ctrl+Shift+G → emergency on every device of this profile.
+    // Two copies of each: the handler closure takes ownership of one set, and
+    // setup() still needs the other set to register them.
+    let hk_close = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyX);
+    let hk_emg = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
+    let hk_all = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyG);
+    let (hk_close_h, hk_emg_h, hk_all_h) = (hk_close.clone(), hk_emg.clone(), hk_all.clone());
+
+    // A release build has no console (windows_subsystem = "windows"), so a panic
+    // message goes nowhere and the only symptom is the tray icon disappearing.
+    // Append them to a file instead — "Shield randomly closed" is unfixable
+    // without evidence, and this is the evidence.
+    std::panic::set_hook(Box::new(|info| {
+        use std::io::Write;
+        let dir = shortcuts::shield_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("panic.log"))
+        {
+            let _ = writeln!(f, "[{}] {}", state::now_ms(), info);
+        }
+    }));
+
+    tauri::Builder::default()
+        // MUST be registered first. Shield starts at logon and can also be
+        // launched by hand, and two agents is not a cosmetic problem: two tray
+        // icons, a failed hotkey registration for whichever loses the race, and
+        // two watchdogs fighting over the same process list. The second
+        // instance now just surfaces the first one's window and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Someone launched Shield while it was already running. That is the
+            // ONLY way the window appears without a tray click, so record who.
+            log_event("second-launch", &format!("argv={argv:?}"));
+            // ...unless this "launch" is really a shieldopen: link, which is how
+            // EVERY class-resource click arrives on Windows: the OS starts a
+            // second instance whose argv carries the url, and the deep-link
+            // plugin below forwards it to the running agent. Showing the window
+            // here meant opening a class raised Shield's UI over the very app it
+            // had just launched — the agent is meant to be invisible on this
+            // path. A link is a command, not a request to see the console.
+            let is_link = argv.iter().any(|a| a.trim_start().to_ascii_lowercase().starts_with("shieldopen:"));
+            if !is_link {
+                show_window(app);
+            }
+        }))
+        // shieldopen:<id> links from TaskHub. On Windows a second instance is
+        // what actually receives the link (see the single-instance plugin's
+        // "deep-link" feature above) — this plugin is what turns that back into
+        // an on_open_url event in the ALREADY-RUNNING agent instead of a second
+        // tray icon.
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    let ctx = app.state::<Ctx>();
+                    if shortcut == &hk_close_h {
+                        if fire_once(&LAST_CLOSE) {
+                            run_closer(app);
+                        }
+                    } else if shortcut == &hk_emg_h {
+                        if fire_once(&LAST_EMG) {
+                            engage_emergency(app, &ctx, "local");
+                        }
+                    } else if shortcut == &hk_all_h {
+                        if fire_once(&LAST_ALL) {
+                            engage_emergency_all(app, &ctx);
+                        }
+                    }
+                })
+                .build(),
+        )
+        .manage(Ctx { wd: Watchdog::new(), triggers: Triggers::new(), poller: remote::Poller::new() })
+        .invoke_handler(tauri::generate_handler![
+            sh_status, sh_set_config, sh_enumerate, sh_apps, sh_kill,
+            sh_emergency_on, sh_emergency_off, sh_launch, sh_set_links,
+            sh_restore_icons, sh_pull_history, sh_lock_workstation
+        ])
+        .setup(move |app| {
+            let handle = app.handle().clone();
+            let s = state::load();
+            log_event("start", "window hidden; tray only");
+            build_tray(&handle)?;
+
+            {
+                // Registration writes to HKCU (per-user, no admin needed — matches
+                // the NSIS installer's "currentUser" install mode) and is cheap to
+                // repeat, so just do it on every launch rather than tracking
+                // whether it already ran. Failing here (e.g. sandboxed install)
+                // only means local-link buttons don't work; nothing else depends
+                // on it.
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = handle.deep_link().register("shieldopen") {
+                    eprintln!("[shield] shieldopen: registration failed: {e}");
+                }
+                // Subsequent links: TaskHub is already open somewhere, this agent
+                // is already running, and the OS hands the new link straight back
+                // in via the single-instance forwarding wired up above.
+                let link_handle = handle.clone();
+                handle.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        if is_show_link(&url) {
+                            show_window(&link_handle);
+                        } else {
+                            open_from_link(&url);
+                        }
+                    }
+                });
+                // Cold start via the link itself — Shield was not running yet and
+                // the OS launched it to handle a shieldopen: click directly.
+                if let Ok(Some(urls)) = handle.deep_link().get_current() {
+                    for url in urls {
+                        if is_show_link(&url) {
+                            show_window(&handle);
+                        } else {
+                            open_from_link(&url);
+                        }
+                    }
+                }
+            }
+
+            {
+                // Start at logon, registered by the agent itself on first run.
+                //
+                // Previously this was only ever set by `build.ps1 -Autostart`,
+                // which needs the repo, Rust and PowerShell — so anyone who
+                // installed from the .exe got an agent that silently stopped
+                // enforcing after a reboot, and Emergency Mode surviving a
+                // restart is a promise this app makes explicitly.
+                //
+                // HKCU only, never HKLM, never a service, never admin.
+                use tauri_plugin_autostart::ManagerExt;
+                // Never from a dev build: `target\release\shield-agent.exe` and
+                // the installed copy are different files, and pointing the logon
+                // entry at the one in the build directory is how a stale binary
+                // ends up running every morning.
+                let installed = std::env::current_exe()
+                    .map(|p| !p.to_string_lossy().to_lowercase().contains(r"\target\"))
+                    .unwrap_or(false);
+                if installed {
+                    let al = handle.autolaunch();
+                    // Only if nothing is registered yet, so an entry the user
+                    // (or build.ps1) already pointed somewhere deliberate is
+                    // left exactly as they set it.
+                    if !al.is_enabled().unwrap_or(false) {
+                        match al.enable() {
+                            Ok(()) => log_event("autostart", "registered for logon"),
+                            Err(e) => log_event("autostart", &format!("failed: {e}")),
+                        }
+                    }
+                }
+            }
+
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                // A hotkey another app already owns is a warning, not a reason to
+                // refuse to start — the tray still works.
+                use std::sync::atomic::Ordering;
+                match handle.global_shortcut().register(hk_close) {
+                    Ok(()) => HK_CLOSE_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_CLOSE_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_CLOSE_LABEL);
+                    }
+                }
+                match handle.global_shortcut().register(hk_emg) {
+                    Ok(()) => HK_EMG_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_EMG_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_EMG_LABEL);
+                    }
+                }
+                match handle.global_shortcut().register(hk_all) {
+                    Ok(()) => HK_ALL_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_ALL_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_ALL_LABEL);
+                    }
+                }
+            }
+
+            // Boot re-arm. Emergency Mode survives a restart by design, so this
+            // runs BEFORE anything touches the network: re-close the targets and
+            // restart the watchdog straight from state.json.
+            if s.emergency_active {
+                let ctx = handle.state::<Ctx>();
+                proc::capture_and_kill(&s.emergency.targets, GRACEFUL_MS);
+                if s.emergency.watchdog {
+                    ctx.wd.start(s.emergency.targets.clone());
+                }
+                publish(&handle, true);
+            } else {
+                // Not in an emergency, but a crash mid-lockdown could have left
+                // shortcuts in the stash. Put anything stranded back.
+                shortcuts::restore_all();
+                publish(&handle, false);
+            }
+
+            // Arm auto-close from the config on disk, so a trigger works after
+            // a reboot without anyone opening the window first — the same
+            // reason the tray and hotkeys read from state.json.
+            arm_triggers(&handle);
+            arm_remote(&handle);
+
+            // Always start on the deployed UI, not a cached copy of it.
+            navigate_fresh(&handle);
+
+            // Closing the window hides it; the agent lives in the tray. Quitting
+            // is an explicit choice from the menu, so that closing the window
+            // cannot silently end an active lockdown.
+            if let Some(w) = app.get_webview_window("main") {
+                let h = handle.clone();
+                w.on_window_event(move |ev| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = ev {
+                        api.prevent_close();
+                        if let Some(w) = h.get_webview_window("main") {
+                            let _ = w.hide();
+                        }
+                    }
+                });
+            }
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running Shield");
+}

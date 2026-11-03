@@ -28,16 +28,16 @@ const words = (s) => String(s || '').split(/\s+/).filter(Boolean).length;
 (async () => {
   console.log('\nThe files');
   const babel = require('@babel/parser');
-  for (const f of ['study/parse.js', 'study/ui.js', 'study/flashcards.js', 'study/quiz.js', 'study/mindmap.js', 'study/slides.js', 'study/hub.js', 'pdf.js']) {
+  for (const f of ['app/study/parse.js', 'app/study/ui.js', 'app/study/flashcards.js', 'app/study/quiz.js', 'app/study/mindmap.js', 'app/study/slides.js', 'app/study/hub.js', 'app/pdf.js']) {
     let err = null; try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; }
     ok(f + ' parses as a module', !err, err);
   }
   global.window = { SHRUTI_PROFILES: { tony: { label: 'Tony', doc: 'shruti' }, veda: { label: 'Veda', doc: 'shruti_veda' } }, SHRUTI_PROFILE: 'tony' };
   global.addEventListener = () => {};
-  const P = await import(pathToFileURL(path.join(DIR, 'study/parse.js')).href);
-  const FC = await import(pathToFileURL(path.join(DIR, 'study/flashcards.js')).href);
-  const QZ = await import(pathToFileURL(path.join(DIR, 'study/quiz.js')).href);
-  ok('the library and chapter page use the hub', /H\.renderStudy\(/.test(read('library.js')) && /H\.hasStudy\(/.test(read('library.js')));
+  const P = await import(pathToFileURL(path.join(DIR, 'app/study/parse.js')).href);
+  const FC = await import(pathToFileURL(path.join(DIR, 'app/study/flashcards.js')).href);
+  const QZ = await import(pathToFileURL(path.join(DIR, 'app/study/quiz.js')).href);
+  ok('the library and chapter page use the hub', /H\.renderStudy\(/.test(read('app/library.js')) && /H\.hasStudy\(/.test(read('app/library.js')));
 
   console.log('\nMAGI\'s parsers');
   const fc = P.studioParseFlashcards('CARD 1\nFRONT: Karma-yoga\nBACK: Selfless action.\n\nCARD 2\n**FRONT:** Dharma\n**BACK:** Right order.');
@@ -108,7 +108,7 @@ const words = (s) => String(s || '').split(/\s+/).filter(Boolean).length;
   console.log('\nThe study prompts');
   global.fetch = async () => { throw new Error('no network'); };
   global.document = undefined;
-  const G = await import(pathToFileURL(path.join(DIR, 'generate.js')).href).catch((e) => ({ err: e }));
+  const G = await import(pathToFileURL(path.join(DIR, 'app/generate.js')).href).catch((e) => ({ err: e }));
   if (G.err) ok('generate.js loads', false, G.err.message);
   else {
     const L4 = lessons[4];
@@ -121,7 +121,7 @@ const words = (s) => String(s || '').split(/\s+/).filter(Boolean).length;
     let n = 0;
     const chat = async ({ models, onModel }) => { n++; onModel && onModel(models[0]); return { text: n === 1 ? 'sorry, I cannot' : 'CARD 1\nFRONT: a\nBACK: b', model: models[0] }; };
     global.window.SHRUTI_PROFILE = 'tony';
-    const C = await import(pathToFileURL(path.join(DIR, 'core.js')).href);
+    const C = await import(pathToFileURL(path.join(DIR, 'app/core.js')).href);
     C.me.set({ orcaKey: 'orca_sk_test_key_12345' });
     const res = await G.runStudy({ kinds: ['flashcards'], book: 'gita', scope: { label: 'chapter 4' }, text: 'x', length: 'concise', models: ['deepseek/free'] }, {}, { chat, parse: P });
     ok('runStudy asks once more when nothing can be read, then keeps the set', n === 2 && res.kinds.flashcards.length === 1 && res.model === 'deepseek/free');

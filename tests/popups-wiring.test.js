@@ -4,7 +4,7 @@
 // apps ... the defaults ... in the future too").
 //
 //  1. Every program loads it in <head>, before the page's own code. A new
-//     program belongs in PAGES the day it ships (docs/popups.md).
+//     program belongs in PAGES the day it ships (docs/Shared/popups.md).
 //  2. The look is TaskHub's exactly, and Guardian's lock (a shadow root the
 //     file can't reach) carries the same look in its own CSS.
 //  3. ORCA's pages load it too (both the Python templates and the worker).
@@ -19,9 +19,9 @@ const vm = require('vm');
 const M = require('./moved');
 
 const ROOT = path.join(__dirname, '..');
-const TAG = new RegExp('<script[^>]+src=["\']' + M.src('popups.js') + '["\'][^>]*>');
-const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'V1/wellness.html',
-  'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
+const TAG = new RegExp('<script[^>]+src=["\']' + M.src('Shared/popups.js') + '["\'][^>]*>');
+const PAGES = ['index.html', 'magi/magi.html', 'MyList/mylist.html', 'Shield/shield.html', 'Shruti/shruti.html', 'V1/Wellness/wellness.html',
+  'Backup/backup-restore.html', 'Backup/backup-export.html', 'V1/StudyOS/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
 
 let pass = 0, fail = 0;
@@ -30,7 +30,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const code = fs.readFileSync(path.join(ROOT, 'popups.js'), 'utf8');
+const code = fs.readFileSync(path.join(ROOT, 'Shared/popups.js'), 'utf8');
 ok('popups.js parses', (() => { try { new vm.Script(code); return true; } catch (e) { return false; } })());
 ok('the look is TaskHub\'s', /var DIM = 'rgba\(0,0,0,\.6\)';/.test(code) && /var BLUR = 'blur\(7px\) saturate\(\.9\)';/.test(code));
 ok('clicks are guarded in the capture phase', /addEventListener\('click', onClick, true\)/.test(code));
@@ -52,7 +52,7 @@ for (const name of PAGES) {
 const ORCA = path.join(ROOT, '..', 'ORCA');
 if (fs.existsSync(ORCA)) {
   for (const f of ['app/web/templates/base.html', 'app/web/templates/_picker_base.html']) {
-    ok('ORCA ' + f + ' loads popups.js', fs.readFileSync(path.join(ORCA, f), 'utf8').includes('https://anthonyn99.github.io/A1/popups.js'));
+    ok('ORCA ' + f + ' loads popups.js', fs.readFileSync(path.join(ORCA, f), 'utf8').includes('https://anthonyn99.github.io/A1/Shared/popups.js'));
   }
   const ts = fs.readFileSync(path.join(ORCA, 'worker/src/web/html.ts'), 'utf8');
   ok('ORCA worker pages load popups.js', (ts.match(/<script src="\$\{POPUPS_SRC\}"><\/script>/g) || []).length === (ts.match(/<script src="\$\{SCROLLBAR_SRC\}"><\/script>/g) || []).length);

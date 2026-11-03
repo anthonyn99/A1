@@ -1236,7 +1236,7 @@ sync; `goTony()`/`goVeda()` ([:17570](index.html#L17570), [:17611](index.html#L1
 is a single anonymous identity for the whole suite. MAGI copies this wholesale.
 
 **MAGI's own App Lock** already exists and is already namespaced per person:
-`LOCK_ID = {journal:"applock", entryId:"tony_magi"}` ([magi.html:14594](../../magi.html#L14594)), backed by the
+`LOCK_ID = {journal:"applock", entryId:"tony_magi"}` ([magi.html:14594](../../magi/magi.html#L14594)), backed by the
 `taskhub-reminders` worker. `veda_magi` is the natural sibling — no new lock system needed.
 
 **Engine job pattern** — every long-running operation in `app.py` uses one shape: `POST` creates
@@ -1261,17 +1261,17 @@ non-zero exit, denied approval, CLI rate limit) get the same treatment — never
 `magi/tests/test_units.py` fails if the last two are forgotten, and refuses two units sharing an accent colour.
 The free Claude unit goes in through exactly this path.
 
-**Console view system** — no router; one `setView(v)` ([magi.html:9054](../../magi.html#L9054)) shows/hides fixed
+**Console view system** — no router; one `setView(v)` ([magi.html:9054](../../magi/magi.html#L9054)) shows/hides fixed
 containers and toggles sidebar `active` classes. A new mode is a branch there plus a `<div id="codeView" hidden>`.
 
 **Firestore sync layer** — one index doc, one body doc per run, **exactly one `onSnapshot`**
-([cloudWatch, magi.html:14139](../../magi.html#L14139)), debounced merge-writes guarded by dirty flags
-(`_queueDirty`, `_marksDirty`). Budget rationale at [magi.html:12657](../../magi.html#L12657). Path helpers are
-already factored as `_indexDoc()` / `_runDoc(id)` ([:12770](../../magi.html#L12770)) — which is what makes profiles a
+([cloudWatch, magi.html:14139](../../magi/magi.html#L14139)), debounced merge-writes guarded by dirty flags
+(`_queueDirty`, `_marksDirty`). Budget rationale at [magi.html:12657](../../magi/magi.html#L12657). Path helpers are
+already factored as `_indexDoc()` / `_runDoc(id)` ([:12770](../../magi/magi.html#L12770)) — which is what makes profiles a
 small change rather than a sweep.
 
-**Shared A1 furniture** — `uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi.html#L4161)), the `ui-cap-2000` cap
-([:4074](../../magi.html#L4074)), `SPINNER`/`spinnerEl()`, overlay scrollbars, `tabsync.js`, `<a1-lifehub>`.
+**Shared A1 furniture** — `uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi/magi.html#L4161)), the `ui-cap-2000` cap
+([:4074](../../magi/magi.html#L4074)), `SPINNER`/`spinnerEl()`, overlay scrollbars, `tabsync.js`, `<a1-lifehub>`.
 
 ### Hard constraints discovered
 
@@ -1354,8 +1354,8 @@ small change rather than a sweep.
 ### UI principles — apply to every phase
 
 **Everything is hand-built in MAGI's own CSS. No native browser UI, anywhere.** MAGI already takes this
-position — `window.alert` is globally overridden to route through `uiAlert` ([magi.html:4263](../../magi.html#L4263))
-and the suite ships `uiModal/uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi.html#L4161)). Code Mode and the
+position — `window.alert` is globally overridden to route through `uiAlert` ([magi.html:4263](../../magi/magi.html#L4263))
+and the suite ships `uiModal/uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi/magi.html#L4161)). Code Mode and the
 profile system extend it rather than reopening it:
 
 | Instead of | Build |
@@ -1368,8 +1368,8 @@ profile system extend it rather than reopening it:
 
 **One layout, two shapes.** Every new surface is designed at 400 px first and allowed to expand, not designed
 wide and then squeezed. The rules the rest of MAGI already follows apply unchanged: the `ui-cap-2000` width cap
-([:4074](../../magi.html#L4074)) stays; the 760 px breakpoint moves the sidebar into the existing off-canvas drawer;
-modals become bottom sheets under 430 px ([:4198](../../magi.html#L4198)); every new scroller gets an overlay
+([:4074](../../magi/magi.html#L4074)) stays; the 760 px breakpoint moves the sidebar into the existing off-canvas drawer;
+modals become bottom sheets under 430 px ([:4198](../../magi/magi.html#L4198)); every new scroller gets an overlay
 scrollbar; touch targets stay at 44 px; and the Code Mode status strip collapses from a row of pills to a single
 tappable line. Approval cards in particular are designed for a phone, because approving a diff from the couch is
 a primary use, not a fallback.
@@ -1387,7 +1387,7 @@ and its own engine with its own Chrome profile directories and its own SQLite. S
 Firestore listener and re-attaches to the other document — it is not a UI filter over shared data.
 
 **The lock is the profile gate, and it is load-bearing.** Today MAGI's lock is explicitly cosmetic — the code
-says so at [magi.html:14580-14591](../../magi.html#L14580): it stops someone at the laptop reading transcripts, and
+says so at [magi.html:14580-14591](../../magi/magi.html#L14580): it stops someone at the laptop reading transcripts, and
 authorises nothing. With profiles that is not enough, because "someone at the laptop" now includes the other
 person. So the lock gains three real properties:
 
@@ -1399,7 +1399,7 @@ person. So the lock gains three real properties:
 - **Independent credentials per profile.** Separate password records (`tony_magi` / `veda_magi` against the
   existing `taskhub-reminders` worker, which already syncs them cross-device) and separate biometric
   credentials — the shared `window.Bio` helper already namespaces by `NS + app + '_' + id`
-  ([:4270](../../magi.html#L4270)), so `bio_cred_magi_tony` and `bio_cred_magi_veda` need no new mechanism. Unlocking
+  ([:4270](../../magi/magi.html#L4270)), so `bio_cred_magi_tony` and `bio_cred_magi_veda` need no new mechanism. Unlocking
   one never unlocks the other, and leaving a profile re-locks it.
 
 This is a genuine improvement to MAGI independent of Code Mode, and it is why the lock and the picker are one
@@ -1550,7 +1550,7 @@ separate document would cost a second listener and a second read on every page l
 kilobytes. Folding it in costs **zero additional reads and zero additional listeners**.
 
 Written by `cloudSaveCode()` and `cloudSaveEngines()`, both cloned from `cloudSaveUnitOrder()`
-([magi.html:12807](../../magi.html#L12807)): 900 ms debounce, dirty-flag guard, `setDoc(…, {merge:true})` on one
+([magi.html:12807](../../magi/magi.html#L12807)): 900 ms debounce, dirty-flag guard, `setDoc(…, {merge:true})` on one
 field. `cloudWatch` gains two `if (!_dirty && snap.x)` branches.
 
 **Size:** ~1–3 KB per project; twenty projects is under 60 KB against a 900 KB soft ceiling. A hard guard
@@ -1902,7 +1902,7 @@ desktop they sit side by side and the expanded one grows without moving its sibl
 
 **The mechanics.** `MAGI_PROFILES` (§4); `PROFILE` module state plus a global `magi.lastProfile`; unlock through
 the existing lock worker with per-profile entry ids and per-profile biometric credentials (§3);
-`_indexDoc()` / `_runDoc()` ([:12770](../../magi.html#L12770)) become profile-aware — that is the whole data split,
+`_indexDoc()` / `_runDoc()` ([:12770](../../magi/magi.html#L12770)) become profile-aware — that is the whole data split,
 and it is two functions; every `localStorage` key routed through `lsKey(name)` → `magi.<profile>.<name>`, with
 the global exceptions in §4; **`cloudInit()` and the token load gated on unlock**, which is the security change
 in §3; a profile chip in the sidebar that returns to the gate and re-locks the profile being left; password
@@ -1974,7 +1974,7 @@ deleting, is idempotent, and is verified by opening one unit before the original
 *Purpose:* A profile can have engines on several machines, and the console picks between them.
 
 *Files:* `magi/ident.py` + `magi/data/<profile>/engine.json`, `magi/app.py`, `magi.html`
-(the `══ link ══` section, [:4644](../../magi.html#L4644)), `docs/MAGI/magi.md`.
+(the `══ link ══` section, [:4644](../../magi/magi.html#L4644)), `docs/MAGI/magi.md`.
 
 *Steps:* Stable `engineId` + editable label per engine, distinct from the existing per-process
 `ident.INSTANCE` (which tunnel adoption still needs); `/api/health` returns both; an engine registry in the
@@ -2029,7 +2029,7 @@ distinct answers from two accounts; confirm a free-plan rate limit reports as `r
 
 *Steps:* Mode toggle in `.qbar-toolbar` beside Refine (thumb-reachable on mobile); `S.mode` persisted to
 `lsKey("mode")`, defaulting to `"deliberation"`; the header
-[`magi.html:4428`](../../magi.html#L4428) `<span class="bs-title council-title">Deliberation</span>` reads
+[`magi.html:4428`](../../magi/magi.html#L4428) `<span class="bs-title council-title">Deliberation</span>` reads
 **Code Mode** when active; `setView()` gains a `"code"` branch and a `<div id="codeView" hidden>` beside
 `#bsView`; a compact status strip — profile · engine · project · repo · branch · autoCommit/autoPush pills —
 collapsing to one tappable line under 760 px; engine-offline placeholders throughout.
@@ -2110,7 +2110,7 @@ Chrome and Python; `CodeSession` wrapping `ClaudeSDKClient` with `permission_mod
 `disallowed_tools=["Write","Edit","Bash","NotebookEdit"]`; `POST /api/code/tasks` +
 `GET /api/code/tasks/{id}/stream` + `/cancel`, copied from the runs pattern; map SDK message types
 (`AssistantMessage`, `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ResultMessage`) onto SSE frames; render the
-transcript with the existing markdown renderer ([:1147](../../magi.html#L1147)) and `copyButton`; Halt → `interrupt()`;
+transcript with the existing markdown renderer ([:1147](../../magi/magi.html#L1147)) and `copyButton`; Halt → `interrupt()`;
 extend the restart-refusal check at [app.py:299-307](../../magi/app.py#L299) to cover live code tasks.
 
 *Testing:* Ask "explain how the queue works in magi.html" — expect Glob/Grep/Read only, and confirm a Write is
@@ -2409,7 +2409,7 @@ program. Mitigated by one field, one existing listener, the dirty-flag guard, an
 drive the engine"; 14b (A1 writable, writes only, per Tony) — docs/MAGI/magi.md
 "A1 itself". Both in §0 "What exists".
 
-*Files:* `docs/MAGI/magi.md`, the `HOW` array ([magi.html:5006](../../magi.html#L5006)), `magi/tests/*`, `tests/*`.
+*Files:* `docs/MAGI/magi.md`, the `HOW` array ([magi.html:5006](../../magi/magi.html#L5006)), `magi/tests/*`, `tests/*`.
 
 *Steps:* The `HOW` panel gains profiles, multi-engine and Code Mode — a **contract**, not a nicety:
 `magi/tests/test_howitworks.py` enforces the checkable claims and `docs/MAGI/magi.md` requires the panel to be updated
@@ -3388,7 +3388,7 @@ magi/data/<profile>/engine.json          (runtime, gitignored)
 
 | File | Change | Size |
 |---|---|---|
-| `magi.html` | The gate — profile cards + inline lock, replacing `#lockScreen` ([:14574](../../magi.html#L14574)) — plus `MAGI_PROFILES` and `lsKey()`; profile-aware `_indexDoc`/`_runDoc` ([:12770](../../magi.html#L12770)) with `cloudInit` gated on unlock; engine registry and picker in `══ link ══` ([:4644](../../magi.html#L4644)); mode switch + header swap ([:4428](../../magi.html#L4428)); `setView()` branch ([:9054](../../magi.html#L9054)); `#codeView`, the directory picker, the file tree and approval cards, all hand-built; `cloudSaveCode`/`cloudSaveEngines` beside [:12807](../../magi.html#L12807); two `cloudWatch` branches ([:14139](../../magi.html#L14139)); `UNIT`/`PHASE` for the free Claude; `HOW` array | **Large — most of the frontend work** |
+| `magi.html` | The gate — profile cards + inline lock, replacing `#lockScreen` ([:14574](../../magi/magi.html#L14574)) — plus `MAGI_PROFILES` and `lsKey()`; profile-aware `_indexDoc`/`_runDoc` ([:12770](../../magi/magi.html#L12770)) with `cloudInit` gated on unlock; engine registry and picker in `══ link ══` ([:4644](../../magi/magi.html#L4644)); mode switch + header swap ([:4428](../../magi/magi.html#L4428)); `setView()` branch ([:9054](../../magi/magi.html#L9054)); `#codeView`, the directory picker, the file tree and approval cards, all hand-built; `cloudSaveCode`/`cloudSaveEngines` beside [:12807](../../magi/magi.html#L12807); two `cloudWatch` branches ([:14139](../../magi/magi.html#L14139)); `UNIT`/`PHASE` for the free Claude; `HOW` array | **Large — most of the frontend work** |
 | `magi/settings.py`, `config/magi.yaml` | `profile`, `CodeModeConfig`, profile-scoped paths | Medium |
 | `magi/db.py` | Four tables + migration, per [:156-254](../../magi/db.py#L156) | Medium |
 | `magi/app.py` | Mount the code router; `profile` + `engineId` in `/api/health`; restart-refusal covers live code tasks ([:299](../../magi/app.py#L299)) | Small |
@@ -3418,7 +3418,7 @@ magi/data/<profile>/engine.json          (runtime, gitignored)
    `git add -A` per task. `setting_sources=[]` is load-bearing and belongs in a test.
 4. **Cross-profile leakage.** A cached Firestore snapshot or a stale listener surviving a profile switch would
    show one person's data under the other's name — and because Firestore's `persistentLocalCache` writes to
-   IndexedDB ([magi.html:12739](../../magi.html#L12739)), a document read once stays on that device. *Mitigation:*
+   IndexedDB ([magi.html:12739](../../magi/magi.html#L12739)), a document read once stays on that device. *Mitigation:*
    gate `cloudInit()` on unlock so a locked profile is never read in the first place, full listener teardown on
    switch, every localStorage key through `lsKey()`, and an explicit test that watches the network tab.
 5. **Firebase regression.** A stray listener or an in-flight write is a permanent tax on every A1 program.

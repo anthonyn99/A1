@@ -26,7 +26,7 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
 
 #: One per screen, plus the two that went down with Accounts. A blank panel is
 #: the symptom every one of these would produce.

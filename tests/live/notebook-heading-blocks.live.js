@@ -46,7 +46,7 @@ const SIDES = { tony: { K: 'nb', S: 'nb_test', mount: {} }, veda: { K: 'vn', S: 
     const seed = { ['dashboards/' + S]: { _order: ['e_bad'], activeId: 'e_bad', savedAt: T0 - 60000,
       e_e_bad: { id: 'e_bad', title: 'Strategy', template: 'page', created: T0 - 86400000, updated: T0 - 60000, tags: [], data: { html: BROKEN, attachments: [] }, rev: 1 } } };
     await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-    await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/tni.js' }); await sleep(400);
+    await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/Shared/tni.js' }); await sleep(400);
     await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seed))}); 1`);
     await c.send('Page.navigate', { url: URL });
     await until('window.__hostReady', 10000);

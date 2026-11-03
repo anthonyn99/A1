@@ -21,7 +21,7 @@ OUT = ROOT / "media" / "voices"
 
 def voices():
     """[(id, name)] read from orca.js, so the list is never kept twice."""
-    src = (ROOT / "orca.js").read_text(encoding="utf-8")
+    src = (ROOT / "app" / "orca.js").read_text(encoding="utf-8")
     block = src[src.index("export const VOICES = ["):]
     block = block[:block.index("].map(")]
     return re.findall(r"\['([a-zA-Z-]+Neural)', '([^']+)'", block)

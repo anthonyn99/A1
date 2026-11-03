@@ -1,5 +1,13 @@
 # A1
 
+- **Where every file goes** (any new program, file or folder, here or in
+  A1-Priv): follow [docs/layout.md](docs/layout.md). Nothing is ever left
+  loose: a program gets its own folder (`Name/name.html`), files every program
+  loads go in `Shared/`, machine-read rules in `Rules/`, tests in `tests/`,
+  docs in `docs/`, scripts in `tools/`, Veda's programs in `V1/` under the
+  same rules. A new folder or root file is listed in `Rules/layout.json` with
+  its reason; `tests/layout.test.js` fails otherwise. Moving a page: add its
+  old address to `404.html` and LifeHub's `MOVED_PAGES`.
 - **Setting up MAGI on a PC** ("set up MAGI", Veda's PC, a new engine):
   follow [docs/MAGI/magi-setup.md](docs/MAGI/magi-setup.md). It's one command, then the
   sign-ins.
@@ -25,7 +33,7 @@
   A1. Read §0 of `C:\Users\antho\Desktop\ORCA\docs\refine-plan.md`, build
   exactly the phase it names, then test, commit, push, deploy and rewrite §0.
 - **Everwell** (any Everwell ask): Tony's Mind, Health, Faith program that
-  replaced Solace. It lives in A1-Priv (`everwell.html`). **All 9 phases are
+  replaced Solace. It lives in A1-Priv (`Everwell/everwell.html`). **All 9 phases are
   done (2026-10-11).** Read §0 of `C:\Users\antho\Desktop\A1-Priv\docs\Everwell\plan.md`
   (standing rules, what to do with a new ask), then run the tests (A1-Priv
   `npm test` and A1 `node tests/live/everwell.live.js`).
@@ -54,10 +62,10 @@
   [docs/Guardian/README.md](docs/Guardian/README.md) (hosts must load the file
   unpinned; legacy adoption is retired after 2026-11-10 by its checklist).
 - **Popups** (any popup, dialog, modal or overlay, in any program, both sides):
-  [popups.js](popups.js) gives every backdrop TaskHub's look (`rgba(0,0,0,.6)` +
+  [popups.js](Shared/popups.js) gives every backdrop TaskHub's look (`rgba(0,0,0,.6)` +
   `blur(7px) saturate(.9)`), closes it on a click outside, and never on a
   drag that ends outside. Don't style or wire a backdrop per program; a new
-  program loads the tag in `<head>`. Contract: [docs/popups.md](docs/popups.md).
+  program loads the tag in `<head>`. Contract: [docs/Shared/popups.md](docs/Shared/popups.md).
 - **Shruti** ("continue Shruti", "next Shruti phase", the Gita reader/podcast/video
   program): everything lives in `Shruti/` (page, data, tools, tests, docs, worker), so it
   moves as one folder; its docs are the exception to "docs go in docs/". **All 9 phases
@@ -67,16 +75,17 @@
 - **Theme overhaul** ("continue theme", "next theme phase"): MAGI's look on
   Tony's side of every program, plus MAGI's drag and drop everywhere except
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
-  [docs/theme-overhaul-plan.md](docs/theme-overhaul-plan.md) says what to do
+  [docs/Theme/theme-overhaul-plan.md](docs/Theme/theme-overhaul-plan.md) says what to do
   with a new theme ask; §2 is the spec. Never change Veda's side.
 - **TradeHub, Insight, Vault, RiftIQ, Everwell, OneInbox and the Vault Launcher
   are NOT in A1** (moved 2026-10-10; OneInbox 2026-10-28). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
-  (anthonyn99/A1-Priv), served at `https://a1-priv.av1.workers.dev/<page>.html`.
+  (anthonyn99/A1-Priv), each in its own folder there (`TradeHub/tradehub.html`, ...)
+  but still served at `https://a1-priv.av1.workers.dev/<page>.html`.
   Edit them there; its own CLAUDE.md applies. A1 has no copy of them (its old
-  redirect stubs were removed 2026-10-22); `Vault/` is a junction into A1-Priv. Shared files (LifeHub, Notebook, tabsync, ...) and
+  redirect stubs were removed 2026-10-22); `Vault/` is a junction into A1-Priv. Shared files (`Shared/`, LifeHub, Notebook, ...) and
   workers stay here. **Moving another program to A1-Priv** ("move X to the
   private repo"): follow
-  [docs/a1-priv-move-plan.md](docs/a1-priv-move-plan.md), section "Moving
+  [docs/A1-Priv/a1-priv-move-plan.md](docs/A1-Priv/a1-priv-move-plan.md), section "Moving
   another program later".
 - **Every doc, plan and README goes in [docs/](docs/)**, whatever project it
   is for (a project's own subfolder there if it has several). Only this file,

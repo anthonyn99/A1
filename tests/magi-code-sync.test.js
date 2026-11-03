@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const MAGI = fs.readFileSync(path.join(__dirname, '..', 'magi.html'), 'utf8').replace(/\r\n/g, '\n');
+const MAGI = fs.readFileSync(path.join(__dirname, '..', 'magi/magi.html'), 'utf8').replace(/\r\n/g, '\n');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {

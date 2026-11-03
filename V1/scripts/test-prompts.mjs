@@ -49,7 +49,7 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(t, i) { this.type = t; this.detail = (i || {}).detail; } };
 
-const P = await import(new URL('../js/modules/prompts.js', import.meta.url).href);
+const P = await import(new URL('../StudyOS/js/modules/prompts.js', import.meta.url).href);
 
 console.log('\nlibrary: add / update / remove');
 {

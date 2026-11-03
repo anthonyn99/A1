@@ -1,5 +1,5 @@
 // resizegrip.js (window.A1Resize): MAGI's corner resize grip, shared by every
-// A1 program (theme overhaul, docs/theme-overhaul-plan.md §2 "Resize handles").
+// A1 program (theme overhaul, docs/Theme/theme-overhaul-plan.md §2 "Resize handles").
 // Driven in jsdom; the box's height comes from its inline style (or data-h when
 // it has none), so the geometry the grip reads is the one written here.
 //
@@ -16,7 +16,7 @@ const ok = (name, cond, extra) => {
 };
 
 const ROOT = path.join(__dirname, '..');
-const src = fs.readFileSync(path.join(ROOT, 'resizegrip.js'), 'utf8');
+const src = fs.readFileSync(path.join(ROOT, 'Shared/resizegrip.js'), 'utf8');
 
 function boot(storageThrows) {
   const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://a1.test/' });
@@ -68,7 +68,7 @@ function click(window, g) {
 }
 const key = (window, g, k) => g.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
 
-console.log('resizegrip.js');
+console.log('Shared/resizegrip.js');
 {
   const w = boot();
   const { ta, g } = make(w, null, 100);
@@ -144,7 +144,7 @@ console.log('resizegrip.js');
       if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue;
       const p = path.join(dir, ent.name);
       if (ent.isDirectory()) walk(p);
-      else if (ent.name === 'resizegrip.js') copies.push(p);
+      else if (ent.name === 'Shared/resizegrip.js') copies.push(p);
     }
   };
   walk(ROOT);

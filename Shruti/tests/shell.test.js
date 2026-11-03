@@ -28,21 +28,21 @@ const ok = (name, cond, extra) => {
   console.log('\nThe files');
   let babel = null;
   try { babel = require('@babel/parser'); } catch (e) {}
-  for (const f of ['core.js', 'orca.js', 'library.js', 'app.js', 'worker/worker.js']) {
+  for (const f of ['app/core.js', 'app/orca.js', 'app/library.js', 'app/app.js', 'worker/worker.js']) {
     let err = null;
     if (babel) { try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; } }
     ok(f + ' parses as a module', !err, err);
   }
   const html = read('shruti.html');
-  for (const s of ['dragsort.js', 'Guardian/guardian.js', 'scrollbar.js', 'apphead.js', 'tabsync.js', 'hoverfx.js', 'LifeHub/lifehub.js']) {
+  for (const s of ['Shared/dragsort.js', 'Guardian/guardian.js', 'Shared/scrollbar.js', 'Shared/apphead.js', 'Shared/tabsync.js', 'Shared/hoverfx.js', 'LifeHub/lifehub.js']) {
     ok('the page loads the shared ' + s + ' from ../', new RegExp('<script[^>]+src="\\.\\./' + s.replace(/[./]/g, '\\$&') + '"').test(html) && fs.existsSync(path.join(ROOT, s)));
   }
-  ok('its own module and stylesheet load from beside it', /<script type="module" src="app\.js"><\/script>/.test(html) && /<link rel="stylesheet" href="styles\.css">/.test(html));
-  ok('the books it reads are relative to the page', /'books\/' \+ id \+ '\/book\.json'/.test(read('library.js')) && fs.existsSync(path.join(DIR, 'books', 'gita', 'book.json')));
+  ok('its own module and stylesheet load from app/ beside it', /<script type="module" src="app\/app\.js"><\/script>/.test(html) && /<link rel="stylesheet" href="app\/styles\.css">/.test(html));
+  ok('the books it reads are relative to the page', /'books\/' \+ id \+ '\/book\.json'/.test(read('app/library.js')) && fs.existsSync(path.join(DIR, 'books', 'gita', 'book.json')));
   const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-workers2.yml'), 'utf8');
   ok('the account-2 lane deploys Shruti/worker on a push to it', /- 'Shruti\/worker\/\*\*'/.test(wf) && /find workers2 Shruti\/worker -maxdepth 2/.test(wf));
   ok('…and resolves its KV title from any folder', /node "\$GITHUB_WORKSPACE\/workers2\/kv-provision\.mjs"/.test(wf) && /id = "kv:SHRUTI_DRIVE"/.test(read('worker/wrangler.toml')));
-  ok('the page talks to that worker, by its account-2 name', /https:\/\/shruti-drive\.av1-2\.workers\.dev/.test(read('app.js')) && /name = "shruti-drive"/.test(read('worker/wrangler.toml')));
+  ok('the page talks to that worker, by its account-2 name', /https:\/\/shruti-drive\.av1-2\.workers\.dev/.test(read('app/app.js')) && /name = "shruti-drive"/.test(read('worker/wrangler.toml')));
   const fav = (html.match(/<link rel="icon"[^>]*href="([^"]+)"/) || [])[1] || '';
   ok('the favicon is the Heard book on the suite charcoal', /%23c0aeea/.test(fav) && /M48%2040c-6-4-14-6-24-6v38/.test(fav));
 
@@ -71,7 +71,7 @@ const ok = (name, cond, extra) => {
   const gIdx = html.indexOf('src="../Guardian/guardian.js"'), defIdx = html.indexOf("Guardian.define(p + '_shruti'"), preIdx = html.indexOf('Guardian.prepaint([window.SHRUTI_GID])'), bodyIdx = html.indexOf('<body');
   ok('Guardian loads, the lock is declared and painted over, all before <body>', gIdx > 0 && gIdx < defIdx && defIdx < preIdx && preIdx < bodyIdx);
   ok('the lock hides #app', /root: '#app'/.test(html));
-  const app = read('app.js');
+  const app = read('app/app.js');
   const boots = [...app.matchAll(/C\.boot\(\)/g)].length;
   ok('Firestore starts in one place only: enter()', boots === 1 && /function enter\(\) \{[\s\S]{0,300}C\.boot\(\);/.test(app));
   ok('enter() runs only after Guardian.gate opens', /Guardian\.gate\(GID\)\.then\(\(ok\) => \{ if \(ok\) enter\(\)/.test(app) && [...app.replace(/^\s*\/\/.*$/gm, '').matchAll(/\benter\(\)/g)].length === 2);
@@ -82,7 +82,7 @@ const ok = (name, cond, extra) => {
   console.log('\nThe sync layer');
   global.window = { SHRUTI_PROFILES: { tony: { label: 'Tony', doc: 'shruti' }, veda: { label: 'Veda', doc: 'shruti_veda' } }, SHRUTI_PROFILE: 'tony' };
   global.addEventListener = () => {};
-  const C = await import(pathToFileURL(path.join(DIR, 'core.js')).href);
+  const C = await import(pathToFileURL(path.join(DIR, 'app/core.js')).href);
   ok('nest() turns field paths into a document', JSON.stringify(C.nest({ 'a.b': 1, 'a.c.d': 2, e: 3 })) === '{"a":{"b":1,"c":{"d":2}},"e":3}');
   ok("Tony's document is dashboards/shruti", C.me.path === 'dashboards/shruti' && C.shared.path === 'dashboards/shruti_shared');
   const writes = [];
@@ -123,7 +123,7 @@ const ok = (name, cond, extra) => {
   clearTimeout(d.timer);
 
   console.log('\nThe Orca client');
-  const O = await import(pathToFileURL(path.join(DIR, 'orca.js')).href);
+  const O = await import(pathToFileURL(path.join(DIR, 'app/orca.js')).href);
   let rows = O.unitRows({}, null);
   ok("default order is MAGI's: DeepSeek, ChatGPT, Gemini, Perplexity, Claude", rows.map((r) => r.name).join() === 'DeepSeek,ChatGPT,Gemini,Perplexity,Claude', rows.map((r) => r.name).join());
   ok('Claude is off unless ticked', rows.find((r) => r.name === 'Claude').on === false && rows.filter((r) => r.on).length === 4);

@@ -39,7 +39,7 @@ function t(name, cond, detail) {
 }
 function section(s) { console.log('\n' + s); }
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'backup.js'), 'utf8');
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'Backup/backup.js'), 'utf8');
 // The journals' Firestore layer lives in Notebook/core/fb.js (Notebook Phase 3).
 const HTML = ['index.html', 'Notebook/core/fb.js']
   .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
@@ -65,7 +65,7 @@ const sandbox = {
 };
 sandbox.self = sandbox;
 vm.createContext(sandbox);
-vm.runInContext(SRC, sandbox, { filename: 'backup.js' });
+vm.runInContext(SRC, sandbox, { filename: 'Backup/backup.js' });
 const A1 = sandbox.window.A1Backup;
 const { JOURNALS, entryIds, imageKeys } = A1._internals;
 

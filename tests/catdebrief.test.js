@@ -9,9 +9,9 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const SRC = fs.readFileSync(path.join(ROOT, 'catdebrief.js'), 'utf8');
+const SRC = fs.readFileSync(path.join(ROOT, 'Shared/catdebrief.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -166,7 +166,7 @@ console.log('\nThe link MAGI reads');
 {
   const u = D.link('hello', ['gemini'], 'veda');
   const p = payloadOf(u);
-  ok('goes to the console', u.split('#')[0] === 'https://anthonyn99.github.io/A1/magi.html');
+  ok('goes to the console', u.split('#')[0] === 'https://anthonyn99.github.io/A1/magi/magi.html');
   ok('carries prompt, units, a run and the profile', p.q === 'hello' && p.units.join() === 'gemini' && p.run === 1 && p.p === 'veda' && p.src === 'catalysts', JSON.stringify(p));
   ok('an unknown profile is sent as Tony', payloadOf(D.link('x', [], 'mallory')).p === 'tony');
   ok('a base url that already has a fragment is not doubled', D.link('x', [], 'tony', 'https://h/magi.html#old').split('#').length === 2);
@@ -190,7 +190,7 @@ console.log('\nThe button press');
 
   // A console already open: only the fragment changes, so MAGI hears it on
   // hashchange instead of reloading.
-  const tab = { location: { href: 'https://anthonyn99.github.io/A1/magi.html', replace(u) { this.href = u; } }, focus() { this.focused = true; } };
+  const tab = { location: { href: 'https://anthonyn99.github.io/A1/magi/magi.html', replace(u) { this.href = u; } }, focus() { this.focused = true; } };
   const O = load({ tab });
   O.D.launch([cpi], 'tony', {});
   ok('an open console is handed the prompt, not just focused', /magi\.html#tb=/.test(tab.location.href) && tab.focused, tab.location.href.slice(0, 60));
@@ -212,7 +212,7 @@ console.log('\nThe button press');
 
 console.log('\nBoth TaskHubs are wired to it');
 {
-  ok('index.html loads catdebrief.js', /<script src="catdebrief\.js"><\/script>/.test(INDEX));
+  ok('index.html loads catdebrief.js', /<script src="Shared\/catdebrief\.js"><\/script>/.test(INDEX));
   ok('it listens to the settings doc the module names', INDEX.includes('doc(db, "' + D.DOC + '")') && /A1Debrief\.setConfig\(snap\.exists\(\)/.test(INDEX));
   ok('Tony’s card launches in Tony’s profile', /window\._mcDebrief\(l,"tony",/.test(INDEX));
   ok('Veda’s card launches in Veda’s profile', /window\._mcDebrief\(l,"veda",/.test(INDEX));
@@ -234,7 +234,7 @@ console.log('\nTradeHub edits the same settings');
   if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); }
   else {
     const TB = M.read('tradehub.html');
-    ok('TradeHub loads catdebrief.js unpinned', /<script src="https:\/\/anthonyn99\.github\.io\/A1\/catdebrief\.js"><\/script>/.test(TB));
+    ok('TradeHub loads catdebrief.js unpinned', /<script src="https:\/\/anthonyn99\.github\.io\/A1\/Shared\/catdebrief\.js"><\/script>/.test(TB));
     ok('and writes the doc index.html reads', TB.includes("'" + D.DOC + "'") || TB.includes('"' + D.DOC + '"'));
     const units = [...TB.matchAll(/\{id:'([a-z-]+)',\s*label:/g)].map((m) => m[1]);
     ok('every default unit is one TradeHub offers', D.DEFAULT_UNITS.every((u) => units.includes(u)), units);

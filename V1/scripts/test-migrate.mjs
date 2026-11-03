@@ -42,9 +42,9 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(t, i) { this.type = t; this.detail = (i || {}).detail; } };
 
-const deck = await import(new URL('../js/modules/deck.js', import.meta.url).href);
-const bd = await import(new URL('../js/modules/breakdown.js', import.meta.url).href);
-const mig = await import(new URL('../js/modules/migrate-cards-v2.js', import.meta.url).href);
+const deck = await import(new URL('../StudyOS/js/modules/deck.js', import.meta.url).href);
+const bd = await import(new URL('../StudyOS/js/modules/breakdown.js', import.meta.url).href);
+const mig = await import(new URL('../StudyOS/js/modules/migrate-cards-v2.js', import.meta.url).href);
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
 const lesson = (md) => ({ blocks: [{ kind: 'read', title: 'R', markdown: md }, { kind: 'recap', title: 'Recap', points: ['p'] }] });

@@ -1,6 +1,6 @@
 // hoverfx.js's MAGI mode (data-hoverfx="magi"), driven in jsdom.
 //
-// The theme overhaul (docs/theme-overhaul-plan.md) moves one program at a time
+// The theme overhaul (docs/Theme/theme-overhaul-plan.md) moves one program at a time
 // onto MAGI's hover language by putting data-hoverfx="magi" on its root. Two
 // promises make that safe to do piecemeal, and both are pinned here:
 //
@@ -24,7 +24,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'hoverfx.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'Shared/hoverfx.js'), 'utf8');
 const dom = new JSDOM(`<!doctype html><body style="background:#1a1a1d">
   <div id="magi" data-hoverfx="magi"><button id="m" style="background:#f4f3f0">M</button></div>
   <div id="plain"><button id="p" style="background:#f4f3f0">P</button></div>

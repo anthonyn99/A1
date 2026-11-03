@@ -22,7 +22,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const LAUNCH = path.join(ROOT, 'trading-auto-launch', 'launch.py');
+const LAUNCH = path.join(ROOT, 'tools', 'trading-auto-launch', 'launch.py');
 const SRC = fs.readFileSync(LAUNCH, 'utf8');
 
 let pass = 0, fail = 0;

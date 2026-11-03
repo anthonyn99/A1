@@ -1,0 +1,65 @@
+{
+  "about": "Where things live in A1 (docs/layout.md explains each folder). tests/layout.test.js fails when a tracked file or folder sits anywhere these lists do not allow, so nothing is ever left loose. A new program gets its own folder: add it to `folders` here and to docs/layout.md in the same change.",
+  "root": {
+    "files": {
+      "index.html": "TaskHub + the journals. The site root (/A1/) serves it, so it cannot move.",
+      "404.html": "GitHub Pages' not-found page: forwards every moved page's old address.",
+      "firebase-messaging-sw.js": "Push service worker. Its scope must cover index.html, so it sits beside it.",
+      "CLAUDE.md": "Claude Code reads it from the repo root.",
+      "README.md": "GitHub shows it on the repo's front page.",
+      "package.json": "npm (test tooling) runs from the root.",
+      ".gitignore": "git",
+      ".gitattributes": "git",
+      ".nojekyll": "GitHub Pages"
+    },
+    "folders": {
+      "Backup": "A1Backup: backup.js, the restore/export pages and the repo copies (Index Backups/)",
+      "docs": "every doc, plan and README, one subfolder per project",
+      "Guardian": "the one lock (guardian.js); hosts load it from this path",
+      "LifeHub": "the app switcher (lifehub.js); hosts load it from this path",
+      "magi": "MAGI: the console (magi.html) and its engine (a Python package run as `python -m magi`)",
+      "MyList": "MyList (mylist.html)",
+      "Notebook": "the journals and the DOCX editor",
+      "PriceWatch": "the Price Watch extension (Brave loads it unpacked from this folder)",
+      "Rules": "machine-read rules: cleanup-rules.json, firestore.rules, this file",
+      "Shared": "files every program loads: scrollbar, popups, controls, dragsort, resizegrip, hoverfx, apphead, profilepick, tabsync, sweep, tni, catdebrief",
+      "Shield": "Shield: the page (shield.html) and the desktop agent (desktop/)",
+      "Shruti": "Shruti, as one folder",
+      "TaskHub": "TaskHub's own scripts (its page is index.html at the root)",
+      "tests": "every A1 test suite (Shruti and the MAGI engine keep theirs in their own folders)",
+      "tools": "scripts run by hand or by a scheduled task",
+      "V1": "Veda's programs (see `V1` below)",
+      "workers": "Cloudflare workers on account 1 (the folder picks the account)",
+      "workers2": "Cloudflare workers on account 2",
+      ".claude": "Claude Code settings and hooks",
+      ".githooks": "git hooks",
+      ".github": "GitHub workflows"
+    }
+  },
+  "V1": {
+    "files": {
+      "package.json": "the V1 build and its tests run from V1/",
+      "package-lock.json": "npm's lock file",
+      ".gitignore": "V1's ignore rules"
+    },
+    "folders": {
+      "StudyOS": "StudyOS: studyos.html with its css, js, config, assets, vendor, manifest, service worker and desktop app",
+      "Wellness": "Wellness (wellness.html)",
+      "Finance": "Finance (finance.html)",
+      "TradeBoard": "TradeBoard (tradeboard.html) and its desktop and sync tools",
+      "Launcher": "the Launcher extension (Brave loads it unpacked from this folder)",
+      "firebase": "Firestore rules and config for V1's Firebase project",
+      "scripts": "the build, tests and Push Changes",
+      "shared": "V1's design tokens",
+      "tools": "V1's helper programs (sos-browser)",
+      "workers": "V1's Cloudflare workers",
+      ".claude": "Claude Code settings"
+    }
+  },
+  "docs": {
+    "files": {
+      "README.md": "the index of every doc",
+      "layout.md": "where everything lives (this file's explanation); CLAUDE.md links it"
+    }
+  }
+}

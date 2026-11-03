@@ -15,7 +15,7 @@
  * gone. Getting that backwards does not fail loudly — it silently produces
  * history entries that can never be reverted.
  *
- * Skips cleanly if desktop/shield is absent, so the suite still runs for anyone
+ * Skips cleanly if Shield/desktop is absent, so the suite still runs for anyone
  * who only has the web half checked out.
  *
  * Run: node tests/agent-contract.test.js
@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const AG = path.join(ROOT, 'desktop', 'shield');
+const AG = path.join(ROOT, 'Shield', 'desktop');
 const SRC = path.join(AG, 'src-tauri', 'src');
 
 if (!fs.existsSync(SRC)) {
@@ -48,7 +48,7 @@ const rust = fs
   .filter((f) => f.endsWith('.rs'))
   .map((f) => fs.readFileSync(path.join(SRC, f), 'utf8'))
   .join('\n');
-const html = fs.readFileSync(path.join(ROOT, 'shield.html'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'Shield/shield.html'), 'utf8');
 const workerPath = path.join(ROOT, 'workers', 'taskhub-reminders', 'worker.js');
 const worker = fs.existsSync(workerPath) ? fs.readFileSync(workerPath, 'utf8') : '';
 
@@ -120,7 +120,7 @@ const cargo = fs.readFileSync(path.join(AG, 'src-tauri', 'Cargo.toml'), 'utf8');
 const plugins = [...cargo.matchAll(/^tauri-plugin-([a-z-]+)\s*=/gm)].map((m) => m[1]);
 const uninit = plugins.filter((p) => !lib.includes('tauri_plugin_' + p.replace(/-/g, '_') + '::'));
 check('every tauri plugin in Cargo.toml is initialised in lib.rs', uninit.length === 0, uninit.join(', '));
-// A single /* does not match a nested path like /A1/shield.html. Without /**
+// A single /* does not match a nested path like /A1/Shield/shield.html. Without /**
 // the IPC is never injected and window.__TAURI__ is simply absent.
 check(
   'the remote URL pattern uses /** so a nested path matches',
@@ -415,7 +415,7 @@ const PAGES = 'https://anthonyn99.github.io';
 
 check(
   'the window loads the live Pages URL (keeps CORS + App Check + Firestore origin intact)',
-  conf.app.windows[0].url === PAGES + '/A1/shield.html',
+  conf.app.windows[0].url === PAGES + '/A1/Shield/shield.html',
   conf.app.windows[0].url
 );
 // The agent re-navigates on launch with a cache-busting query string, because

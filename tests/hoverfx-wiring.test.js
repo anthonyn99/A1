@@ -23,12 +23,12 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 // TradeHub, Insight, Vault and Vault/ live in ../A1-Priv now (tests/moved.js).
 const M = require('./moved');
-const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('hoverfx.js') + '["\']');
+const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('Shared/hoverfx.js') + '["\']');
 
 // Pages served from the repo root, which load the shared file directly.
 const PAGES = [
-  'index.html', 'riftiq.html', 'tradehub.html', 'shield.html', 'mylist.html',
-  'vault.html', 'insight.html', 'oneinbox.html', 'V1/wellness.html',
+  'index.html', 'riftiq.html', 'tradehub.html', 'Shield/shield.html', 'MyList/mylist.html',
+  'vault.html', 'insight.html', 'oneinbox.html', 'V1/Wellness/wellness.html',
   'everwell.html',
   // A page in its program's own folder loads ../hoverfx.js.
   'Shruti/shruti.html',
@@ -39,7 +39,7 @@ const COPIES = [
   ['Vault', 'popup.html'],
   ['PriceWatch', 'popup.html'],
   [path.join('V1', 'Launcher'), 'popup.html'],
-  [path.join('desktop', 'shield', 'ui'), 'index.html'],
+  [path.join('Shield', 'desktop', 'ui'), 'index.html'],
 ];
 
 let pass = 0, fail = 0;
@@ -48,7 +48,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const srcPath = path.join(ROOT, 'hoverfx.js');
+const srcPath = path.join(ROOT, 'Shared/hoverfx.js');
 ok('hoverfx.js exists at the repo root', fs.existsSync(srcPath));
 if (!fs.existsSync(srcPath)) { console.log('\n  1 failed'); process.exit(1); }
 const src = fs.readFileSync(srcPath);
@@ -68,7 +68,7 @@ for (const name of PAGES) {
 // programs plus a shared program nav that already answers the cursor with its
 // own outline and lift, written in CSS. Unscoped, the layer would double up on that nav.
 const idx = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const rootsAttr = /<script[^>]+src=["']hoverfx\.js["'][^>]*\sdata-roots=["']([^"']+)["']/.exec(idx);
+const rootsAttr = /<script[^>]+src=["']Shared\/hoverfx\.js["'][^>]*\sdata-roots=["']([^"']+)["']/.exec(idx);
 ok('index.html scopes hoverfx with data-roots', !!rootsAttr);
 if (rootsAttr) {
   const roots = rootsAttr[1].split(',').map((s) => s.trim());
@@ -78,7 +78,7 @@ if (rootsAttr) {
   ok('index.html does NOT scope the program nav', !roots.includes('#tony-app-nav'));
 }
 
-// The theme overhaul (docs/theme-overhaul-plan.md) moves programs onto MAGI's
+// The theme overhaul (docs/Theme/theme-overhaul-plan.md) moves programs onto MAGI's
 // hover mode one phase at a time. Each phase that ships adds its marker here,
 // so a later edit cannot quietly drop a program back to the measured hover.
 ok('index.html: Tony\'s TaskHub root is magi', /<div id="root" data-hoverfx="magi">/.test(idx));

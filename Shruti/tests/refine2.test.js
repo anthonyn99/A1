@@ -49,12 +49,12 @@ const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
   ok('…every verse named is in its chapter, as this rendition numbers it', !badVerse.length, badVerse.join(', '));
   ok('…and no detail for a lesson that is not there', !extra.length, extra.join(', '));
   ok('most lessons name their verse', Object.values(more).filter((x) => typeof x === 'object').reduce((s, c) => s + Object.values(c).filter((d) => d.verses).length, 0) >= all - 10);
-  const lib = read('library.js');
+  const lib = read('app/library.js');
   ok('the popup has arrows, keys and swipe', /data-step="-1"/.test(lib) && /data-step="1"/.test(lib) && /ArrowRight/.test(lib) && /touchend/.test(lib));
   ok('the lesson list opens it', /data-li=/.test(lib) && /openLesson\(/.test(lib));
 
   console.log('\nVoice previews');
-  const orca = read('orca.js');
+  const orca = read('app/orca.js');
   const block = orca.slice(orca.indexOf('export const VOICES = ['), orca.indexOf('].map(', orca.indexOf('export const VOICES = [')));
   const voices = [...block.matchAll(/\['([a-zA-Z-]+Neural)'/g)].map((m) => m[1]);
   ok('the offered voices are read (' + voices.length + ')', voices.length >= 18);
@@ -67,10 +67,10 @@ const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
   }
   ok('every offered voice has a preview clip', !noClip.length, noClip.join(', '));
   ok('…each a real clip in whole Edge frames (over a second)', !badClip.length, badClip.join(', '));
-  ok('narrate.js plays the clip, Orca only for a voice without one', /media\/voices\//.test(read('narrate.js')) && /export function stopPreview/.test(read('narrate.js')));
+  ok('narrate.js plays the clip, Orca only for a voice without one', /media\/voices\//.test(read('app/narrate.js')) && /export function stopPreview/.test(read('app/narrate.js')));
   ok('the podcast pairs, the narrator list, any two voices and Build everything can all be heard', (() => {
-    const mk = read('make.js');
-    return /data-try="' \+ esc\(h\.hosts\[0\]\[1\] \+ ','/.test(mk) && /data-try-sel=/.test(mk) && /tryChip\(/.test(mk) && /data-try=/.test(read('study/slides.js'));
+    const mk = read('app/make.js');
+    return /data-try="' \+ esc\(h\.hosts\[0\]\[1\] \+ ','/.test(mk) && /data-try-sel=/.test(mk) && /tryChip\(/.test(mk) && /data-try=/.test(read('app/study/slides.js'));
   })());
 
   console.log('\nHost pairs');
@@ -78,7 +78,7 @@ const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
   global.addEventListener = () => {};
   global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   global.document = { addEventListener() {}, querySelector: () => null };
-  const G = await import(pathToFileURL(path.join(DIR, 'generate.js')).href);
+  const G = await import(pathToFileURL(path.join(DIR, 'app/generate.js')).href);
   const ids = G.HOST_PRESETS.map((h) => h.id);
   ok('pairs have unique ids', new Set(ids).size === ids.length);
   ok('the default pair is Sonia and Ryan, first in the list (Tony, 2026-10-22)', G.HOST_PRESETS[0].id === 'sonia-ryan' && G.hostsOf({})[0].voice === 'en-GB-SoniaNeural' && G.hostsOf({})[1].voice === 'en-GB-RyanNeural' && G.HOST_PRESETS[1].id === 'sonia-brian');
@@ -90,14 +90,14 @@ const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
 
   console.log('\nThe player pieces');
   const babel = require('@babel/parser');
-  for (const f of ['ptools.js', 'podcast.js', 'video.js', 'study/hub.js', 'study/flashcards.js', 'study/mindmap.js', 'import.js']) {
+  for (const f of ['app/ptools.js', 'app/podcast.js', 'app/video.js', 'app/study/hub.js', 'app/study/flashcards.js', 'app/study/mindmap.js', 'app/import.js']) {
     let err = null; try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; }
     ok(f + ' parses as a module', !err, err);
   }
-  ok('Listen and Watch open their speeds only from the speed pill', /speedHTML\(\)/.test(read('podcast.js')) && /speedHTML\(\)/.test(read('video.js')) && /tl-speeds" id="tl-speeds" role="radiogroup" aria-label="Speed" hidden/.test(read('ptools.js')));
-  ok('the lessons under Listen and Watch fold', /foldHTML\('podLessons'/.test(read('podcast.js')) && /foldHTML\('vidLessons'/.test(read('video.js')));
-  ok('a flashcard mark can be taken back', /DELETE/.test(read('study/flashcards.js')) && /aria-pressed/.test(read('study/flashcards.js')));
-  ok('mind map nodes opt out of the hover filter', /data-no-hoverfx/.test(read('study/mindmap.js')));
+  ok('Listen and Watch open their speeds only from the speed pill', /speedHTML\(\)/.test(read('app/podcast.js')) && /speedHTML\(\)/.test(read('app/video.js')) && /tl-speeds" id="tl-speeds" role="radiogroup" aria-label="Speed" hidden/.test(read('app/ptools.js')));
+  ok('the lessons under Listen and Watch fold', /foldHTML\('podLessons'/.test(read('app/podcast.js')) && /foldHTML\('vidLessons'/.test(read('app/video.js')));
+  ok('a flashcard mark can be taken back', /DELETE/.test(read('app/study/flashcards.js')) && /aria-pressed/.test(read('app/study/flashcards.js')));
+  ok('mind map nodes opt out of the hover filter', /data-no-hoverfx/.test(read('app/study/mindmap.js')));
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

@@ -134,7 +134,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await c.send('Page.navigate', { url: URL + hash });
   await sleep(400);
 }
-const imp = (x) => `const IMP = await import(new URL('import.js', location.href).href); ${x}`;
+const imp = (x) => `const IMP = await import(new URL('app/import.js', location.href).href); ${x}`;
 
 (async () => {
   const c = await connect({ mock });
@@ -253,7 +253,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
 
   console.log('\nThe shelves');
   // A second book of Tony's own, so Mine has two to drag.
-  const secondId = await ev(c, imp(`const B = await import(new URL('books.js', location.href).href); const X = await import(new URL('extract.js', location.href).href);
+  const secondId = await ev(c, imp(`const B = await import(new URL('app/books.js', location.href).href); const X = await import(new URL('app/extract.js', location.href).href);
     const id=X.newBookId(); await B.save('mine', {id, title:'Second Book', author:'', unit:'Chapter', chapters:[{n:1,title:'Only',file:'ch01',words:2}], words:2, src:{name:'x.txt',kind:'text'}}, [X.toChapter(1,'Only',[{t:'Just this.',h:0}])]); return id;`));
   await ev(c, `location.hash='#/'; return 1`);
   ok('the library: the Gita and the River Book on Shared, Tony\'s two on Mine', await waitFor(c, `document.querySelectorAll('#shelf-shared .book').length===2 && document.querySelectorAll('#shelf-mine .book').length===2`), await keysOf(c, '#shelf-mine .book'));

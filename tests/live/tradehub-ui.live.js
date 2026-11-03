@@ -88,7 +88,7 @@ const worker = {
 
   await size(1280, 900);
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
     sessionStorage.setItem('__fakefs_docs', JSON.stringify({
       'dashboards/tradeboard_prompts': ${JSON.stringify(PROMPTS)},

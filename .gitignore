@@ -8,9 +8,9 @@ node_modules/
 debug.log
 **/debug.log
 **/launch.log
-trading-auto-launch/.last_run
-trading-auto-launch/.last_analysis
-trading-auto-launch/__pycache__/
+tools/trading-auto-launch/.last_run
+tools/trading-auto-launch/.last_analysis
+tools/trading-auto-launch/__pycache__/
 .claude-queue/
 .pytest_cache/
 
@@ -81,7 +81,7 @@ package-lock.json
 # copy and must NEVER be tracked: the auto-commit watcher fires 3s after any
 # write, so a tracked hot file would mean hundreds of commits and Pages
 # rebuilds a day. This one line is what keeps that from happening.
-Index Backups/*/live/
+Backup/Index Backups/*/live/
 
 # Read-only secret for tools/pull-backups.mjs. Low blast radius by design - it
 # can only fetch ciphertext, never write or delete - but it is still a
@@ -112,6 +112,6 @@ magi/.pytest_cache/
 # ── Moved to the private repo (anthonyn99/A1-Priv, Desktop\A1-Priv) ─────────
 # Vault/ is a directory JUNCTION to ..\A1-Priv\Vault on Tony's PC, so the
 # Vault Launcher extension Brave loads unpacked from A1\Vault keeps working.
-# It must never be tracked here again (docs/a1-priv-move-plan.md).
+# It must never be tracked here again (docs/A1-Priv/a1-priv-move-plan.md).
 /Vault
 /Vault/

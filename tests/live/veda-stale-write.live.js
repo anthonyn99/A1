@@ -52,7 +52,7 @@ const NEW = { ...OLD, data: { [TODAY]: [task('t_old', 'Old task'), task('t_new',
   const js = (e) => evalJs(c, e);
   const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 200; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(200); } return false; };
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); localStorage.setItem('a1b_disabled','1');
     localStorage.setItem('a1_sweep_day:index', ${JSON.stringify(TODAY)});
     sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vedasdash': ${JSON.stringify(OLD)},

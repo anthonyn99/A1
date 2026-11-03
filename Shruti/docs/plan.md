@@ -69,7 +69,7 @@ phase is done so he can open a fresh session for the next one.
   - Not done: drag to reorder (Tony, 2026-10-20: do it in Phase 8, see "Next"). A study set made from a live Orca unit has not been run for real (needs Tony's key on the page).
 
 - **Phase 8: Import, and drag to reorder (2026-10-20).**
-  - `import.js` (the sheet), `extract.js` (page-free core), `books.js` (storage), `order.js` (drag). Library → **Import a book** (the Mine shelf): PDF through A1's vendored pdf.js (`../V1/vendor/pdfjs-6.3.289/`, in README "Moving Shruti"), EPUB and Word through JSZip 3.10.1 from cdnjs, text/markdown, or paste. Paragraphs keep the source's words (lines joined, line-break hyphens put back, running heads/feet and page numbers left out).
+  - `import.js` (the sheet), `extract.js` (page-free core), `books.js` (storage), `order.js` (drag). Library → **Import a book** (the Mine shelf): PDF through A1's vendored pdf.js (`../V1/StudyOS/vendor/pdfjs-6.3.289/`, in README "Moving Shruti"), EPUB and Word through JSZip 3.10.1 from cdnjs, text/markdown, or paste. Paragraphs keep the source's words (lines joined, line-break hyphens put back, running heads/feet and page numbers left out).
   - Chapters: the file's own contents (EPUB nav/NCX, PDF outline), else repeated headings, else "Chapter N" lines; or **Find chapters with AI** (Orca gets numbered paragraph starts and returns `{title, author, chapters:[{title, start, anchor}]}`; `checkToc` keeps, moves or drops each start by its anchor). The cut is deterministic; text before chapter 1 becomes "Opening pages". **Tidy with AI** is optional and only taken where `tidyCheck` (Myers word diff) says typo level.
   - Review: rename, split at any paragraph, merge, leave out, drag; Mine or Shared; Chapters/Parts/Sections. Book page: Rename, Delete (texts and everything made from it).
   - **Changed from the plan:** imported chapter texts go to **Firestore**, `dashboards/<doc>/texts/<book>_<file>` (cut into `~1`… parts over 700 KB), not Drive, because Drive is not connected yet and Firestore needs nothing new. The original file goes to Drive only when Drive is connected (`Shruti/<book>/source/`). The book is `books.<id>` in the shared doc or the person's own.
@@ -177,8 +177,8 @@ Outside the folder there are only one-line registrations in shared files that li
   - Veda: StudyOS tokens (#1B1C1E, #8D769A / #A892B0, Lora titles, Nunito body).
   - Elegance comes from typography, layered surfaces, soft shadows, blur on overlays, View Transitions, FLIP and spring motion, all respecting `prefers-reduced-motion`.
 
-### AI: Orca (only backend) — `Shruti/orca.js`
-- Base `https://orca.vedapatel05.workers.dev/v1`. Calls are OpenAI-compatible: `POST /chat/completions` with `Authorization: Bearer orca_sk_…`, streaming over SSE, and `GET /models` with `routable`. GitHub Pages is already in Orca's CORS list (`ORCA/worker/src/index.ts:29`). The client is modelled on `V1/js/modules/ai.js:729-847` (StudyOS) and `workers/personal-ai/worker.js:3541-3645`.
+### AI: Orca (only backend) — `Shruti/app/orca.js`
+- Base `https://orca.vedapatel05.workers.dev/v1`. Calls are OpenAI-compatible: `POST /chat/completions` with `Authorization: Bearer orca_sk_…`, streaming over SSE, and `GET /models` with `routable`. GitHub Pages is already in Orca's CORS list (`ORCA/worker/src/index.ts:29`). The client is modelled on `V1/StudyOS/js/modules/ai.js:729-847` (StudyOS) and `workers/personal-ai/worker.js:3541-3645`.
 - **Keys:** Settings → "Orca key". Paste once per person; it is checked live with `GET /models`. It is stored in the person's Firestore doc (`dashboards/shruti[_veda]`, field `orcaKey`) so every device works at once, the same way MAGI syncs its engine token. It is mirrored locally and readable only after the Guardian unlock. Tony and Veda each use their own key, which runs on their own Orca accounts.
 - **Unit picker** (MAGI-style ticks and order): DeepSeek, ChatGPT, Gemini, Perplexity and Claude, mapped to `deepseek/free`, `chatgpt/free`, `gemini_web/free`, `perplexity/free`, `claude/free` (plus `groq/gpt-oss-120b` when routable).
   - It is filled from `/models`; models that aren't routable show as offline (e.g. the PC running Orca is off).
@@ -327,7 +327,7 @@ Each phase ends with:
 - **Ready-made study sets for the introduction and all 18 chapters** (flashcards, a quiz, a mind map and a slide deck each), written by Claude and shipped.
 
 **Phase 8: Import.**
-- Upload or paste. Text is extracted client-side (pdf.js already vendored at `V1/vendor/pdfjs-6.3.289`; JSZip for EPUB and DOCX), and the original goes to Drive.
+- Upload or paste. Text is extracted client-side (pdf.js already vendored at `V1/StudyOS/vendor/pdfjs-6.3.289`; JSZip for EPUB and DOCX), and the original goes to Drive.
 - Orca returns table-of-contents JSON (titles plus exact start anchors).
 - The text is split deterministically.
 - Optional cleanup is accepted only if the word-diff stays within typo-level changes.

@@ -74,7 +74,7 @@
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
-// OneInbox moved to A1-Priv's host on 2026-10-28 (docs/a1-priv-move-plan.md).
+// OneInbox moved to A1-Priv's host on 2026-10-28 (docs/A1-Priv/a1-priv-move-plan.md).
 // GitHub stays listed for TaskHub-side callers and the live tests.
 const ALLOWED_ORIGINS = [ALLOWED_ORIGIN, 'https://a1-priv.av1.workers.dev'];
 

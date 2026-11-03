@@ -1,7 +1,7 @@
 """MAGI's half of the A1 self-cleanup.
 
 What counts as trash is not decided here. It is listed in cleanup-rules.json
-at the repo root, which the browser sweeper (sweep.js) and the tests read too.
+in the repo's Rules/ folder, which the browser sweeper (Shared/sweep.js) and the tests read too.
 This runs that file's "disk" items whose program is "magi", for the active
 profile:
 
@@ -47,7 +47,7 @@ def _codex_rollout(p: Path) -> bool:
 
 
 def rules_path() -> Path:
-    return S.ROOT.parent / "cleanup-rules.json"
+    return S.ROOT.parent / "Rules" / "cleanup-rules.json"
 
 
 def _state_path() -> Path:

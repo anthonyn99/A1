@@ -168,7 +168,7 @@
     taskhub: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 34l7 7 12-13'/><path d='M56 36h16'/><path d='M26 58h46'/><path d='M26 72h46'/></g></svg>",
     // Wellness (Veda's), its own favicon verbatim.
     wellness: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1B1C1E'/><g fill='none' stroke='#8D769A' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 52c0-10 8-18 18-18s18 8 18 18'/><path d='M22 62h12l5-10 6 20 5-10h24'/></g></svg>",
-    // StudyOS (Veda's), V1/assets/icon.svg with single quotes, on one line.
+    // StudyOS (Veda's), V1/StudyOS/assets/icon.svg with single quotes, on one line.
     studyos: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='#26272A'/><g transform='translate(-19.4 2.2) scale(5.4)' fill='none' stroke='#B8A2C6' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round'><path d='M48 22 14 38l34 16 34-16Z'/><path d='M28 46v14c0 6 9 12 20 12s20-6 20-12V46'/><path d='M82 38v18'/></g><circle cx='423.4' cy='337' r='30' fill='#F0B3CB'/></svg>",
     shruti: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z'/><path d='M48 40v38'/><path d='M41 28a10 10 0 0 1 14 0'/><path d='M35 21a19 19 0 0 1 26 0'/></g></svg>",
     link: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='24'/><path d='M24 48h48'/><path d='M48 24c7 7 10 15 10 24s-3 17-10 24c-7-7-10-15-10-24s3-17 10-24z'/></g></svg>"
@@ -187,7 +187,7 @@
   // Veda's StudyOS is served from her own Cloudflare site (V1/scripts/build.mjs).
   var STUDYOS = 'https://tradeboard.vedapatel05.workers.dev/studyos/';
   // Programs that moved to the private repo's host on 2026-10-10
-  // (docs/a1-priv-move-plan.md).
+  // (docs/A1-Priv/a1-priv-move-plan.md).
   var PRIV = 'https://a1-priv.av1.workers.dev/';
   var SHIELD_EXE = {
     tony: 'C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe',
@@ -199,16 +199,22 @@
   // OneInbox moved to the private host on 2026-10-28. Its old address is a
   // GitHub 404, so a stored tile that still holds it is moved to the new one,
   // once per sync, through the normal patch path (query and hash are kept).
-  // Wellness (Veda's) moved into V1/ on 2026-11-02; the old address forwards,
-  // but a stored tile is still moved so it opens the page directly.
+  // On 2026-11-03 every A1 program moved into its own folder (docs/layout.md).
+  // The old addresses still forward (404.html), but a stored tile is moved so
+  // it opens the page directly.
   var MOVED_PAGES = [
     { from: /^https:\/\/anthonyn99\.github\.io\/A1\/oneinbox\.html(?=[?#]|$)/i, to: PRIV + 'oneinbox.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/wellness\.html(?=[?#]|$)/i, to: BASE + 'V1/wellness.html' }
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/(?:V1\/)?wellness\.html(?=[?#]|$)/i, to: BASE + 'V1/Wellness/wellness.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/V1\/studyos\.html(?=[?#]|$)/i, to: BASE + 'V1/StudyOS/studyos.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/mylist\.html(?=[?#]|$)/i, to: BASE + 'MyList/mylist.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/magi\.html(?=[?#]|$)/i, to: BASE + 'magi/magi.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/shield\.html(?=[?#]|$)/i, to: BASE + 'Shield/shield.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/backup-(restore|export)\.html(?=[?#]|$)/i, to: BASE + 'Backup/backup-$1.html' }
   ];
   var DEFAULT_APPS = [
     { id: 'oneinbox', name: 'OneInbox', url: PRIV + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
     { id: 'tradehub', name: 'TradeHub', url: PRIV + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
-    { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
+    { id: 'mylist', name: 'MyList', url: BASE + 'MyList/mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
     { id: 'vault', name: 'Vault', url: PRIV + 'vault.html', icon: 'a1:vault', tab: 'vault' },
     { id: 'everwell', name: 'Everwell', url: PRIV + 'everwell.html', icon: 'a1:everwell', tab: 'everwell' },
@@ -217,9 +223,9 @@
     // and the agent starting its own exe is a second launch, which surfaces
     // the running agent's window (lib.rs single-instance handler).
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.tony, icon: 'a1:shield-desktop', tab: 'shield_app' },
-    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_tony' },
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'Shield/shield.html', icon: 'a1:shield', tab: 'shield_tony' },
     { id: 'riftiq', name: 'RiftIQ', url: PRIV + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
-    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' },
+    { id: 'magi', name: 'MAGI', url: BASE + 'magi/magi.html', icon: 'a1:magi', tab: 'magi' },
     { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
   // Veda's own list: the programs that carry a Veda profile. Tab keys follow
@@ -228,11 +234,11 @@
   var VEDA_APPS = [
     { id: 'taskhub', name: 'TaskHub', url: BASE + 'index.html', icon: 'a1:taskhub', tab: 'taskhub' },
     { id: 'studyos', name: 'StudyOS', url: STUDYOS, icon: 'a1:studyos', tab: 'studyos' },
-    { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
+    { id: 'mylist', name: 'MyList', url: BASE + 'MyList/mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.veda, icon: 'a1:shield-desktop', tab: 'shield_app' },
-    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' },
-    { id: 'wellness', name: 'Wellness', url: BASE + 'V1/wellness.html', icon: 'a1:wellness', tab: 'wellness' },
-    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' },
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'Shield/shield.html', icon: 'a1:shield', tab: 'shield_veda' },
+    { id: 'wellness', name: 'Wellness', url: BASE + 'V1/Wellness/wellness.html', icon: 'a1:wellness', tab: 'wellness' },
+    { id: 'magi', name: 'MAGI', url: BASE + 'magi/magi.html', icon: 'a1:magi', tab: 'magi' },
     { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
   // Programs added to the defaults after the lists were first written. The

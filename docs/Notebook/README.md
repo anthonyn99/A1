@@ -50,7 +50,7 @@ is left out. Both sides' instances save through the same store template
 | tradehub.html, Playbook (A1-Priv) | T's Notebook | `pb` | `tradehub_playbook` | inline (instance) |
 | tradehub.html, Control's prompts (A1-Priv) | T's Notebook | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
 | everwell.html, notes (A1-Priv) | T's Notebook | `ewn` | `everwell_notes` | inline (instance, its own bar: `sideNote: false`) |
-| V1/studyos.html, Quick Notes + every Notes module (A1) | V's Notebook | `stn` | `studyos_notebook` | inline (instance, one folder per place; [../V1/notebook.md](../V1/notebook.md)) |
+| V1/StudyOS/studyos.html, Quick Notes + every Notes module (A1) | V's Notebook | `stn` | `studyos_notebook` | inline (instance, one folder per place; [../V1/notebook.md](../V1/notebook.md)) |
 | V1/TradeBoard/tradeboard.html, Strats (A1) | V's Notebook | `vtb` | `tradeboard_strats` | inline (instance; [../V1/notebook.md](../V1/notebook.md)) |
 
 Plan and history: [plan.md](plan.md).

@@ -226,8 +226,8 @@ function loadScript(href) {
 // What the apps borrow from a host, with a stand-in where the host has none.
 function helpers() {
   var w = window, jobs = [];
-  if (!w.TNI) jobs.push(loadScript(BASE + '../tni.js' + (STAMP ? '?v=' + STAMP : '')));
-  if (!w.A1Drag) jobs.push(loadScript(BASE + '../dragsort.js' + (STAMP ? '?v=' + STAMP : '')));
+  if (!w.TNI) jobs.push(loadScript(BASE + '../Shared/tni.js' + (STAMP ? '?v=' + STAMP : '')));
+  if (!w.A1Drag) jobs.push(loadScript(BASE + '../Shared/dragsort.js' + (STAMP ? '?v=' + STAMP : '')));
   // Entry locks are Guardian locks. Loaded unpinned (never ?v=), like every
   // Guardian host, so a Guardian upgrade reaches instances too.
   if (!w.Guardian) jobs.push(loadScript(BASE + '../Guardian/guardian.js'));

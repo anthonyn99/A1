@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
 
 
 # ── the grip is on all three boxes ──────────────────────────────────────────
@@ -31,11 +31,11 @@ def test_both_brainstorm_boxes_have_a_grip(key):
 
 # The grip itself is the shared resizegrip.js (theme overhaul phase 11), one
 # copy of the code for every A1 program.
-GRIP = (REPO / "resizegrip.js").read_text(encoding="utf-8")
+GRIP = (REPO / "Shared" / "resizegrip.js").read_text(encoding="utf-8")
 
 
 def test_magi_uses_the_shared_grip():
-    assert '<script src="resizegrip.js"></script>' in PAGE
+    assert '<script src="../Shared/resizegrip.js"></script>' in PAGE
     assert "function attachGrip(" not in PAGE and ".qbar-grip {" not in PAGE, (
         "MAGI carries its own copy of the grip again"
     )

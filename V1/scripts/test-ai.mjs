@@ -53,7 +53,7 @@ globalThis.fetch = async (url, init = {}) => {
 };
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
 
-const ai = await import(new URL('../js/modules/ai.js', import.meta.url).href);
+const ai = await import(new URL('../StudyOS/js/modules/ai.js', import.meta.url).href);
 const PDF = { b64: 'JVBERi0xLjQ=', name: 'Lecture.pdf', size: 8 };
 const SCHEMA = { type: 'object', additionalProperties: false, required: ['x'], properties: { x: { type: 'number' } } };
 

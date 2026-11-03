@@ -199,7 +199,7 @@ def run(port: int = 0, label: str | None = None, autostart: bool = True) -> int:
     # profile's other devices.
     _say("Done. What only a person can do, in the console:")
     _say()
-    _say(f"  Open https://anthonyn99.github.io/A1/magi.html here, pick {profile}, unlock,")
+    _say(f"  Open https://anthonyn99.github.io/A1/magi/magi.html here, pick {profile}, unlock,")
     _say("  then Accounts: sign in to each council unit, Coding agents (Codex shows")
     _say("  a device code), and GitHub (add a token).")
     if sites:

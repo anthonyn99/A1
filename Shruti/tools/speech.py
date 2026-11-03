@@ -1,7 +1,7 @@
 """One way the build tools speak (podcast.py, video.py, narrate.py).
 
 Edge's neural voices through edge-tts (7.3.1 or newer), with word timings,
-after Shruti's pronunciation lexicon (Shruti/lexicon.json, the same one the
+after Shruti's pronunciation lexicon (Shruti/app/lexicon.json, the same one the
 page's orca.js uses): a word an English voice gets wrong is spoken respelled,
 and the word timings come back with the true spelling, one word for one word,
 so captions and highlighting line up with the text exactly.
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import edge_tts
 
-LEXICON = {k: v for k, v in json.loads((Path(__file__).resolve().parent.parent / "lexicon.json").read_text(encoding="utf-8")).items() if k != "_"}
+LEXICON = {k: v for k, v in json.loads((Path(__file__).resolve().parent.parent / "app" / "lexicon.json").read_text(encoding="utf-8")).items() if k != "_"}
 _WORD = re.compile(r"[A-Za-z]+")
 
 

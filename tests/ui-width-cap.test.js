@@ -24,12 +24,12 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const PAGES = [
-  'index.html', 'insight.html', 'magi.html', 'mylist.html', 'oneinbox.html',
-  'riftiq.html', 'shield.html', 'tradehub.html', 'vault.html',
-  'V1/wellness.html', 'everwell.html', 'Shruti/shruti.html',
+  'index.html', 'insight.html', 'magi/magi.html', 'MyList/mylist.html', 'oneinbox.html',
+  'riftiq.html', 'Shield/shield.html', 'tradehub.html', 'vault.html',
+  'V1/Wellness/wellness.html', 'everwell.html', 'Shruti/shruti.html',
 ];
 // StudyOS is the one multi-file app; its cap lives in its stylesheet.
-const SHEETS = ['V1/css/studyos.css', 'Shruti/styles.css'];
+const SHEETS = ['V1/StudyOS/css/studyos.css', 'Shruti/app/styles.css'];
 
 const CAP = /max-width:\s*2000px/;
 // Selectors whose NAME says backdrop. A dim is background, and the card

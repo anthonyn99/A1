@@ -32,7 +32,7 @@ can be redone the same way.
 |---|---|---|
 | index-backups worker (`workers2/index-backups`) | each device's last 14 encrypted snapshots | always: `/index` lists each device's `stamps`, then the page fetches `/s/<device>?at=<stamp>` and `/o/<hash>` |
 | this browser's vault (`backup.js`) | last 72 h, finer-grained | only when this browser has the passphrase saved |
-| `Index Backups/` in the repo | daily copies made by `tools/pull-backups.mjs` | only if the worker cannot be reached |
+| `Backup/Index Backups/` in the repo | daily copies made by `tools/pull-backups.mjs` | only if the worker cannot be reached |
 
 The worker accepts the page's App Check token, as it does for TaskHub. Every
 snapshot holds both TaskHubs, so either passphrase can restore either one. A

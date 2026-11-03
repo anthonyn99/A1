@@ -40,7 +40,8 @@ def fake(tmp_path, monkeypatch):
     monkeypatch.setattr(S, "_active_profile", "tony")
 
     def rules(*items):
-        (tmp_path / "cleanup-rules.json").write_text(
+        (tmp_path / "Rules").mkdir(exist_ok=True)
+        (tmp_path / "Rules" / "cleanup-rules.json").write_text(
             json.dumps({"version": 1, "items": list(items)}), encoding="utf-8")
     return root, rules
 
@@ -176,7 +177,7 @@ def test_no_other_glob_under_profiles_is_allowed(fake, glob):
 
 
 def test_the_real_rules_file_loads():
-    items = sweep.load_rules(REPO / "cleanup-rules.json")
+    items = sweep.load_rules(REPO / "Rules" / "cleanup-rules.json")
     assert {i["id"] for i in items} >= {"magi-screenshots", "magi-dom-dumps"}
     shots = next(i for i in items if i["id"] == "magi-screenshots")
     assert shots["capDays"] == 7

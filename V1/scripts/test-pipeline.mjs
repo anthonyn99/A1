@@ -39,7 +39,7 @@ globalThis.window = {
   _fbAppCheckToken: async () => 'tok-123',
 };
 
-const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
+const pipeline = await import(new URL('../StudyOS/js/modules/pipeline.js', import.meta.url).href);
 
 // ── Request plumbing ──────────────────────────────────────────────────────
 console.log('\npipeline: request plumbing');

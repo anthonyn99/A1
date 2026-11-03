@@ -11,7 +11,7 @@
 'use strict';
 const fs = require('fs');
 
-const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'shield.html'), 'utf8');
+const SRC = fs.readFileSync(require('path').join(__dirname, '..', 'Shield/shield.html'), 'utf8');
 
 // Pull the real functions out of the page rather than restating them here — a
 // copy would pass while the shipped code stayed broken.

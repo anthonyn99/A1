@@ -21,7 +21,7 @@
 //       mutated, looking at a card would reschedule it.
 //
 // Run with:  npm run test:fsrs
-import * as F from '../js/modules/fsrs.js';
+import * as F from '../StudyOS/js/modules/fsrs.js';
 
 let pass = 0, fail = 0;
 const t = (name, cond, extra) => {

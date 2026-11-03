@@ -1,50 +1,50 @@
 # A1
 
-Single-file web apps with no build step. Every `.html` at the repo root is served
-as-is from GitHub Pages (`anthonyn99.github.io/A1/<page>.html`) — open one and it
-runs. State lives in Firebase (one document per program under `dashboards/`) with
-localStorage as the offline cache. The browser extensions, the desktop agent and
-the Cloudflare Workers each have their own folder.
+Single-file web apps with no build step, served as-is from GitHub Pages
+(`anthonyn99.github.io/A1/<folder>/<page>.html`) — open one and it runs. State
+lives in Firebase (one document per program under `dashboards/`) with
+localStorage as the offline cache. Every program has its own folder; where
+everything goes, and why the few root files cannot move, is
+[docs/layout.md](docs/layout.md) (`tests/layout.test.js` enforces it).
 
-## Programs (repo root)
+## Programs
 
-| File | Program |
+| Page | Program |
 | --- | --- |
-| `index.html` | **TaskHub** — the suite shell and profile gate (Tony / Veda): weekly grid, daily habits, goals, MyJournal, ProView, Plans, Veda's Links and Rules |
-| `mylist.html` | **MyList** — shopping list with Price Watch |
-| `V1/wellness.html` | **Wellness** — Veda's tracker (the old `wellness.html` address forwards here) |
-| `shield.html` | **Shield** — front end for the desktop agent |
-| `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/MAGI/magi.md`) |
+| `index.html` | **TaskHub** — the suite shell and profile gate (Tony / Veda): weekly grid, daily habits, goals, MyJournal, ProView, Plans, Veda's Links and Rules. The site root serves it, so it stays at the root |
+| `MyList/mylist.html` | **MyList** — shopping list with Price Watch |
+| `Shield/shield.html` | **Shield** — front end for the desktop agent (`Shield/desktop/`) |
+| `magi/magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The engine beside it (`magi/`, `docs/MAGI/magi.md`) runs on each PC |
+| `Shruti/shruti.html` | **Shruti** — read, listen, watch and study a book a chapter at a time (`Shruti/docs/README.md`) |
+| `Backup/backup-restore.html` | **Backup** — restore or export TaskHub from A1Backup |
+| `V1/StudyOS/studyos.html`, `V1/Wellness/wellness.html`, ... | **Veda's programs** (`V1/`) |
 
-`firestore.rules`, `firebase-messaging-sw.js` and `.nojekyll` are deployment
-files and belong at the root.
+The old root addresses (`magi.html`, `mylist.html`, `shield.html`, ...) still
+work: `404.html` forwards them, keeping the query and hash.
 
 ### Private programs (A1-Priv)
 
-**TradeHub**, **Insight**, **Vault**, **RiftIQ** and **Everwell**, plus the Vault Launcher extension, live
-in the private repo `anthonyn99/A1-Priv` (`Desktop\A1-Priv`). They are served
-from `https://a1-priv.av1.workers.dev/<page>.html` and still load this repo's
-shared files (LifeHub, Notebook, tabsync, ...) by URL. Their old addresses here
-no longer exist (the redirect stubs were removed on 2026-10-22; LifeHub and TaskHub
-rewrite stored links themselves), and `Vault/` is a git-ignored junction to `A1-Priv\Vault`, so Brave's unpacked
-extension keeps its path. See `docs/a1-priv-move-plan.md`, which also covers
-moving another program there.
+**TradeHub**, **Insight**, **Vault**, **RiftIQ**, **Everwell** and **OneInbox**, plus
+the Vault Launcher extension, live in the private repo `anthonyn99/A1-Priv`
+(`Desktop\A1-Priv`), each in its own folder. They are served from
+`https://a1-priv.av1.workers.dev/<page>.html` and load this repo's shared files
+(`Shared/`, LifeHub, Notebook, Guardian) by URL. `Vault/` here is a git-ignored
+junction to `A1-Priv\Vault`, so Brave's unpacked extension keeps its path. See
+`docs/A1-Priv/a1-priv-move-plan.md`, which also covers moving another program there.
 
 ## Folders
 
 | Path | What it is |
 | --- | --- |
-| `LifeHub/` | **LifeHub** — the A1 app switcher, built once (`lifehub.js`) and dropped into each program with an `<a1-lifehub>` tag + one script. Not in Index or any Veda profile. See `docs/LifeHub/README.md` |
-| `Shruti/` | **Shruti** — read, listen, watch and study a book a chapter at a time (the Gita first), both profiles, all AI through Orca. One folder holds everything it owns: `shruti.html`, its modules, books, tests, docs and its Drive worker (see `Shruti/docs/README.md`) |
+| `Shared/` | Files every program loads: scrollbar, popups, controls, dragsort, resizegrip, hoverfx, apphead, profilepick, tabsync, sweep, tni, catdebrief |
+| `Guardian/`, `LifeHub/`, `Notebook/` | The one lock, the app switcher and the journals (`docs/Guardian/`, `docs/LifeHub/`, `docs/Notebook/`) |
+| `Rules/` | Machine-read rules: `cleanup-rules.json` (the trash registry), `firestore.rules`, `layout.json` |
+| `TaskHub/` | TaskHub's own scripts |
 | `PriceWatch/` | Price Watch browser extension — reads store pages for MyList |
-| `desktop/shield/` | Shield desktop agent (Tauri / Rust). Rebuild and reinstall with `powershell -File desktop\shield\launch.ps1`; the installed copy has its own Start-menu shortcut |
-| `trading-auto-launch/` | Python helper that opens TradeHub on a schedule |
-| `workers/` | Cloudflare Workers. Every directory here is deployed by `.github/workflows/deploy-workers.yml` |
-| `V1/` | Veda's earlier suite — StudyOS, Finance, TradeBoard. Still deployed, by `deploy-v1-workers.yml`; self-contained, with its own README and workers |
-| `tests/` | Node test suite for the root apps — `npm test` |
-| `tools/` | App Check maintenance scripts (see `docs/tools/README-appcheck.md`) |
-| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; it starts itself at logon. See `docs/MAGI/magi.md` |
-| `docs/` | **Every** doc, plan and README in A1, whatever project it is for -- one place to look. Each project keeps its own subfolder (`docs/MAGI/`, `docs/TaskHub/`, `docs/Notebook/`, `docs/Guardian/`, `docs/V1/`, ...), finished plans stay as the record, and `docs/README.md` indexes them all. Only `CLAUDE.md`, `.claude/skills/` and this README stay outside it, because Claude Code and GitHub look for them where they are |
+| `workers/`, `workers2/` | Cloudflare Workers on accounts 1 and 2, deployed on push by `.github/workflows/` |
+| `tests/` | Node test suites — `npm test` |
+| `tools/` | Scripts run by hand or by a scheduled task (App Check, backups, `trading-auto-launch/`) |
+| `docs/` | **Every** doc, plan and README in A1, one subfolder per project, indexed by `docs/README.md`. Only `CLAUDE.md`, `.claude/skills/` and this README stay outside it, because Claude Code and GitHub look for them where they are |
 
 ## Tests
 

@@ -88,7 +88,7 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   const js = (e) => evalJs(c, e);
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','tony'); localStorage.setItem('td6_lastDash','tony'); localStorage.setItem('a1b_disabled','1');
     localStorage.setItem('a1_sweep_day:index', ${JSON.stringify(TODAY)});
     sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/main': ${JSON.stringify(MAIN)}, 'dashboards/vedasdash': ${JSON.stringify(VEDA)}, 'dashboards/tony_pc_apps': { apps: ${JSON.stringify(APPS.slice(0, 1))}, savedAt: 1 } })); 1`);

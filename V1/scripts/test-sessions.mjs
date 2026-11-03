@@ -41,7 +41,7 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(t, i) { this.type = t; this.detail = (i || {}).detail; } };
 
-const S = await import(new URL('../js/modules/sessions.js', import.meta.url).href);
+const S = await import(new URL('../StudyOS/js/modules/sessions.js', import.meta.url).href);
 
 const MIN = 60000;
 const DAY = 86400000;
@@ -82,7 +82,7 @@ console.log('\ndaily totals');
 console.log('\nstreak');
 {
   mem.clear();
-  const fresh = await import(new URL('../js/modules/sessions.js?s1', import.meta.url).href);
+  const fresh = await import(new URL('../StudyOS/js/modules/sessions.js?s1', import.meta.url).href);
   t('no sessions means no streak', fresh.streak(NOW) === 0);
 
   // Three consecutive days ending today.
@@ -97,7 +97,7 @@ console.log('\nstreak');
 
   // The morning case: nothing today, but yesterday counted.
   mem.clear();
-  const m2 = await import(new URL('../js/modules/sessions.js?s2', import.meta.url).href);
+  const m2 = await import(new URL('../StudyOS/js/modules/sessions.js?s2', import.meta.url).href);
   for (const back of [2, 1]) {
     m2.log('focus', { durationMs: 20 * MIN, startedAt: NOW - back * DAY });
   }
@@ -105,13 +105,13 @@ console.log('\nstreak');
 
   // But two missed days really is over.
   mem.clear();
-  const m3 = await import(new URL('../js/modules/sessions.js?s3', import.meta.url).href);
+  const m3 = await import(new URL('../StudyOS/js/modules/sessions.js?s3', import.meta.url).href);
   m3.log('focus', { durationMs: 20 * MIN, startedAt: NOW - 3 * DAY });
   t('two missed days ends the streak', m3.streak(NOW) === 0, m3.streak(NOW));
 
   // Several sessions in one day must not inflate it.
   mem.clear();
-  const m4 = await import(new URL('../js/modules/sessions.js?s4', import.meta.url).href);
+  const m4 = await import(new URL('../StudyOS/js/modules/sessions.js?s4', import.meta.url).href);
   for (let i = 0; i < 5; i++) m4.log('focus', { durationMs: 20 * MIN, startedAt: NOW });
   t('five sessions in one day is a streak of 1', m4.streak(NOW) === 1, m4.streak(NOW));
 }
@@ -120,7 +120,7 @@ console.log('\nstreak');
 console.log('\nrollups');
 {
   mem.clear();
-  const m = await import(new URL('../js/modules/sessions.js?s5', import.meta.url).href);
+  const m = await import(new URL('../StudyOS/js/modules/sessions.js?s5', import.meta.url).href);
   m.log('focus', { classId: 'c1', durationMs: 60 * MIN, startedAt: NOW });
   m.log('focus', { classId: 'c2', durationMs: 30 * MIN, startedAt: NOW - DAY });
   m.log('focus', { classId: '', durationMs: 15 * MIN, startedAt: NOW });
@@ -156,7 +156,7 @@ console.log('\nrollups');
 console.log('\nremote merge');
 {
   mem.clear();
-  const m = await import(new URL('../js/modules/sessions.js?s6', import.meta.url).href);
+  const m = await import(new URL('../StudyOS/js/modules/sessions.js?s6', import.meta.url).href);
   const mine = m.log('focus', { classId: 'c1', durationMs: 25 * MIN, startedAt: NOW });
 
   const foreign = { id: 'ss_phone', kind: 'review', classId: 'c2', startedAt: NOW - 3600000,
@@ -176,14 +176,14 @@ console.log('\nremote merge');
 console.log('\nannotation and robustness');
 {
   mem.clear();
-  const m = await import(new URL('../js/modules/sessions.js?s7', import.meta.url).href);
+  const m = await import(new URL('../StudyOS/js/modules/sessions.js?s7', import.meta.url).href);
   const s = m.log('focus', { durationMs: 25 * MIN });
   t('a note can be attached', m.annotate(s.id, 'Finished HW3 problem 1').note === 'Finished HW3 problem 1');
   t('annotating an unknown session is null', m.annotate('nope', 'x') === null);
   t('a very long note is truncated', m.annotate(s.id, 'x'.repeat(900)).note.length === 500);
 
   mem.set('studyos_sessions_v1', '{ not json');
-  const m2 = await import(new URL('../js/modules/sessions.js?s8', import.meta.url).href);
+  const m2 = await import(new URL('../StudyOS/js/modules/sessions.js?s8', import.meta.url).href);
   t('a corrupt log does not throw', Array.isArray(m2.all()));
   t('and starts empty rather than crashing', m2.all().length === 0);
 }

@@ -20,7 +20,7 @@ One thing is deliberately not on Guardian: **Vault's master-password encryption*
 | Vault / RiftIQ (A1-Priv) | `tony_vault_standalone` / `tony_warroom_standalone` | hard gates |
 | Everwell (A1-Priv) | `tony_everwell_standalone`, `tony_everwell_tab_<tab>`; index's nav button `tony_everwell` | hard gate and per-tab locks (Solace's `tony_solace*` retired 2026-10-11) |
 | ORCA (Desktop\ORCA) | `<p>_orca` | `backend` over ORCA's own `/lock/*` routes (server sessions and passkeys) |
-| StudyOS (V1/) | `veda_studyos` | hard gate; `backend` over StudyOS's own `studyos-api` worker, Firestore lock doc and Formspree; legacy adoption reads `sos_al_unlockedat_studyos` and `sos_bio_studyos` (docs/V1/studyos-ui-overhaul.md) |
+| StudyOS (V1/) | `veda_studyos` | hard gate; `backend` over StudyOS's own `studyos-api` worker, Firestore lock doc and Formspree; legacy adoption reads `sos_al_unlockedat_studyos` and `sos_bio_studyos` (docs/V1/StudyOS/studyos-ui-overhaul.md) |
 
 ## Adding a lock to a program
 

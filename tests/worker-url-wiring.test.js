@@ -64,10 +64,10 @@ t('workers2/ has workers', Object.keys(ACCT2).length > 0, Object.keys(ACCT2).len
 // Client-side files only. The workers' own configs legitimately name their own
 // hostname, and docs are prose.
 const CLIENT = ['index.html', 'tradehub.html', 'riftiq.html', 'vault.html', 'insight.html',
-  'mylist.html', 'oneinbox.html', 'shield.html', 'V1/wellness.html', 'Shruti/app.js',
-  'backup.js', 'firebase-messaging-sw.js',
+  'MyList/mylist.html', 'oneinbox.html', 'Shield/shield.html', 'V1/Wellness/wellness.html', 'Shruti/app/app.js',
+  'Backup/backup.js', 'firebase-messaging-sw.js',
   'Vault/background.js', 'Vault/manifest.json', 'V1/Launcher/background.js',
-  'V1/Launcher/manifest.json', 'trading-auto-launch/launch.py', 'tools/pull-backups.mjs'];
+  'V1/Launcher/manifest.json', 'tools/trading-auto-launch/launch.py', 'tools/pull-backups.mjs'];
 
 const URL_RE = /https:\/\/([a-z0-9-]+)\.(av1(?:-\d+)?)\.workers\.dev/g;
 

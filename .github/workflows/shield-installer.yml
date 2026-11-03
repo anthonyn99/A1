@@ -18,7 +18,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'desktop/shield/**'
+      - 'Shield/desktop/**'
       - '.github/workflows/shield-installer.yml'
   workflow_dispatch:
 
@@ -44,7 +44,7 @@ jobs:
       # Shield does; without this every run recompiles the whole tree.
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/shield/src-tauri
+          workspaces: Shield/desktop/src-tauri
 
       - uses: actions/setup-node@v4
         with:
@@ -56,7 +56,7 @@ jobs:
         run: npm install -g @tauri-apps/cli@^2
 
       - name: Build installer
-        working-directory: desktop/shield
+        working-directory: Shield/desktop
         run: tauri build
 
       # Fail loudly here rather than publish an empty release that the page
@@ -65,14 +65,14 @@ jobs:
         id: find
         shell: pwsh
         run: |
-          $exe = Get-ChildItem 'desktop/shield/src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          $exe = Get-ChildItem 'Shield/desktop/src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
           if (-not $exe) { Write-Error 'No NSIS installer was produced'; exit 1 }
           $mb = [math]::Round($exe.Length / 1MB, 1)
           Write-Host "built: $($exe.Name)  ${mb} MB"
           # A stable asset name keeps the download URL predictable.
           Copy-Item $exe.FullName 'Shield-Setup.exe'
           "size_mb=$mb" >> $env:GITHUB_OUTPUT
-          $v = (Get-Content 'desktop/shield/src-tauri/tauri.conf.json' | ConvertFrom-Json).version
+          $v = (Get-Content 'Shield/desktop/src-tauri/tauri.conf.json' | ConvertFrom-Json).version
           "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Publish to the rolling release

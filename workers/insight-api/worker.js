@@ -57,7 +57,7 @@
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
-// Insight moved to A1-Priv's host on 2026-10-10 (docs/a1-priv-move-plan.md).
+// Insight moved to A1-Priv's host on 2026-10-10 (docs/A1-Priv/a1-priv-move-plan.md).
 const ALLOWED_ORIGINS = [ALLOWED_ORIGIN, 'https://a1-priv.av1.workers.dev'];
 
 // Must be registered verbatim under Plaid Dashboard → Developers → API →

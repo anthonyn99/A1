@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
 const APP = fs.readFileSync(path.join(ROOT, 'magi', 'app.py'), 'utf8');
 const IDENT = fs.readFileSync(path.join(ROOT, 'magi', 'ident.py'), 'utf8');
 

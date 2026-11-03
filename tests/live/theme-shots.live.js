@@ -1,5 +1,5 @@
 // Screenshots + hover/press probe for the theme overhaul
-// (docs/theme-overhaul-plan.md). One run captures a program the way a phase
+// (docs/Theme/theme-overhaul-plan.md). One run captures a program the way a phase
 // needs to judge it: Tony's view, Veda's view, phone width, and the shared
 // overlays, plus what hoverfx actually wrote on a real button under a real mouse.
 //

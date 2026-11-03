@@ -39,10 +39,10 @@
 <!-- Strats is V's Notebook (A1's Notebook, docs/Notebook/README.md), loaded
      from A1's Pages URL so it is the same Notebook every program runs.
      data-lazy: its engines load the first time Strats opens (TB.st). -->
-<script src="https://anthonyn99.github.io/A1/Notebook/notebook.js?v=59c842e54f" data-lazy></script>
+<script src="https://anthonyn99.github.io/A1/Notebook/notebook.js?v=47d3e852fa" data-lazy></script>
 <!-- The suite's hover layer (A1's hoverfx.js), on the notes only, so they answer
      the cursor as her journal does; nothing else here changes. -->
-<script src="https://anthonyn99.github.io/A1/hoverfx.js" data-roots="#st-host" defer></script>
+<script src="https://anthonyn99.github.io/A1/Shared/hoverfx.js" data-roots="#st-host" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3171,7 +3171,7 @@ const TB_NB_INDEX = {
   appId: "1:982539604706:web:e93da1aef499fcee2044bb",
 };
 // Index's ORIGINAL reCAPTCHA key, shared by every app on that project. Never
-// swap it (V1/config/config.js §1 tells why).
+// swap it (V1/StudyOS/config/config.js §1 tells why).
 const TB_NB_RECAPTCHA = "6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX";
 let _tbNbFirebase = null;
 window.NotebookFirebase = () => _tbNbFirebase || (_tbNbFirebase = (async () => {

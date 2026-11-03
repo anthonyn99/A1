@@ -1,5 +1,5 @@
 // dragsort.js (window.A1Drag): MAGI's drag to reorder, shared by every A1
-// program (theme overhaul, docs/theme-overhaul-plan.md §2 "Drag and drop").
+// program (theme overhaul, docs/Theme/theme-overhaul-plan.md §2 "Drag and drop").
 // Driven in jsdom with a stubbed layout: every element's box comes from its
 // data-box="x,y,w,h", so the geometry the drag reads is the one written here.
 //
@@ -21,7 +21,7 @@ const SETTLE = 220;
 // like these stub onDrops, is released by a 600ms fallback.
 const HOLD = 600;
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'dragsort.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'Shared/dragsort.js'), 'utf8');
 const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
 const doc = window.document;
@@ -273,7 +273,7 @@ async function drag(target, from, to, kind) {
         if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue;
         const p = path.join(dir, ent.name);
         if (ent.isDirectory()) walk(p);
-        else if (ent.name === 'dragsort.js') copies.push(p);
+        else if (ent.name === 'Shared/dragsort.js') copies.push(p);
       }
     };
     walk(path.join(__dirname, '..'));

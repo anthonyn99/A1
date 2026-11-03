@@ -53,7 +53,7 @@ button,[role="button"],summary,label,select{-webkit-touch-callout:none;-webkit-u
    styles.css, because a fixed box ignores its ancestor's max-width. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="app/styles.css">
 <script id="storage-guard">
 /* A browser that blocks site storage (Veda's Brave) makes every touch of
    localStorage/sessionStorage throw. Swap in memory stores so everything works
@@ -99,9 +99,9 @@ body { max-width: 2000px; margin-inline: auto; }
   window.SHRUTI_GID = p ? p + '_shruti' : null;
 })();
 </script>
-<script src="../dragsort.js"></script>
+<script src="../Shared/dragsort.js"></script>
 <!-- A1's corner grip for text boxes (MAGI's), on every textarea (app.js gripAll). -->
-<script src="../resizegrip.js"></script>
+<script src="../Shared/resizegrip.js"></script>
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="../Guardian/guardian.js"></script>
@@ -114,15 +114,15 @@ if (window.SHRUTI_PROFILE) {
 }
 </script>
 <!-- The one A1 scrollbar, and the shared header mark + sync pill. -->
-<script src="../scrollbar.js"></script>
+<script src="../Shared/scrollbar.js"></script>
 <!-- A1's own form controls (controls.js): no select, date, time, checkbox,
      colour or tooltip is left for the browser to draw. Before any page code. -->
-<script src="../controls.js"></script>
+<script src="../Shared/controls.js"></script>
 <!-- A1's popups (popups.js): every popup backdrop dims and blurs like TaskHub's,
      a click outside closes it, a drag that ends outside never does. -->
-<script src="../popups.js"></script>
-<script src="../apphead.js"></script>
-<script src="../profilepick.js"></script>
+<script src="../Shared/popups.js"></script>
+<script src="../Shared/apphead.js"></script>
+<script src="../Shared/profilepick.js"></script>
 </head>
 <body data-profile="tony">
 <script>
@@ -172,9 +172,9 @@ if (window.SHRUTI_PROFILE) {
 </nav>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script type="module" src="app.js"></script>
-<script src="../tabsync.js"></script>
-<script src="../hoverfx.js"></script>
+<script type="module" src="app/app.js"></script>
+<script src="../Shared/tabsync.js"></script>
+<script src="../Shared/hoverfx.js"></script>
 <script src="../LifeHub/lifehub.js" data-lock="guardian" data-profile-attr="data-profile" defer></script>
 </body>
 </html>

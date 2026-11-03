@@ -28,7 +28,7 @@ const SEED = { 'dashboards/nb_test': { _order: ['e_1_alpha'], activeId: 'e_1_alp
   const js = (e) => evalJs(c, e);
   const until = async (expr, ms) => { for (let i = 0; i < (ms || 8000) / 200; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(200); } return false; };
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))}); 1`);
   await c.send('Page.navigate', { url: URL });
   if (!(await until('window.__hostReady', 10000))) throw new Error('host did not load');

@@ -20,11 +20,11 @@ const vm = require('vm');
 const M = require('./moved');
 
 const ROOT = path.join(__dirname, '..');
-const TAG = new RegExp('<script[^>]+src=["\']' + M.src('controls.js') + '["\'][^>]*>');
-const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'V1/wellness.html',
-  'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
+const TAG = new RegExp('<script[^>]+src=["\']' + M.src('Shared/controls.js') + '["\'][^>]*>');
+const PAGES = ['index.html', 'magi/magi.html', 'MyList/mylist.html', 'Shield/shield.html', 'Shruti/shruti.html', 'V1/Wellness/wellness.html',
+  'Backup/backup-restore.html', 'Backup/backup-export.html', 'V1/StudyOS/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html'];
-const VEDA_ONLY = ['V1/wellness.html', 'V1/studyos.html'];
+const VEDA_ONLY = ['V1/Wellness/wellness.html', 'V1/StudyOS/studyos.html'];
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -32,7 +32,7 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
 
-const code = fs.readFileSync(path.join(ROOT, 'controls.js'), 'utf8');
+const code = fs.readFileSync(path.join(ROOT, 'Shared/controls.js'), 'utf8');
 ok('controls.js parses', (() => { try { new vm.Script(code); return true; } catch (e) { return false; } })());
 ok('controls.js stands down beside Vault\'s own', /if \(window\.A1Controls \|\| window\.VaultControls\) return;/.test(code));
 
@@ -49,7 +49,7 @@ for (const name of PAGES) {
   ok(name + ': before any React render', at < Math.min.apply(null, firstRender));
   if (VEDA_ONLY.includes(name)) ok(name + ': tagged as Veda\'s', /data-profile=["']veda["']/.test(m[0]), m[0]);
 }
-const studyos = fs.readFileSync(path.join(ROOT, 'V1/studyos.html'), 'utf8');
+const studyos = fs.readFileSync(path.join(ROOT, 'V1/StudyOS/studyos.html'), 'utf8');
 ok('StudyOS limits it to V\'s Notebook', /controls\.js"[^>]*data-scope="\.sos-nb-host,\.sos-nb-modal-host"/.test(studyos));
 if (M.has('vault.html')) ok('Vault does not load it', !TAG.test(M.read('vault.html')));
 

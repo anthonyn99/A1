@@ -31,7 +31,7 @@ WATCHDOG = (MAGI / "watchdog.py").read_text(encoding="utf-8")
 RESTARTER = (MAGI / "restarter.py").read_text(encoding="utf-8")
 RESTART_PS1 = (MAGI / "restart.ps1").read_text(encoding="utf-8")
 TUNNEL = (MAGI / "tunnel.py").read_text(encoding="utf-8")
-PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
 
 
 # ── it starts by itself, and keeps starting ────────────────────────────────

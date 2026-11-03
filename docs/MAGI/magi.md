@@ -1539,7 +1539,7 @@ auto-commit** records every change in its working tree and **pushes it to
 main within a minute or two** (`auto: <time>`), its Stop hook does the same at
 the end of every Claude session (`auto: claude code`), GitHub Pages serves its
 pages, and pushes under `workers/`, `workers2/`, `V1/workers/` and
-`desktop/shield/` deploy. So Tony decided (2026-09-24), one answer per action
+`Shield/desktop/` deploy. So Tony decided (2026-09-24), one answer per action
 -- `sandbox.ENGINE_REPO`, which every call site asks about its own action:
 
 | Action | In A1 | Why |
@@ -2095,7 +2095,7 @@ stopping, because a chat website accepts nothing while it is writing.
 
 ## Opening the console from somewhere else
 
-`magi.html` is at `https://anthonyn99.github.io/A1/magi.html`, and there is a
+`magi.html` is at `https://anthonyn99.github.io/A1/magi/magi.html`, and there is a
 **MAGI** button in Tony's TaskHub. The page finds the engine on its own, in
 this order:
 
@@ -2447,7 +2447,7 @@ channel guarantees it) and payload (checked), so it can never send one of these
 tabs off-origin.
 
 The morning launcher builds the same link in Python
-(`trading-auto-launch/launch.py`, `_magi_link`), from the prompt and unit list
+(`tools/trading-auto-launch/launch.py`, `_magi_link`), from the prompt and unit list
 TradeHub pushes to `trade-dashboard`'s `/analysis-config`. A non-empty
 `magiUnits` there is exactly what tells it the destination is the council
 rather than a chat site — the Vault extension and its `#tbauto` marker are not
@@ -3192,7 +3192,7 @@ only missing run had been deleted from the engine showed "Sync failed" with
 nothing wrong, and a batch where nine of ten failed showed "Synced".
 
 **App Check is registered per domain.** Sync works on
-`https://anthonyn99.github.io/A1/magi.html`; on `http://127.0.0.1:8000` the
+`https://anthonyn99.github.io/A1/magi/magi.html`; on `http://127.0.0.1:8000` the
 App Check token is refused and sync silently stays off. Everything local —
 running the council, History, Studio, Brainstorm — is unaffected either way,
 and the console degrades to local-only rather than erroring.

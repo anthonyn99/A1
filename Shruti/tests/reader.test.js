@@ -28,18 +28,18 @@ const ok = (name, cond, extra) => {
   let babel = null;
   try { babel = require('@babel/parser'); } catch (e) {}
   ok('the parser is there (a missing one would let a syntax error ship a blank page)', !!babel);
-  for (const f of ['text.js', 'reader.js', 'narrate.js', 'library.js', 'app.js', 'orca.js', 'core.js']) {
+  for (const f of ['app/text.js', 'app/reader.js', 'app/narrate.js', 'app/library.js', 'app/app.js', 'app/orca.js', 'app/core.js']) {
     let err = null;
     if (babel) { try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; } }
     ok(f + ' parses as a module', !err, err);
   }
   ok('reader.js uses library.js only inside functions (they import each other)', (() => {
-    const src = read('reader.js');
+    const src = read('app/reader.js');
     const top = src.split('\n').filter((l) => /^(const|let|var|export const)\b/.test(l));
     return !top.some((l) => /\b(IC|esc|fracOf|setProgress)\b/.test(l.replace(/^.*?=/, '')));
   })());
 
-  const T = await import(pathToFileURL(path.join(DIR, 'text.js')).href);
+  const T = await import(pathToFileURL(path.join(DIR, 'app/text.js')).href);
   console.log('\ntext.js');
   ok('a paragraph is spoken without its verse numbers', T.blockText({ k: 'p', s: [{ v: '2.11', t: 'The Lord said:' }, { v: '2.12', t: 'There was never a time.' }] }) === 'The Lord said: There was never a time.');
   ok('headings and asides are spoken as written', T.blockText({ k: 'h', t: 'Duty' }) === 'Duty' && T.blockText({ k: 'a', style: 'note', t: 'NOTE: x' }) === 'NOTE: x');
@@ -88,7 +88,7 @@ const ok = (name, cond, extra) => {
 
   console.log('\nThe Orca speech client');
   globalThis.atob = globalThis.atob || ((b) => Buffer.from(b, 'base64').toString('binary'));
-  const O = await import(pathToFileURL(path.join(DIR, 'orca.js')).href);
+  const O = await import(pathToFileURL(path.join(DIR, 'app/orca.js')).href);
   const calls = [];
   const reply = (status, body, headers = {}) => ({ status, ok: status >= 200 && status < 300, headers: { get: (k) => headers[k.toLowerCase()] || null }, json: async () => body });
   const audioB64 = Buffer.from([1, 2, 3, 4]).toString('base64');
