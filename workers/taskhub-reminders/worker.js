@@ -322,13 +322,15 @@ export default {
     // deliberate: a bulk import then costs a predictable trickle instead of a
     // burst against the monthly cap.
     //
-    // Service binding first for the reason documented above — a plain
-    // same-account fetch() can be silently dropped.
-    ctx.waitUntil((async () => {
+    // ONLY through the service binding. The binding stays commented out in
+    // wrangler.toml until studyos-ai has its JOBS namespace and API key
+    // (docs/V1/Suite/PIPELINE_SETUP.md), and until then /cron answers 503
+    // kv_unbound without doing anything. The old URL fallback still called it
+    // every minute: 1,440 requests a day on account 1 for no work at all.
+    // Uncommenting the binding is the one step that turns the drain on.
+    if (env.STUDYOSAI) ctx.waitUntil((async () => {
       try {
-        const r = env.STUDYOSAI
-          ? await env.STUDYOSAI.fetch('https://studyos-ai/cron', { method: 'POST' })
-          : await fetch('https://studyos-ai.av1.workers.dev/cron', { method: 'POST' });
+        const r = await env.STUDYOSAI.fetch('https://studyos-ai/cron', { method: 'POST' });
         if (!r.ok) console.warn(`[studyos-ai] drain → ${r.status}`);
       } catch (e) {
         console.warn('[studyos-ai] drain failed:', e.message);
