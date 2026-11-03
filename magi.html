@@ -3977,11 +3977,17 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
 .model-box { max-width: 520px; }
 /* Each section is its own outlined group, like every sheet's .sheet-grp
    (Tony, 2026-10-27: hairlines alone did not read as groups). */
-.model-box .repo-body { gap: 12px; padding-top: 4px; }
+.model-box .repo-body { gap: 10px; padding: 4px 10px 12px; }
 .model-box .repo-card {
   border: 1px solid rgba(255,255,255,.09); border-radius: 10px;
   background: color-mix(in srgb, var(--bg) 45%, transparent);
-  padding: 12px 14px 14px; gap: 10px;
+  padding: 10px 8px 12px; gap: 10px;
+}
+.model-box .repo-hd { padding: 14px 12px 6px 14px; }
+.model-box .model-opt { padding: 8px 8px; }
+@media (max-width: 720px) {
+  .model-box .repo-body { padding: 4px 8px max(14px, env(safe-area-inset-bottom)); }
+  .model-box .repo-card { padding: 10px 8px 12px; }
 }
 .model-box .cli-banner, .model-box .model-capped { margin: 0 0 10px; }
 .model-acct { color: var(--txm); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
