@@ -135,7 +135,8 @@ const worker = {
   ok('…rendered as Markdown (its table too)', m.table);
   ok('…and each unit\'s own answer, a failed one marked', m.units.length === 3 && /ChatGPT/.test(m.units[0]) && /no answer/.test(m.units[2]), JSON.stringify(m.units));
   await js(`document.querySelector('.dbf-unit summary').click(); 1`); await sleep(200);
-  ok('a unit opens to its full answer', await js(`return /ES/.test(document.querySelector('.dbf-unit[open] .dbf-doc').innerText);`));
+  ok('a unit opens to its full answer, inside its own row', await js(`var u=document.querySelector('.dbf-unit[open]'), d=u.querySelector('.dbf-doc'), a=u.getBoundingClientRect(), b=d.getBoundingClientRect();
+    return /ES/.test(d.innerText) && b.top>=a.top && b.bottom<=a.bottom+1 && b.left>=a.left;`));
   await shot('debrief-desktop-magi');
 
   for (const [w, h, tag] of [[820, 1180, 'tablet'], [390, 844, 'phone']]) {
