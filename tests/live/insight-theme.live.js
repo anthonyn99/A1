@@ -97,10 +97,14 @@ export const collection = (db, ...p) => ({ path: p.join('/'), kind: 'col' });
 export const query = (c) => c;
 export const orderBy = () => ({});
 export const limit = () => ({});
+export const where = () => ({});
 const snap = (ref) => ref.kind === 'col'
-  ? { docs: (SEED[ref.path] || []).map((d) => ({ id: d.id, data: () => d })) }
+  ? { docs: (SEED[ref.path] || []).map((d) => ({ id: d.id, data: () => d })),
+      docChanges: () => (SEED[ref.path] || []).map((d) => ({ type: 'added', doc: { id: d.id, data: () => d } })) }
   : { exists: () => !!SEED[ref.path], data: () => SEED[ref.path] };
 export const getDoc = (ref) => Promise.resolve(snap(ref));
+export const getDocs = (ref) => Promise.resolve(snap(ref));
+export const getCountFromServer = (ref) => Promise.resolve({ data: () => ({ count: (SEED[ref.path] || []).length }) });
 export const setDoc = (ref, data) => { (window.__fsWrites = window.__fsWrites || []).push({ path: ref.path, data }); return Promise.resolve(); };
 export const deleteDoc = () => Promise.resolve();
 export const writeBatch = () => ({ set() {}, delete() {}, commit: () => Promise.resolve() });
@@ -156,7 +160,7 @@ async function load(c, w, h, mobile) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/insight.html?blank' }); await sleep(800);
-  await evalJs(c, "localStorage.clear(); localStorage.setItem('insight_lock_session', JSON.stringify({token:'test'})); 1");
+  await evalJs(c, "localStorage.clear(); indexedDB.deleteDatabase('insight_cache'); localStorage.setItem('insight_lock_session', JSON.stringify({token:'test'})); 1");
   await c.send('Page.navigate', { url: ORIGIN + '/A1/insight.html' });
   await sleep(2200);
 }
