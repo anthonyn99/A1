@@ -102,12 +102,11 @@
     if (el.nodeType !== 1 || el.hasAttribute('data-a1-scrim')) return;
     if (isScrim(el)) el.setAttribute('data-a1-scrim', '');
   }
+  // A tagged element whose class or style changed is checked again with the
+  // tag off, so the look it is judged by is its own, not ours.
   function untagIfGone(el) {
-    if (el.nodeType === 1 && el.hasAttribute('data-a1-scrim')) {
-      el.removeAttribute('data-a1-scrim');
-      if (!isScrim(el)) return;
-      el.setAttribute('data-a1-scrim', '');
-    }
+    el.removeAttribute('data-a1-scrim');
+    if (isScrim(el)) el.setAttribute('data-a1-scrim', '');
   }
   function scanTree(root, maxDepth) {
     tag(root);
@@ -129,6 +128,7 @@
     queued = false;
     var add = pendingAdd, attr = pendingAttr;
     pendingAdd = []; pendingAttr = [];
+    if (attr.length > 1) attr = Array.from(new Set(attr));
     for (var i = 0; i < add.length; i++) {
       var n = add[i];
       if (!n.isConnected) continue;
