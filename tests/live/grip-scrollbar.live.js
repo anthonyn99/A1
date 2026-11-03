@@ -40,6 +40,22 @@ const AUDIT = `
     var r = b.getBoundingClientRect();
     return r.width > 40 && r.height > 20 && r.bottom > 0 && r.top < innerHeight && b.__a1Grip && b.__a1Grip.getClientRects().length;
   }).slice(0, 6);
+  // Plus two boxes built here with the page's own A1Resize, the way every
+  // program builds its own (many only appear once a panel opens): a textarea
+  // and a scrolling div beside its grip in a positioned frame (MAGI's sent
+  // prompt, the box Tony reported).
+  if (window.A1Resize) ['textarea', 'div'].forEach(function (tag, k) {
+    var frame = document.createElement('div');
+    frame.style.cssText = 'position:fixed;left:40px;top:' + (120 + k * 140) + 'px;width:360px;z-index:2147482999;background:#222';
+    var b = document.createElement(tag);
+    b.setAttribute('aria-label', 'test ' + tag);
+    b.style.cssText = 'display:block;box-sizing:border-box;width:100%;overflow-y:auto;white-space:pre-wrap;padding:8px';
+    var g = window.A1Resize.grip('test');
+    frame.append(b, g);
+    document.body.appendChild(frame);
+    window.A1Resize.attach(b, g, null);
+    boxes.push(b);
+  });
   for (var i = 0; i < boxes.length; i++) {
     var b = boxes[i];
     var long = Array(60).join('line of text to make this box scroll\\n');
@@ -77,7 +93,7 @@ const AUDIT = `
     await sleep(5000);
     let list;
     try { list = JSON.parse(await evalJs(c, AUDIT)); } catch (e) { ok(p + ': audit ran', false, String(e).slice(0, 200)); continue; }
-    if (!list.length) { console.log('  · ' + p + ': no grip box on screen'); continue; }
+    if (!list.length) { ok(p + ': has A1Resize', false); continue; }
     for (const x of list) {
       boxes++;
       if (!x.rail) { ok(p + ' "' + x.label + '": bar drawn', !x.scrolls, x); continue; }
