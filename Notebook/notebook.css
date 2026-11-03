@@ -1084,6 +1084,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   /* ── Entry list rows: comfortable and easy to hit ── */
   #tj-root .entry-item, #bj-root .entry-item { min-height: 52px; padding: 11px 10px 11px 26px; }
   #tj-root .entry-delete, #bj-root .entry-delete { width: 36px !important; height: 36px !important; top: 6px; right: 4px; }
+  #tj-root .entry-item-meta, #bj-root .entry-item-meta { padding-right: 34px; }
   #bj-root .docx-tagchip { padding: 6px 12px; font-size: 11.5px; }
   #tj-root .docx-trash-btn, #bj-root .docx-trash-btn { padding: 14px 16px; }
 }
@@ -1250,3 +1251,8 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
 
 /* Top toolbar: no vertical dividers between sections (every mount, one rule) */
 #tj-root .toolbar-sep, #bj-root .toolbar-sep { display: none; }
+
+/* The meta line (badge · date · who made it, OurJournal) stays clear of the
+   trash ×'s column, so its hover frame never sits on the name (Tony,
+   2026-11-03). The × is 28px at right 6px; on a phone 36px at 4px (above). */
+#tj-root .entry-item-meta, #bj-root .entry-item-meta { padding-right: 28px; }
