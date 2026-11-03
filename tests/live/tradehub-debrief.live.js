@@ -119,14 +119,14 @@ const worker = {
   await tab('analysis');
   const btn = await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief'); if(b){b.click();return true;} return false;`);
   ok('Analysis has a Debrief button, and it opens the popup', btn && await until(isOpen, 5000));
-  ok('three tabs: Catalysts (with today\'s count), Summary, MAGI', (await tabs()) === 'Catalysts3|Summary|MAGI', await tabs());
+  ok('three tabs: Catalysts (with today\'s count), News Summary, MAGI', (await tabs()) === 'Catalysts3|News Summary|MAGI', await tabs());
   ok('Catalysts shows only today\'s cards, as Catalysts draws them', await until(`document.querySelectorAll('.dbr-cats .cat-card').length>=2`, 6000) &&
     await js(`var t=document.querySelector('.dbr-cats').innerText; return /CPI Report/.test(t)&&/NVDA/.test(t)&&!/\\bMU\\b/.test(t);`), await js(`return (document.querySelector('.dbr-cats')||{}).innerText;`));
   const bd = JSON.parse(await js(`var o=document.querySelector('.dbr').parentElement, cs=getComputedStyle(o); return JSON.stringify({bg:cs.backgroundColor, bf:cs.backdropFilter||cs.webkitBackdropFilter, tag:o.hasAttribute('data-a1-scrim')});`));
   ok('the backdrop wears the shared popup look (popups.js)', bd.bg === 'rgba(0, 0, 0, 0.6)' && /blur\(7px\)/.test(bd.bf) && bd.tag, JSON.stringify(bd));
   await shot('debrief-desktop-catalysts');
-  await dTab('Summary');
-  ok('Summary shows the latest build\'s digest', await until(`(document.querySelector('.dbr .nhs-headline')||{}).textContent===${JSON.stringify(SUMMARY.headline)}`, 6000));
+  await dTab('News Summary');
+  ok('News Summary shows the latest build\'s digest', await until(`(document.querySelector('.dbr .nhs-headline')||{}).textContent===${JSON.stringify(SUMMARY.headline)}`, 6000));
   await shot('debrief-desktop-summary');
   await dTab('MAGI');
   ok('MAGI shows the council\'s verdict, copied from the synced run', await until(`/Lean long/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'')`, 6000));
@@ -141,17 +141,20 @@ const worker = {
 
   for (const [w, h, tag] of [[820, 1180, 'tablet'], [390, 844, 'phone']]) {
     await size(w, h); await sleep(600);
-    for (const t of ['Catalysts', 'Summary', 'MAGI']) {
+    for (const t of ['Catalysts', 'News Summary', 'MAGI']) {
       await dTab(t);
       const r = JSON.parse(await js(`var card=document.querySelector('.dbr').getBoundingClientRect(); return JSON.stringify({w:card.width, vw:innerWidth, side:document.documentElement.scrollWidth>innerWidth+1,
         out:[...document.querySelectorAll('.dbr *')].filter(e=>{var b=e.getBoundingClientRect(); return b.width&&b.right>card.right+1&&!e.closest('table');}).map(e=>e.className||e.tagName).slice(0,4)});`));
       ok(`${tag} · ${t}: fits, nothing pokes out`, !r.side && !r.out.length && (tag !== 'phone' || Math.abs(r.w - r.vw) <= 1), JSON.stringify(r));
-      await shot(`debrief-${tag}-${t.toLowerCase()}`);
+      await shot(`debrief-${tag}-${t.toLowerCase().replace(' ', '-')}`);
     }
   }
   await size(1440, 1000);
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`); await sleep(300);
   ok('Escape closes it', !(await js(`return !!(${isOpen});`)));
+  await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
+  ok('reopened, it is back on the tab it was closed on (MAGI)', await until(isOpen, 5000) && await js(`return (document.querySelector('.dbr-tabs button.on')||{}).textContent==='MAGI';`));
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`); await sleep(300);
 
   console.log('\n2. A chat site instead of MAGI');
   await seed({ aiSite: 'chatgpt' });
@@ -159,7 +162,7 @@ const worker = {
   await sleep(2000);
   await tab('analysis');
   await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
-  ok('two tabs: Catalysts and Summary', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|Summary', await tabs());
+  ok('two tabs: Catalysts and News Summary', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary', await tabs());
 
   console.log('\n3. The morning');
   await seed();
