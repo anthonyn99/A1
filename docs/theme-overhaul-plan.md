@@ -268,8 +268,11 @@ a see-through tint or soft halo that reads as one.
 - Field labels: 9px, weight 700, uppercase, tracked, in `txm`.
 - Buttons: 10px, weight 700, uppercase, tracking 1px, radius 6, a `bdl`
   border at rest.
-- Dialogs: a `rgba(0,0,0,.62)` backdrop with a 2px blur, an s1 box on a
-  hairline border, radius 8.
+- Dialogs: an s1 box on a hairline border, radius 8. The backdrop was
+  `rgba(0,0,0,.62)` + 2px blur until 2026-11-03; every popup in A1 now
+  gets `rgba(0,0,0,.6)` + `blur(7px) saturate(.9)` from `popups.js`
+  ([popups.md](popups.md)). The phase notes below keep the old values as
+  the record.
 
 ### Button mechanics (magi.html "global hover layer")
 - **Hover:** `brightness(1.15)`, and the outline turns accent.

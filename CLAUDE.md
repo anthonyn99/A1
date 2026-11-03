@@ -53,6 +53,11 @@
   Never build a lock in a program; declare one. The contract is
   [docs/Guardian/README.md](docs/Guardian/README.md) (hosts must load the file
   unpinned; legacy adoption is retired after 2026-11-10 by its checklist).
+- **Popups** (any popup, dialog, modal or overlay, in any program, both sides):
+  [popups.js](popups.js) gives every backdrop TaskHub's look (`rgba(0,0,0,.6)` +
+  `blur(7px) saturate(.9)`), closes it on a click outside, and never on a
+  drag that ends outside. Don't style or wire a backdrop per program; a new
+  program loads the tag in `<head>`. Contract: [docs/popups.md](docs/popups.md).
 - **Shruti** ("continue Shruti", "next Shruti phase", the Gita reader/podcast/video
   program): everything lives in `Shruti/` (page, data, tools, tests, docs, worker), so it
   moves as one folder; its docs are the exception to "docs go in docs/". **All 9 phases
