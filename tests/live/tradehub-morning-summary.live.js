@@ -46,7 +46,7 @@ const worker = {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     if (/\/news\?/.test(req.url)) return { json: { events: EVENTS, generatedAt: newsGen, cached: true } };
     if (/\/summary\?/.test(req.url)) {
-      const g = +new URL(req.url).searchParams.get('gen');
+      const g = +((/[?&]gen=(d+)/.exec(req.url) || [])[1] || 0);
       return { json: { ok: true, summary: SUMMARY, generatedAt: g } };
     }
     if (/\/rate-status/.test(req.url)) return { json: { used: 0, cooldownSec: 0 } };
