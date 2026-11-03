@@ -98,6 +98,8 @@
     if (!box || !g) return;
     injectCss();
     box.classList.add('a1-grip-box');
+    // scrollbar.js reads this to end the box's bar above the grip.
+    box.__a1Grip = g;
 
     // A hand-chosen height overrides the box's own CSS min- and max-height
     // (MAGI lifts its 45vh cap for the same reason): otherwise the drag stops
