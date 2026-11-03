@@ -10,9 +10,9 @@
       ".gitignore": "git",
       ".gitattributes": "git",
       ".nojekyll": "GitHub Pages",
-      "scrollbar.js": "TEMPORARY copy of Shared/scrollbar.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/scrollbar.js.",
-      "popups.js": "TEMPORARY copy of Shared/popups.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/popups.js.",
-      "dragsort.js": "TEMPORARY copy of Shared/dragsort.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/dragsort.js."
+      "scrollbar.js": "Copy of Shared/scrollbar.js for ORCA, which loads it from this old root address. The pre-commit hook rewrites it from Shared/ in every commit that changes Shared/scrollbar.js; tests/layout.test.js checks they match. Delete once ORCA loads Shared/scrollbar.js.",
+      "popups.js": "Copy of Shared/popups.js for ORCA, which loads it from this old root address. The pre-commit hook rewrites it from Shared/ in every commit that changes Shared/popups.js; tests/layout.test.js checks they match. Delete once ORCA loads Shared/popups.js.",
+      "dragsort.js": "Copy of Shared/dragsort.js for ORCA, which loads it from this old root address. The pre-commit hook rewrites it from Shared/ in every commit that changes Shared/dragsort.js; tests/layout.test.js checks they match. Delete once ORCA loads Shared/dragsort.js."
     },
     "folders": {
       "Backup": "A1Backup: backup.js, backup-merge.js and the repo copies (Index Backups/); its pages are backup-restore.html and backup-export.html at the root",
