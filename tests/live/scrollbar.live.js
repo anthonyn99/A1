@@ -97,6 +97,29 @@ async function go(c, url, wait) {
   ok('the fixed drawer holds its own rail', rails.some((r) => r.host === 'drawer'), rails);
   await sleep(1700);
   ok('rails fade out when idle', (await evalJs(c, "document.querySelectorAll('.vc-rail.on').length")) === 0);
+  // A blurred popup backdrop that is also the scroller (popups.js blurs every
+  // backdrop): a backdrop-filter makes it the containing block of a fixed rail
+  // inside it, so the compositor carried the rail with the content a frame
+  // before the loop put it back, and the bar bounced on every wheel step
+  // (TradeHub's Debrief, 2026-11-03). Its rail sits beside it instead.
+  await evalJs(c, `var o = document.createElement('div'); o.id = 'scrim';
+    o.style.cssText = 'position:fixed;inset:0;z-index:100001;overflow-y:auto;background:rgba(0,0,0,.6);backdrop-filter:blur(7px)';
+    o.innerHTML = '<div style="height:4000px;margin:40px auto;width:600px;background:#222"></div>'; document.body.appendChild(o); return 1;`);
+  await sleep(100);
+  await evalJs(c, `window.__tops = []; (function f() {
+    document.querySelectorAll('.vc-rail.v.on').forEach(function (r) { window.__tops.push(Math.round(r.getBoundingClientRect().top)); });
+    if (window.__tops.length < 400) requestAnimationFrame(f); })(); return 1;`);
+  for (let i = 0; i < 8; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 720, y: 450, deltaX: 0, deltaY: 120 }); await sleep(40); }
+  await sleep(200);
+  const scrim = await evalJs(c, `var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.v.on'), function (x) { return x.offsetHeight > 800; });
+    var t = r && r.querySelector('.vc-thumb').getBoundingClientRect();
+    return { scrolled: document.getElementById('scrim').scrollTop, tops: Array.from(new Set(window.__tops)),
+      inside: !!r && document.getElementById('scrim').contains(r),
+      onTop: !!t && r.contains(document.elementFromPoint(t.left + t.width / 2, t.top + t.height / 2)) };`);
+  ok('a blurred scrolling backdrop: its rail never moves while it scrolls (no bounce)', scrim.scrolled > 500 && scrim.tops.length === 1 && scrim.tops[0] === 0, scrim);
+  ok('…the rail sits beside the backdrop, drawn above it', !scrim.inside && scrim.onTop, scrim);
+  await evalJs(c, "document.getElementById('scrim').remove(); return 1;");
+  await sleep(1700);
   // Drag the page thumb.
   await evalJs(c, "window.scrollTo(0, 0); return 1;");
   await sleep(100);
