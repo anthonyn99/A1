@@ -43,7 +43,7 @@ for (const name of PAGES) {
   const m = TAG.exec(html);
   ok(name + ' loads popups.js', !!m);
   if (!m) continue;
-  const at = m.index, head = html.indexOf('</head>');
+  const at = m.index, hm = /^<\/head>/m.exec(html), head = hm ? hm.index : -1;
   ok(name + ': in <head>', head < 0 || at < head, 'tag at ' + at + ', </head> at ' + head);
   const firstRender = [/ReactDOM\.(createRoot|render)\(/, /<script[^>]+type=["']text\/babel/].map((re) => { const x = re.exec(html); return x ? x.index : Infinity; });
   ok(name + ': before any React render', at < Math.min.apply(null, firstRender));
