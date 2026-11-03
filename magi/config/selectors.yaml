@@ -517,10 +517,11 @@ sites:
     # the disagreement a council exists to surface.
     headless_ok: true
     input:
-      # A real id on a contenteditable div -- the most stable composer of the
-      # five. The role/attribute forms are the fallbacks if the id churns.
-      - "div[contenteditable='true']#ask-input"
+      # 2026-11-03: the selector doctor found #ask-input gone and the run
+      # matching the role form instead, so that leads now. The id forms stay
+      # as fallbacks in case it comes back.
       - "div[contenteditable='true'][role='textbox']"
+      - "div[contenteditable='true']#ask-input"
       - "#ask-input"
       - "div[contenteditable='true']"
     submit:
@@ -562,8 +563,10 @@ sites:
       - "\\n\\s*(Sources|Related|Show more)\\s*$"
       - "\\n\\s*\\+\\s*\\d+\\s*$"
     ready_selector:
-      - "div[contenteditable='true']#ask-input"
+      # Same composer as `input` (2026-11-03: #ask-input is gone).
+      - "div[contenteditable='true'][role='textbox']"
       - "div[contenteditable='true']"
+      - "div[contenteditable='true']#ask-input"
     login_selectors:
       # VERIFIED: present while logged out, on the sidebar.
       - "button:has-text('Sign In')"
