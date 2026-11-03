@@ -7,14 +7,14 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 
 const PAGES = 'https://anthonyn99.github.io/A1/';
 const APPS = [
-  { page: 'Shruti/shruti.html', title: 'Shruti', sub: 'Read · Listen · Watch · Study', names: 'TonyVeda' },
+  { page: 'shruti.html', title: 'Shruti', sub: 'Read · Listen · Watch · Study', names: 'TonyVeda' },
   // TaskHub's cards have no corner: passwords are managed in each profile's settings.
   { page: 'index.html', title: 'TaskHub', sub: 'Plan · Remind · Journal · Reflect', names: 'TonyVeda', corners: 0 },
   // MyList shows its picker once its lists have loaded; the harness refuses Firebase, so open it.
-  { page: 'MyList/mylist.html', title: 'MyList', sub: 'Speak · List · Shop · Cook', names: 'TonyVeda', open: 'ML.goProfileSelect()' },
-  { page: 'Shield/shield.html', title: 'Shield', sub: 'Guard · Watch · Lock · Recover', names: 'TV' },
+  { page: 'mylist.html', title: 'MyList', sub: 'Speak · List · Shop · Cook', names: 'TonyVeda', open: 'ML.goProfileSelect()' },
+  { page: 'shield.html', title: 'Shield', sub: 'Guard · Watch · Lock · Recover', names: 'TV' },
   // MAGI's gate is the lock screen too: the profile chip opens it as a picker.
-  { page: 'magi/magi.html', title: 'MAGI', sub: 'Ask · Deliberate · Decide · Build', names: 'TonyVeda', open: 'openProfilePicker()' },
+  { page: 'magi.html', title: 'MAGI', sub: 'Ask · Deliberate · Decide · Build', names: 'TonyVeda', open: 'openProfilePicker()' },
 ];
 
 let fails = 0;

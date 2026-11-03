@@ -24,7 +24,7 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const { firebaseMock } = require('./fake-firebase.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/V1/StudyOS/studyos.html';
+const URL = 'https://anthonyn99.github.io/A1/V1/studyos.html';
 const ORIGIN = 'https://anthonyn99.github.io';
 const S = 'dashboards/studyos_notebook';
 let pass = 0, fail = 0;

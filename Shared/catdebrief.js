@@ -39,7 +39,7 @@
 (function (root) {
   'use strict';
 
-  var MAGI_URL = 'https://anthonyn99.github.io/A1/magi/magi.html';
+  var MAGI_URL = 'https://anthonyn99.github.io/A1/magi.html';
   var DOC = 'dashboards/catalyst_debrief';
   var PROFILES = ['tony', 'veda'];
   // How long after the release the button appears. Numbers land at the

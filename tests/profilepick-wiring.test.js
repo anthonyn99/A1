@@ -15,10 +15,10 @@ ok('the title is weight 600', /\.a1-pk \.pk-title\{[^}]*font:600 /.test(PICK));
 
 const HOSTS = [
   { page: 'index.html', js: 'index.html', src: 'Shared/profilepick.js', title: 'TaskHub' },
-  { page: 'MyList/mylist.html', js: 'MyList/mylist.html', src: '../Shared/profilepick.js', title: 'MyList' },
-  { page: 'Shield/shield.html', js: 'Shield/shield.html', src: '../Shared/profilepick.js', title: 'Shield' },
-  { page: 'magi/magi.html', js: 'magi/magi.html', src: '../Shared/profilepick.js', title: 'MAGI' },
-  { page: 'Shruti/shruti.html', js: 'Shruti/app/app.js', src: '../Shared/profilepick.js', title: 'Shruti' },
+  { page: 'mylist.html', js: 'mylist.html', src: 'Shared/profilepick.js', title: 'MyList' },
+  { page: 'shield.html', js: 'shield.html', src: 'Shared/profilepick.js', title: 'Shield' },
+  { page: 'magi.html', js: 'magi.html', src: 'Shared/profilepick.js', title: 'MAGI' },
+  { page: 'shruti.html', js: 'Shruti/app/app.js', src: 'Shared/profilepick.js', title: 'Shruti' },
 ];
 for (const h of HOSTS) {
   const page = read(h.page), js = read(h.js);

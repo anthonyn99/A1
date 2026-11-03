@@ -19,7 +19,7 @@ const { firebaseMock } = require('./fake-firebase.js');
 const label = process.argv[2] || 'shield';
 const profiles = (process.argv[3] || 'tony,veda').split(',');
 const widths = (process.argv[4] || '1280,520,390').split(',').map(Number);
-const URL_ = 'https://anthonyn99.github.io/A1/Shield/shield.html';
+const URL_ = 'https://anthonyn99.github.io/A1/shield.html';
 
 const T0 = Date.parse('2026-10-20T15:31:00');
 const tgt = (id, label, type, value, hide) => ({ id, label, match: { type, value }, hideIcons: !!hide });

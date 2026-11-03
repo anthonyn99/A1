@@ -120,7 +120,7 @@ section('Static: exactly ONE page may force-own the shared Firestore cache');
   // MAGI stays open for hours beside TaskHub. When it held the lease, TaskHub's
   // forced re-take on every wake left MAGI's client without primary, and every
   // write after that failed ("Sync failed" with nothing done). It uses memory.
-  const magi = fs.readFileSync(path.join(dir, 'magi/magi.html'), 'utf8');
+  const magi = fs.readFileSync(path.join(dir, 'magi.html'), 'utf8');
   t('magi.html does not use the shared persistent cache',
     !/persistentLocalCache\s*\(/.test(magi) && /memoryLocalCache\s*\(/.test(magi),
     'magi.html must initialise Firestore with memoryLocalCache().');

@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MAGI = fs.readFileSync(process.env.MAGI_HTML || path.join(__dirname, '..', 'magi/magi.html'), 'utf8')
+const MAGI = fs.readFileSync(process.env.MAGI_HTML || path.join(__dirname, '..', 'magi.html'), 'utf8')
   .replace(/\r\n/g, '\n');
 
 let pass = 0, fail = 0;
@@ -54,7 +54,7 @@ ok('to the front: one step before the first', dropOrder(o, 3, 0) === 0);
 ok('nowhere to go: unchanged', dropOrder([7], 0, 0) === 7);
 
 console.log('\nOne copy of the code: MAGI uses the shared dragsort.js');
-ok('magi.html loads dragsort.js', /<script src="\.\.\/Shared\/dragsort\.js"><\/script>/.test(MAGI));
+ok('magi.html loads dragsort.js', /<script src="Shared\/dragsort\.js"><\/script>/.test(MAGI));
 ok('...and carries no copy of its own',
    !/function (dragSort|dragGrip|dropOrder|dragRefocus|unitDragStart)\(/.test(MAGI) && !/\bDSORT\b/.test(MAGI) && !/\.dsort-grip \{/.test(MAGI));
 ok('no grip dots anywhere (rows are taken by the row)', !/dragGrip\(|A1Drag\.grip\(|dsort-grip/.test(MAGI));

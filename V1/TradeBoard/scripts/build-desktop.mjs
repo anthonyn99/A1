@@ -19,6 +19,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "desktop", "dist");
 mkdirSync(dist, { recursive: true });
 
-copyFileSync(resolve(root, "tradeboard.html"), resolve(dist, "index.html"));
+copyFileSync(resolve(root, "..", "tradeboard.html"), resolve(dist, "index.html"));
 
 console.log("build:desktop — desktop/dist/index.html written");

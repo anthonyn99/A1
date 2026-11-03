@@ -20,8 +20,8 @@ const M = require('./moved');
 
 const ROOT = path.join(__dirname, '..');
 const TAG = new RegExp('<script[^>]+src=["\']' + M.src('Shared/popups.js') + '["\'][^>]*>');
-const PAGES = ['index.html', 'magi/magi.html', 'MyList/mylist.html', 'Shield/shield.html', 'Shruti/shruti.html', 'V1/Wellness/wellness.html',
-  'Backup/backup-restore.html', 'Backup/backup-export.html', 'V1/StudyOS/studyos.html',
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'shruti.html', 'V1/wellness.html',
+  'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
 
 let pass = 0, fail = 0;

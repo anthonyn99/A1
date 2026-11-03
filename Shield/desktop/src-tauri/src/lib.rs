@@ -1,6 +1,6 @@
 //! Shield desktop agent — the part of Shield that can actually close things.
 //!
-//! `shield.html` is loaded from https://anthonyn99.github.io/A1/Shield/shield.html, not
+//! `shield.html` is loaded from https://anthonyn99.github.io/A1/shield.html, not
 //! bundled. That is deliberate and load-bearing:
 //!   · the auth Worker pins CORS to that exact origin (workers/taskhub-reminders/worker.js:23),
 //!   · Firebase App Check's reCAPTCHA site key is registered for it and is SHARED
@@ -37,7 +37,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GRACEFUL_MS: u64 = 1500;
 /// Kept in step with tauri.conf.json's window url and the capability's
 /// remote.urls. tests/agent-contract.test.js checks all three agree.
-const PAGE_URL: &str = "https://anthonyn99.github.io/A1/Shield/shield.html";
+const PAGE_URL: &str = "https://anthonyn99.github.io/A1/shield.html";
 
 /// Human labels for the global hotkeys, defined next to the keys they describe
 /// so the two cannot drift apart. The UI shows these rather than hardcoding its

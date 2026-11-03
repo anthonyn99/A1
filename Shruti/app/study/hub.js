@@ -34,11 +34,11 @@ const getJSON = (url) => {
   return cache.get(url);
 };
 /** The book's study index: {"4": {flashcards: 16, quiz: 8, mindmap: 5, slides: 9}, ...} or {}. */
-export const shippedIndex = (book) => !C.isShipped(book) ? Promise.resolve({}) : getJSON('books/' + book + '/study.json').then((x) => x || {});
+export const shippedIndex = (book) => !C.isShipped(book) ? Promise.resolve({}) : getJSON('Shruti/books/' + book + '/study.json').then((x) => x || {});
 export async function shippedSet(book, n) {
   const idx = await shippedIndex(book);
   if (!idx[String(n)]) return null;
-  const raw = await getJSON('books/' + book + '/study/ch' + nn(n) + '.json');
+  const raw = await getJSON('Shruti/books/' + book + '/study/ch' + nn(n) + '.json');
   if (!raw) return null;
   const kinds = {};
   for (const k of P.KINDS) { const it = P.items(k, raw[k]); if (P.count(k, it)) kinds[k] = it; }

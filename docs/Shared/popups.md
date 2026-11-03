@@ -59,8 +59,8 @@ click.
 ## Where it is loaded
 
 A1: `index.html`, `magi.html`, `mylist.html`, `shield.html` (also the Shield
-desktop app, which loads that page), `Shruti/shruti.html`, `V1/StudyOS/studyos.html`,
-`V1/Wellness/wellness.html`, `backup-restore.html`, `backup-export.html`.
+desktop app, which loads that page), `shruti.html`, `V1/studyos.html`,
+`V1/wellness.html`, `backup-restore.html`, `backup-export.html`.
 
 A1-Priv: `everwell`, `insight`, `oneinbox`, `riftiq`, `tradehub`, `vault`
 (all `.html`).

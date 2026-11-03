@@ -2,7 +2,7 @@
 // tradeboard-news — Cloudflare Worker (VEDA'S account)
 //
 // Veda's own copy of Tony's newshub-api (workers/newshub-api/worker.js in A1),
-// powering the News + Control tabs of TradeBoard (V1/TradeBoard/tradeboard.html).
+// powering the News + Control tabs of TradeBoard (V1/tradeboard.html).
 // Same pipeline — fetch → cluster → AI-score → cache per watchlist — but fully
 // separate: its own KV, its own daily force-fresh budget, its own 6am cron
 // pre-warm of HER watchlist, and HER Gemini key. Nothing here talks to Tony's

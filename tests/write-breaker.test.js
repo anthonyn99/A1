@@ -7,7 +7,7 @@
    browser being willing to run 70 rejected promises. */
 'use strict';
 const fs = require('fs');
-const SRC = fs.readFileSync(require('path').join(__dirname,'..','Shield/shield.html'), 'utf8');
+const SRC = fs.readFileSync(require('path').join(__dirname,'..','shield.html'), 'utf8');
 
 function grab(name) {
   const m = SRC.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n\\}', 'm'));

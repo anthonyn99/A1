@@ -36,7 +36,7 @@ function section(s) { console.log('\n' + s); }
 
 const R = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const INDEX   = R('index.html');
-const SHIELD  = R('Shield/shield.html');
+const SHIELD  = R('shield.html');
 const STUDYOS = R('V1/StudyOS/js/studyos.js');
 const MIRROR  = R('V1/StudyOS/js/taskmirror.js');
 

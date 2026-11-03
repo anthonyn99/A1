@@ -32,14 +32,14 @@ const ok = (name, cond, extra) => {
 // Programs on Guardian. A host lists the scripts (besides its .html) that make
 // up its lock surface, so the scan covers code that lives outside the page.
 const HOSTS = {
-  'Shield/shield.html': [],
+  'shield.html': [],
   // MyJournal + Brainstorm entry locks run inside index (Notebook/).
   'index.html': ['Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js', 'Notebook/notebook.js'],
-  'MyList/mylist.html': [],
+  'mylist.html': [],
   'oneinbox.html': [],
-  'magi/magi.html': [],
+  'magi.html': [],
   // Program folders load it as ../Guardian/guardian.js.
-  'Shruti/shruti.html': ['Shruti/app/app.js'],
+  'shruti.html': ['Shruti/app/app.js'],
   // A1-Priv (loaded by absolute URL; tests/moved.js reads them from ../A1-Priv).
   'tradehub.html': [],
   'insight.html': [],
@@ -47,7 +47,7 @@ const HOSTS = {
   'riftiq.html': [],
   'everwell.html': [],
   // StudyOS (Veda's V1/): on Guardian since 2026-10-29, over its OWN backend.
-  'V1/StudyOS/studyos.html': ['V1/StudyOS/js/applock.js', 'V1/StudyOS/js/ui.js', 'V1/StudyOS/js/studyos.js'],
+  'V1/studyos.html': ['V1/StudyOS/js/applock.js', 'V1/StudyOS/js/ui.js', 'V1/StudyOS/js/studyos.js'],
 };
 // Files that hand Guardian a custom `backend` (StudyOS's own studyos-api worker,
 // kept so Veda's password stays where it is). They may call THEIR worker's

@@ -33,12 +33,14 @@ const ok = (name, cond, extra) => {
     if (babel) { try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; } }
     ok(f + ' parses as a module', !err, err);
   }
-  const html = read('shruti.html');
+  // The page sits at A1's root (every program page does, docs/layout.md);
+  // everything else of Shruti stays in Shruti/.
+  const html = fs.readFileSync(path.join(ROOT, 'shruti.html'), 'utf8');
   for (const s of ['Shared/dragsort.js', 'Guardian/guardian.js', 'Shared/scrollbar.js', 'Shared/apphead.js', 'Shared/tabsync.js', 'Shared/hoverfx.js', 'LifeHub/lifehub.js']) {
-    ok('the page loads the shared ' + s + ' from ../', new RegExp('<script[^>]+src="\\.\\./' + s.replace(/[./]/g, '\\$&') + '"').test(html) && fs.existsSync(path.join(ROOT, s)));
+    ok('the page loads the shared ' + s + ' beside it', new RegExp('<script[^>]+src="' + s.replace(/[./]/g, '\\$&') + '"').test(html) && fs.existsSync(path.join(ROOT, s)));
   }
-  ok('its own module and stylesheet load from app/ beside it', /<script type="module" src="app\/app\.js"><\/script>/.test(html) && /<link rel="stylesheet" href="app\/styles\.css">/.test(html));
-  ok('the books it reads are relative to the page', /'books\/' \+ id \+ '\/book\.json'/.test(read('app/library.js')) && fs.existsSync(path.join(DIR, 'books', 'gita', 'book.json')));
+  ok('its own module and stylesheet load from Shruti/app/', /<script type="module" src="Shruti\/app\/app\.js"><\/script>/.test(html) && /<link rel="stylesheet" href="Shruti\/app\/styles\.css">/.test(html));
+  ok('the books it reads are relative to the page (Shruti/books/)', /'Shruti\/books\/' \+ id \+ '\/book\.json'/.test(read('app/library.js')) && fs.existsSync(path.join(DIR, 'books', 'gita', 'book.json')));
   const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-workers2.yml'), 'utf8');
   ok('the account-2 lane deploys Shruti/worker on a push to it', /- 'Shruti\/worker\/\*\*'/.test(wf) && /find workers2 Shruti\/worker -maxdepth 2/.test(wf));
   ok('…and resolves its KV title from any folder', /node "\$GITHUB_WORKSPACE\/workers2\/kv-provision\.mjs"/.test(wf) && /id = "kv:SHRUTI_DRIVE"/.test(read('worker/wrangler.toml')));
@@ -54,7 +56,7 @@ const ok = (name, cond, extra) => {
       sessionStorage: store(pick ? { 'shruti.pick': pick } : {}),
       localStorage: store(Object.assign({}, fav ? { 'shruti.favProfile': fav } : {}, last ? { 'shruti.lastProfile': last } : {})),
     };
-    const ctx = { window: win, location: { href: 'https://x/A1/Shruti/shruti.html' + (q ? '?profile=' + q : '') }, URL };
+    const ctx = { window: win, location: { href: 'https://x/A1/shruti.html' + (q ? '?profile=' + q : '') }, URL };
     win.window = win;
     vm.runInNewContext(resolveSrc.replace(/window\[store\]/g, 'window[store]'), Object.assign(ctx, win));
     return win.SHRUTI_PROFILE;
@@ -68,7 +70,7 @@ const ok = (name, cond, extra) => {
   ok('each person is their own lock and document', /tony: \{ label: 'Tony', doc: 'shruti'/.test(html) && /veda: \{ label: 'Veda', doc: 'shruti_veda'/.test(html) && /window\.SHRUTI_GID = p \? p \+ '_shruti' : null/.test(html));
 
   console.log('\nThe lock comes first');
-  const gIdx = html.indexOf('src="../Guardian/guardian.js"'), defIdx = html.indexOf("Guardian.define(p + '_shruti'"), preIdx = html.indexOf('Guardian.prepaint([window.SHRUTI_GID])'), bodyIdx = html.indexOf('<body');
+  const gIdx = html.indexOf('src="Guardian/guardian.js"'), defIdx = html.indexOf("Guardian.define(p + '_shruti'"), preIdx = html.indexOf('Guardian.prepaint([window.SHRUTI_GID])'), bodyIdx = html.indexOf('<body');
   ok('Guardian loads, the lock is declared and painted over, all before <body>', gIdx > 0 && gIdx < defIdx && defIdx < preIdx && preIdx < bodyIdx);
   ok('the lock hides #app', /root: '#app'/.test(html));
   const app = read('app/app.js');

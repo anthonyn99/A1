@@ -17,8 +17,8 @@
 const { connect, evalJs, sleep } = require('./cdp');
 
 const BASE = 'https://anthonyn99.github.io/A1/';
-const PAGES = ['index.html', 'magi/magi.html', 'MyList/mylist.html', 'oneinbox.html', 'Shield/shield.html',
-  'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html', 'Shruti/shruti.html'];
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
+  'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html', 'shruti.html'];
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -47,11 +47,11 @@ const VEDA_THUMB = `var t = document.querySelector('.vc-rail .vc-thumb'), probe 
 // Veda's side of each two-profile program: how the page switches to her.
 const VEDA = [
   ['index.html', "document.body.setAttribute('data-th-profile', 'veda')"],
-  ['magi/magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
-  ['MyList/mylist.html', "document.body.setAttribute('data-profile', 'veda')"],
-  ['Shield/shield.html', "document.body.setAttribute('data-profile', 'veda')"],
-  ['Shruti/shruti.html', "document.body.setAttribute('data-profile', 'veda')"],
-  ['V1/StudyOS/studyos.html', ''],
+  ['magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
+  ['mylist.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['shield.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['shruti.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['V1/studyos.html', ''],
 ];
 
 const near = (a, b, tol) => Math.abs(a - b) <= (tol || 0.02);
@@ -260,7 +260,7 @@ async function go(c, url, wait) {
       { st, thumb, doc: r.doc, boxes: r.boxes.slice(0, 5), old });
   }
   // MyList's list strip (the one Tony saw missing): hovering it shows her bar.
-  await go(c, BASE + 'MyList/mylist.html', 3000);
+  await go(c, BASE + 'mylist.html', 3000);
   // Past the picker and lock (no sign-in here): the app shell is enough.
   await evalJs(c, `document.body.setAttribute('data-profile', 'veda');
     document.getElementById('app').style.display = 'flex';

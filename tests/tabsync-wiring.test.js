@@ -38,9 +38,9 @@ const ROOT = path.join(__dirname, '..');
 // different origin, where neither localStorage nor a BroadcastChannel is shared
 // with this one, so it can only ever have the window-name pairing.
 const PAGES = [
-  'index.html', 'magi/magi.html', 'riftiq.html', 'tradehub.html', 'Shield/shield.html',
-  'MyList/mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
-  'V1/Wellness/wellness.html', 'everwell.html', 'Shruti/shruti.html',
+  'index.html', 'magi.html', 'riftiq.html', 'tradehub.html', 'shield.html',
+  'mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
+  'V1/wellness.html', 'everwell.html', 'shruti.html',
 ];
 
 let pass = 0, fail = 0;

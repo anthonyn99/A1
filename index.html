@@ -22908,7 +22908,7 @@ window._everwellClick = function(){
 // nav, and a button that vanishes when a PC sleeps is harder to understand than
 // a page that explains itself.
 window._magiClick = function(){
-  var URL_MAGI = _legacyOpenUrl('tony','magi','https://anthonyn99.github.io/A1/magi/magi.html');
+  var URL_MAGI = _legacyOpenUrl('tony','magi','https://anthonyn99.github.io/A1/magi.html');
   var w = window._tnOpenTab(URL_MAGI, 'magi');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('MAGI opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22948,7 +22948,7 @@ window._mcDebrief = function(events, profile, macroET){
 // like his other external programs.
 window._shieldClick = function(profile){
   profile = (profile === 'veda') ? 'veda' : 'tony';
-  var URL_SHIELD = _legacyOpenUrl(profile,'shield','https://anthonyn99.github.io/A1/Shield/shield.html');
+  var URL_SHIELD = _legacyOpenUrl(profile,'shield','https://anthonyn99.github.io/A1/shield.html');
   var tab = 'shield_' + profile;
   var open = function(){
     var w = window._tnOpenTab(URL_SHIELD, tab);
@@ -23072,6 +23072,32 @@ function linkById(p, id){ var a = _linksFor(p); for (var i=0;i<a.length;i++){ if
 function persistLinks(){ try { localStorage.setItem('td6_navlinks', JSON.stringify({ tony: tonyStoredLinks, veda: vedaLinks })); } catch(e){} }
 function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Link'), url: String(l.url||''), color: l.color ? String(l.color) : '' }; }
 
+// Program pages sit at the top (A1's root, V1's top; docs/layout.md). A link
+// saved with a folder address one of them had (Shruti/shruti.html, the few
+// hours on 2026-11-03 they all spent in folders, V1's old TradeBoard/ and
+// Finance/ paths) is moved to the page's address, query and hash kept. The
+// same list as LifeHub's MOVED_PAGES; 404.html forwards them meanwhile.
+var _MOVED_LINKS = [
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)magi\/(magi\.html)(?=[?#]|$)/i, '$1$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)MyList\/(mylist\.html)(?=[?#]|$)/i, '$1$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)Shield\/(shield\.html)(?=[?#]|$)/i, '$1$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)Shruti\/(shruti\.html)(?=[?#]|$)/i, '$1$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)Backup\/(backup-(?:restore|export)\.html)(?=[?#]|$)/i, '$1$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/)(?:V1\/Wellness\/)?(wellness\.html)(?=[?#]|$)/i, '$1V1/$2'],
+  [/^(https:\/\/anthonyn99\.github\.io\/A1\/V1\/)(?:StudyOS|TradeBoard|Finance)\/((?:studyos|tradeboard|finance)\.html)(?=[?#]|$)/i, '$1$2']
+];
+function _moveOldLinkUrls(list){
+  var changed = false;
+  (list || []).forEach(function(l){
+    var u = String((l && l.url) || '');
+    for (var i = 0; i < _MOVED_LINKS.length; i++) {
+      if (_MOVED_LINKS[i][0].test(u)) { var n = u.replace(_MOVED_LINKS[i][0], _MOVED_LINKS[i][1]); if (n !== u) { l.url = n; changed = true; } break; }
+    }
+  });
+  return changed;
+}
+_moveOldLinkUrls(vedaLinks);
+
 // ── Tony's External Links: LifeHub ────────────────────────────────────────────
 // _lhApps is LifeHub's whole list (hidden apps too: Settings shows them). The
 // first paint reads LifeHub's own local mirror, which every A1 program on this
@@ -23097,7 +23123,7 @@ function _lh(){ return (window.LifeHub && window.LifeHub.watch) ? window.LifeHub
 // ── Veda's Shield — the one program still seeded into a links list. It opens
 // through _shieldClick (named tab, popup-blocked fallback, her veda_shield lock).
 var LEGACY_PROGRAMS = [
-  { id:'shield', label:'Shield', url:'https://anthonyn99.github.io/A1/Shield/shield.html',
+  { id:'shield', label:'Shield', url:'https://anthonyn99.github.io/A1/shield.html',
     profiles:['veda'], lockIds:{ veda:'veda_shield' }, openFn:'_shieldClick' }
 ];
 function _lpProfiles(p){ return (p && p.profiles) || ['tony']; }
@@ -23172,7 +23198,7 @@ var _vedaShrutiSeeded = false;
 function _seedVedaShruti(){
   var has = vedaLinks.some(function(l){ return /shruti\.html/i.test(String(l.url||'')) || /^shruti$/i.test(String(l.label||'').trim()); });
   if (has) return false;
-  vedaLinks.push({ id:'shruti', label:'Shruti', url:'https://anthonyn99.github.io/A1/Shruti/shruti.html' });
+  vedaLinks.push({ id:'shruti', label:'Shruti', url:'https://anthonyn99.github.io/A1/shruti.html' });
   return true;
 }
 
@@ -23907,6 +23933,8 @@ function applyRemote(data){
     if(JSON.stringify(vs)!==JSON.stringify(vedaLinks.map(_sanLink))){ vedaLinks=vs; changed=true; }
   }
   var needsMigrationPush=false;
+  // A saved link with a moved page's old address gets the page's address (_MOVED_LINKS).
+  if(_moveOldLinkUrls(vedaLinks)){ changed=true; needsMigrationPush=true; }
   if(data.vedaShrutiSeeded) _vedaShrutiSeeded=true;
   else if(!_vedaShrutiSeeded){ if(_seedVedaShruti()) changed=true; _vedaShrutiSeeded=true; needsMigrationPush=true; }
   if(data.tonyLinksInLifeHub) _markLhImported();
@@ -24925,7 +24953,7 @@ async function refreshBackup(){
 // also flushes TaskHub's pending save, so no open copy here can write back over
 // the restore.
 function renderRestoreRow(container,profile){
-  var href='Backup/backup-restore.html?profile='+profile;
+  var href='backup-restore.html?profile='+profile;
   try{ if(window.A1Backup&&A1Backup.device) href+='&device='+encodeURIComponent(A1Backup.device()); }catch(e){}
   container.innerHTML='<div class="thset-row thset-rs">'+
     '<div class="thset-rs-txt"><span class="thset-label">Restore</span>'+

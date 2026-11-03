@@ -17,13 +17,13 @@ root. In this repo those paths are:
 |---|---|
 | `js/studyos.js` | `V1/StudyOS/js/studyos.js` |
 | `config/config.js` | `V1/StudyOS/config/config.js` |
-| the served app | `V1/StudyOS/studyos.html` |
+| the served app | `V1/studyos.html` |
 | build output (generated) | `V1/dist/studyos/` |
 
 `V1/dist/` is **generated** by `node scripts/build.mjs` and is wiped on every
 build (`rmSync(dist, …)`). Never edit anything under `dist/` — the change will
 be silently destroyed on the next build. All work happens in `V1/StudyOS/js/`,
-`V1/StudyOS/css/`, `V1/StudyOS/config/`, and `V1/StudyOS/studyos.html`.
+`V1/StudyOS/css/`, `V1/StudyOS/config/`, and `V1/studyos.html`.
 
 Line counts confirm the spec's audit is otherwise accurate:
 `studyos.js` 4,764 · `docx-engine.js` 3,473 · `notes-sync.js` 932 (both removed 2026-10-29: notes are V's Notebook, [notebook.md](notebook.md)) ·

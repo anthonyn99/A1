@@ -14,7 +14,7 @@ const { connect, evalJs, sleep, shotPath } = require(path.join(__dirname, '..', 
 const { firebaseMock } = require(path.join(__dirname, '..', '..', 'tests', 'live', 'fake-firebase.js'));
 const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x + ';' : x);
 
-const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
+const URL = 'https://anthonyn99.github.io/A1/shruti.html';
 const KEY = 'orca_sk_live_test_key_123';
 const MEDIA = path.join(__dirname, '..', 'books', 'gita', 'media');
 // A real MP3 for Orca's answers: the first 3 s of the shipped chapter 1.

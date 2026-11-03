@@ -24,19 +24,19 @@ const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('Shared/apphead.js') + 
 // page → the marks it must show (static data-a1-app or a React AppIcon).
 const PAGES = {
   'index.html': ['taskhub', 'journal', 'gita'],
-  'MyList/mylist.html': ['mylist'],
+  'mylist.html': ['mylist'],
   'oneinbox.html': ['oneinbox'],
-  'magi/magi.html': ['magi'],
-  'V1/Wellness/wellness.html': ['wellness'],
+  'magi.html': ['magi'],
+  'V1/wellness.html': ['wellness'],
   'tradehub.html': ['tradehub'],
   'insight.html': ['insight'],
   'vault.html': ['vault'],
   'riftiq.html': ['riftiq', 'proview'],
-  'Shruti/shruti.html': ['shruti'],
+  'shruti.html': ['shruti'],
 };
 // Shield and Everwell draw their own mark (Shield's is the model; Everwell's
 // is its start-screen button), but Shield still uses the shared pill.
-const PILL_ONLY = ['Shield/shield.html'];
+const PILL_ONLY = ['shield.html'];
 const COPIES = [
   ['PriceWatch', 'popup.html', 'pricewatch'],
   ['Vault', 'popup.html', 'vault'],
@@ -82,12 +82,12 @@ for (const name of PILL_ONLY) {
 
 // The old per-program indicators are gone.
 const GONE = [
-  ['MyList/mylist.html', /class="sync-pill"/],
+  ['mylist.html', /class="sync-pill"/],
   ['oneinbox.html', /class="syncind"/],
   ['insight.html', /class="syncind"/],
   ['riftiq.html', /class="syncind"/],
-  ['Shield/shield.html', /class="sync" id="sync"/],
-  ['V1/Wellness/wellness.html', /class="wl-sync"/],
+  ['shield.html', /class="sync" id="sync"/],
+  ['V1/wellness.html', /class="wl-sync"/],
   ['index.html', /syncStatus==="saving"\?"Syncing…"/],
   ['tradehub.html', /syncLabel/],
 ];

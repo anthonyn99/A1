@@ -22,10 +22,10 @@ const ok = (name, cond) => {
 };
 
 const PAGES = [
-  'index.html', 'magi/magi.html', 'MyList/mylist.html', 'oneinbox.html', 'Shield/shield.html',
-  'V1/Wellness/wellness.html', 'Backup/backup-export.html', 'Backup/backup-restore.html',
+  'index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
+  'V1/wellness.html', 'backup-export.html', 'backup-restore.html',
   'insight.html', 'riftiq.html', 'tradehub.html', 'vault.html',
-  'everwell.html', 'Shruti/shruti.html',
+  'everwell.html', 'shruti.html',
 ];
 const NO_HIGHLIGHT = /\*,\*::before,\*::after\{-webkit-tap-highlight-color:transparent\}/;
 const NO_SELECT = /button,\[role="button"\][^{]*\{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none\}/;

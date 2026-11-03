@@ -125,7 +125,7 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
   }
   ok('every story scene of all 18 shipped videos gets artwork (' + story + ')', scenesArt === story && story > 0);
   const music = JSON.parse(fs.readFileSync(path.join(DIR, 'media', 'music', 'index.json'), 'utf8'));
-  ok('the two music loops are there, as video.js names them', VID.BEDS.every((b) => fs.existsSync(path.join(DIR, b)) && fs.statSync(path.join(DIR, b)).size > 500000) && Object.keys(music).length === 2);
+  ok('the two music loops are there, as video.js names them', VID.BEDS.every((b) => fs.existsSync(path.join(DIR, '..', b)) && fs.statSync(path.join(DIR, '..', b)).size > 500000) && Object.keys(music).length === 2);
   const mp3 = fs.readFileSync(path.join(DIR, 'media', 'music', 'dawn.mp3'));
   ok('…real MP3 (an MPEG frame at the start)', mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0);
 

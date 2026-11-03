@@ -1,5 +1,5 @@
 // LIVE test: Shruti's shell (Phase 2) in real headless Edge, on its real origin
-// (https://anthonyn99.github.io/A1/Shruti/shruti.html served from this working
+// (https://anthonyn99.github.io/A1/shruti.html served from this working
 // copy), both profiles, at 390 and 1280 px. Not run by npm test.
 //
 //   node Shruti/tests/shell.live.js            (CDP_ALLOW_FONTS=1 for real typefaces)
@@ -14,7 +14,7 @@ const { connect, evalJs, sleep, shotPath } = require(path.join(__dirname, '..', 
 const { firebaseMock } = require(path.join(__dirname, '..', '..', 'tests', 'live', 'fake-firebase.js'));
 const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x + ';' : x);
 
-const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
+const URL = 'https://anthonyn99.github.io/A1/shruti.html';
 const KEY = 'orca_sk_live_test_key_123';
 const MODELS = [
   { id: 'deepseek/free', routable: true }, { id: 'chatgpt/free', routable: true }, { id: 'gemini_web/free', routable: false },

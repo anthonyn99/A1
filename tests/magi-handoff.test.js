@@ -34,7 +34,7 @@ const ROOT = path.join(__dirname, '..');
 const M = require('./moved');
 if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); process.exit(0); }
 const TRADEHUB = M.read('tradehub.html');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
 // CRLF-normalised: with core.autocrlf the checkout is CRLF, and the patterns
 // below span lines with \n.
 const LAUNCH = fs.readFileSync(path.join(ROOT, 'tools', 'trading-auto-launch', 'launch.py'), 'utf8').replace(/\r\n/g, '\n');
@@ -124,8 +124,8 @@ if not hasattr(ctypes, 'windll'):
 spec = importlib.util.spec_from_file_location("al", r"${path.join(ROOT, 'tools', 'trading-auto-launch', 'launch.py').replace(/\\/g, '\\\\')}")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
-print(m._magi_link("https://anthonyn99.github.io/A1/magi/magi.html", "\\u00e9 caf\\u00e9 \\u2014 SPY?", ["claude", "gemini"]))
-print(json.dumps([m._is_magi_url("https://anthonyn99.github.io/A1/magi/magi.html#tb=x"),
+print(m._magi_link("https://anthonyn99.github.io/A1/magi.html", "\\u00e9 caf\\u00e9 \\u2014 SPY?", ["claude", "gemini"]))
+print(json.dumps([m._is_magi_url("https://anthonyn99.github.io/A1/magi.html#tb=x"),
                   m._is_magi_url("https://anthonyn99.github.io/A1/index.html"),
                   m._is_magi_url("https://www.google.com/search?q=magi.html")]))
 `;
@@ -232,7 +232,7 @@ function consoleFor(opts) {
   const PROFILE = { id: o.profile };
   // The reload a profile switch performs, recorded instead of performed.
   const adoptHandoffProfile = (h) => { calls.adopted.push(h.p); return true; };
-  const loc = { hash: o.hash, pathname: '/A1/magi/magi.html', search: '' };
+  const loc = { hash: o.hash, pathname: '/A1/magi.html', search: '' };
   const hist = {
     state: null,
     replaceState(st, t, url) { loc.hash = ''; hist.last = url; },
@@ -472,8 +472,8 @@ function opener(scenario) {
 
 console.log('\nOne MAGI tab, whatever state the browser is in');
 (async () => {
-  const URL_ONE = 'https://anthonyn99.github.io/A1/magi/magi.html#tb=AAA';
-  const URL_TWO = 'https://anthonyn99.github.io/A1/magi/magi.html#tb=BBB';
+  const URL_ONE = 'https://anthonyn99.github.io/A1/magi.html#tb=AAA';
+  const URL_TWO = 'https://anthonyn99.github.io/A1/magi.html#tb=BBB';
   const settle = () => new Promise((r) => setTimeout(r, 420));
 
   // 1 — nothing open yet.
@@ -488,14 +488,14 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
 
   // 2 — the console is already open in this browsing-context group.
   {
-    const tab = fakeTab('https://anthonyn99.github.io/A1/magi/magi.html');
+    const tab = fakeTab('https://anthonyn99.github.io/A1/magi.html');
     const opened = [];
     const o = opener({ tab, opened, claim: false });
     o.run(URL_TWO);
     ok('an open console is re-used, not duplicated', opened.length === 1 && opened[0].u === '', opened);
     ok('  and it is handed the new prompt', tab.navs.length === 1 && tab.navs[0] === URL_TWO, tab.navs);
     ok('  by fragment only, so it is not reloaded',
-      tab.navs[0].split('#')[0] === 'https://anthonyn99.github.io/A1/magi/magi.html');
+      tab.navs[0].split('#')[0] === 'https://anthonyn99.github.io/A1/magi.html');
     ok('  and brought forward', tab.focused === 1);
   }
 
@@ -581,7 +581,7 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
         get href() { return url; },
         set href(v) { st.navs.push(v); },
         replace(v) { st.navs.push(v); st.replaced = (st.replaced || 0) + 1; },
-        origin: 'https://anthonyn99.github.io', pathname: '/A1/magi/magi.html', search: '', hash: '',
+        origin: 'https://anthonyn99.github.io', pathname: '/A1/magi.html', search: '', hash: '',
       };
       const win = {
         get name() { return st.name; }, set name(v) { st.name = v; },
@@ -602,7 +602,7 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
       return st;
     }
 
-    const t = tab('https://anthonyn99.github.io/A1/magi/magi.html', 'a1tab_magi');
+    const t = tab('https://anthonyn99.github.io/A1/magi.html', 'a1tab_magi');
     ok('it claims the key on load', !!t.ls['a1tab:magi']);
     const send = (d) => t.chans.forEach((c) => c.onmessage && c.onmessage({ data: d }));
 
@@ -640,7 +640,7 @@ console.log('\nThe worker round-trips the unit list');
   (async () => {
     await w.setAnalysisConfig(env, {
       name: 'Morning', text: 'read SPY', searches: ['spy premarket'],
-      aiUrl: 'https://anthonyn99.github.io/A1/magi/magi.html',
+      aiUrl: 'https://anthonyn99.github.io/A1/magi.html',
       magiUnits: ['claude', 'CHATGPT', 'claude', 'notamodel', ''],
     });
     const got = await w.getAnalysisConfig(env);

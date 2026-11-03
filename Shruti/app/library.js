@@ -69,12 +69,12 @@ async function getJSON(url) {
   if (!cache.has(url)) cache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }).catch((e) => { cache.delete(url); throw e; }));
   return cache.get(url);
 }
-export const loadBook = (id) => (isShipped(id) ? getJSON('books/' + id + '/book.json') : B.get(id));
-export const loadChapter = (id, file) => (isShipped(id) ? getJSON('books/' + id + '/' + file) : B.chapter(id, file));
-export const loadLessons = (id) => (isShipped(id) ? getJSON('books/' + id + '/lessons.json').catch(() => ({})) : Promise.resolve({}));
+export const loadBook = (id) => (isShipped(id) ? getJSON('Shruti/books/' + id + '/book.json') : B.get(id));
+export const loadChapter = (id, file) => (isShipped(id) ? getJSON('Shruti/books/' + id + '/' + file) : B.chapter(id, file));
+export const loadLessons = (id) => (isShipped(id) ? getJSON('Shruti/books/' + id + '/lessons.json').catch(() => ({})) : Promise.resolve({}));
 /** Each lesson's detail for the Lessons popup (books/<id>/lessons-more.json):
  *  {"<n>": {"L1": {verses, meaning, example, practice}}}. Only shipped books have it. */
-export const loadLessonMore = (id) => (isShipped(id) ? getJSON('books/' + id + '/lessons-more.json').catch(() => ({})) : Promise.resolve({}));
+export const loadLessonMore = (id) => (isShipped(id) ? getJSON('Shruti/books/' + id + '/lessons-more.json').catch(() => ({})) : Promise.resolve({}));
 
 export const chKey = (n) => 'ch' + n;
 export function progressOf(book, n) { return me.get('progress.' + book + '.' + chKey(n), {}) || {}; }
@@ -286,7 +286,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
   if (!meta) { go('#/b/' + id); return; }
-  const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), (isShipped(id) ? getJSON('books/' + id + '/media/index.json').catch(() => ({})) : {}), H.shippedIndex(id)]);
+  const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), (isShipped(id) ? getJSON('Shruti/books/' + id + '/media/index.json').catch(() => ({})) : {}), H.shippedIndex(id)]);
   const av = available(id, n, lessons, pods, vids, study);
   mode = MODES.some((m) => m.id === mode) && (!isIntro || mode === 'study') ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);

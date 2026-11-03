@@ -57,7 +57,7 @@ const keyOf = () => C.orcaKey();
 const shippedIndex = new Map();
 function shipped(book) {
   if (!C.isShipped(book)) return Promise.resolve({});
-  if (!shippedIndex.has(book)) shippedIndex.set(book, fetch('books/' + book + '/media/index.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+  if (!shippedIndex.has(book)) shippedIndex.set(book, fetch('Shruti/books/' + book + '/media/index.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   return shippedIndex.get(book);
 }
 /** What exists for a chapter: [{where:'shipped'|'drive', voice, mp3, json}] */
@@ -65,7 +65,7 @@ export async function readyFor(book, n) {
   const out = [];
   const idx = await shipped(book);
   const s = idx && idx[String(n)];
-  if (s) out.push({ where: 'shipped', voice: s.voice, mp3: 'books/' + book + '/media/' + s.mp3, json: 'books/' + book + '/media/' + s.json, duration: s.duration });
+  if (s) out.push({ where: 'shipped', voice: s.voice, mp3: 'Shruti/books/' + book + '/media/' + s.mp3, json: 'Shruti/books/' + book + '/media/' + s.json, duration: s.duration });
   const a = M.docFor(book).get('assets.' + book + '.ch' + n + '.read', null);
   if (a && a.mp3 && a.json) out.push({ where: 'drive', voice: a.voice, mp3: a.mp3, json: a.json, duration: a.duration, by: a.by, at: a.at });
   return out;
@@ -511,7 +511,7 @@ const prev = { audio: null, btn: null, html: '', seq: 0, cache: new Map() };
 const clipURL = async (id) => {
   if (prev.cache.has(id)) return prev.cache.get(id);
   // Every voice in O.VOICES has a clip (tools/voices.py reads that list).
-  let url = O.VOICES.some((v) => v.id === id) ? 'media/voices/' + id + '.mp3' : null;
+  let url = O.VOICES.some((v) => v.id === id) ? 'Shruti/media/voices/' + id + '.mp3' : null;
   if (!url) {
     if (!keyOf()) { needKey(); return null; }
     const r = await O.speak({ key: keyOf(), text: 'Hello, I\'m ' + voiceName(id) + '. Welcome to Shruti, where we read, listen to and study the Bhagavad-Gita together.', voice: id });

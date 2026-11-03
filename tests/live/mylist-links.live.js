@@ -16,7 +16,7 @@
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/MyList/mylist.html';
+const URL = 'https://anthonyn99.github.io/A1/mylist.html';
 const SAMS = 'https://www.samsclub.com/ip/members-mark-italian-herb-grilled-chicken-breast-5-count/13590050893';
 const WALMART = 'https://www.walmart.com/ip/Great-Value-Large-White-Eggs-12-Count/145051970';
 const TARGET = 'https://www.target.com/p/good-gather-large-grade-a-eggs-12ct/-/A-14713534';

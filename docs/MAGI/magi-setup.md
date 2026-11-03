@@ -51,7 +51,7 @@ the token, which would unpair her devices.
 
 ## 2. What only she can do (guide her, in this order)
 
-1. Open **https://anthonyn99.github.io/A1/magi/magi.html** in Chrome on this PC.
+1. Open **https://anthonyn99.github.io/A1/magi.html** in Chrome on this PC.
    Pick **Veda** and unlock with her MAGI password. If Chrome asks to let the
    page reach devices on the local network, she clicks **Allow** (that's the
    engine). The status at the bottom of the sidebar says it's running on this

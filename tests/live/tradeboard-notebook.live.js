@@ -1,4 +1,4 @@
-// TradeBoard's Strats is V's Notebook (V1/TradeBoard/tradeboard.html TB.st,
+// TradeBoard's Strats is V's Notebook (V1/tradeboard.html TB.st,
 // 2026-10-29): an instance of Veda's side (key vtb, store
 // dashboards/tradeboard_strats) on its own Firebase app on the Index project.
 // Real TradeBoard page, real Notebook, fake Firestore.
@@ -16,7 +16,7 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const { firebaseMock } = require('./fake-firebase.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/V1/TradeBoard/tradeboard.html';
+const URL = 'https://anthonyn99.github.io/A1/V1/tradeboard.html';
 const ORIGIN = 'https://anthonyn99.github.io';
 const S = 'dashboards/tradeboard_strats';
 const TBDOC = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';

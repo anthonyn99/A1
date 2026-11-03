@@ -1,8 +1,9 @@
-// Guards A1's layout (docs/layout.md): every tracked file lives in a folder
-// that says what it is for. Only the files that cannot live anywhere else sit
-// at the repo root, at V1/'s top or at docs/'s top, and each top-level folder
-// is one Rules/layout.json names. A new program gets its own folder (listed
-// there and in docs/layout.md in the same change), never loose files.
+// Guards A1's layout (docs/layout.md): every program's page sits at the top
+// (the repo root, or V1's top for Veda's programs) and every other tracked file
+// lives in a folder that says what it is for. Only those pages and the files
+// that cannot live anywhere else sit at the repo root, at V1/'s top or at
+// docs/'s top, and each top-level folder is one Rules/layout.json names. A new
+// program: its page in `pages`, its files in a listed folder, docs/layout.md.
 //
 // Run: node tests/layout.test.js
 
@@ -36,9 +37,12 @@ function level(dir) {
 
 for (const [dir, rule, where] of [['', L.root, 'the repo root'], ['V1', L.V1, 'V1/'], ['docs', L.docs, 'docs/']]) {
   const got = level(dir);
-  const loose = got.files.filter((f) => !(f in rule.files));
-  ok('nothing loose at ' + where + ' (' + got.files.length + ' files, each with a reason)', loose.length === 0,
-    loose.join(', ') + ' — move it into the folder it belongs to (docs/layout.md), or, if it truly cannot move, give it a reason in Rules/layout.json');
+  const pages = rule.pages || {};
+  const loose = got.files.filter((f) => !(f in rule.files) && !(f in pages));
+  ok('nothing loose at ' + where + ' (' + got.files.length + ' files: program pages, or each with a reason)', loose.length === 0,
+    loose.join(', ') + ' — a program page: list it in Rules/layout.json `pages`; anything else goes in the folder it belongs to (docs/layout.md)');
+  const nopage = Object.keys(pages).filter((f) => !got.files.includes(f));
+  ok('every program page Rules/layout.json lists sits at ' + where, nopage.length === 0, nopage.join(', '));
   if (rule.folders) {
     const unknown = got.folders.filter((f) => !(f in rule.folders));
     ok('every folder at ' + where + ' is a known one (' + got.folders.length + ')', unknown.length === 0,
@@ -50,8 +54,17 @@ for (const [dir, rule, where] of [['', L.root, 'the repo root'], ['V1', L.V1, 'V
   ok('Rules/layout.json lists no file that is gone from ' + where, stale.length === 0, stale.join(', '));
 }
 
-// docs/layout.md describes every top-level folder the rules allow.
+// A program's page never hides in a folder: the top is where every page lives.
+// (Shruti/tests and tests/ hold harness pages, Notebook its embedded frames,
+// the extensions their popups, the desktop agents their local UI.)
+const NOT_PROGRAMS = /^(tests|Shruti\/tests|docs|Notebook|PriceWatch|V1\/Launcher|Shield\/desktop|V1\/StudyOS\/desktop|V1\/TradeBoard|V1\/tools|magi|workers|workers2|V1\/workers|Backup)\//;
+const hidden = files.filter((f) => /\.html$/.test(f) && f.includes('/') && !/^V1\/[^/]+\.html$/.test(f) && !NOT_PROGRAMS.test(f));
+ok('no program page hides in a folder', hidden.length === 0, hidden.join(', ') + ' — put the page at the top (Rules/layout.json `pages`)');
+
+// docs/layout.md describes every top-level folder the rules allow, and every page.
 const doc = fs.readFileSync(path.join(ROOT, 'docs', 'layout.md'), 'utf8');
+const undocPages = Object.keys(L.root.pages).concat(Object.keys(L.V1.pages).map((p) => 'V1/' + p)).filter((p) => !doc.includes('`' + p + '`'));
+ok('docs/layout.md names every program page', undocPages.length === 0, undocPages.join(', '));
 const undoc = Object.keys(L.root.folders).filter((f) => !f.startsWith('.') && !doc.includes('`' + f + '/`'));
 ok('docs/layout.md describes every top-level folder', undoc.length === 0, undoc.join(', '));
 const undocV1 = Object.keys(L.V1.folders).filter((f) => !f.startsWith('.') && !doc.includes('`V1/' + f + '/`'));

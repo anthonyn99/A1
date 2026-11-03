@@ -25,7 +25,7 @@ async function t(name, fn) {
 }
 function ok(c, m) { if (!c) throw new Error(m || 'assertion failed'); }
 
-const page = fs.readFileSync(path.join(__dirname, '..', 'magi/magi.html'), 'utf8');
+const page = fs.readFileSync(path.join(__dirname, '..', 'magi.html'), 'utf8');
 const start = page.indexOf('const REFINE_API = ');
 const end = page.indexOf('/** Rewrite the composer', start);
 ok(start > 0 && end > start, 'refineText block not found in magi.html');

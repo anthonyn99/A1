@@ -1,4 +1,4 @@
-// TradeBoard's Control and News tabs (V1/TradeBoard/tradeboard.html, Veda's),
+// TradeBoard's Control and News tabs (V1/tradeboard.html, Veda's),
 // redesigned 2026-10-29 to TradeHub's layout in TradeBoard's own colours: one
 // header per tab, the watchlist as tiles with one Trash button in the header,
 // and News as a pulse strip, a toolbar with a Filters panel, a sideways ticker
@@ -14,7 +14,7 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const { firebaseMock } = require('./fake-firebase.js');
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/V1/TradeBoard/tradeboard.html';
+const URL = 'https://anthonyn99.github.io/A1/V1/tradeboard.html';
 const ORIGIN = 'https://anthonyn99.github.io';
 const WORKER = 'https://tradeboard-news.vedapatel05.workers.dev';
 const TBDOC = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';

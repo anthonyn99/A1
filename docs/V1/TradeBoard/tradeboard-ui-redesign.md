@@ -1,6 +1,6 @@
 # TradeBoard Control, News and Market Summary redesign (2026-10-29)
 
-Tony asked for Veda's TradeBoard (`V1/TradeBoard/tradeboard.html`) to get the
+Tony asked for Veda's TradeBoard (`V1/tradeboard.html`) to get the
 layout TradeHub's Control and News got on 2026-10-27
 (A1-Priv `docs/TradeHub/ui-redesign.md`), and the Market Summary TradeHub got
 on 2026-10-29. TradeBoard's Control has no Prompts, so only the watchlist came

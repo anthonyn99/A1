@@ -32,15 +32,15 @@
 button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 </style>
 <style id="ui-cap-2000">html{background:#1a1a1d}body{max-width:2000px;margin-left:auto!important;margin-right:auto!important}</style>
-<script src="../Shared/scrollbar.js"></script>
+<script src="Shared/scrollbar.js"></script>
 <!-- A1's own form controls (controls.js): no select, date, time, checkbox,
      colour or tooltip is left for the browser to draw. Before any page code. -->
-<script src="../Shared/controls.js"></script>
+<script src="Shared/controls.js"></script>
 <!-- A1's popups (popups.js): every popup backdrop dims and blurs like TaskHub's,
      a click outside closes it, a drag that ends outside never does. -->
-<script src="../Shared/popups.js"></script>
-<script src="../Shared/apphead.js"></script>
-<script src="../Shared/hoverfx.js"></script>
+<script src="Shared/popups.js"></script>
+<script src="Shared/apphead.js"></script>
+<script src="Shared/hoverfx.js"></script>
 <style>
   :root {
     --bg: #1a1a1d; --s1: #232327; --s2: #2c2c31; --s3: #34343a;
@@ -250,13 +250,13 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
-<script src="backup.js"></script>
-<script src="backup-merge.js"></script>
+<script src="Backup/backup.js"></script>
+<script src="Backup/backup-merge.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <a class="back" id="back" href="../index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>TaskHub</a>
+    <a class="back" id="back" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>TaskHub</a>
     <div class="title">
       <h1><span class="a1-app-ic" data-a1-app="taskhub"></span>Restore</h1>
       <p>Put a TaskHub back to an earlier backup. Nothing changes until you confirm.</p>
@@ -430,7 +430,7 @@ async function fromVault() {
 
 // 3. The repo copy (tools/pull-backups.mjs), only when the worker is unreachable.
 async function fromRepo() {
-  const base = 'Index%20Backups/';
+  const base = 'Backup/Index%20Backups/';
   const getJ = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); };
   const idx = await getJ(base + 'index.json');
   let opened = 0;
@@ -619,7 +619,7 @@ function renderDone() {
   el.innerHTML = '<h2>' + (undo ? 'Restore undone' : 'Restored') + '</h2>' +
     '<p>' + esc(DOCS[CUR]) + '’s TaskHub is updated. Open TaskHub on your devices: they pick it up within seconds (reload one that was offline).' +
     ' The state before this is kept, so this can be ' + (undo ? 'redone' : 'undone') + ' below.</p>' +
-    '<div class="acts"><a class="btn primary" href="../index.html">Open TaskHub</a></div>';
+    '<div class="acts"><a class="btn primary" href="index.html">Open TaskHub</a></div>';
 }
 
 function renderUndo() {

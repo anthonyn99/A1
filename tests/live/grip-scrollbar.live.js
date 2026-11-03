@@ -84,8 +84,8 @@ const AUDIT = `
 (async () => {
   const c = await connect();
   await c.send('Runtime.enable');
-  const PAGES = ['magi/magi.html', 'index.html?profile=tony', 'index.html?profile=veda', 'MyList/mylist.html', 'Shield/shield.html',
-    'Shruti/shruti.html', 'V1/StudyOS/studyos.html', 'V1/Wellness/wellness.html', 'oneinbox.html', 'tradehub.html', 'insight.html',
+  const PAGES = ['magi.html', 'index.html?profile=tony', 'index.html?profile=veda', 'mylist.html', 'shield.html',
+    'shruti.html', 'V1/studyos.html', 'V1/wellness.html', 'oneinbox.html', 'tradehub.html', 'insight.html',
     'vault.html', 'everwell.html', 'riftiq.html'];
   let boxes = 0;
   for (const p of PAGES) {
@@ -104,7 +104,7 @@ const AUDIT = `
 
   // Control: the same box with its grip unknown to scrollbar.js draws its bar
   // to the corner, across the strokes, so the check above can fail.
-  await c.send('Page.navigate', { url: BASE + 'magi/magi.html' });
+  await c.send('Page.navigate', { url: BASE + 'magi.html' });
   await sleep(5000);
   const ctl = await evalJs(c, `
     var b = document.querySelector('.a1-grip-box'); if (!b) return 'no box';

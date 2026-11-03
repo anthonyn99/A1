@@ -2095,7 +2095,7 @@ stopping, because a chat website accepts nothing while it is writing.
 
 ## Opening the console from somewhere else
 
-`magi.html` is at `https://anthonyn99.github.io/A1/magi/magi.html`, and there is a
+`magi.html` is at `https://anthonyn99.github.io/A1/magi.html`, and there is a
 **MAGI** button in Tony's TaskHub. The page finds the engine on its own, in
 this order:
 
@@ -3192,7 +3192,7 @@ only missing run had been deleted from the engine showed "Sync failed" with
 nothing wrong, and a batch where nine of ten failed showed "Synced".
 
 **App Check is registered per domain.** Sync works on
-`https://anthonyn99.github.io/A1/magi/magi.html`; on `http://127.0.0.1:8000` the
+`https://anthonyn99.github.io/A1/magi.html`; on `http://127.0.0.1:8000` the
 App Check token is refused and sync silently stays off. Everything local —
 running the council, History, Studio, Brainstorm — is unaffected either way,
 and the console degrades to local-only rather than erroring.

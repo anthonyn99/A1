@@ -239,24 +239,24 @@ const HOSTS = [
         await js(`window.__mount({ profile: 'veda', key: 'vn', store: 'vn_test', title: 'Veda Notes', pinned: [], templates: null }).then(() => { window.__mounted = true; }); return 1;`);
         return until('window.__mounted && document.querySelector("#vn-entries-list .entry-item")', 15000);
       } },
-    { name: 'StudyOS notes (V1/StudyOS/studyos.html)', key: 'stn',
+    { name: 'StudyOS notes (V1/studyos.html)', key: 'stn',
       async open() {
         await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({
           'dashboards/studyos': { classes: [], events: [], tasks: [], notes: [], ksu: { modules: [] } },
           'dashboards/studyos_notebook': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(Object.assign(entry('e_a', 'A'), { folder: 'quick' }))} } })); return 1;`);
-        await c.send('Page.navigate', { url: BASE + 'V1/StudyOS/studyos.html' });
+        await c.send('Page.navigate', { url: BASE + 'V1/studyos.html' });
         if (!(await until(`window.SOSNotes && document.body.dataset.sosGate === 'open'`, 15000))) return false;
         // Past the cover page (shown on every launch since 2026-10-29), as she taps through it.
         await js(`window.sosHideIntro && sosHideIntro(); switchView('notes'); return 1;`);
         await sleep(500);
         return until('document.querySelector("#stn-entries-list .entry-item")', 20000);
       } },
-    { name: 'TradeBoard Strats (V1/TradeBoard/tradeboard.html)', key: 'vtb',
+    { name: 'TradeBoard Strats (V1/tradeboard.html)', key: 'vtb',
       async open() {
         await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({
           'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12': { strats: '[]', rulesDaily: JSON.stringify({ lastCompleted: null, enabled: false }), _updated: 1 },
           'dashboards/tradeboard_strats': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
-        await c.send('Page.navigate', { url: BASE + 'V1/TradeBoard/tradeboard.html' });
+        await c.send('Page.navigate', { url: BASE + 'V1/tradeboard.html' });
         if (!(await until(`typeof TB !== 'undefined' && window._tbCloudSeen`, 15000))) return false;
         await sleep(800);
         await js(`TB.showSection('strats'); return 1;`);

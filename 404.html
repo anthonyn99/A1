@@ -1,9 +1,9 @@
 <!doctype html>
 <!-- GitHub Pages serves this page for any address that has no file.
-     Every A1 program lives in its own folder since 2026-11-03 (docs/layout.md);
-     their old addresses (bookmarks, home-screen icons, the installed Shield
-     agent, saved links in TaskHub and Vault) land here and are forwarded at
-     once, keeping the query and the hash (#tb=… hand-offs, ?profile=…).
+     A page whose address changed (docs/layout.md) is forwarded from its old
+     address (bookmarks, home-screen icons, saved links in TaskHub, LifeHub
+     and Vault) at once, keeping the query and the hash (#tb=… hand-offs,
+     ?profile=…).
      A page that moves adds one line to MOVED. Nothing else belongs here. -->
 <html lang="en">
 <head>
@@ -15,14 +15,20 @@
 (function () {
   // old path (below the site root, lower case) -> new path
   var MOVED = {
-    'magi.html': 'magi/magi.html',
-    'mylist.html': 'MyList/mylist.html',
-    'shield.html': 'Shield/shield.html',
-    'backup-restore.html': 'Backup/backup-restore.html',
-    'backup-export.html': 'Backup/backup-export.html',
-    'wellness.html': 'V1/Wellness/wellness.html',
-    'v1/wellness.html': 'V1/Wellness/wellness.html',
-    'v1/studyos.html': 'V1/StudyOS/studyos.html'
+    // Program pages live at the top (A1's root, V1's top) since 2026-11-03;
+    // these are the folder addresses they had for a few hours that day, and
+    // older ones.
+    'magi/magi.html': 'magi.html',
+    'mylist/mylist.html': 'mylist.html',
+    'shield/shield.html': 'shield.html',
+    'backup/backup-restore.html': 'backup-restore.html',
+    'backup/backup-export.html': 'backup-export.html',
+    'shruti/shruti.html': 'shruti.html',
+    'wellness.html': 'V1/wellness.html',
+    'v1/wellness/wellness.html': 'V1/wellness.html',
+    'v1/studyos/studyos.html': 'V1/studyos.html',
+    'v1/tradeboard/tradeboard.html': 'V1/tradeboard.html',
+    'v1/finance/finance.html': 'V1/finance.html'
   };
   var p = location.pathname;
   // The site root: /A1/ on GitHub Pages, / on a local server.

@@ -12,7 +12,7 @@ const { connect, evalJs, sleep, shotPath } = require(path.join(__dirname, '..', 
 const { firebaseMock } = require(path.join(__dirname, '..', '..', 'tests', 'live', 'fake-firebase.js'));
 const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x + ';' : x);
 
-const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
+const URL = 'https://anthonyn99.github.io/A1/shruti.html';
 const KEY = 'orca_sk_live_test_key_123';
 const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6048 * 2).toString('base64');  // whole 144-byte frames, as Edge sends
 const uploads = [], speech = [];

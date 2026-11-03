@@ -1,8 +1,7 @@
 {
-  "about": "Where things live in A1 (docs/layout.md explains each folder). tests/layout.test.js fails when a tracked file or folder sits anywhere these lists do not allow, so nothing is ever left loose. A new program gets its own folder: add it to `folders` here and to docs/layout.md in the same change.",
+  "about": "Where things live in A1 (docs/layout.md explains each folder). Every program's page sits at the top (the repo root, or V1's top for Veda's programs) and everything else in a folder that says what it is for. tests/layout.test.js fails when a tracked file or folder sits anywhere these lists do not allow. A new program: its page in `pages`, its files in a folder listed in `folders`, and docs/layout.md, in the same change.",
   "root": {
     "files": {
-      "index.html": "TaskHub + the journals. The site root (/A1/) serves it, so it cannot move.",
       "404.html": "GitHub Pages' not-found page: forwards every moved page's old address.",
       "firebase-messaging-sw.js": "Push service worker. Its scope must cover index.html, so it sits beside it.",
       "CLAUDE.md": "Claude Code reads it from the repo root.",
@@ -16,18 +15,17 @@
       "dragsort.js": "TEMPORARY copy of Shared/dragsort.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/dragsort.js."
     },
     "folders": {
-      "Backup": "A1Backup: backup.js, the restore/export pages and the repo copies (Index Backups/)",
+      "Backup": "A1Backup: backup.js, backup-merge.js and the repo copies (Index Backups/); its pages are backup-restore.html and backup-export.html at the root",
       "docs": "every doc, plan and README, one subfolder per project",
       "Guardian": "the one lock (guardian.js); hosts load it from this path",
       "LifeHub": "the app switcher (lifehub.js); hosts load it from this path",
-      "magi": "MAGI: the console (magi.html) and its engine (a Python package run as `python -m magi`)",
-      "MyList": "MyList (mylist.html)",
+      "magi": "MAGI's engine, a Python package run as `python -m magi` (its page is magi.html at the root)",
       "Notebook": "the journals and the DOCX editor",
       "PriceWatch": "the Price Watch extension (Brave loads it unpacked from this folder)",
       "Rules": "machine-read rules: cleanup-rules.json, firestore.rules, this file",
       "Shared": "files every program loads: scrollbar, popups, controls, dragsort, resizegrip, hoverfx, apphead, profilepick, tabsync, sweep, tni, catdebrief",
-      "Shield": "Shield: the page (shield.html) and the desktop agent (desktop/)",
-      "Shruti": "Shruti, as one folder",
+      "Shield": "the Shield desktop agent (desktop/); its page is shield.html at the root",
+      "Shruti": "everything of Shruti but its page (shruti.html at the root): app/, books, media, tools, tests, docs, worker",
       "TaskHub": "TaskHub's own scripts (its page is index.html at the root)",
       "tests": "every A1 test suite (Shruti and the MAGI engine keep theirs in their own folders)",
       "tools": "scripts run by hand or by a scheduled task",
@@ -42,19 +40,28 @@
       "scrollbar.js",
       "popups.js",
       "dragsort.js"
-    ]
+    ],
+    "pages": {
+      "index.html": "TaskHub and the journals (the site root serves it)",
+      "magi.html": "MAGI (its engine is magi/)",
+      "mylist.html": "MyList",
+      "shield.html": "Shield (its desktop agent is Shield/desktop/)",
+      "shruti.html": "Shruti (its files are Shruti/)",
+      "backup-restore.html": "Restore TaskHub from A1Backup (Backup/)",
+      "backup-export.html": "Export TaskHub from A1Backup (Backup/)"
+    }
   },
   "V1": {
     "files": {
       "package.json": "the V1 build and its tests run from V1/",
       "package-lock.json": "npm's lock file",
-      ".gitignore": "V1's ignore rules"
+      ".gitignore": "V1's ignore rules",
+      "studyos-sw.js": "StudyOS's service worker: its scope must cover studyos.html, so it sits beside it",
+      "manifest.webmanifest": "StudyOS's web-app manifest, beside its page"
     },
     "folders": {
-      "StudyOS": "StudyOS: studyos.html with its css, js, config, assets, vendor, manifest, service worker and desktop app",
-      "Wellness": "Wellness (wellness.html)",
-      "Finance": "Finance (finance.html)",
-      "TradeBoard": "TradeBoard (tradeboard.html) and its desktop and sync tools",
+      "StudyOS": "what studyos.html loads: css, js, config, assets, vendor, plus its desktop app",
+      "TradeBoard": "TradeBoard's desktop app, sync and scripts (its page is tradeboard.html at V1's top)",
       "Launcher": "the Launcher extension (Brave loads it unpacked from this folder)",
       "firebase": "Firestore rules and config for V1's Firebase project",
       "scripts": "the build, tests and Push Changes",
@@ -62,6 +69,12 @@
       "tools": "V1's helper programs (sos-browser)",
       "workers": "V1's Cloudflare workers",
       ".claude": "Claude Code settings"
+    },
+    "pages": {
+      "studyos.html": "StudyOS (its files are StudyOS/)",
+      "wellness.html": "Wellness",
+      "finance.html": "Finance",
+      "tradeboard.html": "TradeBoard (its tools are TradeBoard/)"
     }
   },
   "docs": {

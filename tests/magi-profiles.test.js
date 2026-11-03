@@ -29,7 +29,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -120,7 +120,7 @@ ok('no native dialog in the gate', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.t
 // The password card itself is Guardian's: drawn, with a reveal toggle and a
 // caps-lock warning, in every program at once.
 const GUARD = fs.readFileSync(path.join(__dirname, '..', 'Guardian', 'guardian.js'), 'utf8');
-ok('MAGI loads Guardian before first paint', /<script src="\.\.\/Guardian\/guardian\.js"><\/script>/.test(MAGI));
+ok('MAGI loads Guardian before first paint', /<script src="Guardian\/guardian\.js"><\/script>/.test(MAGI));
 ok('the password field is drawn', /function pwField\(/.test(GUARD));
 ok('it has a reveal toggle', /'aria-label': 'Show password'/.test(GUARD));
 ok('it warns about caps lock', /getModifierState\("CapsLock"\)/.test(GUARD));
@@ -214,7 +214,7 @@ console.log('\nThe cards say who, and nothing else');
 ok('no subtitle line survives', !/gate-state/.test(MAGI),
    'it either restated the password field or claimed a lock state this page cannot check');
 // Tony, 2026-10-27: every program's picker is Shruti's (profilepick.js).
-ok("the gate is the suite's one picker", /A1Pick\.mount\(scr,/.test(lift('function renderLock()')) && /<script src="\.\.\/Shared\/profilepick\.js"><\/script>/.test(MAGI));
+ok("the gate is the suite's one picker", /A1Pick\.mount\(scr,/.test(lift('function renderLock()')) && /<script src="Shared\/profilepick\.js"><\/script>/.test(MAGI));
 
 console.log('\nThe console says whose MAGI it is');
 ok('there is a profile chip', /id="profBtn"/.test(MAGI));

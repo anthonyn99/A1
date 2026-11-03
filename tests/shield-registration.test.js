@@ -19,7 +19,7 @@ const path = require('path');
 const assert = require('assert');
 
 // SHIELD_FILE points at another copy (e.g. an older version) to prove these fail there.
-const SRC = fs.readFileSync(process.env.SHIELD_FILE || path.join(__dirname, '..', 'Shield/shield.html'), 'utf8');
+const SRC = fs.readFileSync(process.env.SHIELD_FILE || path.join(__dirname, '..', 'shield.html'), 'utf8');
 let pass = 0;
 function ok(name, fn) { fn(); pass++; console.log('  ok  ' + name); }
 

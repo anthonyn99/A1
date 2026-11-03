@@ -147,7 +147,7 @@ Tony and Veda are reading the Bhagavad-Gita (IGS / Ramananda Prasad rendition, `
 
 ### Files — ONE folder (Tony, 2026-10-19)
 **Everything Shruti owns lives in `A1/Shruti/`**, so the program moves by moving one folder:
-- the page `Shruti/shruti.html`, served at `/A1/Shruti/shruti.html`;
+- the page `shruti.html`, served at `/A1/shruti.html`;
 - its modules, book data, media, docs (`Shruti/docs/`), tests (`Shruti/tests/`), dev tools (`Shruti/tools/`);
 - its worker (`Shruti/worker/`).
 

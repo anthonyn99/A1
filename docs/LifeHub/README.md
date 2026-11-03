@@ -88,7 +88,7 @@ Shruti arrived this way (2026-10-19).
 
 ### A Veda-only program (StudyOS)
 
-StudyOS (`V1/StudyOS/studyos.html`, since 2026-10-29) always shows Veda's list: its
+StudyOS (`V1/studyos.html`, since 2026-10-29) always shows Veda's list: its
 script passes `data-profile="veda"`. It runs on more than one origin, so it
 loads `lifehub.js` by its absolute Pages URL, and it sets `window.LifeHubFirebase`
 to its own Firestore (`js/firebase-sync.js` `window._fbNotebook`), because its

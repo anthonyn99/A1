@@ -1,6 +1,6 @@
 # TradeBoard News + Control (Veda)
 
-TradeBoard ([V1/TradeBoard/tradeboard.html](../../../V1/TradeBoard/tradeboard.html))
+TradeBoard ([V1/tradeboard.html](../../../V1/tradeboard.html))
 has News and Control tabs, integrated from Tony's TradeHub on 2026-10-08.
 Control is TradeHub's watchlist editor without Prompts. News is TradeHub's
 News tab, rebuilt in TradeBoard's vanilla JS.
@@ -9,7 +9,7 @@ News tab, rebuilt in TradeBoard's vanilla JS.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Page | `V1/TradeBoard/tradeboard.html` (`TB.wl`, `TB.news`, `TBSync`) | Deploys with the V1 site worker on push. |
+| Page | `V1/tradeboard.html` (`TB.wl`, `TB.news`, `TBSync`) | Deploys with the V1 site worker on push. |
 | News worker | `V1/workers/tradeboard-news` → `https://tradeboard-news.vedapatel05.workers.dev` | Veda's Cloudflare account. Copy of `workers/newshub-api`; the header comment lists every difference. |
 | Watchlist, default, trash, AI sectors | main doc `tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12`, fields `watchlist*` | Mirrored by `TBCloud` like every other TradeBoard key. |
 | News feed + filters | doc `tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12_news` | Its own doc because it is rewritten every build. Allowed by `V1/firebase/firestore.rules`. |

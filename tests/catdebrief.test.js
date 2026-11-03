@@ -11,7 +11,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'Shared/catdebrief.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi/magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -166,7 +166,7 @@ console.log('\nThe link MAGI reads');
 {
   const u = D.link('hello', ['gemini'], 'veda');
   const p = payloadOf(u);
-  ok('goes to the console', u.split('#')[0] === 'https://anthonyn99.github.io/A1/magi/magi.html');
+  ok('goes to the console', u.split('#')[0] === 'https://anthonyn99.github.io/A1/magi.html');
   ok('carries prompt, units, a run and the profile', p.q === 'hello' && p.units.join() === 'gemini' && p.run === 1 && p.p === 'veda' && p.src === 'catalysts', JSON.stringify(p));
   ok('an unknown profile is sent as Tony', payloadOf(D.link('x', [], 'mallory')).p === 'tony');
   ok('a base url that already has a fragment is not doubled', D.link('x', [], 'tony', 'https://h/magi.html#old').split('#').length === 2);
@@ -190,7 +190,7 @@ console.log('\nThe button press');
 
   // A console already open: only the fragment changes, so MAGI hears it on
   // hashchange instead of reloading.
-  const tab = { location: { href: 'https://anthonyn99.github.io/A1/magi/magi.html', replace(u) { this.href = u; } }, focus() { this.focused = true; } };
+  const tab = { location: { href: 'https://anthonyn99.github.io/A1/magi.html', replace(u) { this.href = u; } }, focus() { this.focused = true; } };
   const O = load({ tab });
   O.D.launch([cpi], 'tony', {});
   ok('an open console is handed the prompt, not just focused', /magi\.html#tb=/.test(tab.location.href) && tab.focused, tab.location.href.slice(0, 60));

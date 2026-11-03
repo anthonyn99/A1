@@ -74,10 +74,10 @@ const api = {
   const ML = (locks, lockV) => `(()=>{ if(window.top!==window) return;
     window._mlLoad=()=>Promise.resolve({ tony:{lists:[]}, veda:{lists:[]}, locks:${JSON.stringify(locks)}, lockV:${JSON.stringify(lockV)} });
     window._mlLoadOk=true; window.__saves=[]; window._mlSave=(d)=>window.__saves.push(JSON.parse(JSON.stringify(d))); window._mlReady=true; })();`;
-  await fresh('MyList/mylist.html', { ml_unlocked_tony: 'v500' }, ML({ tony: true, veda: true }, { tony: 500, veda: 600 }));
+  await fresh('mylist.html', { ml_unlocked_tony: 'v500' }, ML({ tony: true, veda: true }, { tony: 500, veda: 600 }));
   await js(`ML.chooseProfile('tony'); return 1;`); await sleep(800);
   ok('Tony, unlocked by the old MyList lock, enters with no prompt', !(await dlg()).open && (await js(`return document.body.getAttribute('data-profile')`)) === 'tony');
-  await fresh('MyList/mylist.html', {}, ML({ tony: true, veda: true }, { tony: 500, veda: 600 }));
+  await fresh('mylist.html', {}, ML({ tony: true, veda: true }, { tony: 500, veda: 600 }));
   await js(`ML.chooseProfile('veda'); return 1;`); await sleep(800);
   let d = await dlg();
   ok("Veda's lists ask, in Veda's theme", d.open && d.theme === 'veda' && /Veda's lists/.test(d.text), JSON.stringify(d));
@@ -114,7 +114,7 @@ const api = {
   // ── MAGI ──────────────────────────────────────────────────────────────────
   console.log('\nMAGI');
   setRec('applock:tony_magi', 'mpw');
-  await fresh('magi/magi.html');
+  await fresh('magi.html');
   d = await dlg();
   ok('the gate (picker) is up with Guardian\'s card over it', d.open && /MAGI/.test(d.text) && (await js(`return !!document.getElementById('lockScreen') && !document.getElementById('lockScreen').hidden`)), JSON.stringify(d));
   ok('nothing reaches the engine or Firestore while locked', await js(`return PROFILE.unlocked === false && LOCK.booted === true`));
@@ -127,10 +127,10 @@ const api = {
   await js(`document.getElementById('lockBtn').click(); return 1;`); await sleep(600);
   await gclick('Lock this device now'); await sleep(500);
   ok('lock now puts the gate and the card back', (await dlg()).open && (await js(`return PROFILE.unlocked === false && !document.getElementById('lockScreen').hidden`)));
-  await fresh('magi/magi.html', { 'magi.tony.lock_session': JSON.stringify({ at: 1, ver: ver('applock:tony_magi') }) });
+  await fresh('magi.html', { 'magi.tony.lock_session': JSON.stringify({ at: 1, ver: ver('applock:tony_magi') }) });
   ok("MAGI's old session (same password ver) is adopted: no prompt", !(await dlg()).open && (await js(`return PROFILE.unlocked === true`)));
   setRec('applock:tony_magi', 'mpw2');
-  await fresh('magi/magi.html', { 'magi.tony.lock_session': JSON.stringify({ at: 1, ver: 'vSTALE' }) });
+  await fresh('magi.html', { 'magi.tony.lock_session': JSON.stringify({ at: 1, ver: 'vSTALE' }) });
   await sleep(1500);
   ok('an old session from before a password change is NOT adopted', (await dlg()).open && (await js(`return PROFILE.unlocked === false`)));
 

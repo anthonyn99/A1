@@ -47,7 +47,7 @@ StudyOS is on Guardian (`veda_studyos`, owner Veda), declared in `js/applock.js`
 - the Firestore lock doc (which lock is on, at what version `v`), with its live snapshot;
 - Veda's Formspree, for hints and reset codes.
 
-The move to Guardian asked nobody anything. Legacy adoption reads `sos_al_unlockedat_studyos` and the `sos_bio_studyos` credential. If Firestore can't answer, the cached `sos_al_locks` decides, as it always did. `tests/guardian-wiring.test.js` lists `V1/StudyOS/studyos.html` as a host. `V1/StudyOS/js/applock.js` is its one `BACKENDS` file, allowed to call its own worker's routes inside the backend and nothing else of a lock.
+The move to Guardian asked nobody anything. Legacy adoption reads `sos_al_unlockedat_studyos` and the `sos_bio_studyos` credential. If Firestore can't answer, the cached `sos_al_locks` decides, as it always did. `tests/guardian-wiring.test.js` lists `V1/studyos.html` as a host. `V1/StudyOS/js/applock.js` is its one `BACKENDS` file, allowed to call its own worker's routes inside the backend and nothing else of a lock.
 
 ## Bugs fixed along the way
 

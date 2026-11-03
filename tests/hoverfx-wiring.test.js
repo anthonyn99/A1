@@ -27,11 +27,11 @@ const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('Shared/hoverfx.js') + 
 
 // Pages served from the repo root, which load the shared file directly.
 const PAGES = [
-  'index.html', 'riftiq.html', 'tradehub.html', 'Shield/shield.html', 'MyList/mylist.html',
-  'vault.html', 'insight.html', 'oneinbox.html', 'V1/Wellness/wellness.html',
+  'index.html', 'riftiq.html', 'tradehub.html', 'shield.html', 'mylist.html',
+  'vault.html', 'insight.html', 'oneinbox.html', 'V1/wellness.html',
   'everwell.html',
   // A page in its program's own folder loads ../hoverfx.js.
-  'Shruti/shruti.html',
+  'shruti.html',
 ];
 
 // Folders that ship their own copy, and the page in each that loads it.

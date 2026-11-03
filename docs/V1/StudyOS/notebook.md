@@ -9,8 +9,8 @@ to these two.
 
 | Program | Where | key | Store (Index project) | Folders |
 |---|---|---|---|---|
-| StudyOS (`V1/StudyOS/studyos.html`) | Quick Notes view, and every Notes module (class or KSU) | `stn` | `dashboards/studyos_notebook` | `quick`, and one per Notes module (its module id) |
-| TradeBoard (`V1/TradeBoard/tradeboard.html`) | the Strats section | `vtb` | `dashboards/tradeboard_strats` | none |
+| StudyOS (`V1/studyos.html`) | Quick Notes view, and every Notes module (class or KSU) | `stn` | `dashboards/studyos_notebook` | `quick`, and one per Notes module (its module id) |
+| TradeBoard (`V1/tradeboard.html`) | the Strats section | `vtb` | `dashboards/tradeboard_strats` | none |
 
 Both load Notebook from A1's Pages URL (`https://anthonyn99.github.io/A1/Notebook/notebook.js?v=<stamp>`,
 `data-lazy`), so they run the one Notebook every program runs, and A1's

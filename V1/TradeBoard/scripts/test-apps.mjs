@@ -14,7 +14,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(resolve(root, "tradeboard.html"), "utf8");
+const html = readFileSync(resolve(root, "..", "tradeboard.html"), "utf8");
 
 // ── extract TB.apps ─────────────────────────────────────────────────────────
 const start = html.indexOf("TB.apps = {");

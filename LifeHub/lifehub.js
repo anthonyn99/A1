@@ -199,22 +199,26 @@
   // OneInbox moved to the private host on 2026-10-28. Its old address is a
   // GitHub 404, so a stored tile that still holds it is moved to the new one,
   // once per sync, through the normal patch path (query and hash are kept).
-  // On 2026-11-03 every A1 program moved into its own folder (docs/layout.md).
-  // The old addresses still forward (404.html), but a stored tile is moved so
-  // it opens the page directly.
+  // Program pages sit at the top (A1's root, V1's top; docs/layout.md). For a
+  // few hours on 2026-11-03 they were in folders, and this sync moved stored
+  // tiles there; these move them (Tony's and Veda's lists alike) back to the
+  // page's address. The old addresses also forward on their own (404.html).
   var MOVED_PAGES = [
     { from: /^https:\/\/anthonyn99\.github\.io\/A1\/oneinbox\.html(?=[?#]|$)/i, to: PRIV + 'oneinbox.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/(?:V1\/)?wellness\.html(?=[?#]|$)/i, to: BASE + 'V1/Wellness/wellness.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/V1\/studyos\.html(?=[?#]|$)/i, to: BASE + 'V1/StudyOS/studyos.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/mylist\.html(?=[?#]|$)/i, to: BASE + 'MyList/mylist.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/magi\.html(?=[?#]|$)/i, to: BASE + 'magi/magi.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/shield\.html(?=[?#]|$)/i, to: BASE + 'Shield/shield.html' },
-    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/backup-(restore|export)\.html(?=[?#]|$)/i, to: BASE + 'Backup/backup-$1.html' }
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/(?:V1\/Wellness\/)?wellness\.html(?=[?#]|$)/i, to: BASE + 'V1/wellness.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/V1\/StudyOS\/studyos\.html(?=[?#]|$)/i, to: BASE + 'V1/studyos.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/V1\/TradeBoard\/tradeboard\.html(?=[?#]|$)/i, to: BASE + 'V1/tradeboard.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/V1\/Finance\/finance\.html(?=[?#]|$)/i, to: BASE + 'V1/finance.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/MyList\/mylist\.html(?=[?#]|$)/i, to: BASE + 'mylist.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/magi\/magi\.html(?=[?#]|$)/i, to: BASE + 'magi.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/Shield\/shield\.html(?=[?#]|$)/i, to: BASE + 'shield.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/Backup\/backup-(restore|export)\.html(?=[?#]|$)/i, to: BASE + 'backup-$1.html' },
+    { from: /^https:\/\/anthonyn99\.github\.io\/A1\/Shruti\/shruti\.html(?=[?#]|$)/i, to: BASE + 'shruti.html' }
   ];
   var DEFAULT_APPS = [
     { id: 'oneinbox', name: 'OneInbox', url: PRIV + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
     { id: 'tradehub', name: 'TradeHub', url: PRIV + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
-    { id: 'mylist', name: 'MyList', url: BASE + 'MyList/mylist.html', icon: 'a1:mylist', tab: 'mylist' },
+    { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
     { id: 'vault', name: 'Vault', url: PRIV + 'vault.html', icon: 'a1:vault', tab: 'vault' },
     { id: 'everwell', name: 'Everwell', url: PRIV + 'everwell.html', icon: 'a1:everwell', tab: 'everwell' },
@@ -223,10 +227,10 @@
     // and the agent starting its own exe is a second launch, which surfaces
     // the running agent's window (lib.rs single-instance handler).
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.tony, icon: 'a1:shield-desktop', tab: 'shield_app' },
-    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'Shield/shield.html', icon: 'a1:shield', tab: 'shield_tony' },
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_tony' },
     { id: 'riftiq', name: 'RiftIQ', url: PRIV + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
-    { id: 'magi', name: 'MAGI', url: BASE + 'magi/magi.html', icon: 'a1:magi', tab: 'magi' },
-    { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
+    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' },
+    { id: 'shruti', name: 'Shruti', url: BASE + 'shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
   // Veda's own list: the programs that carry a Veda profile. Tab keys follow
   // TaskHub's per-profile ones (shield_veda), so both open the same tab.
@@ -234,12 +238,12 @@
   var VEDA_APPS = [
     { id: 'taskhub', name: 'TaskHub', url: BASE + 'index.html', icon: 'a1:taskhub', tab: 'taskhub' },
     { id: 'studyos', name: 'StudyOS', url: STUDYOS, icon: 'a1:studyos', tab: 'studyos' },
-    { id: 'mylist', name: 'MyList', url: BASE + 'MyList/mylist.html', icon: 'a1:mylist', tab: 'mylist' },
+    { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.veda, icon: 'a1:shield-desktop', tab: 'shield_app' },
-    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'Shield/shield.html', icon: 'a1:shield', tab: 'shield_veda' },
-    { id: 'wellness', name: 'Wellness', url: BASE + 'V1/Wellness/wellness.html', icon: 'a1:wellness', tab: 'wellness' },
-    { id: 'magi', name: 'MAGI', url: BASE + 'magi/magi.html', icon: 'a1:magi', tab: 'magi' },
-    { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' },
+    { id: 'wellness', name: 'Wellness', url: BASE + 'V1/wellness.html', icon: 'a1:wellness', tab: 'wellness' },
+    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' },
+    { id: 'shruti', name: 'Shruti', url: BASE + 'shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
   // Programs added to the defaults after the lists were first written. The
   // defaults only seed a missing document, so each of these is added to an

@@ -6,7 +6,7 @@ with the Bhagavad-Gita in a Shared section both profiles see. All AI goes throug
 with each person's own key. The build plan, and where it stands, is [plan.md](plan.md);
 its §0 names the next phase.
 
-Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
+Live: https://anthonyn99.github.io/A1/shruti.html
 
 ## Folder layout (everything lives here)
 
@@ -287,7 +287,11 @@ node Shruti/tests/reader.test.js
 
 ## Moving Shruti
 
-Move the `Shruti/` folder, then update the lines outside it that name it:
+Shruti's page is `shruti.html` at A1's root (every program page sits at the
+top, `docs/layout.md`); everything else is this folder. Its scripts load as
+`Shruti/app/...`, and the page-relative data paths in `app/` start with
+`Shruti/` (`'Shruti/books/'`, `'Shruti/media/'`). Move the page and the folder
+together, then update the lines outside them that name them:
 - `tests/shruti.test.js`: the path to `Shruti/tests`.
 - `CLAUDE.md`: the Shruti pointer. `docs/README.md`: the index line. Root `README.md`: the Folders row.
 - The wiring-test page lists: `tests/syntax-check.js` (`FILES`, `WORKER_DIRS`),

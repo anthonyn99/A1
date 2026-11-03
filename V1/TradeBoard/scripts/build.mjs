@@ -22,7 +22,7 @@ const pub = resolve(root, "public");
 mkdirSync(pub, { recursive: true });
 
 // 1) canonical HTML -> index.html
-copyFileSync(resolve(root, "tradeboard.html"), resolve(pub, "index.html"));
+copyFileSync(resolve(root, "..", "tradeboard.html"), resolve(pub, "index.html"));
 
 // 2) no-cache headers for HTML (Pages honors a top-level _headers file)
 writeFileSync(

@@ -94,15 +94,15 @@ const AUDIT = `var bad = [];
   });
   return { on: !!window.A1Controls || !!window.VaultControls || !!window.SosControls, bad: bad };`;
 
-const PAGES = ['index.html', 'magi/magi.html', 'MyList/mylist.html', 'Shield/shield.html', 'Shruti/shruti.html', 'V1/Wellness/wellness.html',
-  'Backup/backup-restore.html', 'Backup/backup-export.html', 'V1/StudyOS/studyos.html',
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'shruti.html', 'V1/wellness.html',
+  'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
 const VEDA = [
   ['index.html', "document.body.setAttribute('data-th-profile', 'veda')"],
-  ['magi/magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
-  ['MyList/mylist.html', "document.body.setAttribute('data-profile', 'veda')"],
-  ['Shield/shield.html', "document.body.setAttribute('data-profile', 'veda')"],
-  ['Shruti/shruti.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
+  ['mylist.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['shield.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['shruti.html', "document.body.setAttribute('data-profile', 'veda')"],
 ];
 
 (async () => {

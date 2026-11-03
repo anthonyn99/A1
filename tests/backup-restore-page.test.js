@@ -186,7 +186,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await evalJs('document.getElementById("dlgyes").click()');
     };
 
-    await send('Page.navigate', { url: 'https://a1.test/Backup/backup-restore.html?profile=tony' });
+    await send('Page.navigate', { url: 'https://a1.test/backup-restore.html?profile=tony' });
     ok(await until('!document.getElementById("passcard").hidden'), 'no saved passphrase → the passphrase box is shown');
 
     await submit('wrong passphrase');
@@ -261,7 +261,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     // Worker down: the repo copy still restores.
     workerDown = true;
-    await send('Page.navigate', { url: 'https://a1.test/Backup/backup-restore.html?profile=veda' });
+    await send('Page.navigate', { url: 'https://a1.test/backup-restore.html?profile=veda' });
     await until('!document.getElementById("passcard").hidden');
     await submit(PASS);
     ok(await until('document.querySelectorAll("#tl .row").length >= 1 && !/Reading/.test(document.getElementById("tlaside").textContent)'), 'with the worker down, the repo copy is listed');

@@ -107,14 +107,14 @@ const MAUVE = 'rgb(141, 118, 154)';
 async function load(c, w, h, mobile, profile, emg) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shield/shield.html?blank' }); await sleep(700);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/shield.html?blank' }); await sleep(700);
   await evalJs(c, `localStorage.clear();
     localStorage.setItem('sh_device_id', 'dev_test');
     ${profile ? `localStorage.setItem('sh_fav_profile', '${profile}'); localStorage.setItem('sh_profile', '${profile}');
     localStorage.setItem('sh_hist_${profile}_dev_test', ${JSON.stringify(JSON.stringify(HIST))});` : ''}
     ${emg ? `localStorage.setItem('sh_emg_${profile}', JSON.stringify({ active: true, at: ${NOW - 600000}, source: 'local', scope: 'local', v: 0 }));` : ''}
     1`);
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/Shield/shield.html' });
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/shield.html' });
   await sleep(2000);
 }
 const view = (c, v) => evalJs(c, `document.querySelector('.nav > .pill[data-view="${v}"]').click(); 1`).then(() => sleep(350));

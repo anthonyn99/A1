@@ -520,7 +520,7 @@ def _verify_and_publish(token: str, kill) -> None:
         # wrong path, looking for a publish failure that never happened.
         with contextlib.suppress(Exception):
             tunnel_mod.mark_published(url, time.time())
-    print("  published -- https://anthonyn99.github.io/A1/magi/magi.html now reaches this PC")
+    print("  published -- https://anthonyn99.github.io/A1/magi.html now reaches this PC")
 
 
 def _keep_tunnel(tunnel, cf_log: Path, token: str, port: int) -> int:

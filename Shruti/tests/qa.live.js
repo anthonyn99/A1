@@ -18,7 +18,7 @@ const { connect, evalJs, sleep, shotPath } = require(path.join(__dirname, '..', 
 const { firebaseMock } = require(path.join(__dirname, '..', '..', 'tests', 'live', 'fake-firebase.js'));
 const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x + ';' : x);
 
-const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
+const URL = 'https://anthonyn99.github.io/A1/shruti.html';
 const ORCA = 'https://orca.vedapatel05.workers.dev';
 const GOOD = 'orca_sk_live_good_key_123', NARROW = 'orca_sk_live_narrow_key_9', BAD = 'orca_sk_live_revoked_key_7';
 const ids = ['deepseek/free', 'chatgpt/free', 'gemini_web/free', 'perplexity/free', 'claude/free'];

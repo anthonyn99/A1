@@ -7,7 +7,7 @@
 // is faked to say both profiles have a password.
 const { connect, evalJs, sleep } = require('./cdp.js');
 
-const PAGE = 'https://anthonyn99.github.io/A1/MyList/mylist.html';
+const PAGE = 'https://anthonyn99.github.io/A1/mylist.html';
 const mock = {
   patterns: ['https://taskhub-reminders.av1.workers.dev/*'],
   handle(req) {

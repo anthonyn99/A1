@@ -21,10 +21,10 @@ const vm = require('vm');
 // in this list the day it ships. The programs that moved to A1-Priv are checked
 // by A1-Priv's own tests/syntax-check.js.
 const FILES = [
-  'index.html', 'Shield/shield.html', 'MyList/mylist.html', 'V1/Wellness/wellness.html',
-  'magi/magi.html',
+  'index.html', 'shield.html', 'mylist.html', 'V1/wellness.html',
+  'magi.html',
   // Program folders (Shruti moves as one folder).
-  'Shruti/shruti.html',
+  'shruti.html',
 ];
 
 let babelParse = null;

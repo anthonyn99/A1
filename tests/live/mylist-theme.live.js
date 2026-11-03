@@ -16,7 +16,7 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x + ';' : x);
 const fs = require('fs');
 
-const URL = 'https://anthonyn99.github.io/A1/MyList/mylist.html';
+const URL = 'https://anthonyn99.github.io/A1/mylist.html';
 const SHOTS = process.argv[2] === '--shots' ? (process.argv[3] || 'mylist') : null;
 
 const it = (id, name, extra) => Object.assign({ id, name, qty: '', store: '', desc: '', done: false }, extra || {});

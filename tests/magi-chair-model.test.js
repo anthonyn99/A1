@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MAGI = fs.readFileSync(process.env.MAGI_HTML || path.join(__dirname, '..', 'magi/magi.html'), 'utf8')
+const MAGI = fs.readFileSync(process.env.MAGI_HTML || path.join(__dirname, '..', 'magi.html'), 'utf8')
   .replace(/\r\n/g, '\n');
 
 let pass = 0, fail = 0;

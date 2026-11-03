@@ -1,13 +1,14 @@
 # A1
 
 - **Where every file goes** (any new program, file or folder, here or in
-  A1-Priv): follow [docs/layout.md](docs/layout.md). Nothing is ever left
-  loose: a program gets its own folder (`Name/name.html`), files every program
-  loads go in `Shared/`, machine-read rules in `Rules/`, tests in `tests/`,
-  docs in `docs/`, scripts in `tools/`, Veda's programs in `V1/` under the
-  same rules. A new folder or root file is listed in `Rules/layout.json` with
-  its reason; `tests/layout.test.js` fails otherwise. Moving a page: add its
-  old address to `404.html` and LifeHub's `MOVED_PAGES`.
+  A1-Priv): follow [docs/layout.md](docs/layout.md). Every program's page sits
+  at the top (A1's root, A1-Priv's root, V1's top for Veda's programs);
+  everything else goes in a folder: a program's own files in a folder named
+  after it, files every program loads in `Shared/`, machine-read rules in
+  `Rules/`, tests in `tests/`, docs in `docs/`, scripts in `tools/`. A new page
+  or folder is listed in `Rules/layout.json`; `tests/layout.test.js` fails
+  otherwise. Moving a page: add its old address to `404.html`, LifeHub's
+  `MOVED_PAGES` and TaskHub's `_MOVED_LINKS`.
 - **Setting up MAGI on a PC** ("set up MAGI", Veda's PC, a new engine):
   follow [docs/MAGI/magi-setup.md](docs/MAGI/magi-setup.md). It's one command, then the
   sign-ins.
@@ -67,8 +68,9 @@
   drag that ends outside. Don't style or wire a backdrop per program; a new
   program loads the tag in `<head>`. Contract: [docs/Shared/popups.md](docs/Shared/popups.md).
 - **Shruti** ("continue Shruti", "next Shruti phase", the Gita reader/podcast/video
-  program): everything lives in `Shruti/` (page, data, tools, tests, docs, worker), so it
-  moves as one folder; its docs are the exception to "docs go in docs/". **All 9 phases
+  program): its page is `shruti.html` at the root; everything else lives in `Shruti/`
+  (modules in `app/`, data, tools, tests, docs, worker); its docs are the exception to
+  "docs go in docs/". **All 9 phases
   are done (2026-10-20).** Read §0 of [Shruti/docs/plan.md](Shruti/docs/plan.md) (what is
   left with Tony, what to do with a new ask), then test and update §0. All AI goes
   through Orca with each person's own key.

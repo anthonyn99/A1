@@ -108,15 +108,15 @@ for (const it of RULES.items) {
 }
 // Every A1-Priv page loads the sweep, so an item for any of them just works.
 // A forwarding stub (A1-Priv's solace.html → Everwell) is not a program and runs nothing.
-// A1-Priv lists every published page in host/pages.json (each program in its
-// own folder); M.read finds it there.
-const PRIV_PAGES = path.join(M.PRIV, 'host', 'pages.json');
-for (const page of fs.existsSync(PRIV_PAGES) ? Object.keys(JSON.parse(fs.readFileSync(PRIV_PAGES, 'utf8'))).filter((k) => k !== '_') : []) {
+// Every A1-Priv page sits at its root (docs/layout.md). A forwarding stub is
+// not a program and runs nothing.
+const isStub = (page) => { const s = fs.readFileSync(path.join(M.PRIV, page), 'utf8'); return s.length < 4000 && /location\.replace\('https:/.test(s); };
+for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html') && !isStub(f)) : []) {
   const prog = page.replace(/\.html$/, '');
   ok(`A1-Priv ${page} loads sweep.js as data-program="${prog}"`,
     new RegExp(`<script src="https://anthonyn99\\.github\\.io/A1/Shared/sweep\\.js" data-program="${prog}" defer></script>`).test(M.read(page)));
 }
-if (fs.existsSync(M.PRIV)) ok('A1-Priv publishes its pages from host/pages.json', fs.existsSync(PRIV_PAGES));
+if (fs.existsSync(M.PRIV)) ok('A1-Priv has its program pages at its root', fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html')).length >= 6);
 for (const it of RULES.items.filter((i) => i.store === 'localStorage')) {
   for (const k of [...(it.exact || []), ...(it.prefix || [])]) {
     const hits = usedBy(k, it.origin);
@@ -134,8 +134,8 @@ console.log('\nWiring');
 const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'firestore', 'indexeddb'].includes(i.store)).map((i) => i.program));
 for (const prog of browserPrograms) {
   // Each program's page, in its own folder (docs/layout.md); A1-Priv's by name.
-  const PAGE_OF = { index: 'index.html', magi: 'magi/magi.html', mylist: 'MyList/mylist.html', shield: 'Shield/shield.html',
-    studyos: 'V1/StudyOS/studyos.html', wellness: 'V1/Wellness/wellness.html', shruti: 'Shruti/shruti.html' };
+  const PAGE_OF = { index: 'index.html', magi: 'magi.html', mylist: 'mylist.html', shield: 'shield.html',
+    studyos: 'V1/studyos.html', wellness: 'V1/wellness.html', shruti: 'shruti.html' };
   const page = PAGE_OF[prog] || prog + '.html';
   if (M.isMoved(page) && !M.has(page)) { M.skipNote(page); continue; }
   const html = M.isMoved(page) ? M.read(page) : fs.existsSync(path.join(ROOT, page)) ? read(page) : '';

@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const MAGI = fs.readFileSync(path.join(__dirname, '..', 'magi/magi.html'), 'utf8');
+const MAGI = fs.readFileSync(path.join(__dirname, '..', 'magi.html'), 'utf8');
 const start = MAGI.indexOf('<script id="storage-guard">');
 const GUARD = MAGI.slice(MAGI.indexOf('>', start) + 1, MAGI.indexOf('</script>', start));
 
@@ -73,7 +73,7 @@ function jar() {
 
 /** One page load: a fresh window over the same store and cookies. */
 function load(store, cookies) {
-  const win = { localStorage: store, sessionStorage: roomyStore(), location: { pathname: '/A1/magi/magi.html' } };
+  const win = { localStorage: store, sessionStorage: roomyStore(), location: { pathname: '/A1/magi.html' } };
   win.window = win;
   win.document = cookies;
   vm.runInNewContext(GUARD, win);

@@ -11,7 +11,7 @@
  * workers cannot both own the root — see that file's own header warning. Push
  * notifications break if this one claims root.
  *
- * It lives at V1/StudyOS/studyos-sw.js (top level, NOT js/) because a worker served
+ * It lives at V1/studyos-sw.js (top level, NOT js/) because a worker served
  * from /studyos/js/ could only control /studyos/js/*, which does not cover the
  * app itself. build.mjs copies it beside studyos.html via the `assets` list.
  *

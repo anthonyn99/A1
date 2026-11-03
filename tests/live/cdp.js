@@ -109,7 +109,7 @@ async function connect(opts) {
 // file://; its Origin is "null", which the engine now refuses because any
 // website can produce it too (see "Who may drive the engine" in docs/MAGI/magi.md).
 const PAGES = 'https://anthonyn99.github.io/A1/';
-const PAGES_URL = PAGES + 'magi/magi.html';
+const PAGES_URL = PAGES + 'magi.html';
 // A1_ROOT serves a DIFFERENT checkout under the same origin -- e.g. a
 // `git worktree` of an older tag, for a before/after comparison
 // (tests/live/theme-shots.live.js).
@@ -209,7 +209,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     let privRel = rel;
     try { privRel = JSON.parse(fs.readFileSync(path.join(priv, 'host', 'pages.json'), 'utf8'))[rel] || rel; } catch (e) {}
     if (/^riftiq-live\//.test(rel) && fs.existsSync(path.join(priv, 'RiftIQ', rel))) privRel = 'RiftIQ/' + rel;
-    const moved = (MOVED.test(rel) || /^riftiq-live\//.test(rel)) && fs.existsSync(path.join(priv, privRel));
+    const moved = (MOVED.test(rel) || /^(riftiq-live|RiftIQ)\//.test(rel)) && fs.existsSync(path.join(priv, privRel));
     const base = moved ? priv : A1;
     const served = rel;
     if (moved) rel = privRel;
@@ -217,7 +217,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     // of everwell.html, tradehub.html or Veda's tradeboard.html (outside the
     // repos, so the auto-deploy never ships it half-built) in its place.
     const wip = (served === 'everwell.html' && process.env.EW_PAGE_FILE) || (served === 'tradehub.html' && process.env.TH_PAGE_FILE)
-      || (rel === 'V1/TradeBoard/tradeboard.html' && process.env.TB_PAGE_FILE);
+      || (rel === 'V1/tradeboard.html' && process.env.TB_PAGE_FILE);
     const file = wip ? path.resolve(wip) : path.resolve(base, rel);
     if (!wip && (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile())) {
       send('Fetch.continueRequest', { requestId });

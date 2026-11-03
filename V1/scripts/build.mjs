@@ -27,7 +27,7 @@ const dist = resolve(root, "dist");
 // `out: ""` means the site root; anything else becomes a subdirectory.
 //
 // `assets` lists sibling directories/files the HTML loads RELATIVE TO ITSELF,
-// taken from the folder the HTML sits in (StudyOS/ for StudyOS).
+// taken from the folder the HTML sits in (V1/).
 // Single-file apps omit it (TradeBoard and Finance inline everything). StudyOS
 // does not: studyos.html resolves css/, js/, config/ and assets/ relative to its
 // own location, so those must land beside it in dist/ or every one of them 404s.
@@ -42,17 +42,21 @@ const dist = resolve(root, "dist");
 // scope that firebase-messaging-sw.js requires. Moving it into rootFiles
 // would break push notifications.
 const APPS = [
-  { name: "TradeBoard", src: "TradeBoard/tradeboard.html", out: "" },
-  { name: "Finance", src: "Finance/finance.html", out: "finance" },
+  { name: "TradeBoard", src: "tradeboard.html", out: "" },
+  { name: "Finance", src: "finance.html", out: "finance" },
   {
     name: "StudyOS",
-    src: "StudyOS/studyos.html",
+    src: "studyos.html",
     out: "studyos",
     // vendor/ holds third-party runtime files under VERSIONED folder names
     // (e.g. vendor/anthropic-sdk-0.129.0/), so a new version is a new path.
-    assets: ["css", "js", "config", "assets", "vendor", "manifest.webmanifest", "studyos-sw.js"],
+    // The page sits at V1's top; what it loads is in StudyOS/ (studyos.html
+    // references StudyOS/css/..., so it lands at /studyos/StudyOS/css/...).
+    // The manifest and service worker stay beside the page: the worker's
+    // scope must be /studyos/.
+    assets: ["StudyOS/css", "StudyOS/js", "StudyOS/config", "StudyOS/assets", "StudyOS/vendor", "manifest.webmanifest", "studyos-sw.js"],
     // sweep.js and its rules live in A1's Shared/ and Rules/. studyos.html
-    // loads "../../Shared/sweep.js", which from /studyos/ is /Shared/sweep.js,
+    // loads "../Shared/sweep.js", which from /studyos/ is /Shared/sweep.js,
     // and sweep.js reads ../Rules/cleanup-rules.json beside it; without these
     // the Cloudflare build 404'd it and StudyOS's self-cleanup never ran there.
     rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"],

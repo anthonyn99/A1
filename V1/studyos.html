@@ -14,9 +14,9 @@
 <meta name="apple-mobile-web-app-title" content="StudyOS">
 <!-- The mortarboard mark (Tony's pick, 2026-10-29). The SVG is the crisp tab
      icon; the PNGs are the home-screen icons and the fallback. -->
-<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-<link rel="icon" href="assets/icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="icon" href="StudyOS/assets/icon.svg" type="image/svg+xml">
+<link rel="icon" href="StudyOS/assets/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="StudyOS/assets/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 
 <!-- Warm the TLS handshakes to the hosts the first paint depends on. -->
@@ -27,7 +27,7 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="css/studyos.css">
+<link rel="stylesheet" href="StudyOS/css/studyos.css">
 
 <!-- Notes are V's Notebook (A1's Notebook, docs/Notebook/README.md): one
      editor for the Quick Notes view and every Notes module, loaded from A1's
@@ -58,7 +58,7 @@
 
 <!-- MUST be first of StudyOS's own scripts: every module below reads
      window.STUDYOS_CONFIG synchronously. -->
-<script src="config/config.js"></script>
+<script src="StudyOS/config/config.js"></script>
 <!-- Guardian: the one A1 lock (A1/docs/Guardian/README.md), before first paint
      and unpinned, so every Guardian upgrade reaches StudyOS. js/applock.js
      declares StudyOS's lock on it, over StudyOS's own worker. -->
@@ -878,14 +878,14 @@
        studyos.js     the app; boots once SOS_GATE resolves
        taskmirror.js  LAST — reads window._sosBridge, which studyos.js defines
      ══════════════════════════════════════════════════════════════════════ -->
-<script src="js/shell.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/controls.js"></script>
-<script src="js/applock.js"></script>
-<script src="js/intro.js"></script>
-<script type="module" src="js/firebase-sync.js"></script>
-<script src="js/push.js"></script>
-<script src="js/studyos.js"></script>
+<script src="StudyOS/js/shell.js"></script>
+<script src="StudyOS/js/ui.js"></script>
+<script src="StudyOS/js/controls.js"></script>
+<script src="StudyOS/js/applock.js"></script>
+<script src="StudyOS/js/intro.js"></script>
+<script type="module" src="StudyOS/js/firebase-sync.js"></script>
+<script src="StudyOS/js/push.js"></script>
+<script src="StudyOS/js/studyos.js"></script>
 <!-- V's Notebook: StudyOS's notes (Quick Notes + every Notes module) are one
      instance of Veda's side of A1's Notebook, on StudyOS's Firestore
      (js/firebase-sync.js window._fbNotebook). js/sos-notebook.js mounts it,
@@ -900,20 +900,20 @@
   };
   window.SOS_NOTEBOOK = { profile: 'veda', key: 'stn', store: 'studyos_notebook', title: 'StudyOS Notes' };
 </script>
-<script src="js/sos-notebook.js"></script>
-<script type="module" src="js/taskmirror.js"></script>
+<script src="StudyOS/js/sos-notebook.js"></script>
+<script type="module" src="StudyOS/js/taskmirror.js"></script>
 <!-- Brightspace import. After studyos.js because it consumes _sosBridge. -->
-<script src="js/d2l-sync.js"></script>
+<script src="StudyOS/js/d2l-sync.js"></script>
 <!-- Feature modules (js/modules/). One entry point so load order between them
      is explicit rather than left to chance, and so the pipeline feature flag
      has a single place to be honoured. Deferred like every module, so it runs
      after studyos.js has installed _sosBridge, which it consumes. -->
-<script type="module" src="js/modules/boot.js"></script>
+<script type="module" src="StudyOS/js/modules/boot.js"></script>
 <!-- Last: binds the pull gesture to the renderers studyos.js defines above. -->
-<script src="js/pulltorefresh.js"></script>
+<script src="StudyOS/js/pulltorefresh.js"></script>
 <!-- A1 self-cleanup (cleanup-rules.json at the repo root). On a build without
      it, the 404 is harmless: the sweep simply does not run. -->
-<script src="../../Shared/sweep.js" data-program="studyos" defer></script>
+<script src="../Shared/sweep.js" data-program="studyos" defer></script>
 <!-- LifeHub (docs/LifeHub/README.md): LifeHub – Veda, always (data-profile="veda").
      It borrows StudyOS's own Firestore (js/firebase-sync.js
      window._fbNotebook), so this origin needs no second Firebase app. -->

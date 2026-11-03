@@ -66,7 +66,7 @@ function fakeFirestore() {
   const H = await import(pathToFileURL(path.join(DIR, 'app/study/hub.js')).href);
   const U = await import(pathToFileURL(path.join(DIR, 'app/study/ui.js')).href);
   ok('they load in Node', typeof X.fromPdf === 'function' && typeof B.save === 'function' && typeof OR.sortable === 'function');
-  ok('the library reads imported books through books.js, shipped ones from the repo', /isShipped\(id\) \? getJSON\('books\/' \+ id \+ '\/book\.json'\) : B\.get\(id\)/.test(read('app/library.js')) && /B\.chapter\(id, file\)/.test(read('app/library.js')));
+  ok('the library reads imported books through books.js, shipped ones from the repo', /isShipped\(id\) \? getJSON\('Shruti\/books\/' \+ id \+ '\/book\.json'\) : B\.get\(id\)/.test(read('app/library.js')) && /B\.chapter\(id, file\)/.test(read('app/library.js')));
   ok('only shipped books fetch shipped media and study sets', ['app/podcast.js', 'app/video.js', 'app/narrate.js'].every((f) => /if \(!C\.isShipped\(book\)\) return Promise\.resolve\(\{\}\);/.test(read(f))) && /!C\.isShipped\(book\) \? Promise\.resolve\(\{\}\)/.test(read('app/study/hub.js')));
   ok('a personal book\'s media is read from the person\'s own doc', ['app/podcast.js', 'app/video.js', 'app/narrate.js'].every((f) => /M\.docFor\(book\)\.get\('assets\./.test(read(f)) && !/C\.shared\.get\('assets\./.test(read(f))));
   ok('pdf.js comes from A1\'s vendored copy, JSZip pinned from cdnjs', /'\.\.\/\.\.\/V1\/StudyOS\/vendor\/pdfjs-6\.3\.289\/'/.test(read('app/import.js')) && fs.existsSync(path.join(DIR, '..', 'V1', 'StudyOS', 'vendor', 'pdfjs-6.3.289', 'pdf.min.mjs')) && /cdnjs\.cloudflare\.com\/ajax\/libs\/jszip\/3\.10\.1\/jszip\.min\.js/.test(read('app/import.js')));

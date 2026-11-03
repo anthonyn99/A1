@@ -39,13 +39,13 @@ on:
       - "V1/workers/**"
       - ".github/workflows/deploy-v1-workers.yml"
       # The site Worker serves the built apps, so an app edit must redeploy it.
-      - "V1/TradeBoard/tradeboard.html"
-      - "V1/Finance/finance.html"
+      - "V1/tradeboard.html"
+      - "V1/finance.html"
       # StudyOS is a multi-file app: its HTML plus the sibling directories that
       # build.mjs copies beside it, and the root service worker.
-      - "V1/StudyOS/studyos.html"
-      - "V1/StudyOS/studyos-sw.js"
-      - "V1/StudyOS/manifest.webmanifest"
+      - "V1/studyos.html"
+      - "V1/studyos-sw.js"
+      - "V1/manifest.webmanifest"
       - "V1/StudyOS/css/**"
       - "V1/StudyOS/js/**"
       - "V1/StudyOS/config/**"

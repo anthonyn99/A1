@@ -2620,13 +2620,13 @@ async def units_refresh_models(provider_id: str):
 
 
 # ── the UI ───────────────────────────────────────────────────────────────────
-# magi.html is a single self-contained file in this folder (magi/), exactly like
+# magi.html is a single self-contained file at the A1 repo root, exactly like
 # every other program in the suite -- there is no build step and no bundle, so
 # there is nothing to mount under /assets and nothing to rebuild when the UI
 # changes. Serving it here gives the local case a SAME-ORIGIN page, which skips
 # CORS and Private Network Access entirely: open http://127.0.0.1:8000 and it
 # just works. The same file served from GitHub Pages is the remote case.
-_UI = ROOT / "magi.html"
+_UI = ROOT.parent / "magi.html"
 
 
 @app.get("/")

@@ -13,7 +13,7 @@ is the Windows process that gives it teeth.
 
 ## Why the window loads a remote URL
 
-The window points at `https://anthonyn99.github.io/A1/Shield/shield.html` rather than
+The window points at `https://anthonyn99.github.io/A1/shield.html` rather than
 bundling the page. That is deliberate and load-bearing:
 
 - the auth Worker pins CORS to that exact origin ([`workers/taskhub-reminders/worker.js:23`](../../workers/taskhub-reminders/worker.js));

@@ -21,13 +21,13 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
   #st { color: var(--muted); white-space: pre-line; }
   .ok { color: var(--accent) !important; } .bad { color: var(--bad) !important; }
 </style>
-<script src="backup.js"></script>
+<script src="Backup/backup.js"></script>
 <!-- A1's own form controls (controls.js): no select, date, time, checkbox,
      colour or tooltip is left for the browser to draw. Before any page code. -->
-<script src="../Shared/controls.js"></script>
+<script src="Shared/controls.js"></script>
 <!-- A1's popups (popups.js): every popup backdrop dims and blurs like TaskHub's,
      a click outside closes it, a drag that ends outside never does. -->
-<script src="../Shared/popups.js"></script>
+<script src="Shared/popups.js"></script>
 </head>
 <body>
 <main><h1>TaskHub backup export</h1><div id="st">Reading this browser's backups…</div></main>
@@ -47,7 +47,7 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
     // browser's passphrase where it matches.
     out.repo = [];
     try {
-      var base = 'Index%20Backups/', dec = A1Backup._internals.decryptEnv;
+      var base = 'Backup/Index%20Backups/', dec = A1Backup._internals.decryptEnv;
       var re = /^dashboards\/(main|vedasdash)(_archive_\d+)?$/;
       var idx = await (await fetch(base + 'index.json', { cache: 'no-store' })).json();
       for (var d = 0; d < (idx.devices || []).length; d++) {
