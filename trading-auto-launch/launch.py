@@ -1209,17 +1209,21 @@ def _open_browser_window(browser: str, url: str, pos: list):
     return None
 
 
-def open_tradehub():
+def open_tradehub(summary: bool = False):
     """Open TradeHub in the Brave window you already have open (a new one only if
     Brave has none) and return that window's HWND, so the AI + search tabs are
-    opened INTO the same window."""
+    opened INTO the same window.
+
+    `summary` (the morning run): open it as tradehub.html#tbsummary, which makes
+    TradeHub switch to News and open the Summary overlay by itself once this
+    morning's news build and its summary are in (see _tbMorningSum there)."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
-    log("Opening TradeHub...")
-    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS)
+    log("Opening TradeHub..." + (" (News → Summary once the morning build is in)" if summary else ""))
+    return _open_browser_window(brave, TRADEHUB_URL + ("#tbsummary" if summary else ""), TRADEHUB_POS)
 
 
 def open_taskhub_app():
@@ -2314,7 +2318,7 @@ def _launch_all(test: bool, from_tradehub: bool = False):
                 "opening a fresh one instead.")
             tradehub_hwnd = open_tradehub()
     else:
-        tradehub_hwnd = open_tradehub()
+        tradehub_hwnd = open_tradehub(summary=True)
 
     time.sleep(1.5)
     open_taskhub_app()
