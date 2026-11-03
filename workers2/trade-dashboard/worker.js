@@ -11,7 +11,7 @@
  *   GET  /calendar             Catalysts feed (deterministic macro + Finnhub earnings)
  *   GET/POST /watchlist        the universal Control-tab ticker list (KV)
  *   GET/POST /analysis-config  Analysis-tab selection (prompt + searches + MAGI units);
- *                              Trading Auto Launch reads it to open ChatGPT
+ *                              Trading Auto Launch reads it to send the prompt (MAGI or a chat site)
  *   GET/POST /daily-reminder   Playbook's "Daily Reminder" page (Markdown);
  *                              Trading Auto Launch blocks the morning launch on it
  *   GET/POST/DELETE /prompts*  legacy CRUD no-ops (kept so stale front-ends don't 404)
@@ -347,7 +347,7 @@ async function handle(request, env, ctx){
   }
 
   // Analysis-tab config — the front-end pushes the Analysis selection (prompt +
-  // search list) here; the Trading Auto Launch GETs it to open ChatGPT with that exact
+  // search list) here; the Trading Auto Launch GETs it to send that exact
   // prompt (auto-submitted) and open each configured search.
   if(path==='/analysis-config'&&method==='POST'){
     const body=await request.json().catch(()=>({}));
