@@ -1513,12 +1513,20 @@ def _analysis_destination(cfg: dict):
     return ai_url, magi_units, bool(magi_units) and _is_magi_url(ai_url)
 
 
+def _analysis_window():
+    """The Brave window the searches and the prompt go into: TradeHub's when one is
+    open, else the browser window you already have (_primary_brave_hwnd: the one in
+    front, else the largest; never TaskHub's app window). None when Brave has no
+    window at all -- only then does the daily analysis open one of its own."""
+    return _find_open_tradehub_window(timeout=2) or _primary_brave_hwnd()
+
+
 def open_analysis_searches(brave: str, cfg: dict):
     """The search tabs picked in TradeHub → Analysis, opened by the daily analysis
-    just before the prompt goes out: INTO the TradeHub window when one is open (so
-    everything shares one window), else in one new window at CHATGPT_POS. The AI
-    tab then follows them into that same window (`brave <url>` goes to the
-    last-used one)."""
+    just before the prompt goes out: INTO the Brave window already open (TradeHub's
+    if there is one, else any browser window -- 2026-11-03, Tony: a window full of
+    A1 tabs was open and they still went to a window of their own), else in one new
+    window at CHATGPT_POS. The AI tab then follows them into that same window."""
     ai_url, _, use_magi = _analysis_destination(cfg)
     # A search that points at the AI destination itself is skipped: the daily
     # analysis opens that tab next, with the prompt in it.
@@ -1528,17 +1536,17 @@ def open_analysis_searches(brave: str, cfg: dict):
         log("Searches: none configured.")
         return
 
-    target_hwnd = _find_open_tradehub_window(timeout=2)
+    target_hwnd = _analysis_window()
     if target_hwnd:
         # Focus it first so Brave adds the tabs there (a bare `brave <urls>` goes to
         # the last-focused browser window).
         _focus_window(target_hwnd)
-        log(f"Searches: adding {len(tabs)} tab(s) to the TradeHub window...")
+        log(f"Searches: adding {len(tabs)} tab(s) to the open Brave window...")
         subprocess.Popen([brave] + tabs)
         return
     x, y, w, h = CHATGPT_POS
     snapshot = _all_brave_hwnds()
-    log(f"Searches: opening 1 window with {len(tabs)} tab(s)...")
+    log(f"Searches: no Brave window open — opening 1 window with {len(tabs)} tab(s)...")
     subprocess.Popen([brave, f"--window-position={x},{y}", f"--window-size={w},{h}", "--new-window"] + tabs)
     hwnd = _wait_for_new_brave_window(snapshot, timeout=25)
     if hwnd:
@@ -1573,8 +1581,9 @@ def open_ai_prompt() -> bool:
     and the Vault extension fetches this same prompt, types it in and sends it (see
     the AI ANALYSIS AUTOMATION block for why nothing else works in Brave).
 
-    `brave <url>` puts the tab in the last-used Brave window, or starts Brave if it
-    is closed. Either way the prompt also goes on the clipboard as a fallback."""
+    The tab goes into the Brave window already open (focused first, so `brave <url>`
+    lands there), or Brave starts if it is closed. Either way the prompt also goes
+    on the clipboard as a fallback."""
     if not CHATGPT_ANALYSIS_ENABLED:
         log("Daily analysis: switched off (CHATGPT_ANALYSIS_ENABLED).")
         return True
@@ -1596,6 +1605,11 @@ def open_ai_prompt() -> bool:
         return True
     if _set_clipboard_text(prompt):
         log(f"Daily analysis: prompt '{name}' ({len(prompt)} chars) copied to the clipboard.")
+    # Into the window already open, like the searches: focusing it is what makes
+    # `brave <url>` put the tab there rather than in whichever window was last used.
+    target_hwnd = _analysis_window()
+    if target_hwnd:
+        _focus_window(target_hwnd)
     if use_magi:
         if not _wait_for_magi_engine():
             log(f"Daily analysis: the MAGI engine did not answer within {MAGI_ENGINE_WAIT}s — "
