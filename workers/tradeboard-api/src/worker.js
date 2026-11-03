@@ -490,6 +490,19 @@ async function fetchOrderDetail(clientOrderId, accountId, env) {
    Also digs filled-leg arrays. Returns a float (0 if none). */
 function extractFee(r) {
   if (!r || typeof r !== 'object') return 0;
+  // 0) Webull's current order shape: commission is an object
+  //    {actual_commission, receivable_commission} and fees an array of
+  //    {type, actual_value, receivable_value}. parseFloat() of either is NaN,
+  //    so the probes below never saw them.
+  let shaped = 0;
+  if (r.commission && typeof r.commission === 'object' && !Array.isArray(r.commission)) {
+    const c = parseFloat(r.commission.actual_commission ?? r.commission.receivable_commission);
+    if (!isNaN(c) && c > 0) shaped += c;
+  }
+  if (Array.isArray(r.fees)) {
+    shaped += r.fees.reduce((a, f) => { const v = parseFloat(f && (f.actual_value ?? f.receivable_value ?? f.amount)); return a + (isNaN(v) || v < 0 ? 0 : v); }, 0);
+  }
+  if (shaped > 0) return Math.round(shaped * 10000) / 10000;
   // 1) explicit single total-fee field, first hit wins
   const totalKeys = ['fee', 'fees', 'total_fee', 'total_fees', 'totalFee', 'commission'];
   for (const k of totalKeys) {
@@ -529,35 +542,77 @@ function extractFee(r) {
   return 0;
 }
 
-async function fetchOrders(accountId, type = 'open', env) {
+/* ORDER HISTORY WINDOW. Webull's history endpoint answers the LAST 7 DAYS unless
+   it is given start_date/end_date (yyyy-MM-dd), 10 rows a page unless page_size is
+   set, and pages on with last_client_order_id. Called bare, History, the FIFO
+   realized P&L and the Journal sync only ever saw one week: a week without a
+   sync (PC off, travel) lost those fills from the journal for good.
+   Each extra page is one more call against Webull's 2-per-2s history limit, so
+   pages are spaced and capped. */
+const HISTORY_DAYS = 30;
+const HISTORY_PAGE_GAP_MS = 1100;
+const ymd = d => d.toISOString().slice(0, 10);
+
+function flattenOrderGroups(list) {
+  const flat = [];
+  for (const item of list) {
+    const inner = item && item.orders;
+    if (Array.isArray(inner) && inner.length) { for (const o of inner) flat.push(o); }
+    else if (item) flat.push(item);
+  }
+  return flat;
+}
+const listOf = raw => (Array.isArray(raw) ? raw : (raw?.data || raw?.orders || raw?.items || []));
+
+async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxPages = 1 } = {}) {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const base = { account_id: accountId, page_size: 100, start_date: ymd(start), end_date: ymd(end) };
+  let raw;
   try {
-    const endpoint = type === 'open'
-      ? '/openapi/trade/order/open'
-      : '/openapi/trade/order/history';
-    const raw  = await wb('GET', endpoint, { query: { account_id: accountId, page_size: 100 } }, env);
-    const list = Array.isArray(raw) ? raw : (raw?.data || raw?.orders || raw?.items || []);
-    if (type === 'history') console.log('[orders/history] raw groups:', Array.isArray(list) ? list.length : 0);
+    raw = await wb('GET', '/openapi/trade/order/history', { query: base }, env);
+  } catch (e) {
+    /* A 4xx here means this account's endpoint refused the date range. Fall back
+       to the call that has always worked (Webull's own 7-day default) rather
+       than losing History entirely. 401/429/5xx are not about the parameters. */
+    if (!(e.status >= 400 && e.status < 500) || e.status === 401 || e.status === 429) throw e;
+    console.warn('[orders/history] date range refused (' + e.status + '), using the 7-day default');
+    raw = await wb('GET', '/openapi/trade/order/history', { query: { account_id: accountId, page_size: 100 } }, env);
+    return flattenOrderGroups(listOf(raw));
+  }
+  let groups = listOf(raw);
+  const seen = new Set(flattenOrderGroups(groups).map(o => o.order_id || o.client_order_id));
+  for (let page = 1; page < maxPages && groups.length; page++) {
+    const last = groups[groups.length - 1];
+    const cursor = last && (last.client_order_id || (last.orders && last.orders[0] && last.orders[0].client_order_id));
+    if (!cursor) break;
+    await delay(HISTORY_PAGE_GAP_MS);
+    let next;
+    try { next = listOf(await wb('GET', '/openapi/trade/order/history', { query: { ...base, last_client_order_id: cursor } }, env)); }
+    catch (e) { console.warn('[orders/history] page', page + 1, 'failed:', e.message); break; }
+    /* Stop when a page brings nothing new: an endpoint that ignores the cursor
+       hands back page one again, and that must not loop or duplicate rows. */
+    const fresh = next.filter(g => flattenOrderGroups([g]).some(o => !seen.has(o.order_id || o.client_order_id)));
+    if (!fresh.length) break;
+    flattenOrderGroups(fresh).forEach(o => seen.add(o.order_id || o.client_order_id));
+    groups = groups.concat(fresh);
+    if (next.length < 100) break;
+  }
+  const out = [], ids = new Set();
+  for (const o of flattenOrderGroups(groups)) {
+    const id = o.order_id || o.client_order_id;
+    if (id && ids.has(id)) continue;
+    if (id) ids.add(id);
+    out.push(o);
+  }
+  return out;
+}
 
-    const flat = [];
-    for (const item of list) {
-      const inner = item.orders;
-      if (Array.isArray(inner) && inner.length) {
-        for (const o of inner) flat.push(o);
-      } else {
-        flat.push(item);
-      }
-    }
-
-    /* DEBUG: dump keys of first flattened order so the real fee field name is
-       confirmable in `wrangler tail`. Remove once fee mapping verified. */
-    if (type === 'history' && flat.length) {
-      console.log('[orders/history] sample order keys:', JSON.stringify(Object.keys(flat[0])));
-      console.log('[orders/history] sample fee-ish:', JSON.stringify({
-        fee: flat[0].fee, fees: flat[0].fees, commission: flat[0].commission,
-        sec_fee: flat[0].sec_fee, taf_fee: flat[0].taf_fee, tax: flat[0].tax,
-        extracted: extractFee(flat[0])
-      }));
-    }
+async function fetchOrders(accountId, type = 'open', env, opts = {}) {
+  try {
+    const flat = type === 'open'
+      ? flattenOrderGroups(listOf(await wb('GET', '/openapi/trade/order/open', { query: { account_id: accountId, page_size: 100 } }, env)))
+      : await fetchHistoryRaw(accountId, env, opts);
 
     return flat.map(r => ({
       orderId:   r.order_id         || r.client_order_id,
@@ -624,7 +679,8 @@ async function syncJournalFromWebull(env) {
     if (!cached?.token || cached.status !== 'NORMAL') return;
     const accountId = await getAccountId(env);
     await delay(500);
-    const orders  = await fetchOrders(accountId, 'history', env);
+    // 30 days, up to 3 pages: a missed week (or three) of syncs still lands.
+    const orders  = await fetchOrders(accountId, 'history', env, { days: HISTORY_DAYS, maxPages: 3 });
     const journal = await loadJournal(env);
     /* Build lookup by every known id variant: entry.id, orderId, leg._wbId, leg orderId */
     const knownIds = new Set();
@@ -663,15 +719,6 @@ async function syncJournalFromWebull(env) {
     console.log('[journal] history orders:', orders.length,
       'statuses:', JSON.stringify([...new Set(orders.map(o => o.status))]));
 
-    /* ── ONE-SHOT DEBUG: dump the DETAIL payload for the first filled order so the
-       real fee field name is confirmable in `wrangler tail`. Remove after verify. ── */
-    const probe = orders.find(o => String(o.status||'').toUpperCase().includes('FILL') && o.clientOrderId);
-    if (probe) {
-      const det = await fetchOrderDetail(probe.clientOrderId, accountId, env);
-      console.log('[order/detail] PROBE keys:', JSON.stringify(det ? Object.keys(det) : null));
-      console.log('[order/detail] PROBE extracted fee:', extractFee(det));
-      console.log('[order/detail] PROBE payload:', JSON.stringify(det));
-    }
     /* Treat an order as fillable if Webull marks it filled in ANY casing/variant
        (FILLED, Filled, PARTIAL_FILLED, partially_filled, …) or it has filled qty.
        Cash→Margin switch changed the status string, which the old strict
