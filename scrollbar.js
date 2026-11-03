@@ -165,9 +165,25 @@
   // Where a scroller's rail lives: the top layer it is in. A scroller that is
   // ITSELF a fixed layer (a drawer, a modal sheet) holds its own rail, or the
   // rail would paint underneath it.
+  // A fixed scroller that is itself the containing block of a fixed child
+  // (a backdrop-filter, filter, transform...: popups.js blurs every backdrop)
+  // carries a rail mounted inside it along with its content. The compositor
+  // scrolls it a frame before the loop can put it back, so the bar bounced on
+  // every wheel step (TradeHub's Debrief, 2026-11-03). Such a rail goes beside
+  // it instead, unless the scroller is in the top layer, where nothing outside
+  // it can paint over it.
+  function holdsFixed(cs) {
+    var bf = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+    return cs.transform !== 'none' || cs.filter !== 'none' || bf !== 'none' || cs.perspective !== 'none' ||
+      /paint|layout|strict|content/.test(cs.contain || '') || /transform|filter|perspective/.test(cs.willChange || '');
+  }
+  function topLayer(el) { try { return el.matches(':modal') || el.matches(':popover-open'); } catch (e) { return false; } }
+  function fixedScroller(el) {
+    return el !== doc.body && !/^(TEXTAREA|INPUT|SELECT)$/.test(el.tagName) && getComputedStyle(el).position === 'fixed';
+  }
   function railHost(el) {
     if (el === docScroller()) return doc.body;
-    if (el !== doc.body && !/^(TEXTAREA|INPUT|SELECT)$/.test(el.tagName) && getComputedStyle(el).position === 'fixed') return el;
+    if (fixedScroller(el)) return (topLayer(el) || !holdsFixed(getComputedStyle(el))) ? el : layerOf(el);
     return layerOf(el);
   }
   function makeRail(el, axis) {
@@ -203,8 +219,9 @@
       if (!r.rail.isConnected) {
         var host = railHost(b.el);
         host.appendChild(r.rail);
-        // A scroller inside a top layer gets a rail ABOVE that layer's content.
-        r.rail.style.zIndex = host === doc.body ? '60' : '2147483000';
+        // A scroller inside a top layer, or a fixed one whose rail sits beside
+        // it, gets a rail ABOVE that layer's content.
+        r.rail.style.zIndex = host === doc.body && !fixedScroller(b.el) ? '60' : '2147483000';
       }
       if (r.rail.style.display === 'none') r.rail.style.display = '';
     });
