@@ -4260,16 +4260,23 @@ export default {
     const QUOTES_TTL = 300;
     if (url.pathname === '/quotes'){
       const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
-      const ckey = 'quotes:' + wlHash(tk);
+      // Cached in the Cache API, not KV: a News tab polls every few minutes, and
+      // a 5-minute quote copy written to KV cost one of the account's 1,000 daily
+      // writes per poll. caches.default costs nothing against any quota.
+      const cacheReq = new Request('https://newshub-cache.internal/quotes/' + wlHash(tk));
       if (url.searchParams.get('fresh') !== '1'){
         try {
-          const c = await env.NEWSHUB_CACHE.get(ckey, 'json');
-          if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+          const hit = await caches.default.match(cacheReq);
+          if (hit){ const c = await hit.json(); if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } }); }
         } catch(e){}
       }
       const quotes = await fetchQuotes(tk, env);
       const payload = { quotes, asOf: Date.now() };
-      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: QUOTES_TTL }).catch(()=>{}));
+      // Only a quote set that actually came back is cached, so a Finnhub blip is
+      // not served for five minutes.
+      if (quotes && Object.keys(quotes).length){
+        ctx.waitUntil(caches.default.put(cacheReq, new Response(JSON.stringify(payload), { headers:{ 'Content-Type':'application/json', 'Cache-Control':'max-age=' + QUOTES_TTL } })).catch(()=>{}));
+      }
       return new Response(JSON.stringify({ ok:true, ...payload }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
     }
 
