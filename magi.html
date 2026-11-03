@@ -10663,44 +10663,36 @@ function noteBubble(n, sess, live = null) {
   // engine that allows it; Interrupt now re-asks the units still answering.
   if (!live || n.applied !== "verdict" || !n.id || live.notesOpen === false
       || !engineHas("note_edit")) return b;
-  const acts = el("div", "turn-note-acts");
-  const drop = el("button", null, "✕");
-  drop.type = "button";
-  drop.title = "Take this back";
-  drop.setAttribute("aria-label", "Take this back");
-  drop.onclick = () => { live.editing = null; noteAct(live, n, "remove"); };
   if (live.editing && live.editing.id === n.id) {
     // Kept on the run, not in the textarea: another viewer's note redraws
     // the thread, and the draft must survive it.
     const ed = live.editing;
-    const ta = el("textarea");
-    ta.value = ed.draft;
-    ta.maxLength = MAX_NOTE_CHARS;
-    ta.oninput = () => { ed.draft = ta.value; };
-    const save = el("button", null, "Save");
-    save.type = "button";
-    save.onclick = () => {
-      const v = ta.value.trim();
-      live.editing = null;
-      if (!v) noteAct(live, n, "remove");
-      else if (v !== n.text) noteAct(live, n, "edit", v);
-      else renderThread();
-    };
-    body.replaceWith(ta);
-    acts.append(save, drop);
+    const { box, ta, acts } = noteEditor({
+      value: ed.draft, max: MAX_NOTE_CHARS,
+      onInput: (t) => { ed.draft = t.value; },
+      onCancel: () => { live.editing = null; renderThread(); },
+      onSave: (v) => {
+        live.editing = null;
+        if (!v) noteAct(live, n, "remove");
+        else if (v !== n.text) noteAct(live, n, "edit", v);
+        else renderThread();
+      },
+    });
+    b.classList.add("editing");
+    body.replaceWith(box);
     b.append(acts);
-    requestAnimationFrame(() => { if (live.editing === ed) ta.focus(); });
+    requestAnimationFrame(() => {
+      if (live.editing === ed) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    });
     return b;
   }
-  const edit = el("button", null, "Edit");
-  edit.type = "button";
-  edit.onclick = () => { live.editing = { id: n.id, draft: n.text }; renderThread(); };
-  acts.append(edit, drop);
+  const acts = el("div", "turn-note-acts");
+  acts.append(
+    noteBtn("Edit", "Change this message", () => { live.editing = { id: n.id, draft: n.text }; renderThread(); }),
+    noteDropBtn("Take this back", () => { live.editing = null; noteAct(live, n, "remove"); }));
   if (engineHas("note_interrupt") && !live.interrupted && liveStillAnswering(live)) {
-    const now = el("button", null, "Interrupt now");
-    now.type = "button";
-    now.title = "Stop the units still answering and ask them again with your notes";
-    now.onclick = () => { now.disabled = true; noteAct(live, n, "interrupt"); };
+    const now = noteBtn("Interrupt now", "Stop the units still answering and ask them again with your notes",
+      () => { now.disabled = true; noteAct(live, n, "interrupt"); });
     acts.append(now);
   }
   b.append(acts);
@@ -10742,32 +10734,25 @@ function pendingBubble(p, sess) {
   const body = el("div", null, p.text);
   b.append(body);
   const acts = el("div", "turn-note-acts");
-  const edit = el("button", null, "Edit");
-  edit.type = "button";
-  const drop = el("button", null, "✕");
-  drop.type = "button";
-  drop.title = "Do not send this";
-  drop.setAttribute("aria-label", "Do not send this");
-  drop.onclick = () => {
+  const drop = noteDropBtn("Do not send this", () => {
     sess.pending = sess.pending.filter((x) => x !== p);
     renderThread();
-  };
-  edit.onclick = () => {
-    const ta = el("textarea");
-    ta.value = p.text;
-    ta.maxLength = MAX_NOTE_CHARS;
-    const save = el("button", null, "Save");
-    save.type = "button";
-    save.onclick = () => {
-      const v = ta.value.trim();
-      if (v) p.text = v; else sess.pending = sess.pending.filter((x) => x !== p);
-      renderThread();
-    };
-    body.replaceWith(ta);
-    acts.textContent = "";
-    acts.append(save, drop);
-    ta.focus();
-  };
+  });
+  const edit = noteBtn("Edit", "Change this message", () => {
+    const ed = noteEditor({
+      value: p.text, max: MAX_NOTE_CHARS,
+      onCancel: () => renderThread(),
+      onSave: (v) => {
+        if (v) p.text = v; else sess.pending = sess.pending.filter((x) => x !== p);
+        renderThread();
+      },
+    });
+    b.classList.add("editing");
+    body.replaceWith(ed.box);
+    acts.replaceWith(ed.acts);
+    ed.ta.focus();
+    ed.ta.setSelectionRange(ed.ta.value.length, ed.ta.value.length);
+  });
   acts.append(edit, drop);
   b.append(acts);
   return b;
