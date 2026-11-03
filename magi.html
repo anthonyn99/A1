@@ -15384,20 +15384,18 @@ function codeUserBubble(t, ev) {
     }
     return b;
   }
-  const edit = el("button", null, "Edit");
-  edit.type = "button";
-  edit.onclick = () => {
-    t.editing = { id: ev.id, draft: text, pos: text.length, focus: true };
-    renderCodeView();
-  };
-  acts.append(edit, drop);
+  const acts = el("div", "turn-note-acts");
+  acts.append(
+    noteBtn("Edit", "Change this message", () => {
+      t.editing = { id: ev.id, draft: text, pos: text.length, focus: true };
+      renderCodeView();
+    }),
+    noteDropBtn("Do not send this", () => { t.editing = null; codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it"); }));
   if (codeEngineHas("steer_live") && ev.how !== "revise" && ev.how !== "prompt") {
     // VS Code's Esc: stop the current step (a CLI turn, a site's reply)
     // and carry on with this now. Not a Halt.
-    const now = el("button", null, "Interrupt now");
-    now.type = "button";
-    now.title = "Stop the agent's current step and give it this now";
-    now.onclick = () => { now.disabled = true; codeMsgAct(t, "/interrupt", {}, "interrupt"); };
+    const now = noteBtn("Interrupt now", "Stop the agent's current step and give it this now",
+      () => { now.disabled = true; codeMsgAct(t, "/interrupt", {}, "interrupt"); });
     acts.append(now);
   }
   b.append(acts);
