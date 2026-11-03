@@ -18218,8 +18218,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // (dash==='all' || mainDash===dash); the data was wrong. This migration walks
   // the authoritative localStorage task sources on THIS device and re-schedules
   // every notif-bearing item with its proper profile tag. _fcmScheduleNotif
-  // deletes the old series docs (by notifyRepeatId) and the matching one-shot id
-  // before rewriting, so mistagged docs are replaced — not duplicated. It only
+  // diffs the series' docs (by notifyRepeatId) and rewrites any whose dashboard
+  // tag differs, and a one-shot is overwritten by id, so mistagged docs are
+  // replaced — not duplicated. It only
   // touches profiles whose data exists on this device, so it never clobbers the
   // other profile's reminders that live only on the other person's device.
   window._fcmFixDashboards=async function(force){
