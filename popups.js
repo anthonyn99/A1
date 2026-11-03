@@ -81,8 +81,9 @@
     var r = el.getBoundingClientRect();
     if (r.width && r.height) return r.width >= vw * 0.95 && r.height >= vh * 0.9 && r.left <= vw * 0.05 && r.top <= vh * 0.1;
     var t = px(cs.top), b = px(cs.bottom), l = px(cs.left), rt = px(cs.right);
-    var wide = (l <= 1 && rt <= 1) || /^(100%|100vw)$/.test(el.style.width);
-    var tall = (t <= 1 && b <= 1) || /^(100%|100vh|100dvh)$/.test(el.style.height);
+    var w = px(cs.width), h = px(cs.height);
+    var wide = l <= 1 && (rt <= 1 || cs.width === '100%' || w >= vw * 0.95);
+    var tall = t <= 1 && (b <= 1 || cs.height === '100%' || h >= vh * 0.9);
     return wide && tall;
   }
   function isScrim(el) {
