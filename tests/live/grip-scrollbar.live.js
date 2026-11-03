@@ -40,13 +40,6 @@ const AUDIT = `
     var r = b.getBoundingClientRect();
     return r.width > 40 && r.height > 20 && r.bottom > 0 && r.top < innerHeight && b.__a1Grip && b.__a1Grip.getClientRects().length;
   }).slice(0, 6);
-  // Control: with the grip hidden from scrollbar.js the bar must reach the
-  // corner, or this test could never fail.
-  if (window.__control && boxes[0]) {
-    var g0 = boxes[0].__a1Grip; boxes[0].__a1Grip = null; g0.classList.remove('a1-grip'); g0.style.cssText += ';position:absolute;right:0;bottom:0;width:38px;height:38px';
-    window.__restore = function () { boxes[0].__a1Grip = g0; g0.classList.add('a1-grip'); };
-    boxes[0].__a1GripCtl = g0;
-  }
   for (var i = 0; i < boxes.length; i++) {
     var b = boxes[i];
     var long = Array(60).join('line of text to make this box scroll\\n');
@@ -92,6 +85,26 @@ const AUDIT = `
     }
   }
   ok('at least one grip box was checked', boxes > 0, boxes);
+
+  // Control: the same box with its grip unknown to scrollbar.js draws its bar
+  // to the corner, across the strokes, so the check above can fail.
+  await c.send('Page.navigate', { url: BASE + 'magi.html' });
+  await sleep(5000);
+  const ctl = await evalJs(c, `
+    var b = document.querySelector('.a1-grip-box'); if (!b) return 'no box';
+    var gp = b.__a1Grip; b.__a1Grip = null;
+    var cs = getComputedStyle(gp, '::before'), gr0 = gp.getBoundingClientRect();
+    var hatchTop = gr0.bottom - parseFloat(cs.bottom) - parseFloat(cs.height);
+    var keep = document.createElement('span'); gp.parentNode.insertBefore(keep, gp); document.body.appendChild(gp);
+    gp.style.cssText = 'position:fixed;left:' + gr0.left + 'px;top:' + gr0.top + 'px';
+    b.value = Array(60).join('line of text\\n'); b.style.height = b.style.maxHeight = b.style.minHeight = '90px';
+    await new Promise(function (r) { setTimeout(r, 60); });
+    b.scrollTop = b.scrollHeight; b.dispatchEvent(new Event('scroll'));
+    await new Promise(function (r) { setTimeout(r, 400); });
+    var br = b.getBoundingClientRect();
+    var rail = Array.prototype.find.call(document.querySelectorAll('.vc-rail.v.on'), function (r) { return Math.abs(r.getBoundingClientRect().right - br.right) < 20; });
+    return rail ? Math.round(rail.getBoundingClientRect().bottom - (br.bottom - 18)) : 'no rail';`);
+  ok('control: without the grip link the bar runs past where the strokes start', typeof ctl === 'number' && ctl > 0, ctl);
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
