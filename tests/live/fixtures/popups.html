@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>popups fixture</title>
+<script src="../../../popups.js"></script>
+<style>
+  body{margin:0;font:14px system-ui;background:#222;color:#eee;height:100vh}
+  .box{background:#333;padding:24px;width:320px}
+  .ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  /* D: TaskHub's .modal-overlay pattern — class toggles, fades */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .3s,visibility .3s}
+  .modal-overlay.active{opacity:1;visibility:visible}
+</style></head>
+<body>
+<p id="page">Page text underneath</p>
+
+<!-- A: closes on its own backdrop click (dialog stops propagation), like TaskHub's React modals -->
+<div id="A" class="ov" style="background:rgba(0,0,0,.75)" onclick="this.remove()">
+  <div class="box" onclick="event.stopPropagation()"><input id="A-in" value="some text to select here"></div>
+</div>
+
+<!-- B: no backdrop handler, Escape closes -->
+<div id="B" class="ov" style="background:rgba(10,10,10,.5);display:none">
+  <div class="box">B</div>
+</div>
+
+<!-- C: only a Cancel button -->
+<div id="C" class="ov" style="background:rgba(0,0,0,.3);display:none">
+  <div class="box">C <button id="C-ok">Save</button><button id="C-cancel" onclick="document.getElementById('C').style.display='none'">Cancel</button></div>
+</div>
+
+<!-- D: class-toggled, fades out -->
+<div id="D" class="modal-overlay"><div class="box">D</div></div>
+
+<!-- E: a full-size clear centring wrapper between backdrop and dialog -->
+<div id="E" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div id="E-wrap" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+    <div class="box"><button aria-label="Close" onclick="document.getElementById('E').style.display='none'">×</button></div>
+  </div>
+</div>
+
+<!-- F: keep -->
+<div id="F" class="ov" data-a1-popup="keep" style="background:rgba(0,0,0,.5);display:none">
+  <div class="box">F <button>Cancel</button></div>
+</div>
+
+<!-- G: clear click-catcher; H: solid page; I: pointer-events:none glow -->
+<div id="G" style="position:fixed;inset:0;background:transparent;display:none"></div>
+<div id="H" style="position:fixed;inset:0;background:#131317;display:none"></div>
+<div id="I" style="position:fixed;inset:0;background:rgba(255,255,255,.05);pointer-events:none"></div>
+
+<script>
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.getElementById('B').style.display = 'none';
+  });
+  window.added = function () {
+    var d = document.createElement('div');
+    d.id = 'J';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center';
+    d.innerHTML = '<div class="box">J <button title="Close" onclick="this.closest(\'#J\').remove()">✕</button></div>';
+    document.body.appendChild(d);
+  };
+</script>
+</body></html>
