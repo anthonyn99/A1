@@ -10,7 +10,10 @@
       "package.json": "npm (test tooling) runs from the root.",
       ".gitignore": "git",
       ".gitattributes": "git",
-      ".nojekyll": "GitHub Pages"
+      ".nojekyll": "GitHub Pages",
+      "scrollbar.js": "TEMPORARY copy of Shared/scrollbar.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/scrollbar.js.",
+      "popups.js": "TEMPORARY copy of Shared/popups.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/popups.js.",
+      "dragsort.js": "TEMPORARY copy of Shared/dragsort.js for ORCA, which still loads it from the old root address. Must stay identical (tests/layout.test.js); delete once ORCA loads Shared/dragsort.js."
     },
     "folders": {
       "Backup": "A1Backup: backup.js, the restore/export pages and the repo copies (Index Backups/)",
@@ -34,7 +37,12 @@
       ".claude": "Claude Code settings and hooks",
       ".githooks": "git hooks",
       ".github": "GitHub workflows"
-    }
+    },
+    "orcaCopies": [
+      "scrollbar.js",
+      "popups.js",
+      "dragsort.js"
+    ]
   },
   "V1": {
     "files": {

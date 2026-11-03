@@ -61,5 +61,14 @@ ok('docs/layout.md describes every V1 folder', undocV1.length === 0, undocV1.joi
 const claude = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8');
 ok('CLAUDE.md points every new file at docs/layout.md', /docs\/layout\.md/.test(claude));
 
+// ORCA (Veda's repo) still loads these three from the old root address until
+// its templates switch to Shared/. Until then they must be exact copies, so a
+// change to Shared/ can never leave ORCA on a stale file.
+const norm = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
+for (const f of L.root.orcaCopies || []) {
+  ok('root ' + f + ' (ORCA\'s copy) is identical to Shared/' + f, fs.existsSync(path.join(ROOT, f)) && norm(f) === norm('Shared/' + f),
+    'copy Shared/' + f + ' over it (or delete it and its Rules/layout.json entry once ORCA loads Shared/' + f + ')');
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
