@@ -18301,8 +18301,14 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       await _authReady;
       const{collection:colRef,query:q2,where:wh2,orderBy:ob2,limit:lm2,getDocs:gd2}=await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
       // Range + orderBy on the SAME single field — no composite index needed.
+      // Only the next 4 DAYS, not the whole 21-day horizon: a duplicate or a dead
+      // series only matters when it is about to fire, and every doc passes
+      // through this window before it does. Reading all 21 days billed ~5x the
+      // docs for no earlier protection. Daily sweeps cover up to 3 days with no
+      // device opening TaskHub.
       const fromIso=new Date(Date.now()-5*60*1000).toISOString();
-      const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyAt','>=',fromIso),ob2('notifyAt'),lm2(800)));
+      const toIso=new Date(Date.now()+4*24*60*60*1000).toISOString();
+      const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyAt','>=',fromIso),wh2('notifyAt','<=',toIso),ob2('notifyAt'),lm2(800)));
       // Series that are LIVE in this device's task data (thNotifyPlan) — always
       // the keeper — and series it knows are DEAD, whose docs all go. Dead is
       // only trusted for a profile whose cloud data has loaded this session: a
