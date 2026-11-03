@@ -418,25 +418,54 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
             font-size: 10px; font-weight: 700; letter-spacing: 1px;
             text-transform: uppercase; color: var(--txm); }
 .turn-tag .run-now-dot { margin: 0; }
+/* A message added to a run (or queued for Code Mode's agent): the prompt
+   bubble's smaller sibling, same shape and hairline, a status line with a dot
+   on top, MAGI's .btn for its actions. Editing opens a framed box with A1's
+   corner grip (resizegrip.js), Cancel and Save (Tony, 2026-11-03). */
 .turn-note {
   align-self: flex-end; max-width: min(560px, 84%); min-width: 0;
-  border: 1px dashed var(--bdl); border-radius: 12px; padding: 6px 10px;
-  font-size: 12.5px; line-height: 1.45; color: var(--txd);
+  background: color-mix(in srgb, var(--ac) 6%, var(--s2));
+  border: 1px solid color-mix(in srgb, var(--ac) 22%, transparent);
+  border-radius: 14px 14px 4px 14px; padding: 8px 12px;
+  font-size: 13px; line-height: 1.5; color: var(--tx);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.turn-note-tag { display: block; font-size: 10px; font-weight: 700;
-                 letter-spacing: .8px; text-transform: uppercase; color: var(--acd); }
-.turn-note.held { border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
+.turn-note-tag { display: flex; align-items: center; gap: 6px; margin-bottom: 3px;
+                 font-size: 9.5px; font-weight: 700; letter-spacing: 1px; line-height: 1.4;
+                 text-transform: uppercase; color: var(--acd); white-space: normal; }
+.turn-note-tag::before { content: ""; flex: none; width: 6px; height: 6px;
+                         border-radius: 50%; background: currentColor; }
+.turn-note.held { background: color-mix(in srgb, var(--amber) 6%, var(--s2));
+                  border-color: color-mix(in srgb, var(--amber) 38%, transparent); }
 .turn-note.held .turn-note-tag { color: var(--amber); }
+.turn-note.lost { border-color: color-mix(in srgb, var(--red) 38%, transparent); }
 .turn-note.lost .turn-note-tag { color: var(--red); }
-.turn-note-acts { display: flex; gap: 6px; margin-top: 4px; justify-content: flex-end; }
-.turn-note-acts button { background: transparent; border: 1px solid var(--bdl);
-  color: var(--txd); border-radius: 8px; font: inherit; font-size: 11px;
-  padding: 2px 8px; cursor: pointer; }
-.turn-note-acts button:hover { border-color: var(--ac); color: var(--tx); }
-.turn-note textarea { width: 100%; box-sizing: border-box; min-height: 60px;
+.turn-note-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+                  margin-top: 8px; justify-content: flex-end; white-space: normal; }
+.turn-note-acts .btn { height: 24px; padding: 0 9px; font-size: 9.5px; }
+.turn-note-acts .btn.icon { width: 24px; padding: 0; justify-content: center; color: var(--txd); }
+.turn-note-acts .btn.icon svg { width: 12px; height: 12px; }
+.turn-note-acts .btn.primary { background: var(--ac); color: var(--bg); border-color: var(--ac); }
+.turn-note-hint { margin-right: auto; font-size: 11px; color: var(--txm); }
+/* Editing: the bubble widens to a comfortable box. */
+.turn-note.editing { width: min(560px, 84%); padding: 10px 12px; }
+.note-ed { position: relative; display: flex; }
+.note-ed textarea {
+  display: block; width: 100%; box-sizing: border-box; min-height: 72px;
+  max-height: 45vh; resize: none; overflow-y: auto;
   background: var(--s1); color: var(--tx); border: 1px solid var(--bdl);
-  border-radius: 8px; font: inherit; font-size: 12.5px; padding: 6px; resize: vertical; }
+  border-radius: 10px; padding: 9px 30px 9px 11px;
+  font: inherit; font-size: 13px; line-height: 1.5; outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.note-ed textarea:focus { border-color: var(--ac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 18%, transparent); }
+.note-ed .a1-grip { border-radius: 0 0 10px 0; }
+@media (hover: none) {
+  .turn-note-acts .btn { height: 36px; padding: 0 14px; }
+  .turn-note-acts .btn.icon { width: 36px; padding: 0; }
+  .turn-note-hint { display: none; }
+}
 .turn-verdict { background: var(--s1); border: 1px solid var(--bd);
                 border-radius: 12px; padding: 10px 14px; min-width: 0; }
 .turn-verdict-hd { font-size: 10px; font-weight: 700; letter-spacing: 1px;
