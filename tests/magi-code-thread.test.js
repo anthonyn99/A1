@@ -230,9 +230,9 @@ ok('before delivery it is still queued', ms.sent === '' && ms.text === null);
 ok('an old engine\'s message (no id) is never open', MS(evs, undefined).sent === '' && MS(evs, '').text === null);
 const bub = lift('codeUserBubble');
 ok('the bubble offers Edit and remove only while open',
-   /if \(!open\) \{[\s\S]{0,120}return b;\s*\}[\s\S]*"✕"[\s\S]*"Edit"/.test(bub));
+   /if \(!open\) \{[\s\S]{0,120}return b;\s*\}[\s\S]*noteBtn\("Edit"[\s\S]*noteDropBtn\(/.test(bub));
 ok('an edit in progress survives a redraw (draft and caret on the task)',
-   /t\.editing && t\.editing\.id === ev\.id/.test(bub) && /ed\.draft = ta\.value/.test(bub));
+   /t\.editing && t\.editing\.id === ev\.id/.test(bub) && /ed\.draft = x\.value/.test(bub));
 ok('Interrupt now only on an engine that steers live', /codeEngineHas\("steer_live"\)[\s\S]{0,80}"Interrupt now"|codeEngineHas\("steer_live"\)[\s\S]*Interrupt now/.test(bub));
 ok('a removed message is not drawn', /if \(!codeMsgState\(t\.events, ev\.id\)\.dropped\) log\.append\(codeUserBubble\(t, ev\)\)/.test(MAGI));
 ok('a removed message frees its place in the cap', /- t\.events\.filter\(\(e\) => e\.k === "msg_drop"\)\.length/.test(MAGI));
