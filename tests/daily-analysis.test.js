@@ -29,7 +29,7 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'daily-analysis-'));
 let n = 0;
 
 /** Run the daily analysis against the real module with `now` as the local clock. */
-function run({ now, ran = null, cfg, magiUp = true, test = false, tradehubOpen = false }) {
+function run({ now, ran = null, cfg, magiUp = true, test = false, tradehubOpen = false, braveOpen = false }) {
   const state = path.join(TMP, 'state' + (++n));
   if (ran) fs.writeFileSync(state, ran);
   const prog = `
@@ -64,14 +64,16 @@ class P:
     def __init__(self, args): opened.append(args)
 al.subprocess.Popen = P
 al._find_open_tradehub_window = lambda *a, **k: ${tradehubOpen ? 4242 : 'None'}
-al._focus_window = lambda h: True
+focused = []
+al._focus_window = lambda h: focused.append(h) or True
+al._primary_brave_hwnd = lambda: ${braveOpen ? 777 : 'None'}
 al._all_brave_hwnds = lambda: set()
 al._wait_for_new_brave_window = lambda *a, **k: None
 gate = []
 al.daily_reminder_gate = lambda: gate.append(1) or False
 al.run_daily_analysis(test=${test ? 'True' : 'False'})
 st = al.ANALYSIS_STATE_FILE.read_text().strip() if al.ANALYSIS_STATE_FILE.exists() else None
-print(json.dumps({"opened": opened, "marked": st, "gate": len(gate), "logs": logs}))
+print(json.dumps({"opened": opened, "focused": focused, "marked": st, "gate": len(gate), "logs": logs}))
 `;
   const r = spawnSync('python', ['-c', prog], { encoding: 'utf8' });
   if (r.status !== 0) return { err: (r.stderr || '').trim().split('\n').slice(-3).join(' | ') };
@@ -132,6 +134,14 @@ console.log('\nThe search tabs');
 {
   const a = run({ now: '2026-11-02T06:00:00', cfg: MAGI, tradehubOpen: true });
   ok('an open TradeHub window gets them as tabs (no new window)', a.opened.length === 2 && a.opened[0].join() === 'brave.exe,https://finviz.com', JSON.stringify(a.opened));
+  ok('…and the prompt is focused into that same window', a.focused.length === 2 && a.focused.every((h) => h === 4242), JSON.stringify(a.focused));
+  // 2026-11-03: a window full of A1 tabs was open (no TradeHub tab in front) and
+  // the searches + ChatGPT still went to a window of their own.
+  const w = run({ now: '2026-11-02T06:00:00', cfg: CHAT, braveOpen: true });
+  ok('any open Brave window gets them when TradeHub is not open (no new window)', w.opened.length === 2 && w.opened[0].join() === 'brave.exe,https://finviz.com' && !w.opened.some((x) => x.includes('--new-window')), JSON.stringify(w.opened));
+  ok('…and the prompt goes into it too', w.opened[1][1] === 'https://chatgpt.com/#tbauto' && w.focused.length === 2 && w.focused.every((h) => h === 777), JSON.stringify(w.focused));
+  const m = run({ now: '2026-11-02T06:00:00', cfg: { ...MAGI, searches: [] }, braveOpen: true });
+  ok('no searches: MAGI still goes into the open window', m.opened.length === 1 && m.focused.join() === '777', JSON.stringify(m));
   const b = run({ now: '2026-11-02T06:00:00', cfg: { ...CHAT, searches: ['finviz.com', 'chatgpt.com', 'NVDA earnings'] } });
   ok('a search pointing at the AI destination is skipped; text becomes a Google search', b.opened[0].includes('https://finviz.com') && !b.opened[0].some((u) => /chatgpt/.test(u)) && b.opened[0].includes('https://www.google.com/search?q=NVDA%20earnings'), JSON.stringify(b.opened[0]));
   const c = run({ now: '2026-11-02T06:00:00', cfg: { ...MAGI, searches: [] } });
