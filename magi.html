@@ -10641,7 +10641,7 @@ function noteEditor({ value, max, onInput, onSave, onCancel }) {
   requestAnimationFrame(fit);
   const acts = el("div", "turn-note-acts");
   acts.append(
-    el("span", "turn-note-hint", "Ctrl+Enter to save · Esc to cancel"),
+    el("span", "turn-note-hint", (/Mac|iP(hone|ad)/.test(navigator.platform) ? "⌘↵" : "Ctrl+Enter") + " to save · Esc to cancel"),
     noteBtn("Cancel", "Keep it as it was", onCancel),
     noteBtn("Save", "Save your change", () => onSave(ta.value.trim()), "primary"));
   return { box, ta, acts };
