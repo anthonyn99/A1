@@ -110,7 +110,11 @@
     MAGI + ' :is(button,select,summary,a[href],[role="button"]):focus-visible' +
     ':not([data-hoverfx]:not(' + MAGI + ') *),' +
     MAGI + ':is(button,select,summary,a[href],[role="button"]):focus-visible' +
-    '{outline:2px solid var(--fx-ac,#c0aeea)!important;outline-offset:1px!important}';
+    '{outline:2px solid var(--fx-ac,#c0aeea)!important;outline-offset:1px!important}' +
+    /* MAGI mode's one hover outline (see ring() below): no other ring or bloom
+       on top of it — unless the control's shadow is an inset fill, which is
+       part of how it looks, not a glow. */
+    '.hoverfx-ol:not(.hoverfx-inset){box-shadow:none!important}';
   (document.head || document.documentElement).appendChild(css);
 
   // ── colour ───────────────────────────────────────────────────────────────
@@ -210,6 +214,40 @@
     return !!d && d.getAttribute('data-hoverfx') === 'magi';
   }
 
+  // MAGI mode's hover outline — ONE strength everywhere (Tony, 2026-11-03:
+  // "See how bright it is in 'New Entry' outline glow? apply that everywhere.
+  // No more too soft or too strong of glows"). New Entry's hover turns its
+  // 1px border full accent, so every hovered button gets exactly that: a 1px
+  // accent outline laid over its own border (offset -1px), or hugging its edge
+  // when it has none, and no ring or bloom besides. `outline` is written inline
+  // because, like `filter`, nothing in the suite owns it inline; the previous
+  // value is put back on the way out. Real buttons only (and a pointer surface
+  // with a full border, i.e. a chip) — rows and text links don't get a frame.
+  // data-noglow opts out (the resize grip's 38px hit area, cards that lift).
+  var RINGED = 'button,select,summary,[role="button"]';
+  var ringSaved = null;
+  function ring(el, cs) {
+    if (el.matches('[data-noglow]')) return;
+    var bw = ['Top', 'Right', 'Bottom', 'Left'].map(function (s) {
+      return cs['border' + s + 'Style'] !== 'none' ? parseFloat(cs['border' + s + 'Width']) || 0 : 0;
+    });
+    var boxed = bw.every(function (w) { return w > 0; });
+    if (!el.matches(RINGED) && !boxed) return;
+    var ac = cs.getPropertyValue('--fx-ac').trim() || '#c0aeea';
+    ringSaved = { el: el, o: el.style.outline, off: el.style.outlineOffset };
+    if (/inset/.test(cs.boxShadow)) el.classList.add('hoverfx-inset');
+    el.classList.add('hoverfx-ol');
+    el.style.outline = '1px solid ' + ac;
+    el.style.outlineOffset = boxed ? '-' + Math.min.apply(null, bw) + 'px' : '0px';
+  }
+  function unring() {
+    if (!ringSaved) return;
+    var s = ringSaved; ringSaved = null;
+    s.el.classList.remove('hoverfx-ol', 'hoverfx-inset');
+    s.el.style.outline = s.o;
+    s.el.style.outlineOffset = s.off;
+  }
+
   var cur = null, pressed = null;
   var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
   function unpress() {
@@ -219,7 +257,7 @@
     else pressed.style.filter = '';
     pressed = null;
   }
-  function clear() { unpress(); if (cur) { cur.style.filter = ''; cur = null; } }
+  function clear() { unpress(); unring(); if (cur) { cur.style.filter = ''; cur = null; } }
 
   document.addEventListener('pointerover', function (e) {
     // A tap fires a synthetic hover that never gets a matching pointerout, which
@@ -243,7 +281,9 @@
     // `filter` is first in the property list, so it pairs with the FIRST
     // duration in the element's list.
     if (!(parseFloat(cs.transitionDuration) > 0)) el.classList.add('hoverfx-t');
-    el.style.filter = magi(el) ? MAGI_LIFT : effect(el);
+    var m = magi(el);
+    el.style.filter = m ? MAGI_LIFT : effect(el);
+    if (m) ring(el, cs);
   }, true);
 
   document.addEventListener('pointerout', function (e) {
