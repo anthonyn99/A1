@@ -18166,6 +18166,21 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       }
       var SOURCES=[{key:'td6_data',hkey:'td6_habits',dash:'tony'},{key:'td_data',hkey:'td_habits',dash:'veda'}];
       var seen={};
+      // A series this device armed with the SAME definition, whose armed horizon
+      // still has more than 14 of its 21 days left, is skipped: re-arming it
+      // would only re-read its docs (billed per doc) and find nothing to change.
+      // So each device re-arms a given series about weekly instead of daily, and
+      // any edit (title, time, cadence, days, profile) changes the fingerprint
+      // and re-arms at once. force (queue recovery) re-arms everything.
+      var ARMED_KEY='fcm_armed_v1',armed={},nowA=Date.now();
+      try{armed=JSON.parse(localStorage.getItem(ARMED_KEY)||'{}')||{};}catch(e){armed={};}
+      var armOnce=async function(k,payload){
+        var fp=JSON.stringify([payload.id,payload.title||'',payload.notifyAt,payload.notifyRepeat||'none',payload.notifyRepeatDays||[],payload.notifyRepeatId||null,payload.dashboard||'all']);
+        var a=armed[k];
+        if(!force&&a&&a.fp===fp&&a.until-nowA>14*864e5)return;
+        var ok=false;try{ok=await window._fcmScheduleNotif(payload,{silent:true});}catch(e){}
+        if(ok===true)armed[k]={fp:fp,until:nowA+21*864e5};else delete armed[k];
+      };
       for(var s=0;s<SOURCES.length;s++){
         var raw;try{raw=JSON.parse(localStorage.getItem(SOURCES[s].key)||'null');}catch(e){raw=null;}
         // Only LIVE series, each from the row that defines it (thNotifyPlan).
@@ -18176,7 +18191,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         for(var i=0;i<liveKeys.length;i++){
           var key=liveKeys[i],it=plan.live[key];
           if(seen[key])continue;seen[key]=1;
-          try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
+          await armOnce(key,{...it,dashboard:SOURCES[s].dash});
         }
         // Daily habits keep their reminders in a flat array beside the day map;
         // they need re-arming on the same rolling horizon as repeating tasks.
@@ -18188,10 +18203,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
             if(!hb.notifyRepeat||hb.notifyRepeat==='none')continue;
             var hkey2=hb.notifyRepeatId||('habr_'+hb.id);
             if(seen[hkey2])continue;seen[hkey2]=1;
-            try{await window._fcmScheduleNotif({id:'hab_'+hb.id,title:hb.title||'Daily habit',notifyAt:hb.notifyAt,notifyRepeat:hb.notifyRepeat,notifyRepeatDays:hb.notifyRepeatDays||[],notifyRepeatId:hkey2,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
+            await armOnce(hkey2,{id:'hab_'+hb.id,title:hb.title||'Daily habit',notifyAt:hb.notifyAt,notifyRepeat:hb.notifyRepeat,notifyRepeatDays:hb.notifyRepeatDays||[],notifyRepeatId:hkey2,dashboard:SOURCES[s].dash});
           }
         }
       }
+      // Forget series that are no longer live, so the record never grows.
+      Object.keys(armed).forEach(function(k){if(!seen[k])delete armed[k];});
+      try{localStorage.setItem(ARMED_KEY,JSON.stringify(armed));}catch(e){}
     }catch(e){console.warn('[FCM] rearm failed:',e);}
   };
   setTimeout(function(){window._fcmRearmSeries(false);},4000);
