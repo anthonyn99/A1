@@ -17994,28 +17994,40 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     // Write all occurrences to Firestore — Worker fires FCM at each notifyAt
     // Each doc has notifyRepeat:'none' so the Worker never tries to re-advance
     await _authReady;
-    // Clear any previously-written occurrences for this series first, so
-    // re-scheduling can't pile up duplicate docs (the cause of the 50-at-once
-    // blast). Safe because we immediately rewrite the full fresh set below.
+    const _occDoc=occ=>({
+      id:occ.id,title:item.title,notifyAt:occ.notifyAt,
+      dashboard:dash,
+      tag:occ.id,collapseKey:occ.id,
+      notifyRepeat:'none',
+      notifyRepeatDays:[],
+      notifyRepeatId:repId,
+      fired:false,createdAt:now
+    });
+    // Bring the series' docs in line with the fresh set by DIFFING, not by
+    // deleting every doc and rewriting it. Occurrence ids are deterministic
+    // ('<series>_<ms>'), so the old delete-all/rewrite-all spent a delete AND a
+    // write on every byte-identical occurrence each time any device re-armed —
+    // that was most of the project's daily deletes. Now: a doc not in the fresh
+    // set is deleted (an edited time, a dropped weekday, an old fired doc), an
+    // occurrence that is missing or differs is written, and one that already
+    // matches costs nothing. Stale docs still cannot pile up (the 50-at-once
+    // blast), because anything outside the fresh set still goes.
+    let toWrite=occurrences;
     if(repId&&repeat!=='none'){
       try{
         const{collection:colRef,query:q2,where:wh2,getDocs:gd2}=await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
         const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyRepeatId','==',repId)));
-        await Promise.all(snap.docs.map(ds=>deleteDoc(doc(db,'reminders',ds.id)).catch(()=>{})));
+        const have=snap.docs.map(ds=>({id:ds.id,data:ds.data()||{}}));
+        const plan=window.thReminderDiff(have,occurrences.map(_occDoc));
+        await Promise.all(plan.del.map(id=>deleteDoc(doc(db,'reminders',id)).catch(()=>{})));
+        const want={};plan.put.forEach(id=>{want[id]=1;});
+        toWrite=occurrences.filter(o=>want[o.id]);
       }catch(e){}
     }
     let writeErr=null,wrote=0;
-    for(const occ of occurrences){
+    for(const occ of toWrite){
       try{
-        await setDoc(doc(db,'reminders',occ.id),{
-          id:occ.id,title:item.title,notifyAt:occ.notifyAt,
-          dashboard:dash,
-          tag:occ.id,collapseKey:occ.id,
-          notifyRepeat:'none',
-          notifyRepeatDays:[],
-          notifyRepeatId:repId,
-          fired:false,createdAt:now
-        });
+        await setDoc(doc(db,'reminders',occ.id),_occDoc(occ));
         wrote++;
       }catch(e){writeErr=(e&&e.code?e.code+' ':'')+(e&&e.message||e);console.warn('Reminder write failed:',e);}
     }
