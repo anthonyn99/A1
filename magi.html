@@ -10597,6 +10597,56 @@ function sendCarried(sess, texts, ids, auto) {
   }, 0);
 }
 
+/* ── An added message's buttons and editor ───────────────────────────────
+ * Shared by a run's notes, held notes and Code Mode's queued messages, so the
+ * three look and behave as one: MAGI's .btn, an icon ✕, and an editor framed
+ * like the composer with A1's corner grip (resizegrip.js). */
+function noteBtn(label, title, onClick, cls) {
+  const b = el("button", "btn" + (cls ? " " + cls : ""), label);
+  b.type = "button";
+  if (title) b.title = title;
+  b.onclick = onClick;
+  return b;
+}
+function noteDropBtn(title, onClick) {
+  const b = noteBtn(null, title, onClick, "icon");
+  b.innerHTML = IC.x;
+  b.setAttribute("aria-label", title);
+  return b;
+}
+/** The editor: returns { box, ta, acts }. Cmd/Ctrl+Enter saves, Esc cancels.
+ *  The box grows with its text until the grip sets a height by hand. */
+function noteEditor({ value, max, onInput, onSave, onCancel }) {
+  const box = el("div", "note-ed");
+  const ta = el("textarea");
+  ta.value = value;
+  if (max) ta.maxLength = max;
+  ta.setAttribute("aria-label", "Edit this message");
+  const fit = () => {
+    if (ta.dataset.userH) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight + 2}px`;
+  };
+  ta.addEventListener("input", () => { fit(); if (onInput) onInput(ta); });
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSave(ta.value.trim()); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+  });
+  box.append(ta);
+  if (window.A1Resize) {
+    const grip = A1Resize.grip("this message");
+    box.append(grip);
+    A1Resize.attach(ta, grip, null, fit);
+  }
+  requestAnimationFrame(fit);
+  const acts = el("div", "turn-note-acts");
+  acts.append(
+    el("span", "turn-note-hint", "Ctrl+Enter to save · Esc to cancel"),
+    noteBtn("Cancel", "Keep it as it was", onCancel),
+    noteBtn("Save", "Save your change", () => onSave(ta.value.trim()), "primary"));
+  return { box, ta, acts };
+}
+
 /** Where a turn's notes are shown: the ones the verdict used, and the ones
  *  that arrived too late (held for the next turn) or were never applied. */
 function noteBubble(n, sess, live = null) {
