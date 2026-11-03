@@ -23,10 +23,30 @@ function ok(name, cond, extra) {
 const AUDIT = `
   document.querySelectorAll('#profile-overlay, .a1-pk, guardian-lock, #lockScreen').forEach(function (e) { e.style.display = 'none'; });
   var out = [];
+  // A box inside a closed panel is brought on screen: each hidden ancestor
+  // shown, the panel pinned to the top-left. The bar and grip are measured
+  // against each other, so where the panel lands doesn't matter.
+  Array.prototype.forEach.call(document.querySelectorAll('.a1-grip-box'), function (b) {
+    if (b.getClientRects().length && b.getBoundingClientRect().width > 40) return;
+    for (var n = b; n && n !== document.body; n = n.parentElement) {
+      var cs = getComputedStyle(n);
+      if (cs.display === 'none') n.style.setProperty('display', n.tagName === 'TEXTAREA' ? 'block' : 'flex', 'important');
+      if (cs.visibility === 'hidden') n.style.setProperty('visibility', 'visible', 'important');
+      if (cs.opacity === '0') n.style.setProperty('opacity', '1', 'important');
+    }
+    if (b.getBoundingClientRect().width < 60) b.style.width = '320px';
+  });
   var boxes = Array.prototype.filter.call(document.querySelectorAll('.a1-grip-box'), function (b) {
     var r = b.getBoundingClientRect();
     return r.width > 40 && r.height > 20 && r.bottom > 0 && r.top < innerHeight && b.__a1Grip && b.__a1Grip.getClientRects().length;
   }).slice(0, 6);
+  // Control: with the grip hidden from scrollbar.js the bar must reach the
+  // corner, or this test could never fail.
+  if (window.__control && boxes[0]) {
+    var g0 = boxes[0].__a1Grip; boxes[0].__a1Grip = null; g0.classList.remove('a1-grip'); g0.style.cssText += ';position:absolute;right:0;bottom:0;width:38px;height:38px';
+    window.__restore = function () { boxes[0].__a1Grip = g0; g0.classList.add('a1-grip'); };
+    boxes[0].__a1GripCtl = g0;
+  }
   for (var i = 0; i < boxes.length; i++) {
     var b = boxes[i];
     var long = Array(60).join('line of text to make this box scroll\\n');
