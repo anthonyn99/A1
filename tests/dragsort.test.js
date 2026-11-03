@@ -273,7 +273,7 @@ async function drag(target, from, to, kind) {
         if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue;
         const p = path.join(dir, ent.name);
         if (ent.isDirectory()) walk(p);
-        else if (ent.name === 'Shared/dragsort.js') copies.push(p);
+        else if (ent.name === 'dragsort.js') copies.push(p);
       }
     };
     walk(path.join(__dirname, '..'));
