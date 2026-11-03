@@ -1,8 +1,9 @@
 #!/bin/sh
-# Pre-commit guards. Three independent sections:
+# Pre-commit guards. Four independent sections:
 #   1. Repository integrity  — always runs, never blocks.
 #   2. index.html test gate  — runs only for commits touching index.html/tests/Notebook.
 #   3. Notebook stamp        — re-stamps the hosts when Notebook/ changes (runs first).
+#   4. ORCA's root copies    — keeps them identical to Shared/ (never blocks).
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Bypass in an emergency:  git commit --no-verify
@@ -75,6 +76,25 @@ if git diff --cached --name-only | grep -qE '^Notebook/' && command -v node >/de
   node tools/notebook-stamp.js >/dev/null && \
     node -e "console.log(require('./tools/notebook-stamp.js').hosts().map(f=>require('path').relative('.',f)).filter(f=>!f.startsWith('..')).join('\n'))" | \
     while IFS= read -r h; do git add -- "$h"; done
+fi
+
+# ── 4. ORCA's copies of Shared/ files ────────────────────────────────────────
+# ORCA (Veda's repo) loads a few shared files from A1's old root addresses
+# (Rules/layout.json `orcaCopies`, docs/layout.md). Whenever one of those
+# Shared/ files is in this commit, its root copy is rewritten from the staged
+# Shared/ version and staged too, so ORCA gets every change in the same push.
+# Never blocks: tests/layout.test.js reports any copy that still differs.
+if command -v node >/dev/null 2>&1; then
+  node -e "try{console.log((require('./Rules/layout.json').root.orcaCopies||[]).join('\n'))}catch(e){}" 2>/dev/null | \
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if git cat-file -e ":Shared/$f" 2>/dev/null; then
+      if ! git show ":Shared/$f" | cmp -s - "$f" 2>/dev/null; then
+        git show ":Shared/$f" > "$f" && git add -- "$f" && \
+          printf 'pre-commit: synced %s from Shared/%s (ORCA loads the root copy)\n' "$f" "$f" >&2
+      fi
+    fi
+  done
 fi
 
 if git diff --cached --name-only | grep -qE '^(index\.html|tests/|Notebook/)'; then
