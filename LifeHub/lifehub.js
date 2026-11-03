@@ -1690,14 +1690,22 @@
     if (d.action === 'aiLaunchPong') extOk = !!d.ok;
     if (d.action === 'tabPong') tabExtOk = !!d.ok;
   });
+  // Every ping starts from "no extension": a bridge orphaned by an extension
+  // reload or update (it happens overnight; 2026-11-03) never answers, and a
+  // stale yes would hand every tap to it — nothing opens until a refresh.
+  // Without a yes, taps use openTab, which always works.
   function pingExt() {
+    extOk = false; tabExtOk = false;
     try { window.postMessage({ source: 'tradehub-vault', action: 'aiLaunchPing' }, location.origin); } catch (e) {}
     try { window.postMessage({ source: 'a1-tabs', action: 'tabPing' }, location.origin); } catch (e) {}
   }
   // Also after load (the extension's bridge starts at document_idle): hosts
-  // call LifeHub.launch without ever opening the panel.
+  // call LifeHub.launch without ever opening the panel. And again whenever the
+  // page comes back (wake from sleep, tab switch, back/forward cache).
   if (document.readyState === 'complete') setTimeout(pingExt, 300);
   else window.addEventListener('load', function () { setTimeout(pingExt, 300); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') pingExt(); });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) pingExt(); });
   function openAll() {
     var all = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
       return { a: a, url: normUrl(a.url) };
