@@ -4,8 +4,9 @@
 // onto MAGI's hover language by putting data-hoverfx="magi" on its root. Two
 // promises make that safe to do piecemeal, and both are pinned here:
 //
-//  1. Inside the attribute a control always LIFTS (brightness 1.15) and sinks on
-//     press (brightness .94 + translate 0 1px), then comes back up on release.
+//  1. Inside the attribute a control gets the same measured highlight as
+//     everywhere (StudyOS's; since 2026-11-03, it was a flat 1.15 lift), sinks
+//     on press (brightness .94 + translate 0 1px), and comes back on release.
 //  2. Outside it nothing changes: the measured lift/settle still runs. That is
 //     what keeps Veda's roots in the same page exactly as they were. The
 //     nearest data-hoverfx wins, so data-hoverfx="classic" opts back out.
@@ -47,16 +48,16 @@ fire('pointerup', p);
 fire('pointerout', p, { relatedTarget: doc.body });
 ok('outside magi: cleared on leave', p.style.filter === '', p.style.filter);
 
-// 2. Inside MAGI: the SAME bright control lifts instead.
+// 2. Inside MAGI: the SAME bright control settles too (measured), and presses.
 fire('pointerover', m);
-ok('magi: hover lifts 1.15 regardless of luminance', m.style.filter === 'brightness(1.15)', m.style.filter);
+ok('magi: hover is the measured highlight (a bright control settles)', m.style.filter === 'brightness(0.86)', m.style.filter);
 fire('pointerdown', m);
 ok('magi: press sinks to .94', m.style.filter === 'brightness(0.94)', m.style.filter);
 ok('magi: press moves down 1px via translate (never transform)',
    /0(px)? 1px/.test(m.style.translate || m.style.getPropertyValue('translate')) && !m.style.transform,
    (m.style.translate || m.style.getPropertyValue('translate')) + ' / ' + m.style.transform);
 fire('pointerup', m);
-ok('magi: release returns to the hover lift', m.style.filter === 'brightness(1.15)', m.style.filter);
+ok('magi: release returns to the hover highlight', m.style.filter === 'brightness(0.86)', m.style.filter);
 ok('magi: release clears the translate', !(m.style.translate || m.style.getPropertyValue('translate')));
 fire('pointerout', m, { relatedTarget: doc.body });
 ok('magi: cleared on leave', m.style.filter === '', m.style.filter);
