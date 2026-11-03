@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sh-apps"
+description = "Enables the sh_apps command without any pre-configured scope."
+commands.allow = ["sh_apps"]
+
+[[permission]]
+identifier = "deny-sh-apps"
+description = "Denies the sh_apps command without any pre-configured scope."
+commands.deny = ["sh_apps"]
