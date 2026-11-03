@@ -1,7 +1,7 @@
 /* dragsort.js — MAGI's drag to reorder, for every A1 program (window.A1Drag).
  *
  * Began as a port of magi.html's own drag code and CSS (theme overhaul,
- * docs/theme-overhaul-plan.md §2 "Drag and drop"); since phase 11 MAGI loads
+ * docs/Theme/theme-overhaul-plan.md §2 "Drag and drop"); since phase 11 MAGI loads
  * this file too, so it is the one copy. On top of MAGI's original it does
  * what A1 needs: a horizontal or wrapping-grid axis, a
  * touch hold for rows without a grip (chip rows), and moves between lists that
