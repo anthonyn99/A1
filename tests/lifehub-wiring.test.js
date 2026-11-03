@@ -325,5 +325,32 @@ ok('hosts that need it after load wait for lifehub:ready',
   /dispatchEvent\(new Event\('lifehub:ready'\)\)/.test(src) && /addEventListener\('lifehub:ready'/.test(read('shield.html')));
 ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s*=/.test(read('magi.html')));
 
+// 2026-11-03: after an overnight sleep no tile opened anything until a refresh.
+// The extension had been reloaded, its bridge in the page was orphaned and never
+// answered, and LifeHub still held the "yes" from page load, so every tap went to
+// it. The real ping block runs here: a yes must not outlive the page coming back.
+{
+  const block = src.slice(src.indexOf('var extOk = false, tabExtOk = false;'), src.indexOf('function openAll()'));
+  const on = {}, posted = [];
+  const add = (t, f) => { (on[t] = on[t] || []).push(f); };
+  const ctx = {
+    location: { origin: 'https://a.test' }, setTimeout: () => 0,
+    document: { readyState: 'loading', visibilityState: 'visible', addEventListener: add },
+    window: { addEventListener: add, postMessage: (m) => posted.push(m) },
+  };
+  ctx.window.window = ctx.window;
+  vm.runInNewContext(block + '\nthis.state = function () { return [extOk, tabExtOk]; };', ctx);
+  const pong = () => on.message.forEach((f) => f({ source: ctx.window, data: { source: 'vault-extension', action: 'tabPong', ok: true } }));
+  on.load.forEach((f) => f());
+  pong();
+  ok('a live bridge\'s answer turns the extension path on', ctx.state()[1] === true, ctx.state());
+  on.visibilitychange.forEach((f) => f());
+  ok('the page coming back (wake, tab switch) asks again and forgets the old yes', ctx.state()[1] === false && posted.some((m) => m.action === 'tabPing'), ctx.state());
+  pong();
+  ok('…a live bridge answers again and it is back on', ctx.state()[1] === true);
+  on.pageshow.forEach((f) => f({ persisted: true }));
+  ok('a back/forward-cache restore asks again too', ctx.state()[1] === false);
+}
+
 console.log('\n' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
 process.exit(fail ? 1 : 0);
