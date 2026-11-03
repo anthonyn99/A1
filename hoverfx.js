@@ -214,31 +214,36 @@
     return !!d && d.getAttribute('data-hoverfx') === 'magi';
   }
 
-  // MAGI mode's hover outline — ONE strength everywhere (Tony, 2026-11-03:
-  // "See how bright it is in 'New Entry' outline glow? apply that everywhere.
-  // No more too soft or too strong of glows"). New Entry's hover turns its
-  // 1px border full accent, so every hovered button gets exactly that: a 1px
-  // accent outline laid over its own border (offset -1px), or hugging its edge
-  // when it has none, and no ring or bloom besides. `outline` is written inline
-  // because, like `filter`, nothing in the suite owns it inline; the previous
-  // value is put back on the way out. Real buttons only (and a pointer surface
-  // with a full border, i.e. a chip) — rows and text links don't get a frame.
-  // data-noglow opts out (the resize grip's 38px hit area, cards that lift).
+  // Two hover looks (Tony, 2026-11-03). MOST controls — tabs, list rows,
+  // icon buttons, filled buttons — only get the measured highlight below
+  // (StudyOS's: a dark one lifts a step, a bright one settles a step), on
+  // both sides. Only an OUTLINE button on Tony's side (MAGI mode) — a ghost
+  // button whose border is drawn all the way round, like the journals' New
+  // Entry or the OurJournal / MyJournal tabs — also turns that border full
+  // accent, at New Entry's one strength: a 1px outline laid exactly over its
+  // own border (so it can never spill past the box), with any softer ring or
+  // stronger bloom it had switched off. `outline` is written inline because,
+  // like `filter`, nothing in the suite owns it inline; the previous value is
+  // put back on the way out. data-noglow opts out.
   var RINGED = 'button,select,summary,[role="button"]';
   var ringSaved = null;
   function ring(el, cs) {
-    if (el.matches('[data-noglow]')) return;
+    if (!el.matches(RINGED) || el.matches('[data-noglow]')) return;
     var bw = ['Top', 'Right', 'Bottom', 'Left'].map(function (s) {
       return cs['border' + s + 'Style'] !== 'none' ? parseFloat(cs['border' + s + 'Width']) || 0 : 0;
     });
-    var boxed = bw.every(function (w) { return w > 0; });
-    if (!el.matches(RINGED) && !boxed) return;
+    if (!bw.every(function (w) { return w > 0; })) return;            // not drawn all round
+    var bc = rgba(cs.borderTopColor), bg = rgba(cs.backgroundColor);
+    if (!bc || bc.a < 0.25) return;                                     // a clear border: a row, not an outline button
+    if (bg && bg.a > 0.3) return;                                       // a filled button: highlight only
+    var r = el.getBoundingClientRect();
+    if (r.height > 48 || r.width > 520) return;                         // a card, not a button
     var ac = cs.getPropertyValue('--fx-ac').trim() || '#c0aeea';
     ringSaved = { el: el, o: el.style.outline, off: el.style.outlineOffset };
     if (/inset/.test(cs.boxShadow)) el.classList.add('hoverfx-inset');
     el.classList.add('hoverfx-ol');
     el.style.outline = '1px solid ' + ac;
-    el.style.outlineOffset = boxed ? '-' + Math.min.apply(null, bw) + 'px' : '0px';
+    el.style.outlineOffset = '-' + Math.min.apply(null, bw) + 'px';
   }
   function unring() {
     if (!ringSaved) return;
@@ -248,12 +253,12 @@
     s.el.style.outlineOffset = s.off;
   }
 
-  var cur = null, pressed = null;
+  var cur = null, pressed = null, curFx = '';
   var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
   function unpress() {
     if (!pressed) return;
     pressed.style.translate = '';
-    if (pressed === cur) cur.style.filter = MAGI_LIFT;
+    if (pressed === cur) cur.style.filter = curFx;
     else pressed.style.filter = '';
     pressed = null;
   }
@@ -281,9 +286,11 @@
     // `filter` is first in the property list, so it pairs with the FIRST
     // duration in the element's list.
     if (!(parseFloat(cs.transitionDuration) > 0)) el.classList.add('hoverfx-t');
-    var m = magi(el);
-    el.style.filter = m ? MAGI_LIFT : effect(el);
-    if (m) ring(el, cs);
+    // The highlight is measured on both sides now (StudyOS's), MAGI mode too;
+    // MAGI mode keeps its press and its outline buttons.
+    curFx = effect(el);
+    el.style.filter = curFx;
+    if (magi(el)) ring(el, cs);
   }, true);
 
   document.addEventListener('pointerout', function (e) {
