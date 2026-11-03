@@ -239,7 +239,7 @@ async function shotsFor(c, p) {
   ok('her face is Plex Mono', /IBM Plex Mono/.test(await css(c, 'body', 'fontFamily')));
   await evalJs(c, "uiConfirm('Sure?', {okLabel:'Yes'}); 1"); await sleep(300);
   ok('her uiModal OK is a mauve outline', (await css(c, '#uim-ok', 'backgroundColor')) === 'rgba(0, 0, 0, 0)' && (await css(c, '#uim-ok', 'color')) === MAUVE);
-  ok('her uiModal backdrop is unchanged', (await css(c, '#uim-overlay', 'backgroundColor')) === 'rgba(14, 14, 16, 0.66)');
+  ok('her uiModal backdrop is A1's too (popups.js, both sides)', (await css(c, '#uim-overlay', 'backgroundColor')) === 'rgba(0, 0, 0, 0.6)' && (await css(c, '#uim-overlay', 'backdropFilter')) === 'blur(7px) saturate(0.9)');
   await evalJs(c, "document.getElementById('uim-cancel').click(); 1");
 
   // ── 5. phone ──
