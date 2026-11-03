@@ -255,7 +255,7 @@ async function setAnalysisConfig(env, p){
   /* Same undefined-vs-'' distinction as on read: a front-end old enough not to send
      aiUrl must not be recorded as having chosen "None". */
   const aiUrl=(p&&p.aiUrl!==undefined&&p.aiUrl!==null)?tdAiUrl(p.aiUrl):undefined;
-  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches,
+  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,16000), searches,
     aiUrl, magiUnits:tdMagiUnits(p&&p.magiUnits), updatedAt:Date.now() });
   return true;
 }
@@ -320,7 +320,10 @@ async function handle(request, env, ctx){
   // POST /daily-reminder rewrites the text Trading Auto Launch makes Tony confirm
   // every morning, so only TradeHub (App Check) may write it. GET stays open:
   // launch.py reads it and holds no App Check token.
-  if (path === '/watchlist' || path === '/calendar' || (path === '/daily-reminder' && method === 'POST')) {
+  // POST /analysis-config is gated the same way (2026-11-03): its aiUrl is what
+  // the 6 AM launcher hands straight to the browser, so an open write let anyone
+  // point the morning at any site. Only TradeHub writes it; the GET stays open.
+  if (path === '/watchlist' || path === '/calendar' || ((path === '/daily-reminder' || path === '/analysis-config') && method === 'POST')) {
     const denied = await requireAppCheck(request, cors(request));
     if (denied) return denied;
   }
