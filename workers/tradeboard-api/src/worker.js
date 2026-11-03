@@ -347,10 +347,8 @@ async function fetchBalance(accountId, env) {
 function mapBalance(raw, accountId) {
   const d    = raw || {};
   const acct = (d.account_currency_assets || [])[0] || {};
-  /* DEBUG: dump real Webull keys so field mapping can be confirmed against the app */
-  console.log('[balance] raw top-level keys:', JSON.stringify(Object.keys(d)));
-  console.log('[balance] raw currency-asset keys:', JSON.stringify(Object.keys(acct)));
-  console.log('[balance] raw payload:', JSON.stringify(raw));
+  /* (The raw payload is on GET /api/portfolio/balance-raw; it is no longer
+     written to the worker log on every refresh.) */
   /* Resolve a numeric field by trying several key names across both objects */
   const pick = (...keys) => {
     for (const k of keys) {
@@ -475,17 +473,7 @@ async function fetchPositions(accountId, env) {
   });
 }
 
-/* Fetch full detail for one order by id — the history LIST endpoint omits fees,
-   but the per-order DETAIL endpoint carries them. Rate limit: 2 req / 2s. */
-async function fetchOrderDetail(clientOrderId, accountId, env) {
-  try {
-    const raw = await wb('GET', '/openapi/trade/order/detail',
-      { query: { account_id: accountId, client_order_id: clientOrderId } }, env);
-    return raw?.data || raw || null;
-  } catch (e) { console.error('[order/detail]', clientOrderId, e.message); return null; }
-}
-
-/* Pull the real fee off a Webull order/detail object. Field name varies, so probe
+/* Pull the real fee off a Webull order object. Field name varies, so probe
    known candidates, then sum component fees (SEC + TAF + commission + tax).
    Also digs filled-leg arrays. Returns a float (0 if none). */
 function extractFee(r) {
