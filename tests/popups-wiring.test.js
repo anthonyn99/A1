@@ -52,7 +52,8 @@ for (const name of PAGES) {
 const ORCA = path.join(ROOT, '..', 'ORCA');
 if (fs.existsSync(ORCA)) {
   for (const f of ['app/web/templates/base.html', 'app/web/templates/_picker_base.html']) {
-    ok('ORCA ' + f + ' loads popups.js', fs.readFileSync(path.join(ORCA, f), 'utf8').includes('https://anthonyn99.github.io/A1/Shared/popups.js'));
+    // Shared/popups.js, or (until ORCA switches) the root copy layout.test.js keeps identical.
+    ok('ORCA ' + f + ' loads popups.js', /https:\/\/anthonyn99\.github\.io\/A1\/(Shared\/)?popups\.js/.test(fs.readFileSync(path.join(ORCA, f), 'utf8')));
   }
   const ts = fs.readFileSync(path.join(ORCA, 'worker/src/web/html.ts'), 'utf8');
   ok('ORCA worker pages load popups.js', (ts.match(/<script src="\$\{POPUPS_SRC\}"><\/script>/g) || []).length === (ts.match(/<script src="\$\{SCROLLBAR_SRC\}"><\/script>/g) || []).length);
