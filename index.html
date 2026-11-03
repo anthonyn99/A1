@@ -18141,15 +18141,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── Legacy repeat-doc sweep + series re-arm ────────────────────────────
   window._fcmRearmSeries=async function(force){
     try{
-      // 24h (was 12h). Each re-arm re-expands EVERY repeating series: one
-      // getDocs per series (billed per occurrence doc returned, ~21 for a daily
-      // task on the 21-day horizon), then a delete + a setDoc for each of those
-      // same occurrences. Running it twice a day on every device was the bulk of
-      // the write and delete volume, and it rewrote byte-identical docs — the
-      // occurrence ids are deterministic ('<series>_<ms>'), so a re-arm that
-      // finds nothing changed does a full delete/rewrite cycle for no effect.
-      // The horizon it maintains is 21 DAYS, so re-arming daily still leaves
-      // three weeks of margin; this only halves how often the churn happens.
+      // 24h. A re-arm of one series is a getDocs (billed per occurrence doc
+      // returned, ~21 for a daily task on the 21-day horizon) and then only the
+      // writes/deletes thReminderDiff finds necessary — usually one new day. A
+      // series armed with an unchanged definition and 14+ days still armed is
+      // skipped outright (fcm_armed_v1 below), so most days cost nothing.
       var THROTTLE=24*60*60*1000;
       var last=parseInt(localStorage.getItem('fcm_rearm_at')||'0',10)||0;
       if(!force&&Date.now()-last<THROTTLE)return;
