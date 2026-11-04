@@ -374,8 +374,56 @@
     };
     try { bc.postMessage({ t: 'claim', k: TAB_KEY, rid: rid }); } catch (e) { finish(false); }
   }
+  /* A MAGI console already open on THIS origin (both TaskHubs share MAGI's)
+   * takes the prompt straight over the channel: no tab is opened, so none has
+   * to be opened and closed again (Tony, 2026-11-03: "just use the already open
+   * MAGI tab"). The heartbeat names which tab; it may be stale (a hidden tab's
+   * timer runs about once a minute, so up to 10 minutes counts), which is why
+   * the console has to answer before this counts as done. MAGI queues a prompt
+   * that arrives mid-council. */
+  var LIVE_MS = 10 * 60 * 1000, ACK_MS = 600;
+  function liveConsole() {
+    try {
+      var r = JSON.parse(localStorage.getItem('a1tab:' + TAB_KEY) || 'null');
+      if (!r || !r.id || !r.t || Date.now() - r.t > LIVE_MS) return null;
+      if (root.a1TabId && r.id === root.a1TabId) return null;
+      return r.id;
+    } catch (e) { return null; }
+  }
+  function deliverTo(id, url, done) {
+    var bc = null;
+    try { bc = new BroadcastChannel('a1tabs'); } catch (e) { bc = null; }
+    if (!bc) { done(false); return; }
+    var rid = Math.random().toString(36).slice(2), settled = false;
+    var timer = setTimeout(function () { finish(false); }, ACK_MS);
+    function finish(ok) {
+      if (settled) return; settled = true; clearTimeout(timer);
+      setTimeout(function () { try { bc.close(); } catch (e) {} }, 200);
+      done(ok);
+    }
+    bc.onmessage = function (ev) {
+      var d = ev && ev.data;
+      if (d && d.t === 'delivered' && d.k === TAB_KEY && d.rid === rid) finish(true);
+    };
+    try { bc.postMessage({ t: 'deliver', k: TAB_KEY, to: id, rid: rid, url: url }); } catch (e) { finish(false); }
+  }
   function openMagi(url) {
     if (!url) return false;
+    var selfIsMagi = false;
+    try { selfIsMagi = root.name === TAB_NAME || root.sessionStorage.getItem('a1TabKey') === TAB_KEY; } catch (e) {}
+    var id = selfIsMagi ? null : liveConsole();
+    // An absolute url: the console resolves it against its own location.
+    var abs = url;
+    try { abs = new URL(url, root.location.href).href; } catch (e) {}
+    if (id) {
+      // No answer in ACK_MS: open the tab after all. Still inside the click's
+      // user activation (Chromium keeps it ~5 s), so it is not popup-blocked.
+      deliverTo(id, abs, function (ok) { if (!ok) openMagiTab(url); });
+      return true;
+    }
+    return openMagiTab(url);
+  }
+  function openMagiTab(url) {
     var w = null;
     // This very tab may carry MAGI's name: window.name survives navigation,
     // so a tab that once held MAGI and now holds TaskHub IS 'a1tab_magi', and
