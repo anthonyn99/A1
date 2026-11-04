@@ -976,7 +976,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3) !important; color: var(--cp-tx);
   display: flex; flex-direction: column; gap: 12px; user-select: none; -webkit-user-select: none;
 }
-.docx-cpick .docx-cp-head { font: 600 10px/1 inherit; font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--cp-dim); }
+.docx-cpick .docx-cp-head { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--cp-dim); }
 .docx-cpick .docx-cp-sv {
   position: relative; height: 150px; border-radius: 8px; cursor: crosshair; touch-action: none; outline: none;
   background: linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), var(--cp-hue, red);
