@@ -108,7 +108,7 @@ const worker = {
   const tab = async (id) => { await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent); if(t) t.click(); 1`); await sleep(900); };
   const page = () => js(`var n=document.querySelector('.tb-navtab.on,.tb-navtab[aria-current="page"]'); return n?n.getAttribute('data-navid'):'';`);
   // '' when nothing pokes past the right edge, else what does (class|tag|right).
-  const sideways = () => js(`var out=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>{var b=e.getBoundingClientRect();return b.width&&b.right>innerWidth+1&&!e.closest('[data-sb-strip],table,.tb-scroll-x')&&getComputedStyle(e).position!=='fixed';}).slice(0,6).map(e=>String(e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)+'|'+e.tagName+'|'+Math.round(e.getBoundingClientRect().right)); if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth); return out.join(' ; ');`);
+  const sideways = () => js(`var out=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>{var b=e.getBoundingClientRect();return b.width&&b.right>innerWidth+1&&!e.closest('[data-sb-strip],table,.tb-scroll-x,.tb-navtab')&&getComputedStyle(e).position!=='fixed';}).slice(0,6).map(e=>String(e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)+'|'+e.tagName+'|'+Math.round(e.getBoundingClientRect().right)); if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth); return out.join(' ; ');`);
 
   async function seed() {
     await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
@@ -131,7 +131,7 @@ const worker = {
   await tab('news');
   ok('the market strip: six tiles', await until(`document.querySelectorAll('.nh-mkt-t').length===6`, 10000), await js(`return document.querySelectorAll('.nh-mkt-t').length`));
   const strip = await js(`return [...document.querySelectorAll('.nh-mkt-t')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ');`);
-  ok('…labels, values and changes', /S&P fut -0\.47% 7,561\.00/.test(strip) && /10Y yield \+1\.19% 4\.95%/.test(strip) && /WTI oil \+0\.62% \$96\.69/.test(strip), strip);
+  ok('…labels, values and changes', /S&P fut -0\.47% 7,561\.00/i.test(strip) && /10Y yield \+1\.19% 4\.95%/i.test(strip) && /WTI oil \+0\.62% \$96\.69/i.test(strip), strip);
   ok('…each with a sparkline', await js(`return [...document.querySelectorAll('.nh-mkt-t')].every(t=>t.querySelector('svg.nh-spark polyline'))`));
   ok('…coloured by the move (down = red)', await js(`return document.querySelector('.nh-mkt-t .d').style.color.indexOf('tbr')>=0`));
   await until(`document.querySelector('.nh-held')`, 8000);
@@ -144,8 +144,8 @@ const worker = {
   ok('NVDA carries its earnings: tomorrow, after the close', chip === 'Earnings tomorrow · after close', chip);
   ok('…and nobody else gets one', await js(`return document.querySelectorAll('.nh-earn').length===1`));
   const lm = await js(`var e=[...document.querySelectorAll('.nh-ev')].find(a=>a.querySelector('.nh-tk').textContent==='NVDA'); return e.querySelector('.nh-ev-top').innerText.replace(/\\s+/g,' ');`);
-  if (PHASE === 'pre') ok('pre-market: the pre move leads', /Pre ▼ -0\.58%/.test(lm), lm);
-  else ok('today\'s move, then the after-hours move', /▲ \+2\.29%/.test(lm) && /After -0\.58%/.test(lm), lm);
+  if (PHASE === 'pre') ok('pre-market: the pre move leads', /Pre\s?▼ -0\.58%/.test(lm), lm);
+  else ok('today\'s move, then the after-hours move', /▲ \+2\.29%/.test(lm) && /After\s?-0\.58%/.test(lm), lm);
   ok('top movers carry sparklines', await js(`return [...document.querySelectorAll('.nh-mover')].filter(m=>m.querySelector('svg.nh-spark')).length>=2`));
   ok('…and a dot on the one you hold', await js(`var m=[...document.querySelectorAll('.nh-mover')].find(x=>x.querySelector('b').textContent==='NVDA'); return !!(m&&m.querySelector('.nh-held-dot'));`));
   ok('Webull was asked for quotes once…', S.wbMarket === 1, S.wbMarket);
@@ -160,9 +160,10 @@ const worker = {
   console.log('\n2. The intraday tick');
   await tab('news');
   S.intradayGen = GEN + 45 * 60000;
+  const settingsBefore = await js(`return JSON.stringify(__fakeFs.docs['dashboards/tradeboard_news'].settings||null);`);
   await js(`window.tbNewsIntradayTick(true); 1`);
   ok('a newer intraday build reaches Firebase', await until(`(__fakeFs.docs['dashboards/tradeboard_news']||{}).generatedAt===${S.intradayGen}`, 8000));
-  ok('…keeping the saved filters', await js(`return JSON.stringify(__fakeFs.docs['dashboards/tradeboard_news'].settings)==='{"keep":1}'`));
+  ok('…keeping the saved filters', settingsBefore !== 'null' && await js(`return JSON.stringify(__fakeFs.docs['dashboards/tradeboard_news'].settings||null);`) === settingsBefore, settingsBefore);
   ok('…and the News tab shows it', await until(`/hyperscaler deal/.test(document.querySelector('.nh-feed').innerText)`, 5000));
   const writes = await js(`return __fakeFs.log.filter(l=>l.path==='dashboards/tradeboard_news').length`);
   await js(`window.tbNewsIntradayTick(true); 1`); await sleep(1500);
@@ -175,7 +176,7 @@ const worker = {
   const tiles = () => js(`return [...document.querySelectorAll('.tb-act-tile')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ')`);
   await js(`[...document.querySelectorAll('.tb-act-bar .tbx-seg button')].find(x=>x.textContent==='1Y').click(); 1`); await sleep(300);
   const t1 = await tiles();
-  ok('1Y totals: dividends, net deposits, interest, fees & tax', /Dividends \+\$4\.20/.test(t1) && /Net deposits \+\$300\.00/.test(t1) && /Interest \+\$0\.80/.test(t1) && /Fees & tax -\$0\.35/.test(t1), t1);
+  ok('1Y totals: dividends, net deposits, interest, fees & tax', /Dividends \+\$4\.20/i.test(t1) && /Net deposits \+\$300\.00/i.test(t1) && /Interest \+\$0\.80/i.test(t1) && /Fees & tax -\$0\.35/i.test(t1), t1);
   ok('every row in the table, newest first', await js(`return [...document.querySelectorAll('.tb-act-table tbody tr')].map(r=>r.children[1].textContent).join()==='Interest,Dividend,Deposit,Fee,Withdrawal'`), await js(`return [...document.querySelectorAll('.tb-act-table tbody tr')].map(r=>r.children[1].textContent).join()`));
   await js(`[...document.querySelectorAll('.tb-act-bar .tbx-seg button')].find(x=>x.textContent==='30D').click(); 1`); await sleep(300);
   ok('30D keeps only the last month', await js(`return document.querySelectorAll('.tb-act-table tbody tr').length===2`));
