@@ -83,7 +83,7 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     ok('one history call', h.length === 1, h.length);
     ok('start_date and end_date sent', /^\d{4}-\d{2}-\d{2}$/.test(h[0].q.start_date) && /^\d{4}-\d{2}-\d{2}$/.test(h[0].q.end_date), JSON.stringify(h[0].q));
     const span = (Date.parse(h[0].q.end_date) - Date.parse(h[0].q.start_date)) / 86400000;
-    ok('window is 30 days', span === 30, span);
+    ok('window is 30 days, through tomorrow (Webull\'s end date is exclusive: today\'s orders were missed)', span === 31 && h[0].q.end_date === new Date(Date.now() + 86400000).toISOString().slice(0, 10), span + ' ' + h[0].q.end_date);
     ok('page_size 100', h[0].q.page_size === '100');
     ok('two orders flattened', out.length === 2, out.length);
   }
@@ -109,6 +109,22 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxPages: 3 });
     ok('a repeated page stops the paging', calls.length === 2, calls.length);
     ok('and adds nothing', out.length === 100, out.length);
+  }
+
+  console.log("today's bracket order reaches the Journal (Tony, 2026-11-04)");
+  {
+    // A Webull that treats end_date as EXCLUSIVE, like the real one: today's
+    // PLTR bracket (buy 165 filled, take-profit 175 filled, stop cancelled)
+    // comes back only when the window runs past today.
+    const today = new Date().toISOString().slice(0, 10), at = today + 'T15:00:00Z';
+    const leg = (id, side, px, status, filled) => ({ client_order_id: 'b' + id, order_id: 'pl' + id, symbol: 'PLTR', side, status,
+      total_quantity: '1', filled_quantity: filled ? '1' : '0', filled_price: filled ? px : '0', limit_price: px, place_time_at: at, filled_time_at: filled ? at : undefined });
+    const bracket = { client_order_id: 'bk1', combo_type: 'OTOCO', orders: [leg(1, 'BUY', '165', 'FILLED', true), leg(2, 'SELL', '175', 'FILLED', true), leg(3, 'SELL', '150', 'CANCELLED', false)] };
+    const { m, env, kv } = load((p, q) => (p === '/openapi/account/list' ? { body: [{ account_id: 'A1' }] } : p === '/openapi/trade/order/history' ? { body: { data: q.end_date > today ? [bracket] : [] } } : { body: {} }));
+    await m.syncJournalFromWebull(env);
+    const legs = (JSON.parse(kv.get('journal') || '{"trades":[]}').trades || []).filter(t => t.ticker === 'PLTR').flatMap(t => t.legs || []);
+    ok("today's buy at 165 and sell at 175 are in the journal; the cancelled stop is not", legs.length === 2 &&
+      legs.some(l => l.action === 'BUY' && l.price === 165) && legs.some(l => l.action === 'SELL' && l.price === 175), JSON.stringify(legs));
   }
 
   console.log('date range refused → the 7-day default');
@@ -177,7 +193,7 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     const r1 = await call('POST', '/api/journal/fees');
     ok('call 1 reads order history once for the missing ids', r1.ok && r1.phase === 'ids' && r1.idsFound === 2, JSON.stringify(r1).slice(0, 200));
     const h = calls.find(c => c.path === '/openapi/trade/order/history');
-    ok('…two years back', h && (Date.parse(h.q.end_date) - Date.parse(h.q.start_date)) / 86400000 === 730, h && JSON.stringify(h.q));
+    ok('…two years back', h && (Date.parse(h.q.end_date) - Date.parse(h.q.start_date)) / 86400000 === 731, h && JSON.stringify(h.q));
     const r2 = await call('POST', '/api/journal/fees');
     const j = JSON.parse(kv.get('journal')).trades;
     ok('call 2 reads the fees', r2.ok && r2.phase === 'fees' && r2.updated === 1 && r2.remaining === 0, JSON.stringify({ ...r2, data: undefined }));

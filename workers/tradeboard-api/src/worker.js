@@ -558,7 +558,12 @@ const listOf = raw => (Array.isArray(raw) ? raw : (raw?.data || raw?.orders || r
 async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxPages = 1 } = {}) {
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400000);
-  const base = { account_id: accountId, page_size: 100, start_date: ymd(start), end_date: ymd(end) };
+  /* end_date is TOMORROW (UTC). Webull's end date is exclusive: sent as today,
+     none of today's orders came back, so the Journal only ever caught up the
+     next day (Tony, 2026-11-04: PLTR 165 → 175, bracket, not pulled). If an
+     account refuses a future date, the 4xx fallback below is Webull's own
+     7-day default, which does include today. */
+  const base = { account_id: accountId, page_size: 100, start_date: ymd(start), end_date: ymd(new Date(end.getTime() + 86400000)) };
   let raw;
   try {
     raw = await wb('GET', '/openapi/trade/order/history', { query: base }, env);
