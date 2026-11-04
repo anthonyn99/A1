@@ -88,19 +88,19 @@ async function newPage(url) {
   await sleep(2000);
   const got2 = JSON.parse(await magi.js(`JSON.stringify({h: HANDOFF && HANDOFF.q, q: HANDOFF_QUEUE.map(x=>x.q), err: (document.getElementById('refineError')||{}).textContent})`));
   ok('still no new tab', (await pages()).length === before);
-  ok('queued in order behind the waiting one, nothing overwritten', got2.h === 'Debrief NVDA' && got2.q.join(',') === 'Debrief MU', JSON.stringify(got2));
+  ok('queued in order behind the waiting one, nothing overwritten', [got2.h].concat(got2.q).join(',') === 'Debrief CPI,Debrief NVDA,Debrief MU', JSON.stringify(got2));
   ok('MAGI shows they are queued', /queued/.test(got2.err || ''), got2.err);
 
   console.log('\n3. A launch that has to open a tab (TradeHub, another origin)');
   await host.js(`window.open(${JSON.stringify(link('Morning report'))}, '_blank'); 1`);
-  let peak = before;
-  for (let i = 0; i < 24; i++) { await sleep(500); peak = Math.max(peak, (await pages()).length); }
+  let peak = before, peakUrls = '';
+  for (let i = 0; i < 24; i++) { await sleep(500); const l = await pages(); if (l.length > peak) { peak = l.length; peakUrls = l.map((p) => p.url.slice(0, 60)).join(' | '); } }
   const after = await pages();
-  ok('the new tab opened…', peak === before + 1, peak);
+  ok('the new tab opened…', peak === before + 1, before + ' -> ' + peak + ': ' + peakUrls);
   ok('…handed over and closed itself', after.length === before, after.map((p) => p.url).join(' | '));
   ok('the console that was open is still open', after.some((p) => p.id === magiT.id));
   const got3 = JSON.parse(await magi.js(`JSON.stringify({h: HANDOFF && HANDOFF.q, q: HANDOFF_QUEUE.map(x=>x.q)})`));
-  ok('…and queued the report behind the others', got3.q.join(',') === 'Debrief MU,Morning report', JSON.stringify(got3));
+  ok('…and queued the report behind the others', [got3.h].concat(got3.q).join(',') === 'Debrief CPI,Debrief NVDA,Debrief MU,Morning report', JSON.stringify(got3));
   await magi.js(`S.running = false; 1`);
 
   console.log('\n4. No MAGI tab open: the ▶ opens one');
