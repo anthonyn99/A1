@@ -29,31 +29,47 @@ const ok = (name, cond, extra) => {
 
 function load(fakeWebull) {
   const calls = [];
-  const code = SRC.replace(/export default \{/, 'module.exports.default = {')
-    + '\nmodule.exports.fetchHistoryRaw = fetchHistoryRaw; module.exports.extractFee = extractFee; module.exports.fetchOrders = fetchOrders;';
-  const kv = new Map([['wb_token', JSON.stringify({ token: 't', status: 'NORMAL' })]]);
+  const code = SRC.replace(/export default {/, 'module.exports.default = {')
+    + '
+verifyAppCheckToken = async () => true;'
+    + '
+Object.assign(module.exports, { fetchHistoryRaw, extractFee, fetchOrders, backfillFees, entryNeedsFee, fetchCashActivities, fetchSnapshots, fetchSparkBars, syncJournalFromWebull });';
+  const kv = new Map([['wb_token', JSON.stringify({ token: 't', status: 'NORMAL' })], ['wb_account', 'A1']]);
   const env = {
     WEBULL_APP_KEY: 'k', WEBULL_APP_SECRET: 's',
     TB_KV: { get: async (k, t) => { const v = kv.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); }, put: async (k, v) => kv.set(k, v), delete: async (k) => kv.delete(k) },
   };
+  // Node's Web Crypto has no MD5 (Workers' does); the signer needs it for bodies.
+  const nodeCrypto = require('crypto');
+  const subtle = nodeCrypto.webcrypto.subtle;
+  const cryptoShim = {
+    randomUUID: () => nodeCrypto.randomUUID(),
+    getRandomValues: (a) => nodeCrypto.webcrypto.getRandomValues(a),
+    subtle: {
+      importKey: (...x) => subtle.importKey(...x), sign: (...x) => subtle.sign(...x), verify: (...x) => subtle.verify(...x),
+      digest: async (alg, data) => alg === 'MD5' ? nodeCrypto.createHash('md5').update(Buffer.from(data)).digest().buffer : subtle.digest(alg, data),
+    },
+  };
+  const cache = new Map();
   const sandbox = {
     module: { exports: {} }, console: { log() {}, warn() {}, error() {} },
-    crypto: require('crypto').webcrypto, TextEncoder, TextDecoder, URL, atob, btoa, AbortSignal,
+    crypto: cryptoShim, TextEncoder, TextDecoder, URL, atob, btoa, AbortSignal, Request, Response, Headers,
     setTimeout: (f) => { f(); return 0; },
-    Response: class { constructor(b, i) { this.body = b; this.status = (i && i.status) || 200; } },
-    fetch: async (u) => {
+    caches: { default: { match: async (r) => { const v = cache.get(r.url); return v ? new Response(v) : undefined; }, put: async (r, res) => { cache.set(r.url, await res.text()); } } },
+    fetch: async (u, init) => {
       const url = new URL(u);
       const q = Object.fromEntries(url.searchParams);
-      calls.push({ path: url.pathname, q });
-      const r = fakeWebull(url.pathname, q, calls.length);
+      const h = (init && init.headers) || {};
+      const call = { path: url.pathname, q, method: (init && init.method) || 'GET', version: h['x-version'], body: init && init.body ? JSON.parse(init.body) : null };
+      calls.push(call);
+      const r = fakeWebull(url.pathname, q, calls.length, call);
       return { ok: r.status === undefined || r.status < 400, status: r.status || 200, json: async () => r.body };
     },
   };
-  // The worker's md5 helper uses Web Crypto MD5, which Node does not ship; no
-  // signed request here has a body, so it is never reached.
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox, { filename: 'worker.js' });
-  return { m: sandbox.module.exports, env, calls };
+  const call = (method, p) => sandbox.module.exports.default.fetch(new Request('https://w' + p, { method }), env, { waitUntil() {} }).then((r) => r.json());
+  return { m: sandbox.module.exports, env, calls, kv, call, cache };
 }
 
 const order = (id, extra) => ({ client_order_id: 'c' + id, order_id: 'o' + id, symbol: 'NVDA', side: 'BUY', status: 'FILLED',
