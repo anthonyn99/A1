@@ -190,8 +190,10 @@ const worker = {
   ok('Activity: a list, not a table, at 390 px', await js(`return !!document.querySelector('.tb-act-list') && !document.querySelector('.tb-act-table')`));
   ok('Activity: the tiles go two by two', await js(`var t=[...document.querySelectorAll('.tb-act-tile')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[1]&&t[2]>t[0]`));
   { const sw = await sideways(); ok('Activity: nothing scrolls sideways', !sw, sw); }
+  await js(`document.querySelector('.tb-act').scrollIntoView(); 1`); await sleep(300);
   await shot('activity-phone');
   await tab('news'); await sleep(500);
+  ok('News: no market value is cut off', await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].every(e=>e.scrollWidth<=e.clientWidth+1);`), await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent).join();`));
   ok('News: the market strip goes three across', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[2]&&t[3]>t[0]`));
   { const sw = await sideways(); ok('News: nothing scrolls sideways', !sw, sw); }
   await shot('news-market-phone');
