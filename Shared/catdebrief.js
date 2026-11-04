@@ -414,8 +414,11 @@
     var id = selfIsMagi ? null : liveConsole();
     // An absolute url: the console resolves it against its own location.
     var abs = url;
-    try { abs = new URL(url, root.location.href).href; } catch (e) {}
-    if (id) {
+    var same = false;
+    try { abs = new URL(url, root.location.href).href; same = new URL(abs).origin === root.location.origin; } catch (e) {}
+    // The channel is same-origin: from TradeHub (another origin) or toward a
+    // MAGI served elsewhere, only a tab can reach it (and MAGI then hands it on).
+    if (id && same) {
       // No answer in ACK_MS: open the tab after all. Still inside the click's
       // user activation (Chromium keeps it ~5 s), so it is not popup-blocked.
       deliverTo(id, abs, function (ok) { if (!ok) openMagiTab(url); });
