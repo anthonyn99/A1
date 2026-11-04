@@ -4619,7 +4619,10 @@ function wireHighlightClamp(ctx) {
   function clamp() {
     if (!palette.classList.contains('open')) return;
     palette.style.position = 'fixed';
-    palette.style.top = ''; palette.style.left = ''; palette.style.right = '';
+    // Measured at the left edge: left where the ribbon put it, it shrank to
+    // the room beside the button, so on a phone it was clamped by a width it
+    // did not have and ran off the right side.
+    palette.style.top = '0px'; palette.style.left = '0px'; palette.style.right = '';
     var tr = trigger.getBoundingClientRect();
     var pw = palette.offsetWidth || 130, ph = palette.offsetHeight || 40;
     // Under the button, left-aligned (the old ribbon right-aligns), kept on-screen.
