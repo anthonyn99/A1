@@ -4190,6 +4190,7 @@ const MARKET_CONTEXT = [
   { key:'nq',  sym:'NQ=F',     label:'Nasdaq fut' },
   { key:'tnx', sym:'^TNX',     label:'10Y yield', unit:'%' },
   { key:'cl',  sym:'CL=F',     label:'WTI oil' },
+  { key:'bz',  sym:'BZ=F',     label:'Brent oil' },
   { key:'vix', sym:'^VIX',     label:'VIX' },
   { key:'dxy', sym:'DX-Y.NYB', label:'Dollar' },
 ];
