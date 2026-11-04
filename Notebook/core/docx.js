@@ -341,6 +341,22 @@ document.addEventListener('pointerdown', function(e) {
   if (openPop && !openPop.contains(e.target) && e.target !== openPop._btn && !(openPop._btn && openPop._btn.contains(e.target))) closePop();
 }, true);
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePop(); });
+// Puts a position:fixed element at viewport (left, top). A fixed element is
+// placed against the viewport only while no ancestor has a transform, filter,
+// backdrop-filter, contain or will-change; inside a host that has one (an
+// instance's panel, a popup backdrop), the same numbers landed it far below
+// its button (Tony, 2026-11-04: the highlight palette). So it is placed, then
+// measured, and moved by however far it is off.
+function placeFixed(el, left, top) {
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
+  var r = el.getBoundingClientRect();
+  var dx = r.left - left, dy = r.top - top;
+  if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+    el.style.left = (left - dx) + 'px';
+    el.style.top = (top - dy) + 'px';
+  }
+}
 // A second click on the button that opened a pop closes it (every pop: menus,
 // font, colour, table grid, spacing, AI Tools) and returns null.
 function showPop(anchor, build, opts) {
@@ -361,8 +377,7 @@ function showPop(anchor, build, opts) {
   var left = Math.max(6, Math.min(r.left, window.innerWidth - pw - 8));
   var top = r.bottom + 4;
   if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
-  pop.style.left = left + 'px';
-  pop.style.top = top + 'px';
+  placeFixed(pop, left, top);
   pop._btn = anchor;
   anchor.classList.add('open');
   openPop = pop;
@@ -4610,8 +4625,7 @@ function wireHighlightClamp(ctx) {
     var left = Math.max(8, Math.min(_legacyRibbon(ctx) ? tr.right - pw : tr.left - 4, window.innerWidth - pw - 8));
     var top = tr.bottom + gap;
     if (top + ph > window.innerHeight - 8) top = Math.max(8, tr.top - ph - gap);      // flip above if no room below
-    palette.style.left = left + 'px';
-    palette.style.top = top + 'px';
+    placeFixed(palette, left, top);
   }
   new MutationObserver(function (muts) { muts.forEach(function (m) { if (m.attributeName === 'class') clamp(); }); }).observe(palette, { attributes: true });
   window.addEventListener('resize', clamp);
