@@ -177,6 +177,7 @@ body[data-gate="app"] #profile-overlay{display:none}
   transition:border-color var(--transition);
 }
 .pf-badge:hover{border-color:var(--ac)}
+.pf-badge svg{width:15px;height:15px;display:block}
 /* NOTE: left/right were swapped here — safe-l was padding the right edge. On a
    notched phone in landscape the nav slid under the cutout on one side only. */
 .nav{
@@ -4874,7 +4875,14 @@ function themeFor(p){
   else document.body.setAttribute('data-hoverfx', 'magi');
   var m = $('meta-theme');
   if (m) m.setAttribute('content', p === 'veda' ? '#1B1C1E' : '#1a1a1d');
-  var b = $('pf-badge'); if (b) b.textContent = p === 'veda' ? 'V' : 'T';
+  // The person's own emblem (profilepick.js): Tony's fleur-de-lis, Veda's
+  // four-point star, in her or his purple, as TaskHub shows it (Tony, 2026-11-04).
+  var b = $('pf-badge');
+  if (b) {
+    var em = window.A1Pick && A1Pick.EMBLEM && A1Pick.EMBLEM[p === 'veda' ? 'veda' : 'tony'];
+    if (em) b.innerHTML = em; else b.textContent = p === 'veda' ? 'V' : 'T';
+    b.setAttribute('aria-label', 'Signed in as ' + (p === 'veda' ? 'Veda' : 'Tony') + ' — switch profile');
+  }
 }
 
 function enterProfile(p){
