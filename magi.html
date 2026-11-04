@@ -11641,7 +11641,7 @@ if (HANDOFF) {
       setTimeout(() => setErr("refineError", "Sent to the MAGI tab that was already open — you can close this one."), 400);
     };
     const url = location.origin + location.pathname + location.search + "#tb=" + h.raw;
-    try { bc.postMessage({ t: "deliver", k: "magi", to: PRIOR_CONSOLE, except: window.a1TabId, rid, url }); }
+    try { bc.postMessage({ t: "deliver", k: "magi", to: PRIOR_CONSOLE, except: window.a1TabId, rid, url, hashOnly: true }); }
     catch { done = true; clearTimeout(timer); retireOthers(); }
   });
 }

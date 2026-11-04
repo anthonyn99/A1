@@ -260,7 +260,12 @@
       // entry, and a tab with more than one entry can no longer close itself —
       // so the NEXT retire left it standing beside its replacement.
       try { window.focus(); } catch (e) {}
-      if (ownOrigin(d.url)) { try { location.replace(d.url); } catch (e) { try { location.href = d.url; } catch (e2) {} } }
+      // hashOnly: take just the fragment, keeping this tab's own path and
+      // query. The sender cannot know them, and a differing ?query would make
+      // this a full reload, which throws away whatever is running (a council).
+      var to = d.url;
+      if (d.hashOnly) { try { to = location.pathname + location.search + new URL(d.url, location.href).hash; } catch (e) { return; } }
+      try { location.replace(to); } catch (e) { try { location.href = to; } catch (e2) {} }
       return;
     }
     if (d.t !== 'claim') return;

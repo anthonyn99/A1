@@ -405,7 +405,7 @@
       var d = ev && ev.data;
       if (d && d.t === 'delivered' && d.k === TAB_KEY && d.rid === rid) finish(true);
     };
-    try { bc.postMessage({ t: 'deliver', k: TAB_KEY, to: id, rid: rid, url: url }); } catch (e) { finish(false); }
+    try { bc.postMessage({ t: 'deliver', k: TAB_KEY, to: id, rid: rid, url: url, hashOnly: true }); } catch (e) { finish(false); }
   }
   function openMagi(url) {
     if (!url) return false;
