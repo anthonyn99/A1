@@ -332,9 +332,11 @@ function fireInput(ed) { try { ed.dispatchEvent(new Event('input', { bubbles: tr
 var openPop = null;
 function closePop() {
   if (openPop) {
-    if (openPop._btn) openPop._btn.classList.remove('open');
-    openPop.remove();
+    var p = openPop;
+    if (p._btn) p._btn.classList.remove('open');
+    p.remove();
     openPop = null;
+    if (p._onClose) { var f = p._onClose; p._onClose = null; try { f(); } catch (e) {} }
   }
 }
 document.addEventListener('pointerdown', function(e) {
