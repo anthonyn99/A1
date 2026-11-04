@@ -11548,6 +11548,8 @@ function adoptHandoffProfile(h) {
   try {
     sessionStorage.setItem(HANDOFF_SS, JSON.stringify(h));
     sessionStorage.setItem(PICK_SS, to);
+    // Whatever is still queued behind it rides along too.
+    if (HANDOFF_QUEUE.length) sessionStorage.setItem(HANDOFF_QUEUE_SS, JSON.stringify(HANDOFF_QUEUE));
   } catch { return carryHandoffInUrl(h, to); }
   // Its own try: a FULL store refuses this write after the session ones
   // succeeded, and the switch must still happen.
@@ -11581,21 +11583,59 @@ function takeStashedHandoff() {
 // Read at load, before anything else can touch the address bar. The stash
 // is checked first: if one is waiting, this load IS the reload that carried
 // it, and there is no fragment left to read.
-HANDOFF = takeStashedHandoff() || takeHandoff();
+const HANDOFF_STASHED = takeStashedHandoff();
+HANDOFF = HANDOFF_STASHED || takeHandoff();
+try {
+  const q = JSON.parse(sessionStorage.getItem(HANDOFF_QUEUE_SS) || "null");
+  sessionStorage.removeItem(HANDOFF_QUEUE_SS);
+  if (Array.isArray(q)) HANDOFF_QUEUE = q.filter((x) => x && x.q).map((x) => ({ ...x, shown: false }));
+} catch {}
+// The console that was open before this tab loaded, read NOW: tabsync.js
+// (further down the page) overwrites the heartbeat with this tab's own id.
+const PRIOR_CONSOLE = (() => {
+  try {
+    const r = JSON.parse(localStorage.getItem("a1tab:magi") || "null");
+    return (r && r.id && r.t && Date.now() - r.t < 10 * 60 * 1000) ? r.id : null;
+  } catch { return null; }
+})();
 
-/* A launch that arrived as a NEW tab: the morning launcher opens magi.html
-   with `brave <url>`, which cannot find the console Brave just restored, so
-   every morning left two consoles side by side (2026-09-22). This tab holds
-   the prompt, so it is the one to keep; any other console is told to retire.
-   After load, so this tab's own tabsync.js has its id to exclude itself. */
+/* A launch that arrived as a NEW tab: TradeHub (another origin, so it cannot
+   reach an open console any other way), the morning launcher's `brave <url>`,
+   or a TaskHub whose open console did not answer.
+   Since 2026-11-03 the console ALREADY open takes the prompt (it queues it if
+   a council is running) and this tab closes itself: Tony wants the one MAGI tab
+   used, not a new one each time. It used to be the other way round, retiring
+   the old console, which closed it even mid-council.
+   Only when no console answers does this tab stay, and then it retires any
+   silent leftover so there is still one. After load, so tabsync.js has its id. */
 if (HANDOFF) {
   window.addEventListener("load", () => {
-    try {
-      if (!window.a1TabId) return;
-      const bc = new BroadcastChannel("a1tabs");
-      bc.postMessage({ t: "retire", k: "magi", except: window.a1TabId });
+    let bc = null;
+    try { if (!window.a1TabId) return; bc = new BroadcastChannel("a1tabs"); } catch { return; }
+    const retireOthers = () => {
+      try { bc.postMessage({ t: "retire", k: "magi", except: window.a1TabId }); } catch {}
       setTimeout(() => { try { bc.close(); } catch {} }, 1000);
-    } catch {}
+    };
+    const h = HANDOFF;
+    if (HANDOFF_STASHED || !h || !h.raw || !PRIOR_CONSOLE || PRIOR_CONSOLE === window.a1TabId) { retireOthers(); return; }
+    const rid = Math.random().toString(36).slice(2);
+    let done = false;
+    const timer = setTimeout(() => { if (!done) { done = true; retireOthers(); } }, 700);
+    bc.onmessage = (ev) => {
+      const d = ev && ev.data;
+      if (done || !d || d.t !== "delivered" || d.k !== "magi" || d.rid !== rid) return;
+      done = true; clearTimeout(timer);
+      // Handed over: this tab neither runs it nor stays.
+      if (HANDOFF === h) HANDOFF = null;
+      HANDOFF_QUEUE.length && HANDOFF_QUEUE.splice(0);
+      setTimeout(() => { try { bc.close(); } catch {} }, 300);
+      try { window.close(); } catch {}
+      // A tab the browser will not let close says where the prompt went.
+      setTimeout(() => setErr("refineError", "Sent to the MAGI tab that was already open — you can close this one."), 400);
+    };
+    const url = location.origin + location.pathname + location.search + "#tb=" + h.raw;
+    try { bc.postMessage({ t: "deliver", k: "magi", to: PRIOR_CONSOLE, except: window.a1TabId, rid, url }); }
+    catch { done = true; clearTimeout(timer); retireOthers(); }
   });
 }
 
