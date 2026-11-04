@@ -339,7 +339,44 @@
       }
     });
   }
+  // A box under an open popup never shows its bar: the rail sits above page
+  // content (z 60, or the top of a fixed layer), so without this a bar that
+  // was fading when a popup opened stayed over the popup for a second (Tony,
+  // 2026-11-04, TradeHub). A popup is any open backdrop popups.js tagged; a
+  // box is under it when the page scroller, or when what sits on top of the
+  // box's middle is outside the box. Reads only; nothing runs without a popup.
+  function openScrims() {
+    var out = [], s = doc.querySelectorAll('[data-a1-scrim],.a1-scrim');
+    for (var i = 0; i < s.length; i++) {
+      if (s[i].getClientRects().length && getComputedStyle(s[i]).visibility !== 'hidden') out.push(s[i]);
+    }
+    return out;
+  }
+  function underPopup(b, scrims) {
+    var el = b.el;
+    if (!el.isConnected) return false;
+    for (var i = 0; i < scrims.length; i++) if (scrims[i].contains(el)) return false;
+    if (el === docScroller() || el === doc.body || el === root) return true;
+    var rc = el.getBoundingClientRect();
+    var x = Math.max(0, Math.min(vw() - 1, (Math.max(rc.left, 0) + Math.min(rc.right, vw())) / 2));
+    var y = Math.max(0, Math.min(vh() - 1, (Math.max(rc.top, 0) + Math.min(rc.bottom, vh())) / 2));
+    var hits = doc.elementsFromPoint(x, y);
+    for (var j = 0; j < hits.length; j++) {
+      var t = hits[j];
+      if (t.closest && t.closest('.vc-rail')) continue;
+      return !(t === el || el.contains(t));
+    }
+    return false;
+  }
   function update(list) {
+    var scrims = openScrims();
+    if (scrims.length) {
+      list = list.filter(function (b) {
+        if (!underPopup(b, scrims)) return true;
+        ['v', 'h'].forEach(function (a) { if (b[a]) { b[a].rail.classList.remove('on'); hideRail(b[a]); } });
+        return false;
+      });
+    }
     list.forEach(prepare);
     var ms = list.map(measure);
     list.forEach(function (b, i) { draw(b, ms[i]); });
