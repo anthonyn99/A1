@@ -289,6 +289,32 @@ console.log('\nThe ordinary case: the console is up and unlocked');
   ok('and nothing is left pending', !c.env.pending());
 }
 
+console.log('\nSent while a council runs: queued, in order, none lost (2026-11-03)');
+{
+  const L2 = encode.tbMagiLink('Debrief CPI', ['claude']), L3 = encode.tbMagiLink('Debrief NVDA', ['gemini']);
+  const c = consoleFor({ hash: '', running: true });
+  c.loc.hash = L2.slice(L2.indexOf('#')); c.env.onHandoffHash();
+  c.loc.hash = L3.slice(L3.indexOf('#')); c.env.onHandoffHash();
+  ok('nothing convenes over the running council', c.calls.start === 0);
+  ok('the first waits, the second is queued behind it (not overwriting it)', c.env.pending() && c.env.queued() === 1, c.env.queued());
+  ok('MAGI says how many are waiting', /2 prompts queued/.test(c.calls.err || ''), c.calls.err);
+  c.S.running = false; c.env.handoffTry();          // endRun() does this
+  ok('the run ends: the FIRST one convenes', c.calls.start === 1 && c.els.composer.value === 'Debrief CPI', c.els.composer.value);
+  c.S.running = true; c.env.handoffTry();
+  ok('…and the next waits for that council', c.calls.start === 1 && c.env.queued() === 1);
+  c.S.running = false; c.env.handoffTry();
+  ok('which ends: the SECOND convenes', c.calls.start === 2 && c.els.composer.value === 'Debrief NVDA', c.els.composer.value);
+  ok('nothing left', !c.env.pending() && c.env.queued() === 0);
+}
+{
+  const c = consoleFor({ hash: HASH });
+  c.env.passing(true);
+  c.env.handoffTry();
+  ok('a new tab offering its prompt to the open console does not convene it meanwhile', c.calls.start === 0 && c.env.pending());
+  c.env.passing(false); c.env.handoffTry();
+  ok('nobody took it: it convenes here', c.calls.start === 1);
+}
+
 console.log('\nLocked: held, not dropped');
 {
   const c = consoleFor({ hash: HASH, locked: true });
