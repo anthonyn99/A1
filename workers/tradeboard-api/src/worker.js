@@ -705,7 +705,7 @@ async function syncJournalFromWebull(env) {
       });
     });
 
-    let added = 0;
+    let added = 0, coidAdded = 0;
     /* DEBUG: surface what statuses the account actually returns so margin/cash
        differences are visible in `wrangler tail`. */
     console.log('[journal] history orders:', orders.length,
@@ -730,12 +730,14 @@ async function syncJournalFromWebull(env) {
                       parseFloat(o.filled) || o.qty, parseFloat(o.avgFill) || o.price);
 
       if (knownIds.has(id)) {
+        const idx = journal.trades.findIndex(t =>
+          t.id === id || t.orderId === id ||
+          (t.legs||[]).some(l => l._wbId === id || l.orderId === id)
+        );
+        /* The client_order_id is what an order's detail (its fees) is read by. */
+        if (idx >= 0 && o.clientOrderId && !journal.trades[idx].clientOrderId) { journal.trades[idx].clientOrderId = o.clientOrderId; coidAdded++; }
         /* Known by id — patch fee if missing */
         if (fee > 0) {
-          const idx = journal.trades.findIndex(t =>
-            t.id === id || t.orderId === id ||
-            (t.legs||[]).some(l => l._wbId === id || l.orderId === id)
-          );
           if (idx >= 0) {
             if (!journal.trades[idx].commission || journal.trades[idx].commission === 0) {
               journal.trades[idx].commission = fee;
@@ -769,15 +771,213 @@ async function syncJournalFromWebull(env) {
       knownIds.add(id);
       added++;
     }
-    if (added > 0) {
+    /* Fees for the newest orders, read from each order's detail (a few per
+       sync; the rest of any backlog is /api/journal/fees's job). */
+    const coidById = new Map(orders.filter(o => o.orderId && o.clientOrderId).map(o => [o.orderId, o.clientOrderId]));
+    const fees = await backfillFees(env, journal, accountId, { maxCalls: 6, coidOf: t => t.clientOrderId || coidById.get(t.id) });
+    if (added > 0 || coidAdded > 0 || fees.changed) {
       await saveJournal(env, journal);
-      console.log(`[journal] Synced ${added} new trade(s)/fee patch(es)`);
+      console.log(`[journal] Synced ${added} new trade(s)/fee patch(es), ${fees.updated} fee(s) read`);
     }
-    return journal.trades;
+    return { trades: journal.trades, feesRemaining: fees.remaining };
   } catch(e) {
     console.error('[journal] sync error:', e.message);
     return null;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ORDER FEES  (2026-11-03)
+   The history list does not reliably carry fees; an order's DETAIL does
+   (commission {actual_commission} + fees [{type, actual_value}], e.g. the SEC fee
+   and FINRA TAF on a sell, the CAT fee on every order). Each filled order's
+   detail is read ONCE: the answer, fee or not, is recorded on its journal entry
+   (`feeChecked`), so a fee is never asked for twice. Webull allows 2 detail
+   calls per 2 s, so calls are spaced and capped per request.
+   ══════════════════════════════════════════════════════════════════════════ */
+const FEE_CALL_GAP_MS = 1100;
+const FEE_DETAIL_PATHS = [['/trading/orders/get', 'v3'], ['/openapi/trade/order/detail', 'v2']];
+
+/* {ok:true, fee} | {ok:false, retry} — retry=false means Webull answered
+   definitively that it has no such order (a 4xx other than 401/429). `ver`
+   carries the index of the detail path that worked, so one request stops
+   trying the other. */
+async function fetchOrderFee(accountId, clientOrderId, env, ver) {
+  const order = ver && ver.i != null ? [FEE_DETAIL_PATHS[ver.i]] : FEE_DETAIL_PATHS;
+  let last = null;
+  for (const [path, version] of order) {
+    try {
+      const raw = await wb('GET', path, { query: { account_id: accountId, client_order_id: clientOrderId }, version }, env);
+      if (ver) ver.i = FEE_DETAIL_PATHS.findIndex(p => p[0] === path);
+      return { ok: true, fee: extractFee(raw?.data || raw) };
+    } catch (e) {
+      last = e;
+      if (e && (e.code || e.status === 401 || e.status === 429 || !(e.status >= 400))) return { ok: false, retry: true };
+      if (order.length > 1) await delay(FEE_CALL_GAP_MS);
+    }
+  }
+  return { ok: false, retry: !(last && last.status >= 400 && last.status < 500) };
+}
+
+/* A Webull journal entry still waiting for its fee: one order, never checked,
+   no fee on it. Older worker versions merged several fills into one entry;
+   those cannot be matched to a single order and are left alone. */
+function entryNeedsFee(t) {
+  if (!t || t.source !== 'webull' || t.feeChecked) return false;
+  if ((t.legs || []).length > 1) return false;
+  if (parseFloat(t.commission) > 0) return false;
+  return !(t.legs && t.legs[0] && parseFloat(t.legs[0].fee) > 0);
+}
+
+/* Reads fees for up to `maxCalls` entries. `coidOf(t)` names the
+   client_order_id (the detail call's key); an entry with none is tried by its
+   own id, which IS the client_order_id when Webull sent no order_id. Mutates
+   the entries; returns what it did. */
+async function backfillFees(env, journal, accountId, { maxCalls, coidOf }) {
+  let calls = 0, updated = 0, stopped = false;
+  const ver = {};
+  for (const t of journal.trades) {
+    if (!entryNeedsFee(t)) continue;
+    if (calls >= maxCalls) break;
+    if (calls) await delay(FEE_CALL_GAP_MS);
+    calls++;
+    const coid = coidOf(t) || t.id;
+    const r = await fetchOrderFee(accountId, coid, env, ver);
+    if (!r.ok) {
+      if (r.retry) { stopped = true; break; }      // rate limit / auth / outage: try again later
+      t.feeChecked = 'missing';
+      continue;
+    }
+    t.feeChecked = true;
+    if (coid !== t.id) t.clientOrderId = coid;
+    if (r.fee > 0) {
+      t.commission = r.fee;
+      if (t.legs && t.legs[0]) t.legs[0].fee = r.fee;
+      updated++;
+    }
+  }
+  const remaining = journal.trades.filter(entryNeedsFee).length;
+  return { calls, updated, remaining, stopped, changed: calls > 0 };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CASH ACTIVITY  (2026-11-03) — dividends, deposits/withdrawals, fees, tax,
+   interest, corporate actions. Webull's /trading/activities/cash-activities/
+   list (v3). It refuses a range that crosses a calendar year, so the range is
+   split by year, and it pages with pagination_key. Trades are left out: they
+   are already in History and would bury everything else.
+   ══════════════════════════════════════════════════════════════════════════ */
+const CASH_TYPES = 'DEPOSIT,WITHDRAW,FEES,TRANSFER,DIVIDENDS,TAX,INTERESTS,CORPORATE_ACTION,OPTION_EA,JOURNAL';
+const isoMs = d => d.toISOString().replace(/\.\d{3}Z$/, '.000Z');
+
+function mapCashActivity(r) {
+  return {
+    id:       r.id || null,
+    type:     String(r.activity_type || '').toUpperCase(),
+    sub:      String(r.activity_sub_type || '').toUpperCase(),
+    symbol:   r.symbol || '',
+    date:     r.trade_date || (r.biz_time ? String(r.biz_time).slice(0, 10) : ''),
+    at:       r.biz_time || null,
+    amount:   p(r.net_amount),
+    currency: r.currency || 'USD',
+  };
+}
+
+async function fetchCashActivities(accountId, env, { days }) {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const ranges = [];
+  for (let y = start.getUTCFullYear(); y <= end.getUTCFullYear(); y++) {
+    const a = y === start.getUTCFullYear() ? start : new Date(Date.UTC(y, 0, 1));
+    const b = y === end.getUTCFullYear() ? end : new Date(Date.UTC(y, 11, 31, 23, 59, 59));
+    ranges.push([a, b]);
+  }
+  const out = [];
+  let withTypes = true;
+  for (const [a, b] of ranges) {
+    let key = null;
+    for (let page = 0; page < 8; page++) {
+      const query = { account_id: accountId, start_time: isoMs(a), end_time: isoMs(b) };
+      if (withTypes) query.activity_types = CASH_TYPES;
+      if (key) query.pagination_key = key;
+      let raw;
+      try {
+        raw = await wb('GET', '/trading/activities/cash-activities/list', { query, version: 'v3' }, env);
+      } catch (e) {
+        /* A list of types the endpoint will not take: ask for everything and
+           drop trades here instead. Anything else is a real failure. */
+        if (withTypes && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 429) { withTypes = false; page--; continue; }
+        throw e;
+      }
+      const rows = Array.isArray(raw) ? raw : (raw?.data || []);
+      rows.forEach(r => { const m = mapCashActivity(r); if (m.type !== 'TRADE' && m.type !== 'EC_SETTLEMENT') out.push(m); });
+      key = raw && !Array.isArray(raw) ? raw.pagination_key : null;
+      if (!key || !rows.length) break;
+      await delay(600);
+    }
+  }
+  const seen = new Set();
+  return out.filter(x => { const k = x.id || (x.type + x.sub + x.date + x.amount + x.symbol); if (seen.has(k)) return false; seen.add(k); return true; })
+            .sort((x, y) => String(y.at || y.date).localeCompare(String(x.at || x.date)));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MARKET DATA  (2026-11-03) — Webull snapshots (incl. pre/after-hours) and
+   today's 5-minute bars for sparklines. Webull serves these through OpenAPI only
+   with an OpenAPI market-data subscription (Nasdaq Basic, bought for OpenAPI —
+   the app's own subscription does not count). Without one this answers
+   {ok:false, code:'NO_MARKET_DATA'} and TradeHub uses its free fallback.
+   ══════════════════════════════════════════════════════════════════════════ */
+function mapSnapshot(r) {
+  const price = p(r.price), prev = p(r.pre_close);
+  const ratio = r.change_ratio != null && r.change_ratio !== '' ? p(r.change_ratio) * 100 : (prev ? (price - prev) / prev * 100 : null);
+  const extPrice = p(r.extend_hour_last_price);
+  const extRatio = r.extend_hour_change_ratio != null && r.extend_hour_change_ratio !== '' ? p(r.extend_hour_change_ratio) * 100 : null;
+  return {
+    price, prevClose: prev || null, dp: ratio,
+    ext: extPrice ? { price: extPrice, dp: extRatio, at: r.extend_hour_last_trade_time || null } : null,
+    at: r.last_trade_time || null,
+  };
+}
+
+async function fetchSnapshots(symbols, env) {
+  const out = {};
+  for (let i = 0; i < symbols.length; i += 20) {
+    const chunk = symbols.slice(i, i + 20);
+    for (const category of ['US_STOCK', 'US_ETF']) {
+      const need = chunk.filter(s => !out[s]);
+      if (!need.length) break;
+      const raw = await wb('GET', '/market-data/stocks/snapshots/list',
+        { query: { symbols: need.join(','), category, extend_hour_required: 'true' }, version: 'v3' }, env);
+      const rows = Array.isArray(raw) ? raw : (raw?.data || raw?.result || []);
+      rows.forEach(r => { if (r && r.symbol) out[String(r.symbol).toUpperCase()] = mapSnapshot(r); });
+    }
+  }
+  return out;
+}
+
+/* Today's session (pre-market through after-hours) as 5-minute closes, at most
+   ~60 points per symbol: enough for a sparkline, small enough to cache. */
+async function fetchSparkBars(symbols, env) {
+  const out = {};
+  const since = Date.now() - 20 * 3600 * 1000;
+  for (let i = 0; i < symbols.length; i += 20) {
+    const chunk = symbols.slice(i, i + 20);
+    const raw = await wb('POST', '/market-data/stocks/bars/list',
+      { body: { symbols: chunk, category: 'US_STOCK', timespan: 'M5', count: 200, trading_sessions: 'PRE,RTH,ATH' }, version: 'v3' }, env);
+    const list = Array.isArray(raw) ? raw : (raw?.result || raw?.data || []);
+    for (const s of list) {
+      const bars = (s.result || []).map(b => ({ t: Date.parse(b.time), c: p(b.close) })).filter(b => b.t >= since && b.c > 0).sort((a, b) => a.t - b.t);
+      if (bars.length) out[String(s.symbol).toUpperCase()] = downsample(bars.map(b => b.c), 60);
+    }
+  }
+  return out;
+}
+function downsample(arr, n) {
+  if (arr.length <= n) return arr;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(arr[Math.round(i * (arr.length - 1) / (n - 1))]);
+  return out;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -828,7 +1028,7 @@ async function handleRequest(request, env) {
   // token is minted at runtime against the registered origin and is the only
   // credential a public browser app can actually keep. /api/health stays open
   // so uptime checks keep working (it no longer reports token state).
-  if (path.startsWith('/api/portfolio') || path.startsWith('/api/journal')) {
+  if (path.startsWith('/api/portfolio') || path.startsWith('/api/journal') || path.startsWith('/api/market')) {
     const denied = await requireAppCheck(request, corsHeaders());
     if (denied) return denied;
   }
@@ -1046,9 +1246,77 @@ async function handleRequest(request, env) {
 
   // ── Journal: Webull sync ─────────────────────────────────────────────────
   if (path === '/api/journal/sync' && method === 'POST') {
-    const trades = await syncJournalFromWebull(env);
+    const res = await syncJournalFromWebull(env);
     const journal = await loadJournal(env);
-    return json({ ok: true, data: journal.trades });
+    return json({ ok: true, data: journal.trades, feesRemaining: (res && res.feesRemaining) || 0 });
+  }
+
+  // ── Journal: read fees for past orders (POST /api/journal/fees) ──────────
+  // TradeHub calls this until `remaining` is 0. The first call that finds
+  // entries without a client_order_id reads up to two years of order history
+  // once, only to learn those ids (an order's detail is keyed by it), and
+  // returns; every call after reads up to 15 details. Each answer is recorded
+  // on its entry, so the whole pass happens once.
+  if (path === '/api/journal/fees' && method === 'POST') {
+    try {
+      const tok = await loadToken(env);
+      if (!tok?.token || tok.status !== 'NORMAL') return json({ ok: false, error: 'Webull is not connected', code: 'NO_TOKEN' }, 401);
+      const accountId = await getAccountId(env);
+      const journal = await loadJournal(env);
+      const lacking = journal.trades.filter(t => entryNeedsFee(t) && !t.clientOrderId);
+      if (lacking.length && !(await env.TB_KV.get('fee_ids_read'))) {
+        const hist = await fetchOrders(accountId, 'history', env, { days: 730, maxPages: 10 });
+        const coidById = new Map(hist.filter(o => o.orderId && o.clientOrderId).map(o => [o.orderId, o.clientOrderId]));
+        let n = 0;
+        for (const t of lacking) { const c = coidById.get(t.id); if (c) { t.clientOrderId = c; n++; } }
+        if (n) await saveJournal(env, journal);
+        await env.TB_KV.put('fee_ids_read', String(Date.now()), { expirationTtl: 7 * 86400 });
+        return json({ ok: true, phase: 'ids', idsFound: n, updated: 0, remaining: journal.trades.filter(entryNeedsFee).length, data: journal.trades });
+      }
+      const r = await backfillFees(env, journal, accountId, { maxCalls: 15, coidOf: t => t.clientOrderId });
+      if (r.changed) await saveJournal(env, journal);
+      return json({ ok: true, phase: 'fees', updated: r.updated, checked: r.calls, remaining: r.remaining, stopped: r.stopped, data: journal.trades });
+    } catch (err) {
+      return json({ ok: false, error: (err && err.message) || mapError(err) }, 500);
+    }
+  }
+
+  // ── Cash activity (GET /api/portfolio/activities?days=N, 7 ≤ N ≤ 400) ─────
+  if (path === '/api/portfolio/activities' && method === 'GET') {
+    try {
+      const tok = await loadToken(env);
+      if (!tok?.token || tok.status !== 'NORMAL') return json({ ok: false, error: 'Webull is not connected', code: 'NO_TOKEN' }, 401);
+      const days = Math.max(7, Math.min(400, parseInt(url.searchParams.get('days') || '365', 10) || 365));
+      const accountId = await getAccountId(env);
+      const items = await fetchCashActivities(accountId, env, { days });
+      return json({ ok: true, days, items, asOf: new Date().toISOString() });
+    } catch (err) {
+      return json({ ok: false, error: err.code ? err.message : mapError(err), status: err.status || null }, err.code ? 401 : 502);
+    }
+  }
+
+  // ── Market data (GET /api/market/quotes?symbols=A,B&bars=1) ───────────────
+  // Cached 60 s at the edge (Cache API: no KV, no quota), keyed by the list.
+  if (path === '/api/market/quotes' && method === 'GET') {
+    const symbols = [...new Set(String(url.searchParams.get('symbols') || '').toUpperCase().split(',').map(x => x.trim()).filter(x => /^[A-Z][A-Z0-9.-]{0,9}$/.test(x)))].slice(0, 60);
+    if (!symbols.length) return json({ ok: false, error: 'symbols required' }, 400);
+    const wantBars = url.searchParams.get('bars') === '1';
+    const cacheReq = new Request('https://tb-cache.internal/mq/' + (wantBars ? 'b/' : '') + symbols.slice().sort().join(','));
+    try { const hit = await caches.default.match(cacheReq); if (hit) return json(await hit.json()); } catch (e) {}
+    try {
+      const quotes = await fetchSnapshots(symbols, env);
+      if (!Object.keys(quotes).length) return json({ ok: false, code: 'NO_MARKET_DATA', error: 'Webull returned no quotes' });
+      if (wantBars) {
+        try { const pts = await fetchSparkBars(symbols, env); for (const [k, v] of Object.entries(pts)) if (quotes[k]) quotes[k].points = v; } catch (e) {}
+      }
+      const payload = { ok: true, source: 'webull', quotes, asOf: Date.now() };
+      try { await caches.default.put(cacheReq, new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' } })); } catch (e) {}
+      return json(payload);
+    } catch (err) {
+      /* No OpenAPI market-data subscription answers 401/403/417. Say so
+         plainly; TradeHub falls back to its free quotes. */
+      return json({ ok: false, code: err.code || 'NO_MARKET_DATA', status: err.status || null, error: (err && err.message) || 'market data unavailable' });
+    }
   }
 
   // ── 404 ──────────────────────────────────────────────────────────────────
