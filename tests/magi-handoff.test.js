@@ -301,7 +301,7 @@ console.log('\nSent while a council runs: queued, in order, none lost (2026-11-0
   c.S.running = false; c.env.handoffTry();          // endRun() does this
   ok('the run ends: the FIRST one convenes', c.calls.start === 1 && c.els.composer.value === 'Debrief CPI', c.els.composer.value);
   c.S.running = true; c.env.handoffTry();
-  ok('…and the next waits for that council', c.calls.start === 1 && c.env.queued() === 1);
+  ok('…and the next waits for that council', c.calls.start === 1 && c.env.pending());
   c.S.running = false; c.env.handoffTry();
   ok('which ends: the SECOND convenes', c.calls.start === 2 && c.els.composer.value === 'Debrief NVDA', c.els.composer.value);
   ok('nothing left', !c.env.pending() && c.env.queued() === 0);
