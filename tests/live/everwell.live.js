@@ -224,7 +224,7 @@ const mock = {
   for (let i = 1; i <= 14; i++) { await mouse('mouseMoved', a.x + (bx - a.x) * i / 14, a.y + (b.y - a.y) * i / 14); await sleep(16); }
   await sleep(250);
   ok('mid-drag, the other cards SLIDE aside like Nutrition\'s (transform transition, moved)', await js(`const n = document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)'); const cs = getComputedStyle(n);
-    return /transform/.test(cs.transitionProperty) && cs.transform !== 'none';`), await js(`const cs = getComputedStyle(document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)')); return cs.transitionProperty + ' | ' + cs.transform;`));
+    return !!(n._dsRel && (n._dsRel.x || n._dsRel.y)) && cs.position === 'relative';`), await js(`const n = document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)'); return JSON.stringify(n._dsRel || null) + ' ' + getComputedStyle(n).position;`));
   await mouse('mouseReleased', bx, b.y); await sleep(2300);
   ok('dragging a circuit reorders the saved list', await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join() === 'New One,Real Core,Second Circuit';`),
     await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join();`));
@@ -388,7 +388,7 @@ const mock = {
   ok('mid-drag, the lifted card follows the pointer (the drag shows what moves)', await js(`const d = document.querySelector('.dash-card.dsort-drag'); if (!d) return false; const r = d.getBoundingClientRect(), x = ${b.x}, y = ${b.y - 120};
     return getComputedStyle(d).transform !== 'none' && getComputedStyle(d).transform !== 'matrix(1, 0, 0, 1, 0, 0)' && x >= r.left && x <= r.right && y >= r.top - 40 && y <= r.bottom + 40;`),
     await js(`const d = document.querySelector('.dsort-drag'); return d ? d.dataset.card + ' ' + getComputedStyle(d).transform + ' ' + JSON.stringify(d.getBoundingClientRect()) : 'no lifted row';`));
-  ok('…and the column it is over opens a gap for it', await js(`return [...document.querySelectorAll('#dash-col-a > .dash-card:not(.dsort-drag)')].some(e => /matrix/.test(getComputedStyle(e).transform) && getComputedStyle(e).transform !== 'matrix(1, 0, 0, 1, 0, 0)');`));
+  ok('…and the column it is over opens a gap for it', await js(`return [...document.querySelectorAll('#dash-col-a > .dash-card:not(.dsort-drag)')].some(e => e._dsRel && (e._dsRel.x || e._dsRel.y));`));
   const dropAt = await rect('#dash-split'); await mouse('mouseMoved', dropAt.x, dropAt.y - 120); await sleep(120);
   await mouse('mouseReleased', dropAt.x, dropAt.y - 120); await sleep(1800);
   ok('the R card dragged into the left column lands there, and the order is saved', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder; return !!o && o.a.indexOf('r') >= 0 && !o.b.includes('r') && !!document.querySelector('#dash-col-a [data-card="r"]');`),
