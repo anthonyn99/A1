@@ -88,3 +88,20 @@ dropped: "Put in trash bins" was due 11:00:00 and swept at 11:01:49.
 - **Timing probe:** write a doc with `dashboard:'zz-probe'` (no device
   matches it, so nothing is pushed), then compare `firedAt` to `notifyAt`.
   On 2026-10-13 it was 0 ms late.
+
+## Plans notifications
+
+A Plans event (proposed, confirmed, declined, a change or a move asked for,
+done, cancel, delete) is a push to the **other** profile, sent only **after**
+the plan has saved to `dashboards/plans`. A push for a write that never landed
+points at a plan that does not exist; a failed save says "Plan not saved"
+instead and sends nothing.
+
+Tapping one opens the Plans panel for the profile it was addressed to,
+switching to that profile if needed: the SW posts `th-open-plans` to an open
+window, or opens `./#plans-<profile>` cold. The in-app banner's **Open** does
+the same (`window._thOpenPlans(who)`).
+
+From 2026-10-09 to 2026-11-04 every plan save threw (`_bjSanitize` had moved
+into Notebook), so no plan reached the cloud and no Plans push was sent.
+`node tests/live/plans.live.js` covers the whole flow on both sides.

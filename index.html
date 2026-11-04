@@ -9678,6 +9678,12 @@ function App(){
 
   const wd=useMemo(()=>gwk(sel.year,sel.month,sel.day),[sel]);
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
+  // A tapped Plans notification (or a banner's Open) lands here: the same move
+  // the "waiting on you" chip makes. See window._thOpenPlans.
+  useEffect(()=>{
+    window._thOpenPlansTony=()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);};
+    return()=>{window._thOpenPlansTony=null;};
+  },[tk]);
 
   // Mirrored plan items are owned by dashboards/plans — ticking one here would be
   // reverted by the next reconcile, so refuse it and say why.
@@ -12581,19 +12587,37 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
+    // Deep-strip null/undefined: the plan shape is full of nullable fields and
+    // Firestore rejects undefined. Plans' OWN copy — this once called the
+    // journal's _bjSanitize, which moved into Notebook/core/fb.js (2026-10-09),
+    // so every plan save threw a ReferenceError and nothing ever reached the
+    // cloud: the proposer saw the plan until a reload, the other side never.
+    const _planSanitize = (v) => {
+      if (Array.isArray(v)) return v.map(_planSanitize);
+      if (v && typeof v === 'object') {
+        const o = {};
+        Object.keys(v).forEach(k => { const x = v[k]; if (x !== undefined && x !== null) o[k] = _planSanitize(x); });
+        return o;
+      }
+      return v;
+    };
+
     // Field-level write: only this plan's key is touched, so a device editing a
-    // different plan is never overwritten. _bjSanitize is mandatory — the plan
-    // shape is full of nullable fields and Firestore rejects null in nested maps.
+    // different plan is never overwritten. Resolves true once the server has it
+    // and false on failure — never rejects — so the caller can hold the push to
+    // the other person until there is a plan for it to point at.
     window._fbSavePlan = (planId, planObj) => {
-      if (!planId || !planObj) return Promise.resolve();
-      return _fbUpsert(plansRef, {
-        ['p_' + planId]: _bjSanitize(planObj),
-        savedAt: Date.now()
-      }, 'Plan save').then(() => {
+      if (!planId || !planObj) return Promise.resolve(false);
+      let payload;
+      try { payload = { ['p_' + planId]: _planSanitize(planObj), savedAt: Date.now() }; }
+      catch (e) { console.error('[Plans] could not prepare save:', e); window.dispatchEvent(new CustomEvent("fb-plans-error")); return Promise.resolve(false); }
+      return _fbUpsert(plansRef, payload, 'Plan save').then(() => {
         window.dispatchEvent(new CustomEvent("fb-plans-saved"));
+        return true;
       }).catch(e => {
         console.error('[Plans] save failed:', e && e.code, e && e.message);
         window.dispatchEvent(new CustomEvent("fb-plans-error"));
+        return false;
       });
     };
 
@@ -16486,6 +16510,11 @@ function App(){
 
   const wd=useMemo(()=>gwk(sel.year,sel.month,sel.day),[sel]);
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
+  // See Tony's _thOpenPlansTony: a tapped Plans notification opens the panel.
+  useEffect(()=>{
+    window._thOpenPlansVeda=()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);};
+    return()=>{window._thOpenPlansVeda=null;};
+  },[tk]);
   // Toggling a mirrored (_sosId) item also pushes the done-state back to StudyOS.
   // Plan items are owned by dashboards/plans; a tick here would be reverted by the
   // next reconcile. (StudyOS items ARE tickable — they have an ack channel back.)
@@ -17536,7 +17565,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // the SW's dedup cache FIRST, so a push for the same occurrence arriving a
   // moment later can't draw a second card. No network, no Firestore reads.
   window._thLastOSNotifError='';
-  async function showOSNotif(body,occKey,dash){
+  async function showOSNotif(body,occKey,dash,kind){
     if(!IS_DESKTOP){window._thLastOSNotifError='not a desktop device';return false;}
     if(!('Notification' in window)){window._thLastOSNotifError='no Notification API';return false;}
     if(Notification.permission!=='granted'){window._thLastOSNotifError='permission is "'+Notification.permission+'", not granted';return false;}
@@ -17544,7 +17573,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       body:String(body||'Task reminder'),
       // Unique tag → two reminders at the same minute never replace each other.
       tag:'thpage_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-      renotify:true,requireInteraction:true,icon:TH_ICON
+      renotify:true,requireInteraction:true,icon:TH_ICON,
+      // Read by the SW's notificationclick: a Plans card opens the Plans panel.
+      data:{kind:kind||'reminder',dash:dash||'all'}
     };
     try{
       const reg=await ensureSWRegistration();
@@ -17711,9 +17742,60 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     try{
       const here=window._activeProfile==='veda'?'veda':(window._activeProfile==='tony'?'tony':null);
       if(!here||here!==toProfile)return;
-      showBanner('\u{1F4C5} '+msg,{key:'plan-'+msg.slice(0,40)});
+      showBanner('\u{1F4C5} '+msg,{key:'plan-'+msg.slice(0,40),action:{label:'Open',run:function(){window._thOpenPlans(toProfile);}}});
     }catch(e){}
   };
+
+  // ── Open the Plans panel ──────────────────────────────────────────────────
+  // Where a Plans notification goes when it is tapped: the OS card (through the
+  // service worker), a banner's Open, a #plans deep link. A tap used to focus
+  // or open TaskHub on whatever it last showed — so the plan the notification
+  // was about was nowhere on screen. `who` is the profile the notification was
+  // addressed to; the page switches to it (the lock gate in goTony/goVeda still
+  // applies) and waits for that TaskHub to mount before opening the panel.
+  window._thOpenPlans=function(who){
+    who=(who==='veda'||who==='tony')?who:(window._activeProfile||localStorage.getItem('td6_lastDash')||'');
+    if(who!=='veda'&&who!=='tony')return;
+    // On a cold open the profile code may not have run yet, and its auto-land
+    // may pick the other profile — so the switch is retried with the open, at
+    // most twice, rather than done once up front.
+    let n=0,switched=0;
+    (function tryOpen(){
+      try{
+        if(window._activeProfile!==who){
+          const go=who==='veda'?window._profileGoVeda:window._profileGoTony;
+          if(go&&switched<2){switched++;go();}
+        }else if(who==='tony'&&window._tnCurApp&&window._tnCurApp!=='taskhub'&&window._tonyNav){
+          // Tony may be in MyJournal; the panel lives in TaskHub.
+          window._tonyNav('taskhub');
+        }
+        const fn=who==='veda'?window._thOpenPlansVeda:window._thOpenPlansTony;
+        if(typeof fn==='function'&&window._activeProfile===who){fn();return;}
+      }catch(e){}
+      if(++n<60)setTimeout(tryOpen,250);
+    })();
+  };
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message',function(e){
+      const m=e.data||{};
+      if(m.type==='th-open-plans')window._thOpenPlans(m.dash);
+    });
+  }
+  window.addEventListener('message',function(e){
+    if(e.origin!==location.origin)return;
+    const m=e.data||{};
+    if(m&&m.type==='th-open-plans')window._thOpenPlans(m.dash);
+  });
+  // A cold open from a tapped notification arrives as ./#plans-<profile>.
+  function _plansFromHash(){
+    const h=String(location.hash||'');
+    const mt=/^#plans(?:-(tony|veda))?$/.exec(h);
+    if(!mt)return;
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+    window._thOpenPlans(mt[1]||'');
+  }
+  _plansFromHash();
+  window.addEventListener('hashchange',_plansFromHash);
 
   // ── Firebase init (reuse existing app if already initialised) ─────────
   const FB_CONFIG={
@@ -18635,8 +18717,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // looking at it; the Windows notification is what actually catches you.
       // showOSNotif claims `ok` in the SW's dedup cache, so the same occurrence
       // can never draw a second card from any other path.
-      showBanner(title);
-      if(IS_DESKTOP)showOSNotif(title,ok,dash);
+      // A Plans event's banner carries Open, straight to the panel.
+      showBanner(title,isEvt?{action:{label:'Open',run:function(){window._thOpenPlans(dash);}}}:undefined);
+      if(IS_DESKTOP)showOSNotif(title,ok,dash,kind);
     });
   }
 
@@ -18662,7 +18745,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // browser profile. The content gate below still stops a double delivery.
       if(ok&&msg.kind!=='event'){ if(hasFired(ok))return; markFired(ok); }
       if(claimContent(dash,msg.body))return; // same text already banner-ed
-      showBanner(msg.body||'TaskHub Reminder');
+      showBanner(msg.body||'TaskHub Reminder',msg.kind==='event'?{action:{label:'Open',run:function(){window._thOpenPlans(dash);}}}:undefined);
     });
   }
 
@@ -19588,8 +19671,24 @@ function save(p,kind,extra){
   p.lastExtra=extra||'';
   plans[p.id]=p;
   emit();
-  if(window._fbSavePlan)window._fbSavePlan(p.id,p);
-  if(kind)notifyOther(kind,p,extra);
+  // The push waits for the save. A notification sent for a write that never
+  // landed sends the other person to a plan that does not exist — tapping it
+  // opened TaskHub on nothing. A copy is taken now so a later edit in this tab
+  // cannot change what this notification says.
+  const snap=kind?JSON.parse(JSON.stringify(p)):null;
+  let pr=null;
+  try{pr=window._fbSavePlan?window._fbSavePlan(p.id,p):null;}catch(e){console.error('[Plans] save threw:',e);pr=Promise.resolve(false);}
+  if(!kind)return;
+  if(!pr||typeof pr.then!=='function'){notifyOther(kind,snap,extra);return;}
+  pr.then(ok=>{
+    if(ok===false){planSaveFailed();return;}
+    notifyOther(kind,snap,extra);
+  });
+}
+// Say it out loud: a plan the other person will never see is the one failure
+// this feature cannot afford to have happen quietly.
+function planSaveFailed(){
+  try{if(window._planReadOnlyNudge)window._planReadOnlyNudge('Plan not saved — check your connection and try again.');}catch(e){}
 }
 function removePlan(id){
   // Deleting bypasses save(), so it must notify on its own — otherwise a plan
