@@ -148,6 +148,9 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .btn.sm{padding:6px 11px;font-size:12px;border-radius:8px;}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--accent);cursor:pointer;flex-shrink:0;transition:all .15s;}
 .icon-btn:hover{border-color:var(--accent);}
+#switch-btn .pf-em{width:18px;height:18px;display:block;flex-shrink:0;}
+body[data-profile=veda] #switch-btn .pf-em.tony,body:not([data-profile=veda]) #switch-btn .pf-em.veda{display:none;}
+body:not([data-profile=veda]) #switch-btn,body:not([data-profile=veda]) #switch-btn:hover{color:var(--accent);}
 
 /* ── MAGI component language — Tony only ─────────────────────────────────────
    Scoped with :not([data-profile=veda]) so Veda's StudyOS-style chrome (serif
@@ -857,7 +860,10 @@ body { max-width: 2000px; margin-inline: auto; }
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     </button>
     <button class="icon-btn" id="switch-btn" title="Switch profile" onclick="ML.goProfileSelect()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l2.45 8.05L22 12l-7.55 2.45L12 22.5l-2.45-8.05L2 12l7.55-2.45z"/></svg>
+      <!-- The person's own emblem, as TaskHub shows it: Tony's fleur-de-lis,
+           Veda's four-point star (profilepick.js EMBLEM), in their purple. -->
+      <svg class="pf-em tony" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg>
+      <svg class="pf-em veda" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.3 7.2L21.5 12l-7.2 2.3L12 21.5l-2.3-7.2L2.5 12l7.2-2.3z" fill="currentColor"/></svg>
     </button>
     <!-- LifeHub app switcher (LifeHub/lifehub.js) — follows body[data-profile]:
          Tony's list or Veda's; hidden while a Guardian lock is up. -->
