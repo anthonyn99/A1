@@ -36,6 +36,7 @@ const WAV = 'RIFF' + le(36 + 16448, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(
 const svg = (t, w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#456"/><text x="10" y="30" fill="#fff">${t}</text></svg>`;
 const net = [];   // every request to the worker's /ig, the CDN or Instagram
 const API = { fail: false, pages: [] };   // Instagram's collection API, faked
+const LIVE = { calls: [], answer: () => ({ ok: false, error: 'unavailable' }) };   // personal-ai /ig/collection, faked
 const IGPAGE = (links) => `<!doctype html><title>Instagram</title><body><main>${links.map((c) => `<a href="/p/${c}/">${c}</a>`).join('')}</main><div style="height:3000px"></div></body>`;
 const mock = {
   patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://ddragon.leagueoflegends.com/*', 'https://warroom-api.av1.workers.dev/*', 'https://personal-ai.av1.workers.dev/*',
@@ -74,6 +75,13 @@ const mock = {
       if (/^CAR/.test(c)) return { json: { ok: true, code: c, user: 'car.acct', caption: 'three slides', items: [1, 2, 3].map((i) => ({ type: 'image', src: 'https://cdn.test/' + c + i + '.svg', w: 1080, h: 1350 })) } };
       if (/^PIC|^LNK/.test(c)) return { json: { ok: true, code: c, user: 'pic.acct', caption: 'a photo', items: [{ type: 'image', src: 'https://cdn.test/' + c + '.svg', w: 1080, h: 1080 }] } };
       return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 2 }] } };
+    }
+    // Live sync (2026-11-04): the worker reads the collection with Tony's stored session.
+    if (u.host === 'personal-ai.av1.workers.dev' && (p === '/ig/connect' || p === '/ig/collection' || p === '/ig/disconnect')) {
+      const b = req.postData ? JSON.parse(req.postData) : {}; LIVE.calls.push(Object.assign({ path: p }, b));
+      if (p === '/ig/connect') return { json: /^1234567890%3A/.test(b.sessionid || '') ? { ok: true, key: 'KEY-1' } : { ok: false, error: 'bad-session' } };
+      if (p === '/ig/disconnect') return { json: { ok: true } };
+      return { json: b.key === 'KEY-1' ? LIVE.answer(b) : { ok: false, error: 'bad-key' } };
     }
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily') return { json: { ok: true, date: u.searchParams.get('date'), text: 'Small steps.', via: 'orca' } };
     if (u.host === 'warroom-api.av1.workers.dev') return { json: ['16.99.1'] };
@@ -291,7 +299,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await fresh({ seed: await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse), hash: '#ew-igc=' + b64(other) });
   mm = await media();
   await sleep(1200);
-  ok('a sync from an older bookmark (no covers or media links) asks once to replace the bookmark', await js(`return document.getElementById('uim-overlay').classList.contains('show') && document.getElementById('uim-title').textContent === 'Update your sync bookmark';`));
+  ok('a sync from an older bookmark (no covers or media links) asks once to replace the bookmark', await js(`return document.getElementById('uim-overlay').classList.contains('show') && document.getElementById('uim-title').textContent === 'Update how you sync';`));
   await js(`document.getElementById('uim-ok').click(); return 1;`);
   ok('a collection not linked yet arrives as a new one on top of Mindset, named from its address', mm[0].igc && mm[0].igc.cid === '17999999999999999' && mm[0].title === 'Calm mind' && mm[0].posts.length === 2 && mm[0].url === 'https://www.instagram.com/tony/saved/calm_mind/17999999999999999/' && mm[1].id === 'col1', JSON.stringify(mm[0]).slice(0, 300));
   await sleep(2700);
@@ -340,7 +348,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('…with each post\'s cover (about 640 wide) and media links: the photo at its largest, the reel\'s video and poster', col && col.posts[0].i === 'https://scontent-x.cdninstagram.com/APIaaaa1-640.jpg' &&
     JSON.stringify(col.posts[0].m) === JSON.stringify([{ t: 'i', u: 'https://scontent-x.cdninstagram.com/APIaaaa1-1080.jpg', w: 1080, h: 1350 }]) &&
     JSON.stringify(col.posts[2].m) === JSON.stringify([{ t: 'v', u: 'https://scontent-x.cdninstagram.com/VIDaaaa1.mp4', w: 1080, h: 1350, p: 'https://scontent-x.cdninstagram.com/VIDaaaa1-640.jpg' }]), col && JSON.stringify(col.posts.slice(0, 3)).slice(0, 600));
-  ok('…and from now on Sync goes straight to Instagram (the bookmark is known)', await js(`return localStorage.getItem('ew.tony.igBm') === '1';`));
+  ok('…and no bookmark flag is kept any more (Refresh reads through the worker; ew.tony.igBm is in the cleanup registry)', await js(`return localStorage.getItem('ew.tony.igBm') === null;`));
   docs = await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse);
   await js(`sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(docs))}); return 1;`);
   API.fail = true;
@@ -357,13 +365,13 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   mm = await media();
   ok('pasting a collection link links it (empty until synced) and opens the how-to', mm[0].igc && mm[0].igc.cid === '17888888888888888' && mm[0].posts.length === 0 && mm[0].title === 'Evening calm' &&
     await js(`const d = document.getElementById('igd'); return !!d && /^Sync “Evening calm”$/.test(d.querySelector('h3').textContent) && d.querySelector('.igd-mark').getAttribute('href').indexOf('javascript:') === 0 && document.activeElement === d.querySelector('.ew-dlg');`));
-  await js(`window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(300);
+  await js(`window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; document.querySelector('#igd [data-igd="open"]').click(); return 1;`); await sleep(300);
   ok('"Open on Instagram" opens the collection itself', await js(`return window.__opened[0] === 'https://www.instagram.com/tony/saved/evening_calm/17888888888888888/' && !document.getElementById('igd');`));
   ok('an unsynced collection says so on its tile', await js(`const t = document.querySelector('#media-grid [data-id="${mm[0].id}"]'); return !!t && /not synced yet/.test(t.textContent);`));
   await click('#mind-media [data-iglink]'); await sleep(400);
   await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(200);
   ok('the link dialog refuses a link that is not a collection', /not a saved-collection link/.test(await js(`return document.getElementById('igd-err').textContent;`)));
-  await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/saved/all-posts/'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(1800);
+  await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/saved/all-posts/'; document.querySelector('#igd [data-igd="open"]').click(); return 1;`); await sleep(1800);
   mm = await media();
   ok('…and links a good one, opening Instagram on it', mm[0].igc.cid === 'all' && mm[0].title === 'All saved' && await js(`return window.__opened[1] === 'https://www.instagram.com/tony/saved/all-posts/';`),
     JSON.stringify(mm[0]).slice(0, 200) + ' ' + await js(`return JSON.stringify(window.__opened) + (document.getElementById('igd') ? ' dialog still open: ' + document.getElementById('igd-err').textContent : '');`));
@@ -371,6 +379,50 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('removing a collection asks first, and says Instagram is untouched', await js(`return document.getElementById('uim-title').textContent === 'Remove collection?' && /Nothing changes on Instagram/.test(document.getElementById('uim-msg').textContent);`));
   await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(1800);
   ok('…then it is gone', !(await media()).some((x) => x.igc && x.igc.cid === 'all'));
+
+  console.log('\nLive sync: no bookmark, no extension (2026-11-04)');
+  await fresh(); await go('mindset');
+  const settingsDoc = () => js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony']);`).then(JSON.parse);
+  ok('not connected: nothing asks the worker on open', LIVE.calls.length === 0);
+  await click('#media-grid [data-igsync="col1"]'); await sleep(400);
+  if (process.env.EW_SHOT) { await size(390, 844, true); await sleep(400); require('fs').writeFileSync(process.env.EW_SHOT, Buffer.from((await c.send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64')); await size(1280, 900); await sleep(300); }
+  ok("Refresh before connecting opens the Connect dialog: the sessionid box, the bookmark folded away as the fallback", await js(`const d = document.getElementById('igd'); return !!d && !!d.querySelector('#igd-sid') && d.querySelector('#igd-sid').type === 'password' &&
+    !d.querySelector('details.igd-alt').open && d.querySelector('[data-igd="go"]').textContent === 'Connect and sync' && !!d.querySelector('[data-igd="open"]');`));
+  await js(`document.getElementById('igd-sid').value = 'not a session'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(500);
+  ok('a wrong value says what a sessionid looks like, and nothing is stored', /not a sessionid/.test(await js(`return document.getElementById('igd-err').textContent;`)) && !(await settingsDoc()).igLive);
+  LIVE.calls.length = 0;
+  LIVE.answer = () => ({ ok: true, more: false, posts: [post('NEWlive1'), post('VIDaaaa1', 'r', 12), post('PICaaaa3')] });
+  await js(`document.getElementById('igd-sid').value = '1234567890%3AAbCdEf%3A12'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(1800);
+  mm = await media();
+  ok('Connect: the key (never the sessionid) goes in the settings, and the collection is read whole at once', (await settingsDoc()).igLive.key === 'KEY-1' && !JSON.stringify(await settingsDoc()).includes('AbCdEf') &&
+    LIVE.calls.map((x) => x.path).join() === '/ig/connect,/ig/collection' && LIVE.calls[1].cid === CID && LIVE.calls[1].quick === false && !(await js(`return !!document.getElementById('igd');`)), JSON.stringify(LIVE.calls));
+  ok('…merged: new on top, unsaved gone, and the tile says it was just synced', mm[0].posts.map((x) => x.c).join() === 'NEWlive1,VIDaaaa1,PICaaaa3' &&
+    await js(`return /synced just now/.test(document.querySelector('#media-grid .igc-group[data-id="col1"] [data-igc-kind]').textContent);`), mm[0].posts.map((x) => x.c).join());
+  // Coming back to Everwell (saved a post on Instagram, switched back): a quick check, no tap.
+  LIVE.calls.length = 0;
+  LIVE.answer = (b) => (b.cid === CID ? { ok: true, more: true, posts: [post('NEWlive2'), post('NEWlive1')] } : { ok: true, more: true, posts: [] });
+  await js(`const a = EWSettings.get('mindsetMedia').map(x => x.id === 'col1' ? Object.assign({}, x, { igc: Object.assign({}, x.igc, { at: Date.now() - 3600e3 }) }) : x); EWSettings.set('mindsetMedia', a);
+    localStorage.removeItem('ew.tony.igChecked'); window.dispatchEvent(new Event('focus')); return 1;`); await sleep(1500);
+  mm = await media();
+  ok('coming back to Everwell checks by itself: each collection, the newest page only, the new save on top, a quiet toast', LIVE.calls.length === 2 && LIVE.calls.every((x) => x.quick === true) && LIVE.calls[0].cid === CID &&
+    mm[0].posts.map((x) => x.c).join() === 'NEWlive2,NEWlive1,VIDaaaa1,PICaaaa3' && /1 new post in “Discipline”/.test(await toast()), JSON.stringify(LIVE.calls) + ' ' + mm[0].posts.map((x) => x.c).join());
+  LIVE.calls.length = 0;
+  await js(`window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); return 1;`); await sleep(800);
+  ok('…and not again within the minute', LIVE.calls.length === 0, JSON.stringify(LIVE.calls));
+  LIVE.calls.length = 0; LIVE.answer = () => ({ ok: true, more: false, posts: [post('NEWlive2'), post('NEWlive1'), post('VIDaaaa1', 'r', 12), post('PICaaaa3')] });
+  await click('#media-grid [data-igsync="col1"]'); await sleep(1200);
+  ok('connected, Refresh reads at once (no dialog, no Instagram tab) and says it is up to date', LIVE.calls.length === 1 && LIVE.calls[0].quick === false && !(await js(`return !!document.getElementById('igd');`)) &&
+    /“Discipline” is up to date: 4 posts\./.test(await toast()), await toast());
+  LIVE.answer = () => ({ ok: false, error: 'expired' });
+  await click('#media-grid [data-igsync="col1"]'); await sleep(1000);
+  ok('Instagram signed Everwell out: Refresh asks to reconnect', await js(`const d = document.getElementById('igd'); return !!d && d.querySelector('h3').textContent === 'Reconnect Instagram' && !!d.querySelector('#igd-sid');`),
+    await js(`const d = document.getElementById('igd'); return (d ? d.querySelector('h3').textContent : 'no dialog') + ' | ' + document.getElementById('ew-toast').textContent;`) + JSON.stringify(LIVE.calls.slice(-2)));
+  await click('#igd [data-igd="close"]'); await sleep(200);
+  await click('#mind-media [data-iglink]'); await sleep(400);
+  ok('the link dialog, connected: says so, with Disconnect, and no bookmark', await js(`const d = document.getElementById('igd'); return !!d.querySelector('.igd-live') && !d.querySelector('.igd-alt') && d.querySelector('[data-igd="go"]').textContent === 'Link';`));
+  await click('#igd [data-igd="off"]'); await sleep(800);
+  ok('Disconnect forgets the key everywhere (an empty key: the settings writer drops nulls)', (await settingsDoc()).igLive.key === '' && LIVE.calls.some((x) => x.path === '/ig/disconnect'), JSON.stringify((await settingsDoc()).igLive) + JSON.stringify(LIVE.calls.slice(-2)));
+  await fresh(); await go('mindset');
 
   console.log('\nPhone (390px)');
   await size(390, 844, true); await sleep(500);

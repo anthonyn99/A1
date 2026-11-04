@@ -440,6 +440,21 @@
       "reason": "A1-Priv's watcher logs every commit, push, pull and deploy and never trimmed it. Lines older than 30 days are dropped each time the watcher starts; the file itself stays.",
       "delete": true,
       "approved": "2026-10-11: Tony asked for the cleanup system to cover A1-Priv; same 30-day rule he set for the trading launcher logs"
+    },
+    {
+      "id": "everwell-ig-bookmark-flag",
+      "store": "localStorage",
+      "program": "everwell",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "ew.tony.igBm"
+      ],
+      "prefix": [],
+      "owner": "everwell.html on a1-priv.av1.workers.dev (Instagram sync)",
+      "reason": "Remembered that the “Everwell sync” bookmark had been used once, so Sync skipped the how-to and went straight to Instagram. Since 2026-11-04 the worker reads collections itself (live sync) and Refresh never opens Instagram, so nothing reads this key.",
+      "delete": false,
+      "origin": "a1-priv"
     }
   ],
   "handledElsewhere": [

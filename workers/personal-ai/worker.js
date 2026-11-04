@@ -4379,6 +4379,126 @@ async function handleIgPx(url, req, ctx) {
   try { return await igRelay(u, req, ctx, ckey); } catch (e) { return new Response('unreachable', { status: 502, headers: cors() }); }
 }
 
+// ── Instagram collection sync, server side (Everwell, 2026-11-04) ──
+// Saved collections are private, so only Tony's own signed-in session can
+// read them. Before this, a bookmarklet ran that read in his Instagram tab and
+// the Vault extension carried the list back; now the worker holds his
+// Instagram `sessionid` (KV `ig_sess`, never sent back to any page) and
+// Everwell refreshes by itself, on any device, phones included.
+//   POST /ig/connect    {sessionid}      → { ok, key }  checks the session
+//        against Instagram first; a new key every time. Replacing a session
+//        for a DIFFERENT Instagram account needs the current key.
+//   POST /ig/collection {key, cid, quick} → { ok, cid, posts, more }
+//        quick: the first page only (new saves), for the automatic checks;
+//        otherwise the whole collection (unsaves too), up to IG_SYNC_PAGES.
+//   POST /ig/disconnect {key}            → forgets the session.
+// The key lives in Tony's Everwell settings, like the posts it reads, so it
+// opens nothing his settings do not already show. Only these reads are ever
+// made with the session: no writes, no other account, no other endpoint.
+const IG_APP_ID = '936619743392459';
+const IG_SYNC_PAGES = 30;   // under the 50-subrequest cap with room to spare
+const IG_SESS_KEY = 'ig_sess';
+const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function sha256(t) { return b64u(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t))))); }
+// The sessionid as pasted: the bare value (encoded or not) or a whole Cookie
+// header. → { sid (decoded), uid } or null.
+export function igParseSession(raw) {
+  let t = String(raw || '').trim().replace(/^["']|["']$/g, '');
+  const m = t.match(/(?:^|[;\s])sessionid=([^;\s]+)/); if (m) t = m[1];
+  try { t = decodeURIComponent(t); } catch (e) { return null; }
+  const g = t.match(/^(\d{3,25}):[^\s;:]{6,}(?::[^\s;]+)?$/);
+  return g && t.length < 400 ? { sid: t, uid: g[1] } : null;
+}
+// One post as Everwell stores it: {c, k, d, t, u, i, m} (as the bookmarklet made it).
+export function igPostOf(md) {
+  if (!md || !/^[A-Za-z0-9_-]{5,40}$/.test(md.code || '')) return null;
+  const cdn = (u) => (IG_CDN.test(u || '') ? u : '');
+  const pic = (x, big) => {
+    let c = (x && x.image_versions2 && x.image_versions2.candidates) || []; if (!c.length) return '';
+    c = c.slice().sort((a, b) => a.width - b.width);
+    const f = c.filter((z) => (big ? z.width <= 1440 : z.width >= 600));
+    return cdn(((big ? f[f.length - 1] : f[0]) || c[big ? c.length - 1 : 0]).url);
+  };
+  const one = (x) => {
+    const vv = x && x.video_versions && x.video_versions[0];
+    return vv ? { t: 'v', u: cdn(vv.url), p: pic(x), w: x.original_width || 0, h: x.original_height || 0 }
+      : { t: 'i', u: pic(x, true), w: (x && x.original_width) || 0, h: (x && x.original_height) || 0 };
+  };
+  const kids = md.carousel_media && md.carousel_media.length ? md.carousel_media : [md];
+  return { c: md.code, k: md.media_type === 8 ? 's' : md.product_type === 'clips' ? 'r' : md.media_type === 2 ? 'v' : 'p',
+    d: Math.round(md.video_duration || 0), t: String((md.caption && md.caption.text) || '').replace(/\s+/g, ' ').trim().slice(0, 90),
+    u: (md.user && md.user.username) || '', i: pic(kids[0]), m: kids.slice(0, 10).map(one).filter((z) => z.u) };
+}
+// Why Instagram refused, from its status and body.
+export function igWhy(status, body) {
+  const b = String(body || '');
+  if (/checkpoint_required|challenge_required/.test(b)) return 'checkpoint';
+  if (status >= 300 && status < 400) return 'expired';
+  if (status === 401 || /login_required|"require_login":\s*true/.test(b)) return 'expired';
+  if (status === 429 || /please wait a few minutes/i.test(b)) return 'busy';
+  if (status === 404) return 'gone';
+  if (status === 403) return 'expired';
+  return 'unavailable';
+}
+async function igApi(path, s) {
+  let r;
+  try {
+    r = await fetch('https://www.instagram.com/api/v1/' + path, { redirect: 'manual', headers: {
+      'User-Agent': YT_UA, Accept: '*/*', 'Accept-Language': 'en-US,en;q=0.9', Referer: 'https://www.instagram.com/',
+      'X-IG-App-ID': IG_APP_ID, 'X-Requested-With': 'XMLHttpRequest',
+      Cookie: 'sessionid=' + encodeURIComponent(s.sid) + '; ds_user_id=' + s.uid } });
+  } catch (e) { return { why: 'unreachable' }; }
+  const text = await r.text().catch(() => '');
+  if (r.status !== 200) return { why: igWhy(r.status, text) };
+  try { return { j: JSON.parse(text) }; } catch (e) { return { why: 'expired' }; }   // an HTML page here is the login page
+}
+async function igSess(env, key) {
+  if (!env.TOKEN_CACHE) return { why: 'no-kv' };
+  let s = null; try { s = await env.TOKEN_CACHE.get(IG_SESS_KEY, 'json'); } catch (e) {}
+  if (!s || !s.sid) return { why: 'not-connected' };
+  if (!key || typeof key !== 'string' || (await sha256(key)) !== s.kh) return { why: 'bad-key' };
+  return { s };
+}
+async function handleIgConnect(body, env) {
+  const p = igParseSession(body && body.sessionid);
+  if (!p) return json({ ok: false, error: 'bad-session' }, 400);
+  if (!env.TOKEN_CACHE) return json({ ok: false, error: 'no-kv' }, 500);
+  let old = null; try { old = await env.TOKEN_CACHE.get(IG_SESS_KEY, 'json'); } catch (e) {}
+  if (old && old.uid && old.uid !== p.uid && (await sha256(String((body && body.key) || ''))) !== old.kh) return json({ ok: false, error: 'other-account' }, 403);
+  const t = await igApi('feed/saved/posts/', p);
+  if (!t.j) return json({ ok: false, error: t.why });
+  const key = b64u(crypto.getRandomValues(new Uint8Array(24)));
+  await env.TOKEN_CACHE.put(IG_SESS_KEY, JSON.stringify({ sid: p.sid, uid: p.uid, kh: await sha256(key), at: Date.now() }));
+  return json({ ok: true, key });
+}
+async function handleIgDisconnect(body, env) {
+  const g = await igSess(env, body && body.key);
+  if (!g.s) return json({ ok: false, error: g.why }, g.why === 'bad-key' ? 403 : 200);
+  await env.TOKEN_CACHE.delete(IG_SESS_KEY);
+  return json({ ok: true });
+}
+async function handleIgCollection(body, env) {
+  const cid = String((body && body.cid) || ''), quick = !!(body && body.quick);
+  if (!/^(\d{5,25}|all)$/.test(cid)) return json({ ok: false, error: 'bad cid' }, 400);
+  const g = await igSess(env, body && body.key);
+  if (!g.s) return json({ ok: false, error: g.why }, g.why === 'bad-key' ? 403 : 200);
+  const base = cid === 'all' ? 'feed/saved/posts/' : 'feed/collection/' + cid + '/posts/';
+  const posts = [], seen = new Set();
+  let max = '', more = false;
+  for (let i = 0; i < (quick ? 1 : IG_SYNC_PAGES); i++) {
+    const t = await igApi(base + (max ? '?max_id=' + encodeURIComponent(max) : ''), g.s);
+    if (!t.j) {
+      if (!posts.length) return json({ ok: false, error: t.why });
+      more = true; break;   // a later page failed: what was read is still good for new saves
+    }
+    (t.j.items || []).forEach((x) => { const q = igPostOf(x && (x.media || x)); if (q && !seen.has(q.c)) { seen.add(q.c); posts.push(q); } });
+    more = !!(t.j.more_available && t.j.next_max_id);
+    if (!more || posts.length >= 600) break;
+    max = t.j.next_max_id;
+  }
+  return json({ ok: true, cid, quick, more, posts: posts.slice(0, 600) });
+}
+
 export default {
   async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -4389,8 +4509,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 46, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview', 'link-parse'],
+        version: 47, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'ig-sync', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
@@ -4440,6 +4560,9 @@ export default {
       if (path === '/watch/state')    return handleWatchState(body, env);
       if (path === '/watch/ingest')   return handleWatchIngest(body, env);
       if (path === '/watch/notifdebug') return handlePwNotifDebug(body, env);
+      if (path === '/ig/connect')     return handleIgConnect(body, env);
+      if (path === '/ig/collection')  return handleIgCollection(body, env);
+      if (path === '/ig/disconnect')  return handleIgDisconnect(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);
