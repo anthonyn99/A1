@@ -11415,6 +11415,8 @@ function takeHandoff() {
  *  of a run) and applies the handoff on whichever call finds the console
  *  ready. It is a no-op on all the others. */
 function handoffTry() {
+  // The next queued prompt, once the one before it has gone out.
+  if (!HANDOFF && HANDOFF_QUEUE.length) HANDOFF = HANDOFF_QUEUE.shift();
   if (!HANDOFF) return;
   // Meant for the other person: switch profile first (a reload that carries
   // it). Never in the middle of a run -- the reload would throw this
@@ -11450,6 +11452,20 @@ function handoffTry() {
   }
   HANDOFF = null;
   applyHandoff(h);
+  noteHandoffQueue();
+}
+
+/* Prompts sent while one is already waiting or a council is running wait their
+   turn instead of replacing it (2026-11-03: a second catalyst debrief used to
+   overwrite the first). endRun() calls handoffTry, which takes the next. */
+let HANDOFF_QUEUE = [];
+const HANDOFF_QUEUE_SS = "magi.handoffQueue";
+function noteHandoffQueue() {
+  const n = HANDOFF_QUEUE.length + (HANDOFF && (S.running || S.refining) ? 1 : 0);
+  if (!n) return;
+  setErr("refineError", n === 1
+    ? "1 prompt queued — it convenes when this council finishes."
+    : n + " prompts queued — each convenes when the one before it finishes.");
 }
 
 /** The part of a handoff that needs no engine: the words, Deliberation mode,
@@ -11503,8 +11519,10 @@ function applyHandoff(h) {
 window.addEventListener("hashchange", () => {
   const h = takeHandoff();
   if (!h) return;
-  HANDOFF = h;
+  if (HANDOFF || HANDOFF_QUEUE.length) HANDOFF_QUEUE.push(h);
+  else HANDOFF = h;
   handoffTry();
+  noteHandoffQueue();
 });
 
 /** A handoff that landed in the wrong profile: carry it across the reload.
