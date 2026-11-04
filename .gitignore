@@ -115,3 +115,7 @@ magi/.pytest_cache/
 # It must never be tracked here again (docs/A1-Priv/a1-priv-move-plan.md).
 /Vault
 /Vault/
+
+# Shield moved to Shield/desktop (2026-11-03). A Tauri build run from an old
+# checkout regenerates src-tauri/gen + permissions here; never re-add them.
+/desktop/
