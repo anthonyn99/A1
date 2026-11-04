@@ -966,6 +966,77 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-colorpop-v2 .docx-color-sw:hover { transform: scale(1.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 0 0 3px rgba(255,255,255,.12); }
 .docx-colorpop-v2 .docx-mi { border-top: 1px solid rgba(255,255,255,.07); border-radius: 0 0 6px 6px; }
 
+/* ── The custom text-colour picker (docx.js openCustomColor), both sides ──
+   --cp-acc / --cp-bg come from the side's ribbon (--nbt-acc / --nbt-pop).
+   Tony's buttons are MAGI's .btn; Veda's are her soft rounded ones. */
+.docx-pop.docx-cpick {
+  --cp-acc: #c0aeea; --cp-bg: #232327; --cp-bd: rgba(255,255,255,.09); --cp-tx: #ecebf0; --cp-dim: #8e8e98; --cp-field: rgba(0,0,0,.22);
+  width: 264px; min-width: 0 !important; max-width: calc(100vw - 16px); box-sizing: border-box; overflow: visible;
+  padding: 14px !important; border-radius: 12px !important; background: var(--cp-bg) !important; border: 1px solid var(--cp-bd) !important;
+  box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3) !important; color: var(--cp-tx);
+  display: flex; flex-direction: column; gap: 12px; user-select: none; -webkit-user-select: none;
+}
+.docx-cpick .docx-cp-head { font: 600 10px/1 inherit; font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--cp-dim); }
+.docx-cpick .docx-cp-sv {
+  position: relative; height: 150px; border-radius: 8px; cursor: crosshair; touch-action: none; outline: none;
+  background: linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), var(--cp-hue, red);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.docx-cpick .docx-cp-hue {
+  position: relative; height: 12px; border-radius: 999px; cursor: pointer; touch-action: none; outline: none;
+  background: linear-gradient(to right, #f00 0%, #ff0 16.66%, #0f0 33.33%, #0ff 50%, #00f 66.66%, #f0f 83.33%, #f00 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); margin: 0 7px;
+}
+.docx-cpick .docx-cp-knob {
+  position: absolute; width: 16px; height: 16px; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.4); box-sizing: border-box;
+}
+.docx-cpick .docx-cp-hue .docx-cp-knob { top: 50%; }
+.docx-cpick .docx-cp-sv:focus-visible, .docx-cpick .docx-cp-hue:focus-visible { box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 0 0 2px var(--cp-acc); }
+.docx-cpick .docx-cp-row { display: flex; align-items: center; gap: 8px; }
+.docx-cpick .docx-cp-chip { display: flex; flex: none; width: 44px; height: 32px; border-radius: 7px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.docx-cpick .docx-cp-chip i { flex: 1; }
+.docx-cpick .docx-cp-hexwrap {
+  flex: 1; min-width: 0; display: flex; align-items: center; height: 32px; box-sizing: border-box; padding: 0 10px; gap: 4px;
+  background: var(--cp-field); border: 1px solid var(--cp-bd); border-radius: 7px; cursor: text; transition: border-color .15s, box-shadow .15s;
+}
+.docx-cpick .docx-cp-hexwrap span { color: var(--cp-dim); font-size: 12.5px; }
+.docx-cpick .docx-cp-hexwrap:focus-within { border-color: var(--cp-acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-acc) 16%, transparent); }
+.docx-pop.docx-cpick input.docx-cp-hex {
+  flex: 1; min-width: 0; width: auto; height: 100%; padding: 0 !important; margin: 0; border: none !important; background: transparent !important; box-shadow: none !important;
+  color: var(--cp-tx); font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; letter-spacing: .06em; text-transform: uppercase; outline: none; user-select: text; -webkit-user-select: text;
+}
+.docx-cpick .docx-cp-icon {
+  flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  background: transparent; color: var(--cp-dim); border: 1px solid var(--cp-bd); border-radius: 7px; transition: color .15s, border-color .15s;
+}
+.docx-cpick .docx-cp-icon:hover { color: var(--cp-acc); border-color: var(--cp-acc); }
+.docx-cpick .docx-cp-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--cp-bd); margin-top: 2px; }
+.docx-cpick .docx-cp-btn {
+  height: 30px; padding: 0 14px; box-sizing: border-box; cursor: pointer; font-family: inherit;
+  background: transparent; color: var(--cp-tx); border: 1px solid #45454c; border-radius: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; transition: border-color .15s, background .15s, filter .15s;
+}
+.docx-cpick .docx-cp-btn:hover { border-color: var(--cp-acc); }
+.docx-cpick .docx-cp-btn.pri { background: var(--cp-acc); border-color: var(--cp-acc); color: #1a1a1d; }
+.docx-cpick .docx-cp-btn.pri:hover { filter: brightness(1.08); }
+.docx-cpick .docx-cp-btn:focus-visible, .docx-cpick .docx-cp-icon:focus-visible { outline: 2px solid var(--cp-acc); outline-offset: 1px; }
+/* Veda: her rounder, sentence-case buttons on her own accent. */
+.docx-cpick[data-side="veda"] { border-radius: 14px !important; }
+.docx-cpick[data-side="veda"] .docx-cp-head { letter-spacing: .08em; }
+.docx-cpick[data-side="veda"] .docx-cp-btn { border-radius: 9px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; border-color: rgba(255,255,255,.12); height: 32px; }
+.docx-cpick[data-side="veda"] .docx-cp-btn.pri { color: #fff; }
+@media (pointer: coarse) {
+  .docx-pop.docx-cpick { width: 292px; }
+  .docx-cpick .docx-cp-sv { height: 170px; }
+  .docx-cpick .docx-cp-hue { height: 18px; margin: 0 10px; }
+  .docx-cpick .docx-cp-knob { width: 22px; height: 22px; }
+  .docx-cpick .docx-cp-chip, .docx-cpick .docx-cp-hexwrap, .docx-cpick .docx-cp-icon { height: 40px; }
+  .docx-cpick .docx-cp-icon { width: 40px; }
+  .docx-cpick .docx-cp-btn { height: 40px; padding: 0 18px; }
+  .docx-cpick .docx-cp-hexwrap span, .docx-pop.docx-cpick input.docx-cp-hex { font-size: 16px; }   /* 16px: iOS never zooms the field */
+}
+
 /* ── Touch and small screens: bigger targets, same shapes ── */
 @media (max-width: 900px), (pointer: coarse) {
   #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 42px; --nbt-in: 36px; padding: 2px 8px 8px !important; }
