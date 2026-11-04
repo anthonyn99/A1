@@ -1327,3 +1327,16 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
    trash ×'s column, so its hover frame never sits on the name (Tony,
    2026-11-03). The × is 28px at right 6px; on a phone 36px at 4px (above). */
 #tj-root .entry-item-meta, #bj-root .entry-item-meta { padding-right: 28px; }
+
+/* Nothing open (showTemplate(null) sets .nb-noentry on the root): the View /
+   Edit switch and Export PDF have nothing to act on, so they rest dimmed and
+   inert until an entry opens (Notebook audit, 2026-11-04). */
+#tj-root.nb-noentry .mode-toggle-wrap, #bj-root.nb-noentry .mode-toggle-wrap,
+#tj-root.nb-noentry #tj-btn-export-pdf, #bj-root.nb-noentry #bj-btn-export-pdf,
+#tj-root.nb-noentry #tj-bb-edit, #bj-root.nb-noentry #bj-bb-edit { opacity: .38; pointer-events: none; }
+/* Tony's Journal Entries keeps its older ribbon, whose native selects took the
+   phone's 16px no-zoom size on a desktop too ("Paragraph", "100%" oversized).
+   Anything but a touch screen gets the ribbon's 12px; touch keeps 16px (no iOS zoom). */
+@media not all and (pointer: coarse) {
+  #tj-root #tj-je-toolbar select, #tj-root #tj-je-toolbar .pt-select { font-size: 12px !important; }
+}

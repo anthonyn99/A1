@@ -183,7 +183,7 @@
     position: relative;
   }
 #tj-root .search-wrap { position: relative; margin: 4px 12px 8px; }
-#tj-root .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+#tj-root .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; z-index: 1; }  /* above the input: its own position:relative and opaque background hid the magnifier */
 #tj-root .search-wrap input {
     padding: 7px 10px 7px 32px;
     border: 1px solid var(--border);

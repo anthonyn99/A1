@@ -1368,6 +1368,9 @@ function showTemplate(name) {
   document.getElementById('bj-mml-area').style.display = name === 'mindmap-legacy' ? 'flex' : 'none';
   document.getElementById('bj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('bj-empty-state').style.display = name ? 'none' : 'flex';
+  // Nothing open (the empty state): View / Edit and Export PDF have nothing to
+  // act on (Export only said "No entry selected."); dimmed until an entry opens.
+  var _nbRoot = document.getElementById('bj-root'); if (_nbRoot) _nbRoot.classList.toggle('nb-noentry', !name);
   document.getElementById('bj-tags-row').style.display = name && !_bjIsOJ() ? 'flex' : 'none';
   // Page toolbar edit-mode sync
   const pt = document.getElementById('bj-page-toolbar');
@@ -1621,7 +1624,8 @@ document.getElementById('bj-add-tag-input').addEventListener('keydown', e => {
     if (!val) return;
     const entry = getActive(); if (!entry) return;
     entry.tags = entry.tags || [];
-    if (!entry.tags.includes(val)) entry.tags.push(val);
+    // "Work" and "work" are one tag (they made two filter chips).
+    if (!entry.tags.some(t => String(t).toLowerCase() === val.toLowerCase())) entry.tags.push(val);
     entry.updated = Date.now();   // see the tag-delete handler above
     e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
   }
@@ -2216,8 +2220,8 @@ document.getElementById('bj-mml-connect-mode').addEventListener('click', functio
   mmConnectMode=!mmConnectMode; mmConnectFrom=null; this.classList.toggle('active',mmConnectMode);
 });
 document.getElementById('bj-mml-delete-node').addEventListener('click', () => {
-  if (!mmSelectedNode) { alert('Select a node first.'); return; }
-  if (mmNodes.find(n=>n.id===mmSelectedNode)?.root) { alert("Can't delete the root node."); return; }
+  if (!mmSelectedNode) { (window.uiAlert || window.alert)('Select a node first.'); return; }
+  if (mmNodes.find(n=>n.id===mmSelectedNode)?.root) { (window.uiAlert || window.alert)("Can't delete the root node."); return; }
   mmNodes=mmNodes.filter(n=>n.id!==mmSelectedNode);
   mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
   mmSelectedNode=null; renderMindmap(); autoSave();
@@ -2233,7 +2237,7 @@ document.getElementById('bj-mml-reset').addEventListener('click', async () => {
 // Mindmap: add image to selected node via file picker
 document.getElementById('bj-mml-img-file').addEventListener('change', function() {
   var file = this.files[0]; if (!file) return;
-  if (!mmSelectedNode) { alert('Select a node first, then click Image.'); this.value=''; return; }
+  if (!mmSelectedNode) { (window.uiAlert || window.alert)('Select a node first, then click Image.'); this.value=''; return; }
   var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
   if (!node) { this.value=''; return; }
   var reader = new FileReader();
@@ -3394,7 +3398,7 @@ function setEditMode(enabled) {
   /* bj-btn-template */
   fastTouch(document.getElementById('bj-btn-template'), function() {
     var entry = getActive();
-    if (!entry) { alert('Create a new entry first.'); return; }
+    if (!entry) { (window.uiAlert || window.alert)('Create a new entry first.'); return; }
     document.getElementById('bj-new-entry-btn')._creating = false;
     document.getElementById('bj-template-modal').classList.add('open');
   });
@@ -3404,7 +3408,7 @@ function setEditMode(enabled) {
     var bjExportBtn = document.getElementById('bj-btn-export-pdf');
     if (bjExportBtn) bjExportBtn.onclick = function() {
       var entry = getActive();
-      if (!entry) { alert('No entry selected.'); return; }
+      if (!entry) { (window.uiAlert || window.alert)('No entry selected.'); return; }
       if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) { return; }
       exportEntryAsPDF(entry);
     };
@@ -3439,7 +3443,7 @@ function setEditMode(enabled) {
 
   fastTouch(document.getElementById('bj-bb-template'), function() {
     var entry = getActive();
-    if (!entry) { alert('Create a new entry first.'); return; }
+    if (!entry) { (window.uiAlert || window.alert)('Create a new entry first.'); return; }
     document.getElementById('bj-new-entry-btn')._creating = false;
     document.getElementById('bj-template-modal').classList.add('open');
   });
@@ -3453,6 +3457,14 @@ function setEditMode(enabled) {
 /* TOOLBAR — mouse/keyboard change handler (touchstart path handled above) */
 document.getElementById('bj-btn-edit').addEventListener('change', function() { setEditMode(this.checked); });
 /* bj-btn-template click handled by fastTouch above */
+// Escape closes the template picker (it only closed on X or a click outside).
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var m = document.getElementById('bj-template-modal');
+  if (!m || !m.classList.contains('open')) return;
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('bj-close-modal').click();
+}, true);
 document.getElementById('bj-close-modal').addEventListener('click', () => {
   document.getElementById('bj-new-entry-btn')._creating=false;
   document.getElementById('bj-template-modal').classList.remove('open');

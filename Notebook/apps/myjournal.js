@@ -1184,6 +1184,9 @@ function showTemplate(name) {
   document.getElementById('tj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('tj-je-area').style.display = name === 'journal-entries' ? 'flex' : 'none';
   document.getElementById('tj-empty-state').style.display = name ? 'none' : 'flex';
+  // Nothing open (the empty state): View / Edit and Export PDF have nothing to
+  // act on (Export only said "No entry selected."); dimmed until an entry opens.
+  var _nbRoot = document.getElementById('tj-root'); if (_nbRoot) _nbRoot.classList.toggle('nb-noentry', !name);
   // Page toolbar edit-mode sync
   const pt = document.getElementById('tj-page-toolbar');
   if (pt) { if (name === 'page' && isEditMode) pt.classList.add('edit-mode'); else pt.classList.remove('edit-mode'); }
@@ -2432,7 +2435,7 @@ document.getElementById('tj-pt-clear').addEventListener('click', async () => {
       input = input.trim();
       // Validate format
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
-        alert('Invalid date format. Use YYYY-MM-DD.');
+        (window.uiAlert || window.alert)('Invalid date format. Use YYYY-MM-DD.');
         return;
       }
       if (!entry.data.dates) entry.data.dates = {};
@@ -2994,7 +2997,7 @@ function setEditMode(enabled) {
     var tjExportBtn = document.getElementById('tj-btn-export-pdf');
     if (tjExportBtn) tjExportBtn.onclick = function() {
       var entry = getActive();
-      if (!entry) { alert('No entry selected.'); return; }
+      if (!entry) { (window.uiAlert || window.alert)('No entry selected.'); return; }
       if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) { return; }
       saveCurrentEntry();
       exportEntryAsPDF(getActive());
@@ -3036,6 +3039,14 @@ function setEditMode(enabled) {
 
 /* TOOLBAR — mouse/keyboard change handler (touchstart path handled above) */
 document.getElementById('tj-btn-edit').addEventListener('change', function() { setEditMode(this.checked); });
+// Escape closes the template picker (it only closed on X or a click outside).
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var m = document.getElementById('tj-template-modal');
+  if (!m || !m.classList.contains('open')) return;
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('tj-close-modal').click();
+}, true);
 document.getElementById('tj-close-modal').addEventListener('click', () => {
   document.getElementById('tj-new-entry-btn')._creating=false;
   document.getElementById('tj-template-modal').classList.remove('open');

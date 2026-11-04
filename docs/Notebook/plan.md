@@ -558,3 +558,31 @@ CLAUDE.md point at Notebook/.
 | TradeHub Playbook | Every blur writes even with no change; storage % banner wrong; link URL with `"` throws | 6 (replaced) |
 | trade-dashboard worker | POST `/daily-reminder` has no App Check, so anyone can rewrite the morning text | 6 |
 | launch.py | `~~strike~~` not rendered; snake_case italicised | 6 |
+
+## 7. Clean sweep (Tony, 2026-11-04)
+
+"Go through Notebook, audit EVERY feature, fix any bugs / UI issues, Tony and
+Veda." Every menu item and ribbon button was clicked on both sides (no page
+errors), and the flows were driven end to end in a real browser: search
+(titles and body text), new entry from every template, rename, typing and
+saving to Firestore, undo/redo, Find & Replace, trash and restore, sidebar
+toggle, Veda's tags and tag filter, Structured Notes and Cornell saving,
+checklists, Tony's Journal Entries (+ Date), OurJournal, phone and tablet
+layouts (no overflow; the phone menubar scrolls). Found and fixed:
+
+| Where | Bug | Fix |
+|---|---|---|
+| Both, core | Saving an entry while the pointer was on a link or checklist box wrote hoverfx's `class="hoverfx"` and inline `filter: brightness()` into the document: the box stayed lit for good | `Shared/hoverfx.js` never decorates anything inside a contenteditable; `core/docx.js` `wireHoverFxScrub` sweeps what older saves hold (on focus, press, and when an entry is painted) |
+| Both, core | The editor's dialogs (Page setup, Word count, Shortcuts, Trash, AI Tools ...) ignored Escape | `modal()` closes the top dialog on Escape, capture phase, so edit mode stays |
+| Both | The template picker (New entry) ignored Escape | capture-phase Escape in each app |
+| Both | The search box's magnifier was painted under the input | `z-index: 1` on `.search-wrap svg` |
+| Both | Nothing open: View/Edit switched on with nothing to edit, Export PDF only said "No entry selected." | `showTemplate(null)` sets `.nb-noentry`: both (and the phone's Edit) rest dimmed and inert |
+| Veda | "Work" and "work" were two tags (two filter chips) | duplicate check ignores case |
+| Tony | Journal Entries' older ribbon: native selects at the phone's 16px on a desktop | 12px unless `(pointer: coarse)` |
+| Both | A few messages used the browser's own `alert()` in hosts without `uiAlert` | `(window.uiAlert \|\| window.alert)(…)` |
+
+Not changed, on purpose: the 16px inputs on desktop (the no-zoom rule both
+sides have always had), checklist boxes inert in view mode (view is
+read-only), the board templates (Excalidraw / Mind-Elixir load from a CDN,
+unverifiable in the cloud sandbox). Proof: `tests/live/notebook-audit.live.js`
+(27 checks, both sides; 17 of them fail on the code before).

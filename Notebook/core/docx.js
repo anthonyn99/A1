@@ -969,6 +969,35 @@ function buildVRuler(ctx) {
     if (e.key === 'Backspace' || e.key === 'Delete') dropEmptyHighlights(ctx.edEl);
   });
 }
+// hoverfx (A1's Shared/hoverfx.js) used to decorate a link or checklist box
+// inside the document while the pointer was on it: a `hoverfx` class and an
+// inline `filter: brightness(...)`. A save at that moment wrote them into the
+// entry, so the box stayed lit for good (2026-11-04 audit). hoverfx now leaves
+// editable documents alone; this sweeps what older saves already hold, before
+// any edit can be saved (focus / press), and once when an entry is painted.
+function scrubHoverFx(ed) {
+  Array.prototype.forEach.call(ed.querySelectorAll('.hoverfx, .hoverfx-t, .hoverfx-ol, [style*="brightness("]'), function(el) {
+    el.classList.remove('hoverfx', 'hoverfx-t', 'hoverfx-ol', 'hoverfx-inset', 'hoverfx-glow');
+    if (!el.classList.length) el.removeAttribute('class');
+    if (/brightness\(/.test(el.style.filter || '')) {
+      el.style.removeProperty('filter');
+      if (!el.getAttribute('style')) el.removeAttribute('style');
+    }
+  });
+}
+function wireHoverFxScrub(ctx) {
+  var ed = ctx.edEl, run = function() { scrubHoverFx(ed); };
+  ed.addEventListener('focusin', run);
+  ed.addEventListener('pointerdown', run, true);
+  if (window.MutationObserver) {
+    // A new entry painted in (innerHTML replaced): one sweep, a frame later.
+    var q = false;
+    new MutationObserver(function(list) {
+      if (q || !list.some(function(m) { return m.target === ed && m.addedNodes.length > 2; })) return;
+      q = true; requestAnimationFrame(function() { q = false; run(); });
+    }).observe(ed, { childList: true });
+  }
+}
 function dropEmptyHighlights(ed) {
   Array.prototype.forEach.call(ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl],span[style]'), function(el) {
     if (!_isHL(el)) return;
@@ -1435,6 +1464,19 @@ function hasOption(sel, v) { return Array.prototype.some.call(sel.options, funct
 function modal(title, buildBody, buildFooter) {
   var veil = document.createElement('div');
   veil.className = 'docx-veil';
+  // Escape closes the top dialog, like every other dialog in the suite (it
+  // did nothing here: Page setup, Word count, Shortcuts ... needed the X).
+  // Capture phase and stopped, so it never also leaves edit mode or closes the
+  // journal underneath.
+  var onKey = function(e) {
+    if (e.key !== 'Escape' || !veil.isConnected) return;
+    var veils = document.querySelectorAll('.docx-veil');
+    if (veils[veils.length - 1] !== veil) return;
+    e.preventDefault(); e.stopPropagation();
+    close();
+  };
+  var close = function() { document.removeEventListener('keydown', onKey, true); veil.remove(); };
+  document.addEventListener('keydown', onKey, true);
   var box = document.createElement('div');
   box.className = 'docx-modal';
   var h = document.createElement('div');
@@ -1442,7 +1484,7 @@ function modal(title, buildBody, buildFooter) {
   h.innerHTML = esc(title);
   var x = document.createElement('button');
   x.className = 'x'; x.innerHTML = window.TNI.x;
-  x.addEventListener('click', function() { veil.remove(); });
+  x.addEventListener('click', close);
   h.appendChild(x);
   var b = document.createElement('div');
   b.className = 'docx-modal-b';
@@ -1450,12 +1492,12 @@ function modal(title, buildBody, buildFooter) {
   if (buildFooter) {
     var f = document.createElement('div');
     f.className = 'docx-modal-f';
-    buildFooter(f, function() { veil.remove(); });
+    buildFooter(f, close);
     box.appendChild(f);
   }
-  buildBody(b, function() { veil.remove(); });
+  buildBody(b, close);
   veil.appendChild(box);
-  veil.addEventListener('pointerdown', function(e) { if (e.target === veil) veil.remove(); });
+  veil.addEventListener('pointerdown', function(e) { if (e.target === veil) close(); });
   document.body.appendChild(veil);
   return veil;
 }
@@ -5009,6 +5051,7 @@ function initApp(app) {
     buildRuler(ctx);
     buildVRuler(ctx);
     wireEditor(ctx);
+    wireHoverFxScrub(ctx);
     addFadingScrollbar(ctx);
     wireColorShortcuts(ctx);
     wireFileMenu(ctx);

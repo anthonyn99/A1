@@ -214,7 +214,12 @@
   // is what stops a button from lighting up the whole row it sits in. Too-large
   // means stop climbing, not skip: the answer is the last control-sized element
   // found on the way out, never something bigger further up.
+  // Never inside a document being edited (a journal page, a note): a link or
+  // checklist box there got the class and inline filter, and the editor saved
+  // them into the document (Notebook audit, 2026-11-04).
+  var EDITABLE = '[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"]';
   function control(from, root) {
+    if (from && from.closest && from.closest(EDITABLE)) return null;
     var best = null, n = from;
     while (n && n !== root && n.nodeType === 1) {
       if (n.matches(OPT_OUT)) return null;
