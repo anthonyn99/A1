@@ -246,6 +246,14 @@
     // `except` lets a tab retire every OTHER claimant without retiring itself.
     if (d.t === 'retire') { if (!(d.except && d.except === ID)) retire(); return; }
     if (d.t === 'deliver') {
+      // `to` names one tab (the heartbeat's id), so two consoles never both
+      // take the same prompt; `except` keeps a sender's own tabsync out of it.
+      // `rid` asks for an answer, sent at once (no timer, so a throttled
+      // background tab still answers in time): the sender opens nothing new
+      // when this arrives (catdebrief.js openMagi, magi.html's handoff).
+      if ((d.to && d.to !== ID) || (d.except && d.except === ID)) return;
+      if (!ownOrigin(d.url)) return;
+      if (d.rid) { try { bc.postMessage({ t: 'delivered', k: key, rid: d.rid, id: ID }); } catch (e) {} }
       // Come forward if the browser allows it, and take the url either way:
       // being handed the question matters more than winning the focus race.
       // replace(), not href: every delivered prompt used to push a history
