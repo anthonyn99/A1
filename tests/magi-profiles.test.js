@@ -205,7 +205,8 @@ ok('one arriving in the wrong profile is carried across the reload',
    /function adoptHandoffProfile\(h\)/.test(MAGI));
 ok('the payload is stashed before reloading',
    /sessionStorage\.setItem\(HANDOFF_SS, JSON\.stringify\(h\)\)/.test(lift('function adoptHandoffProfile')));
-ok('and picked up on the way back up', /HANDOFF = takeStashedHandoff\(\) \|\| takeHandoff\(\)/.test(MAGI));
+ok('and picked up on the way back up', /const HANDOFF_STASHED = takeStashedHandoff\(\);\s*HANDOFF = HANDOFF_STASHED \|\| takeHandoff\(\)/.test(MAGI));
+ok('with whatever was queued behind it', /sessionStorage\.setItem\(HANDOFF_QUEUE_SS/.test(lift('function adoptHandoffProfile')) && /getItem\(HANDOFF_QUEUE_SS\)/.test(MAGI));
 ok('the stash is consumed once, like the url',
    /sessionStorage\.removeItem\(HANDOFF_SS\)/.test(lift('function takeStashedHandoff')),
    'otherwise it re-runs on every load of that tab');
