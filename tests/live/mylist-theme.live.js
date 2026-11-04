@@ -245,14 +245,15 @@ async function shots(c) {
   ok('Details box has MAGI\'s grip, no old one', await ev(c, `var w=document.getElementById('add-desc').parentElement; return !!w.querySelector('button.a1-grip') && !w.querySelector('.resize-grip')`));
   let g = await rect(c, `document.getElementById('add-desc').parentElement.querySelector('.a1-grip')`);
   const h0 = await ev(c, `return Math.round(document.getElementById('add-desc').getBoundingClientRect().height)`);
+  // A click does nothing (resizegrip.js, Tony 2026-10-14: a drag that barely
+  // moved kept snapping the box); only a real drag sizes it.
   await mouseDrag(c, g.x + 8, g.y + 8, 0, -1, 2);   // a click (<3px)
   const h1 = await ev(c, `return Math.round(document.getElementById('add-desc').getBoundingClientRect().height)`);
-  ok('click on the grip expands (+120, at least 260)', h1 >= 260 && h1 > h0, h0 + ' -> ' + h1);
-  await ev(c, `document.getElementById('manual-pop').scrollTop=9999; return 1`); await sleep(100);
+  ok('a click on the grip leaves the height alone', h1 === h0, h0 + ' -> ' + h1);
   g = await rect(c, `document.getElementById('add-desc').parentElement.querySelector('.a1-grip')`);
-  await mouseDrag(c, g.x + 8, g.y + 8, 0, -140);
+  await mouseDrag(c, g.x + 8, g.y + 8, 0, 140);
   const h2 = await ev(c, `return Math.round(document.getElementById('add-desc').getBoundingClientRect().height)`);
-  ok('drag sets the height', Math.abs(h2 - (h1 - 140)) <= 4, h1 + ' -> ' + h2);
+  ok('drag sets the height', Math.abs(h2 - (h1 + 140)) <= 4, h1 + ' -> ' + h2);
   ok('height stored as a1.h.ml.details', (await ev(c, `return localStorage.getItem('a1.h.ml.details')`)) === String(h2));
   await ev(c, `var t=document.getElementById('add-desc'); t.value='a\\nb\\nc\\nd\\ne\\nf\\ng\\nh\\ni\\nj\\nk'; t.dispatchEvent(new Event('input')); return 1`);
   ok('typing does not auto-grow a hand-sized box', (await ev(c, `return Math.round(document.getElementById('add-desc').getBoundingClientRect().height)`)) === h2);
