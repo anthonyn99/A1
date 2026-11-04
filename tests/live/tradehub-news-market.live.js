@@ -131,8 +131,8 @@ const worker = {
   await c.send('Page.navigate', { url: URL_ });
   if (!(await until("document.querySelector('.tb-navtab')", 20000))) throw new Error('TradeHub did not render');
   await tab('news');
-  ok('desktop: four by two', true);
   ok('the market strip: eight tiles', await until(`document.querySelectorAll('.nh-mkt-t').length===8`, 10000), await js(`return document.querySelectorAll('.nh-mkt-t').length`));
+  ok('desktop: four by two', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[3]&&t[4]>t[0]&&t[4]===t[7];`));
   const strip = await js(`return [...document.querySelectorAll('.nh-mkt-t')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ');`);
   ok('…labels, values and changes', /S&P fut -0\.47% 7,561\.00/i.test(strip) && /10Y yield \+1\.19% 4\.95%/i.test(strip) && /WTI oil \+0\.62% \$96\.69/i.test(strip) && /Brent oil -0\.43% \$103\.15/i.test(strip) && /Semis \(SOXX\) \+2\.50% 465\.00/i.test(strip), strip);
   ok('…each with a sparkline', await js(`return [...document.querySelectorAll('.nh-mkt-t')].every(t=>t.querySelector('svg.nh-spark polyline'))`));
