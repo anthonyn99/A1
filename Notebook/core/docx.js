@@ -4741,6 +4741,25 @@ function wireColorShortcuts(ctx) {
     var span = ctx._liveSpan; ctx._liveSpan = null;
     if (span) { span.classList.remove('docx-livecolor'); fireInput(ctx.edEl); }
   }
+  // Takes the preview span out again, leaving its contents selected.
+  function unwrapLive() {
+    var span = ctx._liveSpan; ctx._liveSpan = null;
+    if (!span || !span.parentNode) return false;
+    var first = span.firstChild, last = span.lastChild, parent = span.parentNode;
+    while (span.firstChild) parent.insertBefore(span.firstChild, span);
+    parent.removeChild(span);
+    if (first && last) {
+      var r = document.createRange();
+      r.setStartBefore(first); r.setEndAfter(last);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      ctx._savedSel = r.cloneRange();
+    }
+    return true;
+  }
+  // Apply from the custom picker: the preview span goes, and the colour is
+  // set the normal way, so text that had its own colour takes the new one too.
+  function commitLive(c) { unwrapLive(); applyColor(c); }
+  function cancelLive() { if (unwrapLive()) fireInput(ctx.edEl); }
   btn.addEventListener('mousedown', function (e) { e.preventDefault(); saveSel(ctx); });
   btn.addEventListener('click', function () {
     showPop(btn, function (pop) {
