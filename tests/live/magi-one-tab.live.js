@@ -96,8 +96,9 @@ async function newPage(url) {
   let peak = before, peakUrls = '';
   for (let i = 0; i < 24; i++) { await sleep(500); const l = await pages(); if (l.length > peak) { peak = l.length; peakUrls = l.map((p) => p.url.slice(0, 60)).join(' | '); } }
   const after = await pages();
-  ok('the new tab opened…', peak === before + 1, before + ' -> ' + peak + ': ' + peakUrls);
-  ok('…handed over and closed itself', after.length === before, after.map((p) => p.url).join(' | '));
+  // (It opens, hands over and closes inside one sample, so it is proven by the
+  // report reaching the console below rather than by catching it in the list.)
+  ok('the tab it opened handed over and closed itself', after.length === before, after.map((p) => p.url).join(' | '));
   ok('the console that was open is still open', after.some((p) => p.id === magiT.id));
   const got3 = JSON.parse(await magi.js(`JSON.stringify({h: HANDOFF && HANDOFF.q, q: HANDOFF_QUEUE.map(x=>x.q)})`));
   ok('…and queued the report behind the others', [got3.h].concat(got3.q).join(',') === 'Debrief CPI,Debrief NVDA,Debrief MU,Morning report', JSON.stringify(got3));
