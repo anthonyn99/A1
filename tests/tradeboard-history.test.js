@@ -29,11 +29,9 @@ const ok = (name, cond, extra) => {
 
 function load(fakeWebull) {
   const calls = [];
-  const code = SRC.replace(/export default {/, 'module.exports.default = {')
-    + '
-verifyAppCheckToken = async () => true;'
-    + '
-Object.assign(module.exports, { fetchHistoryRaw, extractFee, fetchOrders, backfillFees, entryNeedsFee, fetchCashActivities, fetchSnapshots, fetchSparkBars, syncJournalFromWebull });';
+  const code = SRC.replace(/export default \{/, 'module.exports.default = {')
+    + '\nverifyAppCheckToken = async () => true;'
+    + '\nObject.assign(module.exports, { fetchHistoryRaw, extractFee, fetchOrders, backfillFees, entryNeedsFee, fetchCashActivities, fetchSnapshots, fetchSparkBars, syncJournalFromWebull });';
   const kv = new Map([['wb_token', JSON.stringify({ token: 't', status: 'NORMAL' })], ['wb_account', 'A1']]);
   const env = {
     WEBULL_APP_KEY: 'k', WEBULL_APP_SECRET: 's',
