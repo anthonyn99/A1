@@ -163,7 +163,9 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('Connect button: solid purple, dark label, no halo', await evalJs(c, `var b=[...document.querySelectorAll('button')].find(b=>/Connect to Webull/.test(b.textContent)); if(!b) return false; var s=getComputedStyle(b); return s.backgroundColor==='rgb(192, 174, 234)'&&s.color==='rgb(26, 26, 29)'&&s.boxShadow==='none';`));
   const pb = await rect(c, tab(DESK, 'journal'));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pb.x, y: pb.y }); await sleep(300);
-  ok('hover lift is brightness(1.15)', (await evalJs(c, `return ${tab(DESK, 'journal')}.style.filter;`)) === 'brightness(1.15)');
+  // hoverfx's StudyOS highlight since 2026-11-03 (the flat brightness(1.15) lift is gone):
+  // a dark, unfilled tab brightens one step.
+  ok('hover lifts the tab (hoverfx highlight)', /^brightness\(1\.(18|22)\)$/.test(await evalJs(c, `return ${tab(DESK, 'journal')}.style.filter;`)), await evalJs(c, `return ${tab(DESK, 'journal')}.style.filter;`));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 700, y: 700 }); await sleep(300);
 
   // ── 2. desktop tab drag ──────────────────────────────────────────────────
