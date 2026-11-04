@@ -55,12 +55,13 @@
 <style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
 *,*::before,*::after{-webkit-tap-highlight-color:transparent}
 button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-/* Edit-mode pop in / out (ThPop, EditPop): opacity, scale and a 0fr→1fr height only. */
-.th-pop{opacity:0;scale:.82;transition:opacity .16s ease,scale .2s cubic-bezier(.2,.9,.3,1.25);pointer-events:none}
+/* Edit-mode pop in / out (ThPop, EditPop): opacity, scale and a 0fr→1fr height only.
+   ThPop never mounts or unmounts, so a row is the same height in both modes. */
+.th-pop{opacity:0;scale:.9;transition:opacity .1s ease-out,scale .14s cubic-bezier(.2,.8,.2,1);pointer-events:none}
 .th-pop.in{opacity:1;scale:1;pointer-events:auto}
-.th-ep{grid-template-rows:0fr;opacity:0;transition:grid-template-rows .24s cubic-bezier(.3,.8,.3,1),opacity .18s ease}
+.th-ep{grid-template-rows:0fr;opacity:0;transition:grid-template-rows .16s cubic-bezier(.2,.8,.2,1),opacity .12s ease-out}
 .th-ep.in{grid-template-rows:1fr;opacity:1}
-.th-ep>.th-ep-in{overflow:hidden;min-height:0;padding:2px;margin:-2px;translate:0 -5px;transition:translate .24s cubic-bezier(.3,.8,.3,1)}
+.th-ep>.th-ep-in{overflow:hidden;min-height:0;padding:2px;margin:-2px;translate:0 -3px;transition:translate .16s cubic-bezier(.2,.8,.2,1)}
 .th-ep.in>.th-ep-in{translate:0 0}
 @media (prefers-reduced-motion:reduce){.th-pop,.th-ep,.th-ep>.th-ep-in{transition:none}}
 </style>
@@ -8295,21 +8296,23 @@ function thIconBtn(c,title,col,onClick,path,style){
     React.createElement("svg",{width:11,height:11,viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true",style:{display:"block"}},
       React.createElement("path",{d:path})));
 }
-// Edit-mode pop in / out. ThPop keeps a small control mounted while it fades and
-// scales out (opacity + scale only, nothing that lays out); EditPop does the same
-// for a whole row or button, collapsing its height on a 0fr→1fr grid.
+// Edit-mode pop in / out. ThPop keeps a small control ALWAYS mounted and only
+// fades and scales it (opacity + scale, nothing that lays out; inert while
+// hidden). Mounting it on edit and unmounting it after the fade changed a
+// habit or goal row's height a beat after the toggle, so rows jumped once the
+// animation had finished. EditPop does the pop for a whole row or button,
+// collapsing its height on a 0fr→1fr grid, and unmounts once it is closed.
 function thPopState(show){
   const[m,setM]=React.useState(!!show),[on,setOn]=React.useState(!!show);
   React.useEffect(()=>{
     if(show){setM(true);let r2,r1=requestAnimationFrame(()=>{r2=requestAnimationFrame(()=>setOn(true));});return()=>{cancelAnimationFrame(r1);cancelAnimationFrame(r2);};}
-    setOn(false);const t=setTimeout(()=>setM(false),260);return()=>clearTimeout(t);
+    setOn(false);const t=setTimeout(()=>setM(false),200);return()=>clearTimeout(t);
   },[show]);
   return[m,on];
 }
 function ThPop({show,children}){
-  const[m,on]=thPopState(show);
-  if(!m||!children)return null;
-  return React.cloneElement(children,{className:((children.props.className||"")+" th-pop"+(on?" in":"")).trim(),...(on?{}:{"aria-hidden":"true"})});
+  if(!children)return null;
+  return React.cloneElement(children,{className:((children.props.className||"")+" th-pop"+(show?" in":"")).trim(),...(show?{}:{"aria-hidden":"true",inert:""})});
 }
 function EditPop({show,children}){
   const[m,on]=thPopState(show);
