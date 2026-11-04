@@ -81,7 +81,7 @@ const mock = {
       const b = req.postData ? JSON.parse(req.postData) : {}; LIVE.calls.push(Object.assign({ path: p }, b));
       if (p === '/ig/connect') return { json: /^1234567890%3A/.test(b.sessionid || '') ? { ok: true, key: 'KEY-1' } : { ok: false, error: 'bad-session' } };
       if (p === '/ig/disconnect') return { json: { ok: true } };
-      return { json: b.key === 'KEY-1' ? LIVE.answer(b) : { ok: false, error: 'bad-key' } };
+      return { json: (b.key === 'KEY-1' || b.key === 'KEY-EXT') ? LIVE.answer(b) : { ok: false, error: 'bad-key' } };
     }
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily') return { json: { ok: true, date: u.searchParams.get('date'), text: 'Small steps.', via: 'orca' } };
     if (u.host === 'warroom-api.av1.workers.dev') return { json: ['16.99.1'] };
@@ -422,6 +422,29 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the link dialog, connected: says so, with Disconnect, and no bookmark', await js(`const d = document.getElementById('igd'); return !!d.querySelector('.igd-live') && !d.querySelector('.igd-alt') && d.querySelector('[data-igd="go"]').textContent === 'Link';`));
   await click('#igd [data-igd="off"]'); await sleep(800);
   ok('Disconnect forgets the key everywhere (an empty key: the settings writer drops nulls)', (await settingsDoc()).igLive.key === '' && LIVE.calls.some((x) => x.path === '/ig/disconnect'), JSON.stringify((await settingsDoc()).igLive) + JSON.stringify(LIVE.calls.slice(-2)));
+
+  console.log('\nOne-click connect through Vault Launcher (2026-11-04)');
+  // A stand-in for the extension's relay (Vault/vault-bio-sync.js + background.js):
+  // it answers the ping, says a sign-in tab opened, then hands back the worker's key.
+  await js(`window.__ext = []; window.__extAnswer = { ok: true, key: 'KEY-EXT' }; window.addEventListener('message', (e) => { const d = e.data; if (e.source !== window || !d || d.source !== 'everwell-vault') return; window.__ext.push(d.action);
+    const say = (m) => window.postMessage(Object.assign({ source: 'vault-extension' }, m), location.origin);
+    if (d.action === 'igPing') say({ action: 'igPong', ok: true });
+    if (d.action === 'igConnect') { say({ action: 'igConnectStep', step: { ok: true, signIn: true } }); setTimeout(() => say({ action: 'igConnectResult', result: window.__extAnswer }), 700); } });
+    window.postMessage({ source: 'everwell-vault', action: 'igPing' }, location.origin); return 1;`); await sleep(300);
+  LIVE.calls.length = 0; LIVE.answer = () => ({ ok: true, more: false, posts: [post('NEWlive2'), post('NEWlive1')] });
+  await click('#media-grid [data-igsync="col1"]'); await sleep(400);
+  ok('with Vault Launcher: one "Connect Instagram" button, no DevTools steps in sight, no bookmark route button', await js(`const d = document.getElementById('igd'); return !!d && d.querySelector('[data-igd="go"]').textContent === 'Connect Instagram' &&
+    !d.querySelector('details.igd-hand').open && !d.querySelector('[data-igd="open"]') && /One click/.test(d.querySelector('.igd-ext').textContent);`),
+    await js(`const d = document.getElementById('igd'); return d ? d.innerText.slice(0, 400) : 'no dialog';`));
+  await js(`window.__extAnswer = { ok: false, error: 'closed' }; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(250);
+  ok('Connect: the extension is asked (no sessionid anywhere), and the dialog says to sign in on the tab it opened', await js(`const d = document.getElementById('igd'), b = d.querySelector('[data-igd="go"]');
+    return window.__ext.includes('igConnect') && b.disabled && b.textContent === 'Waiting for Instagram…' && !d.querySelector('#igd-wait').hidden && /Sign in on the Instagram tab/.test(d.querySelector('#igd-wait').textContent);`));
+  await sleep(900);
+  ok('closing the Instagram tab first: the button comes back and says what happened, nothing stored', await js(`const d = document.getElementById('igd'), b = d.querySelector('[data-igd="go"]');
+    return !b.disabled && b.textContent === 'Connect Instagram' && /tab was closed/.test(d.querySelector('#igd-err').textContent) && d.querySelector('#igd-wait').hidden;`) && (await settingsDoc()).igLive.key === '');
+  await js(`window.__extAnswer = { ok: true, key: 'KEY-EXT' }; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(1800);
+  ok('signed in: the key arrives, the dialog closes, and the collection is read at once', (await settingsDoc()).igLive.key === 'KEY-EXT' && !(await js(`return !!document.getElementById('igd');`)) &&
+    LIVE.calls.length === 1 && LIVE.calls[0].path === '/ig/collection' && LIVE.calls[0].quick === false && /Instagram connected|Discipline/.test(await toast()), JSON.stringify(LIVE.calls) + ' ' + await toast() + ' key=' + (await settingsDoc()).igLive.key + ' dlg=' + await js(`return !!document.getElementById('igd');`));
   await fresh(); await go('mindset');
 
   console.log('\nPhone (390px)');
