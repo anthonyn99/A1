@@ -171,7 +171,10 @@ async function md5Hex(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
 }
 
-async function makeHeaders({ reqPath, queryParams = {}, body = null, token = null, env }) {
+/* `version` is the x-version header. The /openapi/... paths this worker has always
+   used answer to v2; Webull's current /trading/... and /market-data/... paths are
+   v3. x-version is not part of the signature, so signing is the same for both. */
+async function makeHeaders({ reqPath, queryParams = {}, body = null, token = null, env, version = 'v2' }) {
   const appKey    = env.WEBULL_APP_KEY;
   const appSecret = env.WEBULL_APP_SECRET;
   if (!appKey || !appSecret) throw new Error('WEBULL_APP_KEY / WEBULL_APP_SECRET not set in Worker secrets');
@@ -211,7 +214,7 @@ async function makeHeaders({ reqPath, queryParams = {}, body = null, token = nul
     'x-signature-algorithm': 'HMAC-SHA1',
     'x-signature-version':   '1.0',
     'x-signature-nonce':     nonce,
-    'x-version':             'v2',
+    'x-version':             version,
   };
   if (token) headers['x-access-token'] = token;
   if (body)  headers['Content-Type'] = 'application/json';
@@ -229,7 +232,7 @@ async function saveJournal(env, d) { await env.TB_KV.put('journal', JSON.stringi
 /* ══════════════════════════════════════════════════════════════════════════
    WEBULL FETCH WRAPPER
    ══════════════════════════════════════════════════════════════════════════ */
-async function wb(method, endpoint, { query = {}, body = null, requireToken = true } = {}, env) {
+async function wb(method, endpoint, { query = {}, body = null, requireToken = true, version = 'v2' } = {}, env) {
   let token = null;
   if (requireToken) {
     const cached = await loadToken(env);
@@ -239,7 +242,7 @@ async function wb(method, endpoint, { query = {}, body = null, requireToken = tr
   }
 
   const bodyStr = body ? JSON.stringify(body) : null;
-  const headers = await makeHeaders({ reqPath: endpoint, queryParams: query, body: bodyStr, token, env });
+  const headers = await makeHeaders({ reqPath: endpoint, queryParams: query, body: bodyStr, token, env, version });
 
   // Build URL with query params
   const url = new URL(`${WB_BASE}${endpoint}`);
@@ -637,6 +640,7 @@ function orderToEntry(order) {
   const legs    = [{ id: crypto.randomUUID(), action: side, datetime: dt, qty, price: avgFill, fee }];
   return {
     id:         order.orderId || crypto.randomUUID(),
+    clientOrderId: order.clientOrderId || null,
     source:     'webull',
     ticker:     order.ticker || '',
     side,
