@@ -4698,6 +4698,137 @@ var DOCX_COLORS = [
   ['#e0b874', 'Pink'], ['#d68a7c', 'Red'], ['#e0b57c', 'Orange'], ['#E5C84A', 'Yellow'],
   ['#5DAF6D', 'Green'], ['#22D3EE', 'Cyan'], ['#6DA8F5', 'Blue'], ['#A78BDA', 'Purple']
 ];
+// The last eight custom colours, newest first (this device).
+function docxRecentColors() {
+  try { var a = JSON.parse(localStorage.getItem('docx_recent_colors') || '[]'); return Array.isArray(a) ? a.filter(function (c) { return /^#[0-9a-f]{6}$/i.test(c); }).slice(0, 7) : []; } catch (e) { return []; }
+}
+function docxRememberColor(c) {
+  c = String(c || '').toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(c) || DOCX_COLORS.some(function (d) { return d[0].toLowerCase() === c; })) return;
+  var a = docxRecentColors().filter(function (x) { return x.toLowerCase() !== c; });
+  a.unshift(c);
+  try { localStorage.setItem('docx_recent_colors', JSON.stringify(a.slice(0, 7))); } catch (e) {}
+}
+function _cpHex(r, g, b) { return '#' + [r, g, b].map(function (x) { var s = Math.max(0, Math.min(255, Math.round(x))).toString(16); return s.length < 2 ? '0' + s : s; }).join(''); }
+function _cpRgb(hex) {
+  var m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) {
+    var k = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(String(hex || '')); return k ? { r: +k[1], g: +k[2], b: +k[3] } : null;
+  }
+  var h = m[1]; if (h.length === 3) h = h.replace(/./g, '$&$&');
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+function _cpToHsv(c) {
+  var r = c.r / 255, g = c.g / 255, b = c.b / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: mx ? d / mx : 0, v: mx };
+}
+function _cpFromHsv(h, s, v) {
+  var f = function (n) { var k = (n + h / 60) % 6; return (v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255; };
+  return _cpHex(f(5), f(3), f(1));
+}
+// The custom text-colour picker (Tony, 2026-11-04: "WAY cleaner, far more
+// modern and elegant, use our A1 theme buttons"). A popover under the colour
+// button like every other ribbon pop: a shade square, a hue bar, the before/
+// after chip beside a hex field (and the eyedropper where the browser has
+// one), then Cancel / Apply as each side's own buttons. The selection
+// previews live; Apply sets it, Cancel or a click outside puts it back.
+// Each side's colours come from its ribbon (--nbt-acc, --nbt-pop, its font).
+function openCustomColor(ctx, anchor, current, hooks) {
+  var start = _cpRgb(current) || { r: 255, g: 255, b: 255 };
+  var was = _cpHex(start.r, start.g, start.b);
+  var hsv = _cpToHsv(start), now = was, settled = false;
+  hooks.begin();
+  var el = function (tag, cls, attrs) { var n = document.createElement(tag); if (cls) n.className = cls; if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]); return n; };
+  var pop = showPop(anchor, function (p) {
+    p.classList.add('docx-cpick');
+    var cs = getComputedStyle(ctx.tbEl);
+    p.setAttribute('data-side', ctx.app === 'brainstorm' ? 'veda' : 'tony');
+    var acc = cs.getPropertyValue('--nbt-acc').trim(), bg = cs.getPropertyValue('--nbt-pop').trim();
+    if (acc) p.style.setProperty('--cp-acc', acc);
+    if (bg) p.style.setProperty('--cp-bg', bg);
+    p.style.fontFamily = cs.fontFamily;
+    p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Custom text colour');
+    var head = el('div', 'docx-cp-head'); head.textContent = 'Custom colour';
+    var sv = el('div', 'docx-cp-sv', { role: 'slider', tabindex: '0', 'aria-label': 'Shade' }), svK = el('span', 'docx-cp-knob'); sv.appendChild(svK);
+    var hue = el('div', 'docx-cp-hue', { role: 'slider', tabindex: '0', 'aria-label': 'Hue', 'aria-valuemin': '0', 'aria-valuemax': '360' }), hueK = el('span', 'docx-cp-knob'); hue.appendChild(hueK);
+    var row = el('div', 'docx-cp-row');
+    var chip = el('span', 'docx-cp-chip', { title: 'Before · after' }), cWas = el('i'), cNow = el('i');
+    cWas.style.background = was; chip.appendChild(cWas); chip.appendChild(cNow);
+    var hexWrap = el('label', 'docx-cp-hexwrap'), hash = el('span'); hash.textContent = '#';
+    var hex = el('input', 'docx-cp-hex', { type: 'text', maxlength: '7', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Hex colour' });
+    hexWrap.appendChild(hash); hexWrap.appendChild(hex);
+    row.appendChild(chip); row.appendChild(hexWrap);
+    if (window.EyeDropper) {
+      var eye = el('button', 'docx-cp-icon', { type: 'button', title: 'Pick from screen', 'aria-label': 'Pick a colour from the screen' });
+      eye.innerHTML = svg('<path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/>', 15);
+      eye.addEventListener('click', function () {
+        try { new window.EyeDropper().open().then(function (r) { var c = _cpRgb(r.sRGBHex); if (c) { hsv = _cpToHsv(c); draw(); } }).catch(function () {}); } catch (e) {}
+      });
+      row.appendChild(eye);
+    }
+    var foot = el('div', 'docx-cp-foot');
+    var cancel = el('button', 'docx-cp-btn', { type: 'button' }); cancel.textContent = 'Cancel';
+    var apply = el('button', 'docx-cp-btn pri', { type: 'button' }); apply.textContent = 'Apply';
+    foot.appendChild(cancel); foot.appendChild(apply);
+    [head, sv, hue, row, foot].forEach(function (n) { p.appendChild(n); });
+
+    function draw(fromHex) {
+      now = _cpFromHsv(hsv.h, hsv.s, hsv.v);
+      sv.style.setProperty('--cp-hue', 'hsl(' + hsv.h + ',100%,50%)');
+      svK.style.left = (hsv.s * 100) + '%'; svK.style.top = ((1 - hsv.v) * 100) + '%';
+      svK.style.background = now;
+      hueK.style.left = (hsv.h / 360 * 100) + '%';
+      hueK.style.background = 'hsl(' + hsv.h + ',100%,50%)';
+      hue.setAttribute('aria-valuenow', String(Math.round(hsv.h)));
+      cNow.style.background = now;
+      if (!fromHex) hex.value = now.slice(1).toUpperCase();
+      hooks.live(now);
+    }
+    function drag(box, fn) {
+      box.addEventListener('pointerdown', function (e) {
+        if (e.button > 0) return;
+        e.preventDefault(); box.focus({ preventScroll: true });
+        try { box.setPointerCapture(e.pointerId); } catch (x) {}
+        var move = function (ev) { var r = box.getBoundingClientRect(); fn(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height))); draw(); };
+        var up = function () { box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up); };
+        box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+        move(e);
+      });
+    }
+    drag(sv, function (x, y) { hsv.s = x; hsv.v = 1 - y; });
+    drag(hue, function (x) { hsv.h = Math.min(359.9, x * 360); });
+    sv.addEventListener('keydown', function (e) {
+      var d = e.shiftKey ? 0.1 : 0.02, k = e.key;
+      if (k === 'ArrowLeft') hsv.s = Math.max(0, hsv.s - d); else if (k === 'ArrowRight') hsv.s = Math.min(1, hsv.s + d);
+      else if (k === 'ArrowUp') hsv.v = Math.min(1, hsv.v + d); else if (k === 'ArrowDown') hsv.v = Math.max(0, hsv.v - d); else return;
+      e.preventDefault(); draw();
+    });
+    hue.addEventListener('keydown', function (e) {
+      var d = e.shiftKey ? 15 : 3, k = e.key;
+      if (k === 'ArrowLeft' || k === 'ArrowDown') hsv.h = Math.max(0, hsv.h - d); else if (k === 'ArrowRight' || k === 'ArrowUp') hsv.h = Math.min(359.9, hsv.h + d); else return;
+      e.preventDefault(); draw();
+    });
+    hex.addEventListener('input', function () { var c = _cpRgb(hex.value.replace(/^#/, '')); if (c && /^#?[0-9a-f]{6}$/i.test(hex.value.trim())) { hsv = _cpToHsv(c); draw(true); } });
+    hex.addEventListener('blur', function () { hex.value = now.slice(1).toUpperCase(); });
+    p.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    });
+    cancel.addEventListener('click', function () { finish(false); });
+    apply.addEventListener('click', function () { finish(true); });
+    draw();
+  }, { cls: 'docx-colorpop-v2' });
+  function finish(ok) {
+    if (settled) return; settled = true;
+    if (pop && openPop === pop) { pop._onClose = null; closePop(); }
+    if (ok) hooks.apply(now); else hooks.cancel(was);
+  }
+  if (!pop) { hooks.cancel(was); return; }
+  // A click outside (or the colour button again) closes it as Cancel.
+  pop._onClose = function () { finish(false); };
+  // Focus the hex field on a mouse; a phone keeps its keyboard down.
+  if (!matchMedia('(pointer: coarse)').matches) { var hx = pop.querySelector('.docx-cp-hex'); try { hx.focus({ preventScroll: true }); hx.select(); } catch (e) {} }
+}
 function wireColorShortcuts(ctx) {
   // Any editor's colour input, not just the Page one (the Journal editor's is
   // tj-je-color-pick); the lookup is already scoped to this context's toolbar.
