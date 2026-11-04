@@ -196,7 +196,7 @@ const worker = {
   ok('News: no market value is cut off', await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].every(e=>e.scrollWidth<=e.clientWidth+1);`), await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent).join();`));
   ok('News: the market strip goes three across', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[2]&&t[3]>t[0]`));
   { const sw = await sideways(); ok('News: nothing scrolls sideways', !sw, sw); }
-  await js('var p=document.querySelector('.tb-scroll-visible'); if(p) p.scrollTop=0; 1'); await sleep(300);
+  await js(`var p=document.querySelector('.tb-scroll-visible'); if(p) p.scrollTop=0; 1`); await sleep(300);
   await shot('news-market-phone');
   await size(1440, 1000);
 
