@@ -253,12 +253,16 @@ function consoleFor(opts) {
     (/const handoffProfileOf = [^\n]+/.exec(MAGI) || [''])[0] + '\n' +
     lift(MAGI, 'b64uDecode') + '\n' +
     'let HANDOFF = null;\n' +
+    'let HANDOFF_QUEUE = [];\n' +
+    'let HANDOFF_PASSING = false;\n' +
     lift(MAGI, 'takeHandoff') + '\n' +
     lift(MAGI, 'handoffTry') + '\n' +
+    lift(MAGI, 'noteHandoffQueue') + '\n' +
+    lift(MAGI, 'onHandoffHash') + '\n' +
     lift(MAGI, 'fillHandoff') + '\n' +
     lift(MAGI, 'applyHandoff') + '\n' +
     'HANDOFF = takeHandoff();\n' +
-    'return { handoffTry, pending: () => !!HANDOFF };'
+    'return { handoffTry, onHandoffHash, pending: () => !!HANDOFF, queued: () => HANDOFF_QUEUE.length, passing: (v) => { HANDOFF_PASSING = v; } };'
   )(
     loc, hist, S, LOCK, (id) => els[id], () => o.online, () => {},
     () => { calls.saved++; }, () => { calls.rendered++; },

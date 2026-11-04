@@ -11521,14 +11521,15 @@ function applyHandoff(h) {
 // does not reload the page, so this is the only thing that hears it.
 // A handoff for the other profile is switched to by handoffTry, which waits
 // out a live run first.
-window.addEventListener("hashchange", () => {
+function onHandoffHash() {
   const h = takeHandoff();
   if (!h) return;
   if (HANDOFF || HANDOFF_QUEUE.length) HANDOFF_QUEUE.push(h);
   else HANDOFF = h;
   handoffTry();
   noteHandoffQueue();
-});
+}
+window.addEventListener("hashchange", onHandoffHash);
 
 /** A handoff that landed in the wrong profile: carry it across the reload.
  *
