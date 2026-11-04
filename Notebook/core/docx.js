@@ -4755,18 +4755,30 @@ function wireColorShortcuts(ctx) {
         grid.appendChild(s);
       });
       pop.appendChild(grid);
+      var recent = docxRecentColors();
+      if (recent.length && !_legacyRibbon(ctx)) {
+        pop.appendChild(mlabel('Recent'));
+        var rg = document.createElement('div'); rg.className = 'docx-color-grid';
+        recent.forEach(function (c) {
+          var s = document.createElement('button'); s.className = 'docx-color-sw'; s.title = c.toUpperCase();
+          s.style.background = c;
+          s.addEventListener('click', function () { closePop(); applyColor(c); });
+          rg.appendChild(s);
+        });
+        pop.appendChild(rg);
+      }
       var custom = document.createElement('button'); custom.className = 'docx-mi'; custom.textContent = 'Custom colour…';
       custom.addEventListener('click', function () {
         closePop();
-        beginLive();   // wrap the selection so live 'input' recolours it in real time
-        // move the hidden input under the swatch button so the OS picker opens there (not top-left)
-        var r = btn.getBoundingClientRect();
-        input.style.pointerEvents = 'auto';
-        input.style.left = (r.left + window.scrollX) + 'px';
-        input.style.top = (r.bottom + window.scrollY) + 'px';
-        input.value = '#ffffff';
-        input.click();   // keep it inside the click gesture so the OS picker actually opens
-        input.style.pointerEvents = 'none';
+        // Notebook's own picker, under the colour button (it was the shared
+        // controls.js picker at the hidden <input>, which sat wherever the
+        // ribbon's offset parent put it: off at the window's right edge).
+        openCustomColor(ctx, btn, dot.style.background || '#ffffff', {
+          begin: beginLive,
+          live: function (c) { dot.style.background = c; if (ctx._liveSpan) ctx._liveSpan.style.color = c; },
+          apply: function (c) { commitLive(c); docxRememberColor(c); },
+          cancel: function (was) { cancelLive(); dot.style.background = was; }
+        });
       });
       pop.appendChild(custom);
     });
