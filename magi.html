@@ -11366,6 +11366,9 @@ function endRun() {
    distinct urls, or re-sending the same one to an open tab would change
    nothing and look broken. */
 let HANDOFF = null;
+// Handoffs waiting behind HANDOFF, oldest first (see noteHandoffQueue).
+let HANDOFF_QUEUE = [];
+const HANDOFF_QUEUE_SS = "magi.handoffQueue";
 
 function b64uDecode(str) {
   const p = String(str).replace(/-/g, "+").replace(/_/g, "/");
@@ -11457,9 +11460,8 @@ function handoffTry() {
 
 /* Prompts sent while one is already waiting or a council is running wait their
    turn instead of replacing it (2026-11-03: a second catalyst debrief used to
-   overwrite the first). endRun() calls handoffTry, which takes the next. */
-let HANDOFF_QUEUE = [];
-const HANDOFF_QUEUE_SS = "magi.handoffQueue";
+   overwrite the first). endRun() calls handoffTry, which takes the next.
+   HANDOFF_QUEUE is declared beside HANDOFF, above. */
 function noteHandoffQueue() {
   const n = HANDOFF_QUEUE.length + (HANDOFF && (S.running || S.refining) ? 1 : 0);
   if (!n) return;
