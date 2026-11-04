@@ -1,6 +1,6 @@
 """Keep the driver's off-screen Chrome out of the taskbar (Windows only).
 
-A non-visible, non-headless run parks Chrome at -32000,-32000, which is out
+A non-visible run (headless too: new headless can own a frame) parks Chrome at -32000,-32000, which is out
 of sight but still gets a taskbar button until someone clicks it. The same
 mechanism MAGI and ORCA use (copied, not imported -- see driver.py's header):
 

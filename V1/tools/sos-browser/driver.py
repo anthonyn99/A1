@@ -532,9 +532,11 @@ async def launch(pw, site, headless: bool, visible: bool = False,
         ]
     if headless:
         args.append(f"--user-agent={headless_user_agent()}")
-    elif not visible:
+    if not visible:
         # Headful but parked off-screen: fully real and rendering, just not on
         # anyone's monitor. The practical answer to a site that detects headless.
+        # Headless gets it too: Chrome's new headless can still own a frame with
+        # a taskbar button, and winhide finds a parked frame before its pid.
         args.append("--window-position=-32000,-32000")
 
     extra = {}
@@ -594,10 +596,11 @@ async def launch(pw, site, headless: bool, visible: bool = False,
                     f"it ({profile}) and run again. Nothing was generated or "
                     f"downloaded, so no quota was spent.") from first
 
-    # Off-screen still means a taskbar button, and Chrome opens new frames
-    # mid-run; keep them all hidden until close_quietly (winhide.py).
+    # Off-screen still means a taskbar button (and so can new headless), and
+    # Chrome opens new frames mid-run; keep them all hidden until
+    # close_quietly (winhide.py).
     hider = None
-    if not headless and not visible:
+    if not visible:
         hider = winhide.KeepHidden(lambda: _profile_holder_pids(profile)).start()
     try:
         ctx = await _bounded()

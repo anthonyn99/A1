@@ -589,6 +589,12 @@ t("which states no quota was spent",
 t("an unrelated launch error is NOT retried",
   "if not contention:" in _lsrc and "raise" in _lsrc,
   "a missing Chrome would fail identically twice")
+t("every background run (headless too) is kept off the taskbar",
+  "if not visible:\n        hider = winhide.KeepHidden" in _lsrc
+  and "not headless and not visible" not in _lsrc,
+  "new headless still gave breakdown runs a taskbar button")
+t("headless is parked off-screen like the headful runs",
+  'if not visible:\n        # Headful but parked' in _lsrc)
 
 # Profile contention is the usual cause, and clearing it is destructive — the
 # profile holds the logged-in session, so deleting a LIVE browser's lock
