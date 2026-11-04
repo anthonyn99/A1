@@ -4154,6 +4154,101 @@ async function cronPrewarmNews(env, ctx){
 // at 12:00 and 13:00 UTC because a UTC schedule cannot follow daylight saving:
 // 12:00 UTC is 6 AM in MDT, 13:00 UTC is 6 AM in MST. Exactly one of the two
 // passes on any day, so the builds begin at 6 AM all year, never at 5.
+// ── Intraday news refresh (2026-11-03) ───────────────────────────────────────
+// The feed used to be built once (the 6 AM cron) and then only on demand, so
+// news breaking mid-session never reached TradeHub unless someone pressed
+// Refresh. TradeHub now asks /news?intraday=1 every 15 minutes while the market
+// is open; a build older than INTRADAY_REFRESH_MS is rebuilt on the ordinary
+// (non-fresh) path — the cheap sources, never the 12-a-day force budget — and
+// the build lock means one rebuild serves every device. Outside the regular
+// session (and on NYSE holidays) intraday=1 is an ordinary cache read.
+const INTRADAY_REFRESH_MS = 45 * 60 * 1000;
+function etClock(ms){
+  const p = new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short' })
+    .formatToParts(new Date(ms)).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  const hh = (+p.hour) % 24;
+  return { date: `${p.year}-${p.month}-${p.day}`, mins: hh * 60 + (+p.minute), weekday: p.weekday };
+}
+function isRegularSessionET(ms){
+  const c = etClock(ms);
+  if (c.weekday === 'Sat' || c.weekday === 'Sun') return false;
+  const { H, HD } = mktHolYear(+c.date.slice(0, 4));
+  if (H[c.date]) return false;
+  const close = HD[c.date] ? 13 * 60 : 16 * 60;
+  // Through a quarter hour past the close, so the closing-bell news lands too.
+  return c.mins >= 9 * 60 + 30 && c.mins <= close + 15;
+}
+
+// ── /market: the market at a glance, and extended-hours stock prices ────────
+// Yahoo Finance's public spark endpoint: one call for many symbols, no key,
+// pre/after-hours included. Context = S&P and Nasdaq futures, the 10-year yield,
+// WTI crude, VIX and the dollar index. Cached 2 minutes in the Cache API (no KV
+// write, no quota). TradeHub prefers Webull's own quotes when the account has
+// OpenAPI market data, and uses this otherwise.
+const MARKET_CONTEXT = [
+  { key:'es',  sym:'ES=F',     label:'S&P fut' },
+  { key:'nq',  sym:'NQ=F',     label:'Nasdaq fut' },
+  { key:'tnx', sym:'^TNX',     label:'10Y yield', unit:'%' },
+  { key:'cl',  sym:'CL=F',     label:'WTI oil' },
+  { key:'vix', sym:'^VIX',     label:'VIX' },
+  { key:'dxy', sym:'DX-Y.NYB', label:'Dollar' },
+];
+const MARKET_TTL = 120;
+const YAHOO_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+function sparkPoints(closes, n){
+  const v = (closes || []).filter(x => typeof x === 'number' && isFinite(x));
+  if (v.length <= n) return v.map(x => +x.toFixed(4));
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(+v[Math.round(i * (v.length - 1) / (n - 1))].toFixed(4));
+  return out;
+}
+async function yahooSpark(symbols){
+  const out = {};
+  for (let i = 0; i < symbols.length; i += 20){
+    const chunk = symbols.slice(i, i + 20);
+    const u = 'https://query1.finance.yahoo.com/v7/finance/spark?symbols=' + chunk.map(encodeURIComponent).join(',') + '&range=1d&interval=5m&includePrePost=true';
+    const r = await fetch(u, { headers:{ 'User-Agent': YAHOO_UA, 'Accept':'application/json' }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error('spark HTTP ' + r.status);
+    const j = await r.json();
+    for (const res of ((j && j.spark && j.spark.result) || [])){
+      const x = res && res.response && res.response[0];
+      if (!x || !x.meta) continue;
+      const closes = (((x.indicators || {}).quote || [])[0] || {}).close || [];
+      const ts = x.timestamp || [];
+      let li = closes.length - 1; while (li >= 0 && !(typeof closes[li] === 'number')) li--;
+      out[res.symbol] = { meta: x.meta, last: li >= 0 ? closes[li] : null, lastTs: li >= 0 ? ts[li] : null, closes };
+    }
+  }
+  return out;
+}
+// One stock: today's regular-session move, plus the pre/after-hours price when
+// the latest trade sits in that session.
+function sparkStock(s){
+  const m = s.meta, reg = +m.regularMarketPrice || null, prev = +(m.chartPreviousClose ?? m.previousClose) || null;
+  const dp = reg && prev ? (reg - prev) / prev * 100 : null;
+  const tp = m.currentTradingPeriod || {};
+  let ext = null;
+  if (s.last && s.lastTs){
+    const inP = (per) => per && s.lastTs >= per.start && s.lastTs < per.end;
+    if (inP(tp.pre) && prev) ext = { kind:'pre', price: s.last, dp: (s.last - prev) / prev * 100 };
+    else if (inP(tp.post) && reg) ext = { kind:'post', price: s.last, dp: (s.last - reg) / reg * 100 };
+  }
+  return { c: reg, pc: prev, dp, ext, points: sparkPoints(s.closes, 48) };
+}
+async function buildMarket(tickers){
+  const want = [...MARKET_CONTEXT.map(x => x.sym), ...tickers];
+  const got = await yahooSpark(want);
+  const context = MARKET_CONTEXT.map(c => {
+    const s = got[c.sym];
+    if (!s || s.last == null) return { ...c, price:null, dp:null, points:[] };
+    const prev = +(s.meta.chartPreviousClose ?? s.meta.previousClose) || null;
+    return { ...c, price: s.last, dp: prev ? (s.last - prev) / prev * 100 : null, points: sparkPoints(s.closes, 48) };
+  });
+  const stocks = {};
+  for (const t of tickers){ const s = got[t]; if (s && s.meta) stocks[t] = sparkStock(s); }
+  return { ok: context.some(c => c.price != null) || Object.keys(stocks).length > 0, source:'yahoo', context, stocks, asOf: Date.now() };
+}
+
 function isCronBuildHour(ms){
   const h = +new Intl.DateTimeFormat('en-US', { timeZone:'America/Denver', hour:'numeric', hourCycle:'h23' }).format(new Date(ms));
   return h === 6;
@@ -4258,6 +4353,20 @@ export default {
     // tradehub.html (5 min) — a TTL shorter than the poll guarantees a miss
     // and an upstream fetch on every single request.
     const QUOTES_TTL = 300;
+    // ── /market?tickers=A,B — futures, yields, oil, VIX, dollar + extended-hours
+    // prices and sparklines for the tickers (see buildMarket).
+    if (url.pathname === '/market'){
+      const tk = (parseTickers(url.searchParams.get('tickers')) || []).slice(0, 40);
+      const cacheReq = new Request('https://newshub-cache.internal/market/' + (tk.length ? wlHash(tk) : 'ctx'));
+      try { const hit = await caches.default.match(cacheReq); if (hit) return new Response(await hit.text(), { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } }); } catch(e){}
+      let payload;
+      try { payload = await buildMarket(tk); }
+      catch(e){ payload = { ok:false, error: e.message, context: [], stocks: {}, asOf: Date.now() }; }
+      const body = JSON.stringify(payload);
+      if (payload.ok) ctx.waitUntil(caches.default.put(cacheReq, new Response(body, { headers:{ 'Content-Type':'application/json', 'Cache-Control':'max-age=' + MARKET_TTL } })).catch(()=>{}));
+      return new Response(body, { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
     if (url.pathname === '/quotes'){
       const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
       // Cached in the Cache API, not KV: a News tab polls every few minutes, and
@@ -4933,17 +5042,22 @@ export default {
     // used to pin the feed blank until 10am, with the morning auto-kick and the
     // Refresh button both short-circuiting on it, and only Force fresh (which
     // skips the cache entirely) able to escape. Empty = build again.
-    let cachedRaw = null, cachedHasEvents = false;
+    let cachedRaw = null, cachedHasEvents = false, cachedGen = 0;
     try {
       cachedRaw = await env.NEWSHUB_CACHE.get(cacheKey);
       if (cachedRaw){
-        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; }
+        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; cachedGen = +j.generatedAt || 0; }
         catch(e){ cachedHasEvents = false; }   // unparseable doc counts as failed
       }
     } catch(e){}
 
+    // Intraday refresh (see INTRADAY_REFRESH_MS): during the regular session a
+    // build older than 45 min is rebuilt on the ordinary path below.
+    const intradayDue = url.searchParams.get('intraday') === '1' && cachedHasEvents
+      && isRegularSessionET(Date.now()) && Date.now() - cachedGen > INTRADAY_REFRESH_MS;
+
     // Cache hit with REAL news → return immediately (free, no rate limit).
-    if (!fresh && cachedRaw && cachedHasEvents){
+    if (!fresh && cachedRaw && cachedHasEvents && !intradayDue){
       return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
     }
 
