@@ -107,7 +107,8 @@ const worker = {
   const shot = async (name) => { const s = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath(name), Buffer.from(s.result.data, 'base64')); };
   const tab = async (id) => { await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent); if(t) t.click(); 1`); await sleep(900); };
   const page = () => js(`var n=document.querySelector('.tb-navtab.on,.tb-navtab[aria-current="page"]'); return n?n.getAttribute('data-navid'):'';`);
-  const sideways = () => js(`return document.documentElement.scrollWidth>innerWidth+1 || [...document.querySelectorAll('#tradeboard-root *')].some(e=>{var b=e.getBoundingClientRect();return b.width&&b.right>innerWidth+1&&!e.closest('[data-sb-strip],table,.tb-scroll-x')&&getComputedStyle(e).position!=='fixed';});`);
+  // '' when nothing pokes past the right edge, else what does (class|tag|right).
+  const sideways = () => js(`var out=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>{var b=e.getBoundingClientRect();return b.width&&b.right>innerWidth+1&&!e.closest('[data-sb-strip],table,.tb-scroll-x')&&getComputedStyle(e).position!=='fixed';}).slice(0,6).map(e=>String(e.className&&e.className.baseVal!==undefined?e.className.baseVal:e.className)+'|'+e.tagName+'|'+Math.round(e.getBoundingClientRect().right)); if(document.documentElement.scrollWidth>innerWidth+1)out.push('page '+document.documentElement.scrollWidth); return out.join(' ; ');`);
 
   async function seed() {
     await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
@@ -187,11 +188,11 @@ const worker = {
   await size(390, 844); await sleep(700);
   ok('Activity: a list, not a table, at 390 px', await js(`return !!document.querySelector('.tb-act-list') && !document.querySelector('.tb-act-table')`));
   ok('Activity: the tiles go two by two', await js(`var t=[...document.querySelectorAll('.tb-act-tile')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[1]&&t[2]>t[0]`));
-  ok('Activity: nothing scrolls sideways', !(await sideways()));
+  { const sw = await sideways(); ok('Activity: nothing scrolls sideways', !sw, sw); }
   await shot('activity-phone');
   await tab('news'); await sleep(500);
   ok('News: the market strip goes three across', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[2]&&t[3]>t[0]`));
-  ok('News: nothing scrolls sideways', !(await sideways()));
+  { const sw = await sideways(); ok('News: nothing scrolls sideways', !sw, sw); }
   await shot('news-market-phone');
   await size(1440, 1000);
 
