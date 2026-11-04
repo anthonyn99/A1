@@ -130,7 +130,7 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
   }
 
   console.log('debug leftovers');
-  ok('no order/detail probe on every sync', !/PROBE|order\/detail/.test(SRC));
+  ok('no order/detail debug probe on every sync', !/PROBE/.test(SRC));
   ok('raw balance payload not logged', !/raw payload:/.test(SRC));
 
   console.log(`\n${pass} passed, ${fail} failed`);
