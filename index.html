@@ -56,14 +56,23 @@
 *,*::before,*::after{-webkit-tap-highlight-color:transparent}
 button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 /* Edit-mode pop in / out (ThPop, EditPop): opacity, scale and a 0fr→1fr height only.
-   ThPop never mounts or unmounts, so a row is the same height in both modes. */
-.th-pop{opacity:0;scale:.9;transition:opacity .1s ease-out,scale .14s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+   ThPop never mounts or unmounts, so a row is the same height in both modes.
+   .th-side is a row's pill column: its pills, time and bell fade out exactly as
+   the ✎ ✕ fade in over them (one cross-fade, same timing), and back. thHide
+   fades a row's side buttons the same way.
+   Everything that animates stays on its own GPU layer for good (will-change,
+   backface-visibility): a layer made only for the transition was dropped the
+   moment it ended, and the browser repainted the control snapped to whole
+   pixels -- a visible 1-3px hop once the animation had finished. */
+.th-pop{opacity:0;scale:.94;transition:opacity .12s ease-out,scale .12s cubic-bezier(.2,.8,.2,1);pointer-events:none;will-change:opacity,scale;backface-visibility:hidden}
 .th-pop.in{opacity:1;scale:1;pointer-events:auto}
-.th-ep{grid-template-rows:0fr;opacity:0;transition:grid-template-rows .16s cubic-bezier(.2,.8,.2,1),opacity .12s ease-out}
+.th-side>:not(.th-pop){transition:opacity .12s ease-out;will-change:opacity;backface-visibility:hidden}
+.th-side.ed>:not(.th-pop){opacity:0!important;pointer-events:none}
+.th-ep{grid-template-rows:0fr;opacity:0;transition:grid-template-rows .13s cubic-bezier(.2,.8,.2,1),opacity .1s ease-out;will-change:opacity}
 .th-ep.in{grid-template-rows:1fr;opacity:1}
-.th-ep>.th-ep-in{overflow:hidden;min-height:0;padding:2px;margin:-2px;translate:0 -3px;transition:translate .16s cubic-bezier(.2,.8,.2,1)}
+.th-ep>.th-ep-in{overflow:hidden;min-height:0;padding:2px;margin:-2px;translate:0 -3px;transition:translate .13s cubic-bezier(.2,.8,.2,1);will-change:translate;backface-visibility:hidden}
 .th-ep.in>.th-ep-in{translate:0 0}
-@media (prefers-reduced-motion:reduce){.th-pop,.th-ep,.th-ep>.th-ep-in{transition:none}}
+@media (prefers-reduced-motion:reduce){.th-pop,.th-ep,.th-ep>.th-ep-in,.th-side>*{transition:none}}
 </style>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
@@ -6068,7 +6077,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- MAGI's drag to reorder and corner resize grip, shared by every program
      (theme overhaul, phases 1b and 2). In the head, so they exist before any
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
-<script src="Shared/dragsort.js?v=20261101a"></script>
+<script src="Shared/dragsort.js?v=20261104a"></script>
 <script src="Shared/resizegrip.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
@@ -8306,7 +8315,7 @@ function thPopState(show){
   const[m,setM]=React.useState(!!show),[on,setOn]=React.useState(!!show);
   React.useEffect(()=>{
     if(show){setM(true);let r2,r1=requestAnimationFrame(()=>{r2=requestAnimationFrame(()=>setOn(true));});return()=>{cancelAnimationFrame(r1);cancelAnimationFrame(r2);};}
-    setOn(false);const t=setTimeout(()=>setM(false),200);return()=>clearTimeout(t);
+    setOn(false);const t=setTimeout(()=>setM(false),150);return()=>clearTimeout(t);
   },[show]);
   return[m,on];
 }
@@ -8332,9 +8341,13 @@ function thRowEdit(c,onEdit,onDel,inline){
 // What a habit's edit cell holds in view mode: the buttons' height, so a row is
 // exactly as tall in both modes and its name doesn't drop when edit opens.
 function thRowEditSpacer(){ return React.createElement("span",{"aria-hidden":"true",style:{display:"inline-block",width:1,height:20,verticalAlign:"top"}}); }
-// Edit mode keeps a row's side buttons where they were, hidden, so nothing reflows.
+// Edit mode keeps a row's side buttons where they were, faded out (in step with
+// the ✎ ✕ fading in), so nothing reflows. Hidden once the fade is done.
 function thHide(on,el){
-  return on&&el?React.cloneElement(el,{style:{...(el.props.style||{}),visibility:"hidden",transition:"none"},tabIndex:-1,"aria-hidden":"true"}):el;
+  if(!el)return el;
+  const st={...(el.props.style||{}),willChange:"opacity",backfaceVisibility:"hidden"},tr=(el.props.style&&el.props.style.transition?el.props.style.transition+",":"")+"opacity .12s ease-out";
+  return on?React.cloneElement(el,{style:{...st,opacity:0,pointerEvents:"none",visibility:"hidden",transition:tr+",visibility 0s linear .12s"},tabIndex:-1,"aria-hidden":"true"})
+    :React.cloneElement(el,{style:{...st,transition:tr}});
 }
 
 // A package / bill / travel card, drawn inside a weekly day cell.
@@ -10442,7 +10455,7 @@ function App(){
                                    uncategorised tasks fall back to gold. */
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:20,height:20,minWidth:20,borderRadius:6,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:-0.5,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:10,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:6,marginBottom:2}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
+                React.createElement("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:6,marginBottom:2}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
                   /* A mirrored plan carries a real time. Render it as its own chip
                      (never spliced into the title, which would wrap under the
                      floated category tag) and convert it to THIS reader's zone. */
@@ -10455,7 +10468,7 @@ function App(){
               events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:6,marginBottom:2}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
+                React.createElement("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:6,marginBottom:2}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
                   e.time&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,...wkTitleFit}},e.title)),
@@ -10511,7 +10524,7 @@ function App(){
               :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:4,marginBottom:3,opacity:t.done?0.85:1,cursor:"grab"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:8,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
+                React.createElement("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
                   /* A mirrored plan carries a real time. Render it as its own chip
                      (never spliced into the title, which would wrap under the
                      floated category tag) and convert it to THIS reader's zone. */
@@ -10524,7 +10537,7 @@ function App(){
               events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
+                React.createElement("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:T.TXD,del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
                   e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},e.title)),
@@ -16928,7 +16941,7 @@ function App(){
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:5,marginBottom:5,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:10})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
+                RC("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:(t.done?0.4:0.9)*dimA,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
@@ -16939,7 +16952,7 @@ function App(){
               ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
+                RC("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
                 e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
@@ -16987,7 +17000,7 @@ function App(){
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:4,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:0,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
+                RC("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(t);setMdt(k);setMo(true);},()=>del(k,t.id)),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:(t.done?0.4:0.9)*dimA,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
@@ -16998,7 +17011,7 @@ function App(){
               ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,visibility:edit?"hidden":"visible",marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
+                RC("div",{className:edit?"th-side ed":"th-side",style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",minWidth:44,minHeight:20,marginLeft:5,marginBottom:1}},thRowEditP(edit,{tx:TXD,del:"#f85149",bd:BDL,bdHi:TXM,radius:4},()=>{setEi(e);setMdt(k);setMo(true);},()=>del(k,e.id)),
                 e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),

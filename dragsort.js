@@ -98,6 +98,15 @@
     // the `scale` property: that multiplies the translate too, so the chip
     // trailed the pointer by 6% of the distance dragged.
     '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
+    // The same two, one notch more specific: hoverfx's `.hoverfx { transition-
+    // property: ... !important }` ties with them, and on a page whose styles
+    // load in the other order (Vault) it won -- the lifted chip kept fading its
+    // filter, colour, outline and hover lift through the drag, repainting a
+    // scaled, shadowed row every frame, so it trailed a fast cursor. Lifted, a
+    // row animates NOTHING and rides its own GPU layer (will-change), so each
+    // frame only moves it.
+    'html .dsort-drag:not(.dsort-settle) { transition: none !important; will-change: transform; }',
+    'html .dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; will-change: transform; }',
     // A row lifted inside something that clips it (a tab strip that scrolls,
     // a card with overflow hidden): its 1.06, outer ring and shadow were cut
     // off by the clip -- a broken outline over the UI. Flat: no scale, the

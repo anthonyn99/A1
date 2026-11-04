@@ -10,7 +10,9 @@
 //   • from 60 ms after a toggle until 1 s, no row moves (beyond the closing
 //     "New habit" / "New goal" bar, which settles within its transition);
 //   • hidden row controls are inert (not focusable, not clickable) in view mode;
-//   • the transitions are short (≤ 200 ms).
+//   • the transitions are short (≤ 200 ms);
+//   • a day row's category pill fades out while its ✎ ✕ fade in (one
+//     cross-fade, Tony 2026-11-04), and fades back on view.
 //
 // Run: node tests/live/taskhub-edit-toggle.live.js
 'use strict';
@@ -29,7 +31,8 @@ const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6)
 const WEEK = monday.getFullYear() + '-' + pad(monday.getMonth() + 1) + '-' + pad(monday.getDate());
 const habits = [{ id: 'h1', title: 'Breakfast for parents' }, { id: 'h2', title: 'Replace patches every 48 hours' }, { id: 'h3', title: 'Morning face wash' }];
 const goals = [{ id: 'g1', title: 'Wash sheets', done: false }, { id: 'g2', title: 'Tell Mom about CVS extracare', done: false }, { id: 'g3', title: 'Done one', done: true }];
-const DOC = { data: {}, habits, hc: {}, goals, monthlyGoals: goals.map((g) => ({ ...g, id: 'm' + g.id })), weekKey: WEEK, savedAt: Date.now() - 60000 };
+const TODAY = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+const DOC = { data: { [TODAY]: [{ id: 't1', type: 'task', title: 'Pill task', category: 'work', done: false }] }, habits, hc: {}, goals, monthlyGoals: goals.map((g) => ({ ...g, id: 'm' + g.id })), weekKey: WEEK, savedAt: Date.now() - 60000 };
 
 // Rects of every habit row, goal row and their cells in the visible TaskHub.
 const SNAP = `(() => {
@@ -76,6 +79,18 @@ async function side(c, who) {
     // Each row keeps its own size; only the bar above can push them down.
     const sizes = (s) => Object.keys(s).sort().map((k) => k + '=' + s[k].split(',').slice(2).join('x')).join(' ');
     ok((on ? 'edit' : 'view') + ' rows are exactly the size they are in view mode', sizes(end) === sizes(view) && Object.keys(end).length === n, sizes(end) + ' vs ' + sizes(view));
+  }
+  // The pill and the ✎ ✕ cross-fade: mid-way both are part-visible, at the
+  // end the pill is gone and the buttons are in; back in view, the reverse.
+  const PILL = `(() => { const r = document.querySelector('[data-dkey="t1"]'); if (!r || r.offsetParent === null) return null;
+    const side = r.querySelector('.th-side'); const pill = [...side.children].find(e => !e.classList.contains('th-pop') && /work/i.test(e.textContent));
+    const pop = side.querySelector('.th-pop'); return pill && pop ? [+getComputedStyle(pill).opacity, +getComputedStyle(pop).opacity] : 'missing'; })()`;
+  for (const on of [true, false]) {
+    const mid = await js(`window.${bridge}.setEdit(${on}); await new Promise(r => setTimeout(r, 50)); return ${PILL};`);
+    await sleep(300);
+    const end = await js(`return ${PILL};`);
+    ok((on ? 'view → edit' : 'edit → view') + ': pill and ✎ ✕ cross-fade', Array.isArray(mid) && mid[0] > 0.05 && mid[0] < 0.95 && mid[1] > 0.05 && mid[1] < 0.95, JSON.stringify(mid));
+    ok((on ? 'edit: pill hidden, ✎ ✕ shown' : 'view: pill shown, ✎ ✕ hidden'), Array.isArray(end) && (on ? end[0] === 0 && end[1] === 1 : end[0] === 1 && end[1] === 0), JSON.stringify(end));
   }
   ok('back in view, every row is exactly where it started', JSON.stringify(await js(`return ${SNAP};`)) === JSON.stringify(view));
   ok('pop transitions are short (≤ 200 ms)', await js(`const d = (s) => Math.max(...s.split(',').map(x => parseFloat(x) * (x.includes('ms') ? 1 : 1000)));
