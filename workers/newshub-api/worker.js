@@ -4181,13 +4181,15 @@ function isRegularSessionET(ms){
 
 // ── /market: the market at a glance, and extended-hours stock prices ────────
 // Yahoo Finance's public spark endpoint: one call for many symbols, no key,
-// pre/after-hours included. Context = S&P and Nasdaq futures, the 10-year yield,
-// WTI crude, VIX and the dollar index. Cached 2 minutes in the Cache API (no KV
+// pre/after-hours included. Context = S&P and Nasdaq futures, semiconductors
+// (SOXX), the 10-year yield, WTI and Brent crude, VIX and the dollar index (8:
+// TradeHub lays them out 4 by 2). Cached 2 minutes in the Cache API (no KV
 // write, no quota). TradeHub prefers Webull's own quotes when the account has
 // OpenAPI market data, and uses this otherwise.
 const MARKET_CONTEXT = [
   { key:'es',  sym:'ES=F',     label:'S&P fut' },
   { key:'nq',  sym:'NQ=F',     label:'Nasdaq fut' },
+  { key:'soxx',sym:'SOXX',     label:'Semis (SOXX)' },
   { key:'tnx', sym:'^TNX',     label:'10Y yield', unit:'%' },
   { key:'cl',  sym:'CL=F',     label:'WTI oil' },
   { key:'bz',  sym:'BZ=F',     label:'Brent oil' },
