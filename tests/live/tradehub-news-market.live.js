@@ -54,8 +54,10 @@ const pts = (a, b) => Array.from({ length: 24 }, (_, i) => +(a + (b - a) * i / 2
 const MARKET = { ok: true, source: 'yahoo', asOf: NOW, context: [
   { key: 'es', sym: 'ES=F', label: 'S&P fut', price: 7561, dp: -0.47, points: pts(7590, 7561) },
   { key: 'nq', sym: 'NQ=F', label: 'Nasdaq fut', price: 28075.25, dp: -0.81, points: pts(28300, 28075) },
+  { key: 'soxx', sym: 'SOXX', label: 'Semis (SOXX)', price: 465, dp: 2.5, points: pts(453, 465) },
   { key: 'tnx', sym: '^TNX', label: '10Y yield', unit: '%', price: 4.952, dp: 1.19, points: pts(4.89, 4.95) },
   { key: 'cl', sym: 'CL=F', label: 'WTI oil', price: 96.69, dp: 0.62, points: pts(96, 96.7) },
+  { key: 'bz', sym: 'BZ=F', label: 'Brent oil', price: 103.15, dp: -0.43, points: pts(103.6, 103.15) },
   { key: 'vix', sym: '^VIX', label: 'VIX', price: 20.83, dp: -1.51, points: pts(21.2, 20.8) },
   { key: 'dxy', sym: 'DX-Y.NYB', label: 'Dollar', price: 101.734, dp: -0.13, points: pts(101.9, 101.7) },
 ], stocks: {
@@ -129,9 +131,10 @@ const worker = {
   await c.send('Page.navigate', { url: URL_ });
   if (!(await until("document.querySelector('.tb-navtab')", 20000))) throw new Error('TradeHub did not render');
   await tab('news');
-  ok('the market strip: six tiles', await until(`document.querySelectorAll('.nh-mkt-t').length===6`, 10000), await js(`return document.querySelectorAll('.nh-mkt-t').length`));
+  ok('desktop: four by two', true);
+  ok('the market strip: eight tiles', await until(`document.querySelectorAll('.nh-mkt-t').length===8`, 10000), await js(`return document.querySelectorAll('.nh-mkt-t').length`));
   const strip = await js(`return [...document.querySelectorAll('.nh-mkt-t')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ');`);
-  ok('…labels, values and changes', /S&P fut -0\.47% 7,561\.00/i.test(strip) && /10Y yield \+1\.19% 4\.95%/i.test(strip) && /WTI oil \+0\.62% \$96\.69/i.test(strip), strip);
+  ok('…labels, values and changes', /S&P fut -0\.47% 7,561\.00/i.test(strip) && /10Y yield \+1\.19% 4\.95%/i.test(strip) && /WTI oil \+0\.62% \$96\.69/i.test(strip) && /Brent oil -0\.43% \$103\.15/i.test(strip) && /Semis \(SOXX\) \+2\.50% 465\.00/i.test(strip), strip);
   ok('…each with a sparkline', await js(`return [...document.querySelectorAll('.nh-mkt-t')].every(t=>t.querySelector('svg.nh-spark polyline'))`));
   ok('…coloured by the move (down = red)', await js(`return document.querySelector('.nh-mkt-t .d').style.color.indexOf('tbr')>=0`));
   await until(`document.querySelector('.nh-held')`, 8000);
@@ -197,7 +200,7 @@ const worker = {
   await shot('activity-phone');
   await tab('news'); await sleep(500);
   ok('News: no market value is cut off', await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].every(e=>e.scrollWidth<=e.clientWidth+1);`), await js(`return [...document.querySelectorAll('.nh-mkt-t b, .nh-mkt-t .l')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent).join();`));
-  ok('News: the market strip goes three across', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[2]&&t[3]>t[0]`));
+  ok('News: the market strip is four by two', await js(`var t=[...document.querySelectorAll('.nh-mkt-t')].map(e=>Math.round(e.getBoundingClientRect().top)); return t[0]===t[3]&&t[4]>t[0]&&t[4]===t[7]`));
   { const sw = await sideways(); ok('News: nothing scrolls sideways', !sw, sw); }
   await js(`var p=document.querySelector('.tb-scroll-visible'); if(p) p.scrollTop=0; 1`); await sleep(300);
   await shot('news-market-phone');
