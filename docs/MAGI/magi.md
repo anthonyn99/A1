@@ -2426,7 +2426,7 @@ in the way and runs when it clears:
 |---|---|
 | MAGI is locked | held; `hideLock()` runs it |
 | The unit list has not arrived | held; `boot()` runs it |
-| A council is already in flight | held; `endRun()` runs it |
+| A council is already in flight | held; `endRun()` runs it. More arriving meanwhile QUEUE behind it (`HANDOFF_QUEUE`, oldest first, carried across a profile-switch reload) and convene one after another; the composer's note says how many wait (2026-11-03: a second debrief used to overwrite the first) |
 | The engine has not connected yet | the prompt lands in the box and the handoff is KEPT; the reconnect's `boot()` convenes it. Retries keep going in a hidden tab for 30 min while one is waiting (the morning launcher opens MAGI in the background) |
 | This tab was left in Code Mode | switched to Deliberation first; `start()` would otherwise hand it to the coding agents |
 | It names units this engine has none of | the selection already made here is kept, and the run goes ahead with it |
@@ -2445,6 +2445,26 @@ mean focusing a console that never heard the question; `deliver` hands it the
 url instead, and it navigates itself. Same-origin only, both sender (the
 channel guarantees it) and payload (checked), so it can never send one of these
 tabs off-origin.
+
+**No new tab when one is open (2026-11-03, Tony: "just use the already open
+MAGI tab").** A `deliver` may carry `to` (the heartbeat's tab id, so only one
+console takes it), `rid` (the console answers `delivered` at once, from the
+message handler, so a throttled background tab still answers) and `hashOnly`
+(the console keeps its own path and query and takes just the fragment; a
+differing `?query` would have been a full reload that kills a running council).
+- **Same origin** (both TaskHubs' catalyst ▶, `catdebrief.js` `openMagi`): if
+  the heartbeat names a console, the prompt is delivered straight to it and no
+  tab opens. No answer in 600 ms → the old open-a-tab path, still inside the
+  click's user activation.
+- **Another origin** (TradeHub's Catalysts ▶ and Analysis, the morning
+  launcher): a tab must open, as nothing else reaches MAGI from there. On load
+  it reads the heartbeat of the console that was already open (before its own
+  `tabsync.js` overwrites it), delivers its prompt there and closes itself;
+  `HANDOFF_PASSING` keeps it from convening the prompt meanwhile. Only if no
+  console answers in 700 ms does it keep the prompt and retire silent leftovers.
+  (It used to retire the OLD console, even mid-council.)
+Proven by `tests/live/magi-one-tab.live.js` (live site, `run:0`) and
+`tests/magi-handoff.test.js` (the queue).
 
 The morning launcher builds the same link in Python
 (`tools/trading-auto-launch/launch.py`, `_magi_link`), from the prompt and unit list
