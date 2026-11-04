@@ -11369,6 +11369,9 @@ let HANDOFF = null;
 // Handoffs waiting behind HANDOFF, oldest first (see noteHandoffQueue).
 let HANDOFF_QUEUE = [];
 const HANDOFF_QUEUE_SS = "magi.handoffQueue";
+// True while a new tab offers its prompt to the console already open (see the
+// load handler below): it must not convene it itself in the meantime.
+let HANDOFF_PASSING = false;
 
 function b64uDecode(str) {
   const p = String(str).replace(/-/g, "+").replace(/_/g, "/");
@@ -11420,7 +11423,7 @@ function takeHandoff() {
 function handoffTry() {
   // The next queued prompt, once the one before it has gone out.
   if (!HANDOFF && HANDOFF_QUEUE.length) HANDOFF = HANDOFF_QUEUE.shift();
-  if (!HANDOFF) return;
+  if (!HANDOFF || HANDOFF_PASSING) return;
   // Meant for the other person: switch profile first (a reload that carries
   // it). Never in the middle of a run -- the reload would throw this
   // person's council away -- so a live run holds it; endRun() comes back.
@@ -11608,16 +11611,20 @@ const PRIOR_CONSOLE = (() => {
    the old console, which closed it even mid-council.
    Only when no console answers does this tab stay, and then it retires any
    silent leftover so there is still one. After load, so tabsync.js has its id. */
+HANDOFF_PASSING = !!(HANDOFF && !HANDOFF_STASHED && HANDOFF.raw && PRIOR_CONSOLE);
 if (HANDOFF) {
+  // Nobody took it: this tab keeps the prompt and convenes it after all.
+  const keepIt = () => { if (HANDOFF_PASSING) { HANDOFF_PASSING = false; handoffTry(); } };
   window.addEventListener("load", () => {
     let bc = null;
-    try { if (!window.a1TabId) return; bc = new BroadcastChannel("a1tabs"); } catch { return; }
+    try { if (!window.a1TabId) { keepIt(); return; } bc = new BroadcastChannel("a1tabs"); } catch { keepIt(); return; }
     const retireOthers = () => {
       try { bc.postMessage({ t: "retire", k: "magi", except: window.a1TabId }); } catch {}
       setTimeout(() => { try { bc.close(); } catch {} }, 1000);
+      keepIt();
     };
     const h = HANDOFF;
-    if (HANDOFF_STASHED || !h || !h.raw || !PRIOR_CONSOLE || PRIOR_CONSOLE === window.a1TabId) { retireOthers(); return; }
+    if (!HANDOFF_PASSING || !h || PRIOR_CONSOLE === window.a1TabId) { retireOthers(); return; }
     const rid = Math.random().toString(36).slice(2);
     let done = false;
     const timer = setTimeout(() => { if (!done) { done = true; retireOthers(); } }, 700);
@@ -11627,7 +11634,7 @@ if (HANDOFF) {
       done = true; clearTimeout(timer);
       // Handed over: this tab neither runs it nor stays.
       if (HANDOFF === h) HANDOFF = null;
-      HANDOFF_QUEUE.length && HANDOFF_QUEUE.splice(0);
+      HANDOFF_PASSING = false;
       setTimeout(() => { try { bc.close(); } catch {} }, 300);
       try { window.close(); } catch {}
       // A tab the browser will not let close says where the prompt went.
