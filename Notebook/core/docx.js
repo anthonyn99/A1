@@ -4747,11 +4747,15 @@ function openCustomColor(ctx, anchor, current, hooks) {
   var pop = showPop(anchor, function (p) {
     p.classList.add('docx-cpick');
     var cs = getComputedStyle(ctx.tbEl);
-    p.setAttribute('data-side', ctx.app === 'brainstorm' ? 'veda' : 'tony');
+    var sideEl = ctx.tbEl.closest('[data-notebook-side]');
+    var side = sideEl ? sideEl.getAttribute('data-notebook-side') : (ctx.app === 'brainstorm' ? 'veda' : 'tony');
+    p.setAttribute('data-side', side === 'veda' ? 'veda' : 'tony');
+    // The side's UI face, not the ribbon's (an instance's ribbon can inherit a mono font).
+    var face = sideEl ? getComputedStyle(sideEl).getPropertyValue('--font').trim() : '';
     var acc = cs.getPropertyValue('--nbt-acc').trim(), bg = cs.getPropertyValue('--nbt-pop').trim();
     if (acc) p.style.setProperty('--cp-acc', acc);
     if (bg) p.style.setProperty('--cp-bg', bg);
-    p.style.fontFamily = cs.fontFamily;
+    p.style.fontFamily = face || (side === 'veda' ? "'Nunito','Inter',system-ui,sans-serif" : "'Inter',system-ui,sans-serif");
     p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Custom text colour');
     var head = el('div', 'docx-cp-head'); head.textContent = 'Custom colour';
     var sv = el('div', 'docx-cp-sv', { role: 'slider', tabindex: '0', 'aria-label': 'Shade' }), svK = el('span', 'docx-cp-knob'); sv.appendChild(svK);
