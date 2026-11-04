@@ -4893,6 +4893,14 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
   filter: brightness(.94);
   transform: translateY(1px);
 }
+/* Veda's side answers like StudyOS (Tony, 2026-11-04): an outline button's
+   border turns her mauve with StudyOS's .sos-hbtn ring and glow (3px at 16%,
+   12px at 38%) on top of the lift above. Filled buttons keep the lift. */
+:root[data-profile="veda"] :is(.btn:not(.active), .acc-menu-items button, .offline-note button, .lock-btn, .studio-regen):not(:disabled):hover {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px rgba(141,118,154,.16), 0 0 12px rgba(141,118,154,.38);
+}
+:root[data-profile="veda"] :is(.btn, .chip, .navitem, .side-item, .lock-btn):focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
 /* Everything clickable says so. */
 .btn, .navitem, .chip, .side-item, .lock-btn, .lock-link, .bs-skip,
 .quiz-opt, .bs-opt, .flashcard, .row, .studio-regen, .slide-nav button,

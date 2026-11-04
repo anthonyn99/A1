@@ -862,9 +862,11 @@ t('The base moves only to an applied server copy or our own successful save',
 // or still on the wire: a re-init makes a fresh, false _savePending, and taking
 // the server copy as the base then let that save overwrite it (2026-10-29,
 // tests/live/veda-stale-write.live.js).
-t('Loaders never take a new base while a save of ours is pending (parked or on the wire too)',
-  /const _busy = _savePending \|\| _thPendingWrites\.length > 0 \|\| !!_cas\.main\.flight;\s*if \(!_busy\) _casNote\('main', d\);/.test(HTML) &&
-  /const _busy = _vdSavePending \|\| _vdPendingWrites\.length > 0 \|\| !!_cas\.vedasdash\.flight;\s*if \(!_busy\) _casNote\('vedasdash', d\);/.test(HTML));
+t('Loaders never take a new base while a save of ours is pending (parked, on the wire, or done mid-read)',
+  /const _busy = _savePending \|\| _thPendingWrites\.length > 0 \|\| !!_cas\.main\.flight \|\| _cas\.main\.gen !== _g0;\s*if \(!_busy\) _casNote\('main', d\);/.test(HTML) &&
+  /const _busy = _vdSavePending \|\| _vdPendingWrites\.length > 0 \|\| !!_cas\.vedasdash\.flight \|\| _cas\.vedasdash\.gen !== _g0;\s*if \(!_busy\) _casNote\('vedasdash', d\);/.test(HTML) &&
+  // ...nor when a save started and finished while the read was out (2026-11-04).
+  /const _g0 = _cas\.main\.gen;\s*const snap = await _freshGet\(docRef\);/.test(HTML) && /const _g0 = _cas\.vedasdash\.gen;\s*const snap = await _freshGet\(vdDocRef\);/.test(HTML) && /st\.gen\+\+;/.test(HTML));
 t('A save on the wire is known across a re-init, and the listeners hold a copy while it lands',
   /return _casFly\('main', _thSaveInFlight\);/.test(HTML) && /return _casFly\('vedasdash', _vdSaveInFlight\);/.test(HTML) &&
   /if \(_cas\.main\.flight\) \{ _thDeferredRemote = d;/.test(HTML) && /if \(_cas\.vedasdash\.flight\) \{ _vdDeferredRemote = d;/.test(HTML));

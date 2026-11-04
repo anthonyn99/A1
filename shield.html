@@ -4870,8 +4870,9 @@ function reconcile(prevGlobalV, prevOn){
 /* ══ BOOT ═════════════════════════════════════════════════════════════════ */
 function themeFor(p){
   document.body.setAttribute('data-profile', p);
-  // MAGI's hover/press (hoverfx.js) on Tony's side only; Veda keeps classic.
-  if (p === 'veda') document.body.removeAttribute('data-hoverfx');
+  // MAGI's hover/press (hoverfx.js) on Tony's side; Veda's answers like StudyOS
+  // (an outline button's mauve ring + glow, 2026-11-04).
+  if (p === 'veda') document.body.setAttribute('data-hoverfx', 'studyos');
   else document.body.setAttribute('data-hoverfx', 'magi');
   var m = $('meta-theme');
   if (m) m.setAttribute('content', p === 'veda' ? '#1B1C1E' : '#1a1a1d');

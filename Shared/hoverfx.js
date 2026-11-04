@@ -56,6 +56,14 @@
  * (index.html marks <body> magi while Tony's profile is open, and his journal,
  * not themed yet, says classic).
  *
+ * STUDYOS MODE — data-hoverfx="studyos" on any ancestor (Veda's side)
+ * The measured highlight as everywhere, and an outline button answers like
+ * StudyOS's header buttons (V1/StudyOS/css/studyos.css .sos-hbtn:hover): its
+ * border turns her accent with a soft 3px ring and a 12px glow around it
+ * (Tony, 2026-11-04: "Apply the A1 button style hovers to Veda's side ... do it
+ * like StudyOS"). Keyboard focus gets a 2px ring in her accent. No press sink.
+ * The accent is --fx-ac on the subtree (default her mauve #8D769A).
+ *
  * The extensions (Vault/, PriceWatch/, V1/Launcher/) cannot reach outside their
  * own folder, so each carries a byte-identical copy. tests/hoverfx-wiring.test.js
  * fails if a copy drifts.
@@ -75,7 +83,8 @@
 
   /* MAGI mode: the same measured highlight, plus a press and outline buttons. */
   var MAGI_PRESS = 'brightness(0.94)',
-      MAGI       = '[data-hoverfx="magi"]';
+      MAGI       = '[data-hoverfx="magi"]',
+      STUDY      = '[data-hoverfx="studyos"]';
 
   var CONTROLS = 'button,select,summary,a[href],[role="button"]';
   var OPT_OUT  = '[data-no-hoverfx]';
@@ -114,10 +123,22 @@
     /* MAGI mode's one hover outline (see ring() below): no other ring or bloom
        on top of it — unless the control's shadow is an inset fill, which is
        part of how it looks, not a glow. */
-    '.hoverfx-ol:not(.hoverfx-inset){box-shadow:none!important}';
+    '.hoverfx-ol:not(.hoverfx-inset){box-shadow:none!important}' +
+    /* StudyOS mode: her focus ring, and the outline button's ring + glow. */
+    STUDY + ' :is(button,select,summary,a[href],[role="button"]):focus-visible' +
+    ':not([data-hoverfx]:not(' + STUDY + ') *),' +
+    STUDY + ':is(button,select,summary,a[href],[role="button"]):focus-visible' +
+    '{outline:2px solid var(--fx-ac,#8D769A)!important;outline-offset:1px!important}' +
+    '.hoverfx-ol.hoverfx-glow{box-shadow:0 0 0 3px var(--fx-ring),0 0 12px var(--fx-glow)!important}';
   (document.head || document.documentElement).appendChild(css);
 
   // ── colour ───────────────────────────────────────────────────────────────
+  function hexRgb(str) {
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((str || '').trim());
+    if (!m) return null;
+    var h = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1];
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16), a: 1 };
+  }
   function rgba(str) {
     var m = /rgba?\(([^)]+)\)/.exec(str || '');
     if (!m) return null;
@@ -209,10 +230,11 @@
 
   // ── wire ─────────────────────────────────────────────────────────────────
   // The nearest declaration decides: magi inside magi, classic inside classic.
-  function magi(el) {
+  function mode(el) {
     var d = el.closest('[data-hoverfx]');
-    return !!d && d.getAttribute('data-hoverfx') === 'magi';
+    return d ? d.getAttribute('data-hoverfx') : '';
   }
+  function magi(el) { return mode(el) === 'magi'; }
 
   // Two hover looks (Tony, 2026-11-03). MOST controls — tabs, list rows,
   // icon buttons, filled buttons — only get the measured highlight below
@@ -227,7 +249,7 @@
   // put back on the way out. data-noglow opts out.
   var RINGED = 'button,select,summary,[role="button"]';
   var ringSaved = null;
-  function ring(el, cs) {
+  function ring(el, cs, study) {
     if (!el.matches(RINGED) || el.matches('[data-noglow]')) return;
     var bw = ['Top', 'Right', 'Bottom', 'Left'].map(function (s) {
       return cs['border' + s + 'Style'] !== 'none' ? parseFloat(cs['border' + s + 'Width']) || 0 : 0;
@@ -238,17 +260,27 @@
     if (bg && bg.a > 0.3) return;                                       // a filled button: highlight only
     var r = el.getBoundingClientRect();
     if (r.height > 48 || r.width > 520) return;                         // a card, not a button
-    var ac = cs.getPropertyValue('--fx-ac').trim() || '#c0aeea';
+    var ac = cs.getPropertyValue('--fx-ac').trim() || (study ? '#8D769A' : '#c0aeea');
     ringSaved = { el: el, o: el.style.outline, off: el.style.outlineOffset };
     if (/inset/.test(cs.boxShadow)) el.classList.add('hoverfx-inset');
     el.classList.add('hoverfx-ol');
+    if (study) {
+      // StudyOS's .sos-hbtn: the accent at 16% for the ring, 38% for the glow.
+      var c = rgba(ac) || hexRgb(ac) || { r: 141, g: 118, b: 154 };
+      var rgb = Math.round(c.r) + ',' + Math.round(c.g) + ',' + Math.round(c.b);
+      el.style.setProperty('--fx-ring', 'rgba(' + rgb + ',.16)');
+      el.style.setProperty('--fx-glow', 'rgba(' + rgb + ',.38)');
+      el.classList.add('hoverfx-glow');
+    }
     el.style.outline = '1px solid ' + ac;
     el.style.outlineOffset = '-' + Math.min.apply(null, bw) + 'px';
   }
   function unring() {
     if (!ringSaved) return;
     var s = ringSaved; ringSaved = null;
-    s.el.classList.remove('hoverfx-ol', 'hoverfx-inset');
+    s.el.classList.remove('hoverfx-ol', 'hoverfx-inset', 'hoverfx-glow');
+    s.el.style.removeProperty('--fx-ring');
+    s.el.style.removeProperty('--fx-glow');
     s.el.style.outline = s.o;
     s.el.style.outlineOffset = s.off;
   }
@@ -290,7 +322,9 @@
     // MAGI mode keeps its press and its outline buttons.
     curFx = effect(el);
     el.style.filter = curFx;
-    if (magi(el)) ring(el, cs);
+    var m = mode(el);
+    if (m === 'magi') ring(el, cs);
+    else if (m === 'studyos') ring(el, cs, true);
   }, true);
 
   document.addEventListener('pointerout', function (e) {

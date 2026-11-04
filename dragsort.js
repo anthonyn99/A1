@@ -62,6 +62,10 @@
  *   A1Drag.later(fn)       run fn when the current drag has finished (or now):
  *                          a redraw must never land under a drag
  *
+ * A row lifted inside an ancestor that would clip it (a tab strip that
+ * scrolls, a box with overflow hidden) goes flat (.dsort-flat): no 1.06, its
+ * ring drawn inside its own box, no shadow, so no outline is cut off.
+ *
  * Colours come from --ds-ac / --ds-s2 / --ds-tx / --ds-txm / --ds-shadow, with
  * MAGI's values as the fallbacks, so a program can tint it.
  */
@@ -94,6 +98,11 @@
     // the `scale` property: that multiplies the translate too, so the chip
     // trailed the pointer by 6% of the distance dragged.
     '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
+    // A row lifted inside something that clips it (a tab strip that scrolls,
+    // a card with overflow hidden): its 1.06, outer ring and shadow were cut
+    // off by the clip -- a broken outline over the UI. Flat: no scale, the
+    // ring drawn inside its own box, no shadow, so nothing leaves the row.
+    '.dsort-drag.dsort-flat { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-ac, #c0aeea) 55%, transparent) !important; }',
     '.dsort-on > :not(.dsort-drag) { pointer-events: none; }',
     // Held for the instant the transforms are cleared and the caller redraws the
     // new order: without it each row EASED from its settled offset back to 0 and
@@ -373,7 +382,8 @@
         r.style.position = o.pos; r.style.left = o.l; r.style.top = o.t; r.style.transition = o.tr; r._dsRel = null;
       };
       var still = function (r) { nudge(r, 0, 0); };
-      var lift = function (t) { return ax !== 'y' ? t + ' scale(1.06)' : t; };   // the lifted row only
+      var flat = false;   // lifted inside a clip: see .dsort-flat
+      var lift = function (t) { return ax !== 'y' && !flat ? t + ' scale(1.06)' : t; };   // the lifted row only
 
       // Where the dragged row would sit, list-relative, unclamped.
       var drag = function () {
@@ -519,6 +529,35 @@
         tgt = null; tTo = 0;
       };
 
+      // Would the lifted row -- anywhere along the slots it can take, scaled,
+      // ringed and shadowed -- reach past an ancestor that clips? Rows floated
+      // as a copy live on <body> and never are.
+      var clipsLift = function () {
+        var lb = list.getBoundingClientRect();
+        var ox = lb.left - list.scrollLeft, oy = lb.top - list.scrollTop;
+        var b = boxes[from], ends = grid ? boxes : [boxes[sLo], boxes[sHi]];
+        var L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+        ends.concat([b]).forEach(function (e) {
+          var x = X || grid ? e.x : b.x, y = X || grid ? b.y : e.y;
+          L = Math.min(L, ox + x); T = Math.min(T, oy + y);
+          R = Math.max(R, ox + x + b.w); B = Math.max(B, oy + y + b.h);
+        });
+        // .dsort-drag's shadow (0 10px 28px -8px) and ring, and a chip's 1.06.
+        var sx = ax !== 'y' ? b.w * 0.03 : 0, sy = ax !== 'y' ? b.h * 0.03 : 0;
+        L -= 20 + sx; R += 20 + sx; T -= 10 + sy; B += 30 + sy;
+        for (var p = row.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+          var cs = getComputedStyle(p);
+          var cx = cs.overflowX !== 'visible', cy = cs.overflowY !== 'visible';
+          if (!cx && !cy && cs.contain.indexOf('paint') < 0) continue;
+          var pb = p.getBoundingClientRect();
+          var il = pb.left + p.clientLeft, it = pb.top + p.clientTop;
+          var ir = il + p.clientWidth, ib = it + p.clientHeight;
+          if (cs.contain.indexOf('paint') >= 0) cx = cy = true;
+          if ((cx && (L < il || R > ir)) || (cy && (T < it || B > ib))) return true;
+        }
+        return false;
+      };
+
       // Free rows only: near enough the home list to mean a slot in it.
       var nearHome = function () {
         var b = list.getBoundingClientRect();
@@ -600,6 +639,7 @@
           pinType(row, row.tagName === 'TR' && ghost.tagName === 'TABLE' ? ghost.querySelector('tr') : ghost);
           row.classList.add(fly ? 'dsort-hole' : 'dsort-src');
         }
+        if (!copy && !fly && clipsLift()) { flat = true; row.classList.add('dsort-flat'); }
         (copy || fly ? ghost : row).classList.add('dsort-drag');
         if (me.o.axis !== 'y') (copy || fly ? ghost : row).classList.add('dsort-chip');
         list.classList.add('dsort-on');
@@ -709,7 +749,7 @@
             if (done) return;
             done = true;
             obs.forEach(function (o) { o.disconnect(); });
-            rows.forEach(function (r) { r.style.transform = ''; unnudge(r); r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src', 'dsort-hole'); });
+            rows.forEach(function (r) { r.style.transform = ''; unnudge(r); r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src', 'dsort-hole', 'dsort-flat'); });
             if (fly && ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
             if (tl) tl.rows.forEach(function (r) { r.style.transform = ''; unnudge(r); });
             // Transitions come back only after the new order has painted.

@@ -380,6 +380,36 @@
     list.forEach(prepare);
     var ms = list.map(measure);
     list.forEach(function (b, i) { draw(b, ms[i]); });
+    list.forEach(occlude);
+  }
+  // A bar shows only where its box does. A table scrolled up under a page's
+  // fixed header kept its sideways bar drawn on top of that header (Tony,
+  // 2026-11-04, TradeHub): the rail sits above page content, so whatever covers
+  // the box must hide its rail too. What is on top at the thumb's middle
+  // decides; the page scroller's own bar is never covered this way.
+  function occlude(b) {
+    var el = b.el;
+    if (el === docScroller() || el === doc.body || el === root) return;
+    ['v', 'h'].forEach(function (a) {
+      var r = b[a];
+      if (!r || r.rail.style.display === 'none') return;
+      var tr = r.thumb.getBoundingClientRect();
+      var hide = false;
+      if (tr.width && tr.height) {
+        var x = tr.left + tr.width / 2, y = tr.top + tr.height / 2;
+        if (x >= 0 && y >= 0 && x < vw() && y < vh()) {
+          var hits = doc.elementsFromPoint(x, y);
+          for (var j = 0; j < hits.length; j++) {
+            var t = hits[j];
+            if (t.closest && t.closest('.vc-rail')) continue;
+            hide = !(t === el || el.contains(t));
+            break;
+          }
+        }
+      }
+      var v = hide ? 'hidden' : '';
+      if (r.rail.style.visibility !== v) r.rail.style.visibility = v;
+    });
   }
   function frame() {
     loop = 0;

@@ -320,6 +320,36 @@ async function drag(target, from, to, kind) {
     ok('canMoveTo false: that list never takes the row (no drop)', M.drops.length === 0 && N.rows.every((r) => !r.style.transform), JSON.stringify(M.drops.map((d) => d[1])));
   }
 
+  console.log('\nClipped lifts (a tab strip that scrolls)');
+  {
+    // A row lifted inside an ancestor that clips it goes flat: no 1.06, ring
+    // inside its box, no shadow -- or the clip cut its outline off.
+    const mk = (overflow) => {
+      const box = doc.createElement('div'); box.dataset.box = '0,0,300,40'; box.style.overflowX = overflow;
+      Object.defineProperty(box, 'clientWidth', { value: 300 }); Object.defineProperty(box, 'clientHeight', { value: 40 });
+      const nav = doc.createElement('nav'); nav.dataset.box = '0,0,300,40';
+      for (let i = 0; i < 3; i++) { const t = doc.createElement('span'); t.className = 'tab'; t.dataset.box = `${i * 100},0,100,40`; nav.appendChild(t); }
+      box.appendChild(nav); doc.body.appendChild(box);
+      A1Drag.sort(nav, { row: '.tab', axis: 'x' });
+      return { box, tab: nav.children[0] };
+    };
+    const seen = async (overflow) => {
+      const m = mk(overflow);
+      ptr('pointerdown', m.tab, 50, 20); ptr('pointermove', window, 60, 20);
+      const r = { flat: m.tab.classList.contains('dsort-flat'), tr: m.tab.style.transform };
+      ptr('pointerup', window, 60, 20); await wait(SETTLE + HOLD);
+      r.after = m.tab.classList.contains('dsort-flat');
+      m.box.remove();
+      return r;
+    };
+    const c = await seen('auto');
+    ok('inside overflow:auto the lifted tab is flat', c.flat, JSON.stringify(c));
+    ok('...and not scaled', !/scale/.test(c.tr), c.tr);
+    ok('...and flat is gone after the drop', !c.after);
+    const v = await seen('visible');
+    ok('with nothing clipping it lifts as before (1.06)', !v.flat && /scale\(1\.06\)/.test(v.tr), JSON.stringify(v));
+  }
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

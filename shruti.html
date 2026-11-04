@@ -129,8 +129,9 @@ if (window.SHRUTI_PROFILE) {
 (function () {
   var p = window.SHRUTI_PROFILE || 'tony';
   document.body.setAttribute('data-profile', p);
-  // MAGI's hover lift / press / focus ring (hoverfx.js) is Tony's; Veda keeps classic.
-  if (p === 'tony') document.body.setAttribute('data-hoverfx', 'magi');
+  // MAGI's hover lift / press / focus ring (hoverfx.js) is Tony's; Veda's side
+  // answers like StudyOS (an outline button's mauve ring + glow, 2026-11-04).
+  document.body.setAttribute('data-hoverfx', p === 'tony' ? 'magi' : 'studyos');
   if (p === 'veda') {
     document.querySelector('meta[name=theme-color]').setAttribute('content', '#1B1C1E');
     var ic = document.querySelector('link[rel=icon]');

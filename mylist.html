@@ -672,7 +672,12 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
 .ev-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;}
 .ev-toolbar .ev-search{flex:1;min-width:150px;}
 .ev-toolbar .ev-sort{width:auto;min-width:140px;flex-shrink:0;}
-#ev-date{color-scheme:dark;}
+#ev-date,#ev-end{color-scheme:dark;}
+/* start + optional end side by side; stacked on a narrow phone */
+.ev-dates{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+@media(max-width:380px){ .ev-dates{grid-template-columns:1fr;} }
+.ev-dates .opt{text-transform:none;letter-spacing:0;font-weight:500;opacity:.75;}
+.ev-span{display:block;margin-top:3px;font-size:10.5px;font-weight:600;letter-spacing:.3px;text-transform:none;color:var(--textmute);}
 .ev-year{display:flex;align-items:baseline;gap:10px;margin:22px 2px 12px;}
 .ev-year:first-child{margin-top:4px;}
 .ev-year .yr{font-family:var(--font-btn);font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);}
@@ -686,6 +691,8 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
 .ev-item:last-child{margin-bottom:0;}
 .ev-item::before{content:'';position:absolute;left:-24px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);transition:transform .15s;}
 .ev-item:hover::before{transform:scale(1.25);}
+/* a span of days: the dot stretches into a short capsule */
+.ev-item.span::before{height:22px;border-radius:6px;}
 .ev-card{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;transition:all .15s;}
 .ev-card:hover{border-color:var(--border2);}
 .ev-body{flex:1;min-width:0;}
@@ -934,7 +941,10 @@ body { max-width: 2000px; margin-inline: auto; }
      sibling of Recipes rather than a bolted-on screen -->
 <div id="ev-modal"><div class="rec-mbox" style="max-width:460px">
   <h3 id="ev-modal-title">New event</h3>
-  <label class="field" style="margin-bottom:12px"><span class="lbl">Date *</span><input type="date" id="ev-date"></label>
+  <div class="ev-dates">
+    <label class="field"><span class="lbl">Date *</span><input type="date" id="ev-date"></label>
+    <label class="field"><span class="lbl">End date <span class="opt">(optional)</span></span><input type="date" id="ev-end" placeholder="Same day"></label>
+  </div>
   <label class="field" style="margin-bottom:16px"><span class="lbl">Details *</span><div class="ta-wrap"><textarea id="ev-content" rows="4" placeholder="e.g. Moved to the new apartment on Main St…" style="max-height:320px" oninput="ML.autoGrow(this)"></textarea><div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div></div></label>
   <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
     <button class="btn ghost" onclick="ML.evCloseModal()">Cancel</button>
@@ -1965,8 +1975,9 @@ function toggleFav(p){
 function chooseProfile(p){ if(mlMustBlock(p)){ Guardian.gate(mlDefine(p)).then(function(ok){ if(ok) enterProfile(p); }); return; } enterProfile(p); }
 function enterProfile(p){
   activeProfile=p; manualOpen=false; view='lists'; recDetailId=null; evEditingId=null; document.body.setAttribute('data-profile',p);
-  // MAGI's hover lift / press / focus ring (hoverfx.js) is Tony's; Veda keeps classic.
-  if(p==='tony') document.body.setAttribute('data-hoverfx','magi'); else document.body.removeAttribute('data-hoverfx');
+  // MAGI's hover lift / press / focus ring (hoverfx.js) is Tony's; Veda's side
+  // answers like StudyOS (an outline button's mauve ring + glow, 2026-11-04).
+  if(p==='tony') document.body.setAttribute('data-hoverfx','magi'); else if(p==='veda') document.body.setAttribute('data-hoverfx','studyos'); else document.body.removeAttribute('data-hoverfx');
   recipes = recipesStore[p] || (recipesStore[p]=[]);
   events  = eventsStore[p]  || (eventsStore[p]=[]);
   document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#1a1a1d');
@@ -2918,11 +2929,35 @@ function evParse(ds){
 }
 function evFmtDate(ds){ var d=evParse(ds); return isNaN(d.getTime()) ? String(ds==null?'':ds) : d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}); }
 function evYear(ds){ var d=evParse(ds); return isNaN(d.getTime()) ? 'Undated' : String(d.getFullYear()); }
+// A span of days: `end` is an optional YYYY-MM-DD after `date`. Single-day events
+// carry no `end` at all, so every event saved before spans existed is unchanged.
+var EV_ISO=/^\d{4}-\d{2}-\d{2}$/;
+function evEndOf(date, end){ end=String(end==null?'':end); return (EV_ISO.test(end) && EV_ISO.test(String(date||'')) && end>date) ? end : ''; }
+// "March 4 – 6, 2026" · "Sep 26 – Oct 2, 2026" · "Dec 30, 2025 – Jan 2, 2026"
+function evFmtRange(e){
+  if(!e.end) return evFmtDate(e.date);
+  var a=evParse(e.date), b=evParse(e.end);
+  if(isNaN(a.getTime())||isNaN(b.getTime())) return evFmtDate(e.date);
+  // each side keeps its words together, so a narrow date column breaks at the dash
+  var nb=function(s){ return s.replace(/ /g,' '); };
+  if(a.getFullYear()!==b.getFullYear()){
+    var o={year:'numeric',month:'short',day:'numeric'};
+    return nb(a.toLocaleDateString('en-US',o))+' – '+nb(b.toLocaleDateString('en-US',o));
+  }
+  var y=', '+a.getFullYear();
+  if(a.getMonth()===b.getMonth()) return a.toLocaleDateString('en-US',{month:'long'})+' '+a.getDate()+' – '+b.getDate()+y;
+  return nb(a.toLocaleDateString('en-US',{month:'short',day:'numeric'}))+' – '+nb(b.toLocaleDateString('en-US',{month:'short',day:'numeric'})+y);
+}
+// inclusive day count (Mar 4 – Mar 6 = 3 days); Math.round absorbs DST hours
+function evDays(e){ return e.end ? Math.round((evParse(e.end)-evParse(e.date))/864e5)+1 : 1; }
 // Entries written by the very first EventRec build had no id. Both old apps healed
 // that on load; keep doing it so those events stay editable/deletable here.
 function evNormAll(arr){
   return (Array.isArray(arr)?arr:[]).map(function(e){
-    return { id:(e&&e.id)||uid(), date:String((e&&e.date)||''), content:String((e&&e.content)||'') };
+    var date=String((e&&e.date)||''), end=evEndOf(date, e&&e.end);
+    var o={ id:(e&&e.id)||uid(), date:date, content:String((e&&e.content)||'') };
+    if(end) o.end=end;
+    return o;
   });
 }
 function persistEvents(){ if(window._mlSaveEvents && activeProfile) window._mlSaveEvents(activeProfile, events.map(sanitize)); }
@@ -2932,9 +2967,10 @@ function evSetSort(v){ evSort=v; try{ localStorage.setItem('ml_ev_sort',v); }cat
 function evFiltered(){
   var q=($('ev-search')?$('ev-search').value:'').trim().toLowerCase();
   var list=events.slice();
-  if(q) list=list.filter(function(e){ return ((e.content||'')+' '+evFmtDate(e.date)).toLowerCase().indexOf(q)>=0; });
-  // newest → oldest by default, matching both apps' original ordering
-  list.sort(function(a,b){ var d=evParse(b.date)-evParse(a.date); return evSort==='oldest' ? -d : d; });
+  if(q) list=list.filter(function(e){ return ((e.content||'')+' '+evFmtDate(e.date)+' '+evFmtRange(e)+(e.end?' '+evFmtDate(e.end):'')).toLowerCase().indexOf(q)>=0; });
+  // newest → oldest by default, matching both apps' original ordering; spans sort
+  // by their first day (a same-day tie puts the longer span on the outside)
+  list.sort(function(a,b){ var d=(evParse(b.date)-evParse(a.date)) || (evDays(b)-evDays(a)); return evSort==='oldest' ? -d : d; });
   return list;
 }
 function evRowsHtml(){
@@ -2952,9 +2988,9 @@ function evRowsHtml(){
     var rows=byYear[y];
     return '<div class="ev-year"><span class="yr">'+esc(y)+'</span><span class="yline"></span><span class="yn">'+rows.length+' event'+(rows.length!==1?'s':'')+'</span></div>'
       +'<div class="ev-rail">'+rows.map(function(e){
-        return '<div class="ev-item" data-id="'+esc(e.id)+'">'
+        return '<div class="ev-item'+(e.end?' span':'')+'" data-id="'+esc(e.id)+'">'
           +'<div class="ev-card"><div class="ev-body">'
-            +'<div class="ev-date">'+esc(evFmtDate(e.date))+'</div>'
+            +'<div class="ev-date">'+esc(evFmtRange(e))+(e.end?'<span class="ev-span">'+evDays(e)+' days</span>':'')+'</div>'
             +'<div class="ev-text">'+esc(e.content)+'</div>'
           +'</div><div class="ev-acts">'
             +'<button class="ib" onclick="ML.evOpenEdit(\''+jq(e.id)+'\')" title="Edit">'+EDIT_SVG+'</button>'
@@ -2987,7 +3023,7 @@ function evOpenAdd(){
   evEditingId='';
   $('ev-modal-title').textContent='New event';
   var d=new Date();
-  $('ev-date').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  evSetDates(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'), '');
   $('ev-content').value=''; $('ev-content').style.height='';
   evOpenModal();
 }
@@ -2995,8 +3031,18 @@ function evOpenEdit(id){
   var e=evFind(id); if(!e) return;
   evEditingId=id;
   $('ev-modal-title').textContent='Edit event';
-  $('ev-date').value=e.date||''; $('ev-content').value=e.content||''; $('ev-content').style.height='';
+  evSetDates(e.date||'', e.end||''); $('ev-content').value=e.content||''; $('ev-content').style.height='';
   evOpenModal();
+}
+// The end picker can't go before the start (its calendar greys those days out and
+// opens on the start's month); moving the start past the end clears the end.
+function evSetDates(start, end){
+  $('ev-date').value=start; $('ev-end').value=end; evSyncEnd();
+}
+function evSyncEnd(){
+  var s=$('ev-date').value||'', en=$('ev-end');
+  if(EV_ISO.test(s)) en.min=s; else en.removeAttribute('min');
+  if(en.value && s && en.value<=s){ en.value=''; en.dispatchEvent(new Event('change')); }
 }
 function evCloseModal(){ $('ev-modal').style.display='none'; evEditingId=null; }
 function evFlagField(el){ if(!el) return; el.style.borderColor='var(--bad)'; el.focus(); setTimeout(function(){ el.style.borderColor=''; }, 1500); }
@@ -3006,10 +3052,12 @@ function evSave(){
   var content=($('ev-content').value||'').trim();
   if(!date){ evFlagField($('ev-date')); return; }
   if(!content){ evFlagField($('ev-content')); return; }
-  if(evEditingId===''){ setEvents(events.concat([{ id:uid(), date:date, content:content }])); toast('Event added'); }
+  var end=evEndOf(date, ($('ev-end').value||'').trim());   // same day / before start → single-day event
+  function rec(id){ var o={ id:id, date:date, content:content }; if(end) o.end=end; return o; }
+  if(evEditingId===''){ setEvents(events.concat([rec(uid())])); toast('Event added'); }
   else {
     var found=false;
-    setEvents(events.map(function(e){ if(e.id!==evEditingId) return e; found=true; return { id:e.id, date:date, content:content }; }));
+    setEvents(events.map(function(e){ if(e.id!==evEditingId) return e; found=true; return rec(e.id); }));
     if(!found){ evCloseModal(); return; }   // deleted from another device mid-edit
     toast('Event updated');
   }
@@ -3025,6 +3073,7 @@ function evDelete(id){
 $('ev-modal').addEventListener('click', function(e){ if(e.target===this) evCloseModal(); });
 $('ev-content').addEventListener('keydown', function(e){ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); evSave(); } });
 $('ev-date').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); var c=$('ev-content'); if(c) c.focus(); } });
+$('ev-date').addEventListener('change', evSyncEnd);
 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('ev-modal').style.display==='flex') evCloseModal(); });
 
 // ── View switcher: draggable, per-profile tab order ──────────────────────────

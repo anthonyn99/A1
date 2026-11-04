@@ -15,7 +15,7 @@
  */
 const { connect, evalJs, sleep } = require('./cdp');
 
-const BASE = 'https://anthonyn99.github.io/A1/';
+const BASE = process.env.A1_BASE || 'https://anthonyn99.github.io/A1/';   // A1_BASE=http://localhost:8765/ for a local copy
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
   if (cond) { pass++; console.log('  ✓ ' + name); }

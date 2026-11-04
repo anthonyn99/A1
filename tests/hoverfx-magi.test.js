@@ -29,6 +29,7 @@ const dom = new JSDOM(`<!doctype html><body style="background:#1a1a1d">
   <div id="magi" data-hoverfx="magi"><button id="m" style="background:#f4f3f0">M</button></div>
   <div id="plain"><button id="p" style="background:#f4f3f0">P</button></div>
   <div data-hoverfx="magi"><div data-hoverfx="classic"><button id="c" style="background:#f4f3f0">C</button></div></div>
+  <div data-hoverfx="studyos"><button id="so" style="background:transparent;border:1px solid #45454c">S</button><button id="sf" style="background:#8D769A;border:1px solid #8D769A">F</button></div>
 </body>`, { runScripts: 'outside-only', pretendToBeVisual: true });
 const { window } = dom;
 window.eval(src);
@@ -76,6 +77,26 @@ fire('pointerout', cl, { relatedTarget: doc.body });
 const css = [...doc.querySelectorAll('style')].map((s) => s.textContent).join('\n');
 ok('magi: focus-visible ring is scoped to [data-hoverfx="magi"]',
    /\[data-hoverfx="magi"\][^{]*:focus-visible[^{]*\{outline:2px solid var\(--fx-ac,#c0aeea\)/.test(css));
+
+// 5. StudyOS mode (Veda's side, 2026-11-04): an outline button gets StudyOS's
+//    .sos-hbtn look — her accent border, a 3px ring at 16%, a 12px glow at 38% —
+//    on top of the measured highlight; a filled one only the highlight; no press.
+const so = doc.getElementById('so'), sf = doc.getElementById('sf');
+fire('pointerover', so);
+ok('studyos: outline button gets the measured highlight', /^brightness\(/.test(so.style.filter), so.style.filter);
+ok('studyos: its border turns her mauve (1px outline over it)', /1px solid (#8D769A|rgb\(141, 118, 154\))/i.test(so.style.outline), so.style.outline);
+ok('studyos: ring + glow at StudyOS strengths', so.classList.contains('hoverfx-glow')
+   && so.style.getPropertyValue('--fx-ring') === 'rgba(141,118,154,.16)' && so.style.getPropertyValue('--fx-glow') === 'rgba(141,118,154,.38)',
+   so.className + ' ' + so.style.getPropertyValue('--fx-ring'));
+fire('pointerdown', so);
+ok('studyos: no press sink', !(so.style.translate || so.style.getPropertyValue('translate')));
+fire('pointerup', so);
+fire('pointerout', so, { relatedTarget: doc.body });
+ok('studyos: all of it cleared on leave', !so.style.filter && !so.style.outline && !so.classList.contains('hoverfx-glow') && !so.style.getPropertyValue('--fx-glow'));
+fire('pointerover', sf);
+ok('studyos: a filled button gets the highlight only', /^brightness\(/.test(sf.style.filter) && !sf.classList.contains('hoverfx-glow'), sf.className);
+fire('pointerout', sf, { relatedTarget: doc.body });
+ok('studyos: its focus ring is her accent', /\[data-hoverfx="studyos"\][^{]*:focus-visible[^{]*\{outline:2px solid var\(--fx-ac,#8D769A\)/.test(css));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

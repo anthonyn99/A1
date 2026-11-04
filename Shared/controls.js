@@ -754,8 +754,10 @@
     var now = new Date(), today = todayIso();
     var cur = parseIso(inp.value);
     var min = parseIso(inp.min) ? inp.min.slice(0, 10) : '', max = parseIso(inp.max) ? inp.max.slice(0, 10) : '';
-    var view = { y: cur ? cur.y : now.getFullYear(), m: cur ? cur.m : now.getMonth(), mode: 'days' };
-    var focusDay = cur ? inp.value.slice(0, 10) : today;
+    // Empty with a min (an end date after a start, even a past one): open on min's month.
+    var lo = !cur && min ? parseIso(min) : null;
+    var view = { y: cur ? cur.y : lo ? lo.y : now.getFullYear(), m: cur ? cur.m : lo ? lo.m : now.getMonth(), mode: 'days' };
+    var focusDay = cur ? inp.value.slice(0, 10) : lo ? min : today;
     var pop = h('div', 'a1c-pop a1c-cal');
     pop.setAttribute('role', 'dialog');
     pop.setAttribute('aria-label', withTime ? 'Choose a date and time' : 'Choose a date');
