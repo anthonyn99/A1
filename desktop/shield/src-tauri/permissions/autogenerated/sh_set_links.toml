@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sh-set-links"
+description = "Enables the sh_set_links command without any pre-configured scope."
+commands.allow = ["sh_set_links"]
+
+[[permission]]
+identifier = "deny-sh-set-links"
+description = "Denies the sh_set_links command without any pre-configured scope."
+commands.deny = ["sh_set_links"]

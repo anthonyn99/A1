@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sh-pull-history"
+description = "Enables the sh_pull_history command without any pre-configured scope."
+commands.allow = ["sh_pull_history"]
+
+[[permission]]
+identifier = "deny-sh-pull-history"
+description = "Denies the sh_pull_history command without any pre-configured scope."
+commands.deny = ["sh_pull_history"]
