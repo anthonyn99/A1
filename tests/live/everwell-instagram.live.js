@@ -401,8 +401,8 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   LIVE.answer = () => ({ ok: true, more: false, posts: [post('NEWlive1'), post('VIDaaaa1', 'r', 12), post('PICaaaa3')] });
   await js(`document.getElementById('igd-sid').value = '1234567890%3AAbCdEf%3A12'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(1800);
   mm = await media();
-  ok('Connect: the key (never the sessionid) goes in the settings, and the collection is read whole at once', (await settingsDoc()).igLive.key === 'KEY-1' && !JSON.stringify(await settingsDoc()).includes('AbCdEf') &&
-    LIVE.calls.map((x) => x.path).join() === '/ig/connect,/ig/collection' && LIVE.calls[1].cid === CID && LIVE.calls[1].quick === false && !(await js(`return !!document.getElementById('igd');`)), JSON.stringify(LIVE.calls));
+  ok('Connect: the key (never the sessionid) goes in the settings, and the collection is read at once (newest saves + the held posts looked up)', (await settingsDoc()).igLive.key === 'KEY-1' && !JSON.stringify(await settingsDoc()).includes('AbCdEf') &&
+    LIVE.calls.map((x) => x.path).join() === '/ig/connect,/ig/collection,/ig/posts' && LIVE.calls[1].cid === CID && LIVE.calls[1].quick === true && LIVE.calls[2].codes.length === 5 && !(await js(`return !!document.getElementById('igd');`)), JSON.stringify(LIVE.calls));
   ok('…merged: new on top, unsaved gone, and the tile says it was just synced', mm[0].posts.map((x) => x.c).join() === 'NEWlive1,VIDaaaa1,PICaaaa3' &&
     await js(`return /synced just now/.test(document.querySelector('#media-grid .igc-group[data-id="col1"] [data-igc-kind]').textContent);`), mm[0].posts.map((x) => x.c).join());
   // Coming back to Everwell (saved a post on Instagram, switched back): a quick check, no tap.
@@ -418,7 +418,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('…and not again within the minute', LIVE.calls.length === 0, JSON.stringify(LIVE.calls));
   LIVE.calls.length = 0; LIVE.answer = () => ({ ok: true, more: false, posts: [post('NEWlive2'), post('NEWlive1'), post('VIDaaaa1', 'r', 12), post('PICaaaa3')] });
   await click('#media-grid [data-igsync="col1"]'); await sleep(1200);
-  ok('connected, Refresh reads at once (no dialog, no Instagram tab) and says it is up to date', LIVE.calls.length === 1 && LIVE.calls[0].quick === false && !(await js(`return !!document.getElementById('igd');`)) &&
+  ok('connected, Refresh reads at once (no dialog, no Instagram tab) and says it is up to date', LIVE.calls.length === 2 && LIVE.calls[0].quick === true && LIVE.calls[1].path === '/ig/posts' && !(await js(`return !!document.getElementById('igd');`)) &&
     /“Discipline” is up to date: 4 posts\./.test(await toast()), await toast());
   LIVE.answer = () => ({ ok: false, error: 'expired' });
   await click('#media-grid [data-igsync="col1"]'); await sleep(1000);
@@ -451,7 +451,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
     return !b.disabled && b.textContent === 'Connect Instagram' && /tab was closed/.test(d.querySelector('#igd-err').textContent) && d.querySelector('#igd-wait').hidden;`) && (await settingsDoc()).igLive.key === '');
   await js(`window.__extAnswer = { ok: true, key: 'KEY-EXT' }; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(1800);
   ok('signed in: the key arrives, the dialog closes, and the collection is read at once', (await settingsDoc()).igLive.key === 'KEY-EXT' && !(await js(`return !!document.getElementById('igd');`)) &&
-    LIVE.calls.length === 1 && LIVE.calls[0].path === '/ig/collection' && LIVE.calls[0].quick === false && /Instagram connected|Discipline/.test(await toast()), JSON.stringify(LIVE.calls) + ' ' + await toast() + ' key=' + (await settingsDoc()).igLive.key + ' dlg=' + await js(`return !!document.getElementById('igd');`));
+    LIVE.calls.length === 2 && LIVE.calls[0].path === '/ig/collection' && LIVE.calls[1].path === '/ig/posts' && /Instagram connected|Discipline/.test(await toast()), JSON.stringify(LIVE.calls) + ' ' + await toast() + ' key=' + (await settingsDoc()).igLive.key + ' dlg=' + await js(`return !!document.getElementById('igd');`));
   await fresh(); await go('mindset');
 
   console.log('\nPhone (390px)');
