@@ -4396,7 +4396,7 @@ async function handleIgPx(url, req, ctx) {
 // opens nothing his settings do not already show. Only these reads are ever
 // made with the session: no writes, no other account, no other endpoint.
 const IG_APP_ID = '936619743392459';
-const IG_SYNC_PAGES = 40;   // per call: under the 50-subrequest cap with room to spare
+const IG_SYNC_PAGES = 10;   // per call: ~15 s (Instagram takes ~1.5 s a page), so Everwell merges as it goes
 const IG_QUICK_PAGES = 2;  // the automatic checks: the newest ~40 saves
 const IG_SESS_KEY = 'ig_sess';
 const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -4525,7 +4525,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 48, // bump when verifying a deploy went live
+        version: 49, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'ig-sync', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
