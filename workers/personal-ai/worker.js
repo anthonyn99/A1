@@ -4515,6 +4515,44 @@ async function handleIgCollection(body, env) {
   return json({ ok: true, cid, quick, more, next: more ? max : '', read, posts: posts.slice(0, 600), drop });
 }
 
+// POST /ig/posts {key, cid, codes} → { ok, posts, out, miss }: the posts
+// Everwell already holds, looked up one by one (media/<id>/info/, ~0.5 s each,
+// IG_POSTS_AT_ONCE at a time): fresh media links, and `out` = gone from the
+// collection (or deleted). Refresh uses it with a quick read of the newest
+// saves, so it takes seconds instead of reading the whole saved feed
+// (Tony's 134 pages took 3.5 minutes, 2026-11-05). `miss`: lookups that failed.
+const IG_POSTS_MAX = 40, IG_POSTS_AT_ONCE = 8;
+const IG_ABC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+// A shortcode is the media id in base64 (its first 11 characters; longer codes carry a suffix).
+export function igCodeToId(code) {
+  let n = 0n;
+  for (const ch of String(code).slice(0, 11)) { const i = IG_ABC.indexOf(ch); if (i < 0) return ''; n = n * 64n + BigInt(i); }
+  return n.toString();
+}
+async function handleIgPosts(body, env) {
+  const cid = String((body && body.cid) || '');
+  if (!/^(\d{5,25}|all)$/.test(cid)) return json({ ok: false, error: 'bad cid' }, 400);
+  const codes = [...new Set(Array.isArray(body && body.codes) ? body.codes : [])].filter((c) => typeof c === 'string' && /^[A-Za-z0-9_-]{5,40}$/.test(c));
+  if (!codes.length || codes.length > IG_POSTS_MAX) return json({ ok: false, error: 'bad codes' }, 400);
+  const g = await igSess(env, body && body.key);
+  if (!g.s) return json({ ok: false, error: g.why }, g.why === 'bad-key' ? 403 : 200);
+  const posts = [], out = [], miss = [], why = [];
+  const one = async (code) => {
+    const t = await igApi('media/' + igCodeToId(code) + '/info/', g.s);
+    if (!t.j) { if (t.why === 'gone') out.push(code); else { miss.push(code); why.push(t.why); } return; }
+    const m = t.j.items && t.j.items[0], q = igPostOf(m);
+    if (!q) { out.push(code); return; }
+    if (cid !== 'all' && !(m.saved_collection_ids || []).map(String).includes(cid)) { out.push(code); return; }
+    q.c = code; posts.push(q);
+  };
+  for (let i = 0; i < codes.length; i += IG_POSTS_AT_ONCE) await Promise.all(codes.slice(i, i + IG_POSTS_AT_ONCE).map(one));
+  // Every lookup refused for the same reason (signed out, slow down): say that.
+  if (!posts.length && !out.length && why.length) return json({ ok: false, error: why.includes('expired') ? 'expired' : why.includes('checkpoint') ? 'checkpoint' : why[0] });
+  const order = new Map(codes.map((c, i) => [c, i]));
+  posts.sort((a, b) => order.get(a.c) - order.get(b.c));
+  return json({ ok: true, cid, posts, out, miss });
+}
+
 export default {
   async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -4526,7 +4564,7 @@ export default {
         ok: true,
         service: 'personal-ai',
         version: 49, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'ig-sync', 'link-preview', 'link-parse'],
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'ig-sync', 'ig-posts', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
@@ -4579,6 +4617,7 @@ export default {
       if (path === '/ig/connect')     return handleIgConnect(body, env);
       if (path === '/ig/collection')  return handleIgCollection(body, env);
       if (path === '/ig/disconnect')  return handleIgDisconnect(body, env);
+      if (path === '/ig/posts')       return handleIgPosts(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);
