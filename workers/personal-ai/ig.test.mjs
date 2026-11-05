@@ -2,7 +2,7 @@
 // Synthetic pages in the embed's three shapes (reel/video, carousel, plain
 // photo); no network and no real Instagram content.
 // Run: node workers/personal-ai/ig.test.mjs
-import worker, { igContext, igMedia, igParseSession, igPostOf, igWhy } from './worker.js';
+import worker, { igContext, igMedia, igParseSession, igPostOf, igWhy, igCodeToId } from './worker.js';
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  ok   ' + name); } else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + JSON.stringify(extra) : '')); } };
@@ -104,6 +104,28 @@ calls.length = 0; res = await post('/ig/collection', { key, cid: '17912345678901
 ok('a malformed cursor is ignored (reads from the top)', res.j.ok && calls[0].u.endsWith('/feed/saved/posts/'), calls);
 calls.length = 0; res = await post('/ig/collection', { key, cid: 'all', quick: true });
 ok('a quick check reads the newest two pages only (and says where to go on)', res.j.ok && res.j.posts.length === 4 && res.j.more === true && res.j.next === '2' && calls.length === 2 && calls[0].u.endsWith('/feed/saved/posts/'), { res, calls });
+// /ig/posts: the posts Everwell holds, looked up one by one (Refresh in seconds).
+ok('a shortcode becomes its media id', igCodeToId('DfSAq0VSRjE') === '4022280359604984004' && igCodeToId('DfSAq0VSRjEextra') === '4022280359604984004' && igCodeToId('bad!code') === '');
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (u, o) => {
+  calls.push({ u: String(u) });
+  const id = (String(u).match(/media\/(\d+)\/info\//) || [])[1];
+  if (id === igCodeToId('GONE00001')) return new Response('{"message":"Media not found or unavailable","status":"fail"}', { status: 400 });
+  if (id === igCodeToId('FAIL00001')) return new Response('{"message":"oops"}', { status: 500 });
+  const code = id === igCodeToId('OUTC00001') ? 'OUTC00001' : 'POST00001';
+  return new Response(JSON.stringify({ items: [{ code, media_type: 1, saved_collection_ids: code === 'OUTC00001' ? [] : ['17912345678901234'], image_versions2: { candidates: [{ width: 640, url: CDN + 'f.jpg' }] } }] }), { status: 200 });
+};
+calls.length = 0; res = await post('/ig/posts', { key, cid: '17912345678901234', codes: ['POST00001', 'OUTC00001', 'GONE00001', 'FAIL00001'] });
+ok('each post is looked up at once: fresh links; out of the collection or deleted → out; a failed lookup → miss (kept)', res.j.ok && res.j.posts.map((q) => q.c).join() === 'POST00001' &&
+  res.j.posts[0].i === CDN + 'f.jpg' && res.j.out.sort().join() === 'GONE00001,OUTC00001' && res.j.miss.join() === 'FAIL00001' && calls.length === 4 && calls[0].u.endsWith('/media/' + igCodeToId('POST00001') + '/info/'), { res, calls });
+res = await post('/ig/posts', { key, cid: '17912345678901234', codes: Array.from({ length: 41 }, (_, i) => 'POST' + String(i).padStart(5, '0')) });
+ok('at most 40 posts a call; a bad code list is refused', res.status === 400 && (await post('/ig/posts', { key, cid: '17912345678901234', codes: [] })).status === 400);
+res = await post('/ig/posts', { key: 'wrong', cid: '17912345678901234', codes: ['POST00001'] });
+ok('/ig/posts needs the key too', res.status === 403);
+globalThis.fetch = async () => new Response('', { status: 302, headers: { Location: 'https://www.instagram.com/accounts/login/' } });
+res = await post('/ig/posts', { key, cid: '17912345678901234', codes: ['POST00001', 'POST00002'] });
+ok('every lookup refused as signed out → expired', res.j.ok === false && res.j.error === 'expired', res);
+globalThis.fetch = realFetch;
 igMode = 'html'; res = await post('/ig/collection', { key, cid: 'all' });
 ok("Instagram's login page instead of JSON reads as an expired session", res.j.ok === false && res.j.error === 'expired', res);
 igMode = 'ok';
