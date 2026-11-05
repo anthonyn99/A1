@@ -93,7 +93,9 @@ dropped: "Put in trash bins" was due 11:00:00 and swept at 11:01:49.
 
 A Plans event (proposed, confirmed, declined, a change or a move asked for,
 done, cancel, delete) is a push to the **other** profile, sent only **after**
-the plan has saved to `dashboards/plans`. A push for a write that never landed
+the plan has saved to the sender's own Plans document in Notebook
+(`dashboards/tony_journal_plans` or `dashboards/journal_plans`; see
+[../Notebook/README.md](../Notebook/README.md#plans)). A push for a write that never landed
 points at a plan that does not exist; a failed save says "Plan not saved"
 instead and sends nothing.
 

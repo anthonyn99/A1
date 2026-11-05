@@ -45,6 +45,11 @@ Both profiles see the identical section from the identical code.
 
 ## 3. Data model
 
+> **Superseded for storage (2026-11-04).** Plans now live in Notebook, one
+> document per person: Tony writes `dashboards/tony_journal_plans`, Veda writes
+> `dashboards/journal_plans`, and `dashboards/plans` below is read-only legacy.
+> The record shape is unchanged. See [../Notebook/README.md](../Notebook/README.md#plans).
+
 New shared Firestore doc: **`dashboards/plans`**.
 
 Follow the MyJournal collaboration pattern exactly (see `BJ_DOC_PATH` handling

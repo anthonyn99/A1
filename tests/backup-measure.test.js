@@ -306,7 +306,7 @@ section('The listener taps are wired and cannot alter app behaviour');
 
 // Every document Index owns that has a live listener should be tapped, since
 // those cost zero extra Firestore reads.
-const TAPPED = ['main', 'vedasdash', 'journal', 'tony_journal', 'plans', 'navorder',
+const TAPPED = ['main', 'vedasdash', 'journal', 'tony_journal', 'navorder',
                 'applock', 'tesla_cfg', 'pv_cards', 'studyos_mirror',
                 'studyos_mirror_ack', 'market_calendar',
                 'oneinbox/cards'];
@@ -314,6 +314,12 @@ TAPPED.forEach((d) => {
   t("dashboards/" + d + ' is tapped', HTML.includes("_a1b('dashboards/" + d + "'"),
     'A listener already delivers this document; not tapping it wastes a free capture.');
 });
+
+// Plans' three documents are tapped by Notebook's Plans store, from the path it
+// listens to (Notebook/core/plans.js), on every server snapshot.
+const PLANS_SRC = fs.readFileSync(path.join(__dirname, '..', 'Notebook/core/plans.js'), 'utf8');
+t('the Plans documents (both Notebooks + the old shared one) are tapped',
+  PLANS_SRC.includes('if(exists&&!md.fromCache&&!md.hasPendingWrites){try{F.a1b(path,d);') && PLANS_SRC.includes("const SOURCES=['legacy','tony','veda'];"));
 
 t('the tap helper swallows its own failures',
   /const _a1b = \(path, data\) => \{[\s\S]{0,220}?catch \(e\)/.test(HTML),

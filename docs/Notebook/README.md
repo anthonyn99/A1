@@ -98,6 +98,7 @@ Notebook/
   core/oj.js/.css     OurJournal engine
   core/fb.js          the journals' Firestore layer (installed by the host)
   core/md.js          markdown -> HTML helpers
+  core/plans.js       Plans: the engine (window.PlansCore = Notebook.plans) and its two-sided store
   core/docx.js        the DOCX editor; per-app config through Notebook.registerDocx
   apps/myjournal.*    MyJournal (written for key tj)
   apps/brainstorm.*   Brainstorm Journal (key bj)
@@ -271,6 +272,38 @@ an answer that kept every `[[IMGn]]` token and section marker, and for AI Format
 its length (`formatKeepsContent`); if a token is still lost, `aiRestoreImages`
 puts that image, file or link back at the end of its piece. Tests:
 `workers/personal-ai/refine.test.mjs`, `tests/notebook-ai-restore.test.js`.
+
+## Plans
+
+Plans (the two-sided shared commitments in both TaskHubs: Weekly → Add → Plan)
+are Notebook's since 2026-11-04: `core/plans.js`. **Each person's plan writes go to
+their own side**, never the other's:
+
+| Side | Plans document |
+|---|---|
+| T's Notebook (Tony) | `dashboards/tony_journal_plans` (`Notebook.profiles.tony.plans`) |
+| V's Notebook (Veda) | `dashboards/journal_plans` (`Notebook.profiles.veda.plans`) |
+
+- One field per plan, `p_<id>`, the whole record as its writer last left it. Both
+  sides listen to both documents; per plan the copy with the later `updatedAt` wins,
+  and every save stamps past the copy it was made from (`nextStamp`), so a slow
+  clock cannot lose a change. A delete is a tombstone `{ id, deleted: true,
+  updatedAt }` in the deleter's document, because the other side's copy remains.
+- The old shared `dashboards/plans` is **read, never written**: its plans show, each
+  side copies the ones it authored into its own document once, and a tab still
+  running an older page (which writes there) still reaches the new one.
+- Nothing is shown until all three documents have answered from the server once
+  (both TaskHubs reconcile their grids from it); then cached snapshots count too.
+- A save made without a connection (before `init`, or between a teardown and the
+  re-init) waits for the next `Notebook.fb.install`; one cut off by a teardown is
+  sent again on the new client. The push to the other person goes out only once the
+  save has landed; a failed save says "Plan not saved" and pushes nothing.
+- The host: `Notebook.fb.install / unsubscribe` install and drop the store. The
+  TaskHubs draw the panel through `window.PlansCore` (`Notebook.plans`) and mirror
+  confirmed plans from `window._plansLatest` / the `fb-plans-update` event. They
+  never read the documents themselves.
+- Tests: `tests/live/plans.live.js` (both sides, the whole lifecycle, the old
+  document, tombstones, clock skew, teardown); `tests/notif-delivery.test.js`.
 
 ## Firebase cost
 

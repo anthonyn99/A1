@@ -1287,6 +1287,8 @@ window.Notebook.fb = {
   install: function (F) {
     install(F);
     Object.keys(_extras).forEach(function (k) { _extras[k].install(F); });
+    // Plans (core/plans.js): both sides' plan documents, on the host's Firestore.
+    if (window.Notebook.plansStore) window.Notebook.plansStore.install(F);
   },
   // An instanced store joins the host's Firestore when it has one (index.html),
   // or takes the F a Firebase-borrowing host built for it (Notebook.mount).
@@ -1312,6 +1314,7 @@ window.Notebook.fb = {
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     Object.keys(_extras).forEach(function (k) { _extras[k].unsubscribe(); });
+    if (window.Notebook.plansStore) window.Notebook.plansStore.unsubscribe();
   },
   // ...and re-arm their stale-overwrite guards: that connection is gone, so
   // "we have seen server state" is no longer true (see the guard above).

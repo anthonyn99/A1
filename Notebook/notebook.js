@@ -35,7 +35,7 @@ var STAMP = (src.match(/[?&]v=([^&#]+)/) || [])[1] || '';
 
 // What each group loads, in order. Stylesheets keep their cascade position.
 var GROUPS = {
-  core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js', 'core/md.js'],
+  core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js', 'core/md.js', 'core/plans.js'],
   docx: ['notebook.css', 'core/docx.js'],
   // Apps: Notebook.mount({ app }) loads one where the host calls it.
   brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js'],
@@ -52,8 +52,10 @@ var NATIVE = { brainstorm: 'bj', myjournal: 'tj' };
 // differ. profile + key + store mounts an instance of that side, and every
 // instance says which side it is ("Editing in T's Notebook").
 var PROFILES = {
-  tony: { app: 'myjournal', key: 'tj', store: 'tony_journal', name: 'T\'s Notebook' },
-  veda: { app: 'brainstorm', key: 'bj', store: 'journal', name: 'V\'s Notebook' }
+  // plans: the side's Plans document (core/plans.js). Each person's plan
+  // writes go to their own side only.
+  tony: { app: 'myjournal', key: 'tj', store: 'tony_journal', plans: 'tony_journal_plans', name: 'T\'s Notebook' },
+  veda: { app: 'brainstorm', key: 'bj', store: 'journal', plans: 'journal_plans', name: 'V\'s Notebook' }
 };
 // A side's names, for anything that labels it: { profile, name, editing }.
 function side(profile) {

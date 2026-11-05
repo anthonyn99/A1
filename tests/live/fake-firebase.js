@@ -193,8 +193,11 @@ function doUpdate(ref, data) {
   write('update', ref.path, data, () => { for (const k of Object.keys(data)) setPath(fs.docs[ref.path], k, data[k]); });
 }
 function doDelete(ref) { write('delete', ref.path, undefined, () => { delete fs.docs[ref.path]; }); }
-export const setDoc = (ref, data, opts) => { doSet(ref, data, opts); return Promise.resolve(); };
-export const updateDoc = (ref, data) => { try { doUpdate(ref, data); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
+// __fakeFs.failNext = path: the next setDoc/updateDoc on that path is refused, as
+// the server refuses a write (permission-denied: not retried), and nothing is stored.
+const refuse = (ref) => { if (fs.failNext && fs.failNext === ref.path) { fs.failNext = null; const e = new Error('refused by the test'); e.code = 'permission-denied'; return e; } return null; };
+export const setDoc = (ref, data, opts) => { const r = refuse(ref); if (r) return Promise.reject(r); doSet(ref, data, opts); return Promise.resolve(); };
+export const updateDoc = (ref, data) => { const r = refuse(ref); if (r) return Promise.reject(r); try { doUpdate(ref, data); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
 export const deleteDoc = (ref) => { doDelete(ref); return Promise.resolve(); };
 export const addDoc = (col, data) => { const r = doc(null, col.path, 'auto_' + Math.random().toString(36).slice(2, 10)); doSet(r, data); return Promise.resolve(r); };
 export const getDoc = (ref) => Promise.resolve(docSnap(ref.path));

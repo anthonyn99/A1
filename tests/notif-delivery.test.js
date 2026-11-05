@@ -40,7 +40,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const worker = fs.readFileSync(path.join(ROOT, 'workers', 'taskhub-reminders', 'worker.js'), 'utf8');
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+// The Plans engine moved into Notebook (Notebook/core/plans.js, 2026-11-04).
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'Notebook', 'core', 'plans.js'), 'utf8');
 const sw = fs.readFileSync(path.join(ROOT, 'firebase-messaging-sw.js'), 'utf8');
 
 const fail = [];
@@ -258,7 +259,7 @@ function finish() {
   // TaskHub mirror, so the news is there either way — it just was not said.
   check(
     'the Plans engine announces an arriving change from the snapshot',
-    /function announceArrivals\(before,after\)\{/.test(html) &&
+    /function announceArrivals\(before,after,removed\)\{/.test(html) &&
       /window\._thPlanBanner\)window\._thPlanBanner\(msg,w\)/.test(html)
   );
   check(
@@ -267,7 +268,7 @@ function finish() {
   );
   check(
     'every write records who made it, so the other device can attribute it',
-    /p\.lastBy=me\(\)\|\|null;/.test(html) && /p\.lastKind=kind\|\|null;/.test(html)
+    /function save\(p,kind,extra\)\{\s*const w=me\(\);[\s\S]{0,1200}?p\.lastBy=w;/.test(html) && /p\.lastKind=kind\|\|null;/.test(html)
   );
   check(
     'nothing is announced on the first snapshot, or from stale records',
