@@ -7,7 +7,14 @@ phantom long. Run: python TradeBoard/scripts/test_shorts.py (from V1).
 import os
 import sys
 
+import types
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+# The pairing code needs no network: stand in for the Webull SDK so this runs
+# on any PC, whether or not the SDK is installed.
+for name, attrs in (("webull", {}), ("webull.core", {}), ("webull.core.client", {"ApiClient": object}),
+                    ("webull.trade", {}), ("webull.trade.trade_client", {"TradeClient": object})):
+    sys.modules.setdefault(name, types.SimpleNamespace(**attrs))
 import wb_sync  # noqa: E402
 
 # Tony's real 11/5/26 orders, in Webull's OpenAPI shape.
