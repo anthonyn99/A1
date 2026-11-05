@@ -20169,7 +20169,8 @@ function applyTask(b,W,a,mark,fx){
       if(!b.prep)return fail('no_bridge');
       var hp=locate(W,Object.assign({box:'calendar'},a.match||{}));
       if(!hp||hp.box!=='calendar')return fail('not_found');
-      applyAi(hp.item,{aiPrep:true,aiNote:a.note!=null?a.note:a.aiNote,aiSite:a.site!=null?a.site:a.aiSite});
+      var ps=a.set||{};   // the model sometimes nests them in set
+      applyAi(hp.item,{aiPrep:true,aiNote:[a.note,a.aiNote,ps.aiNote].filter(function(v){return v!=null;})[0],aiSite:[a.site,a.aiSite,ps.aiSite].filter(function(v){return v!=null;})[0]});
       mark('calendar');ref(hp.item,'calendar',hp.key);
       fx.after.push(prepJob(b,a,hp.item,hp.key));
       return true;
