@@ -242,6 +242,28 @@ html,body{height:100%;}
   #tony-app-nav .tn-btn{display:none;}
   #tn-mobile-select{display:inline-flex;align-items:center;}
 }
+/* ── TaskHub popups (both sides) ──────────────────────────────────────────
+   Tony, 2026-11-05: opening a confirmed plan stretched the Plans popup up into
+   the header on his phone. Two causes, fixed for every TaskHub popup:
+   1. The app nav above is fixed at z-index 10001, over every popup (1000-9999).
+      While a popup is open (html.a1-pop-open, set by the script after
+      popups.js) it drops beneath the backdrop and blurs with the page.
+   2. Panels capped their height in vh, and a phone's vh counts the strip under
+      the browser's own bars, so a tall panel ran off the visible screen. On a
+      phone the backdrop keeps a margin and the panel fits inside it (100% of
+      the backdrop, which is the screen you can actually see), scrolling
+      within itself. [data-a1-scrim] is popups.js's tag for any backdrop. */
+html.a1-pop-open #tony-app-nav{z-index:900;}
+@media (max-width:900px),(max-height:560px){
+  #root [data-a1-scrim],#veda-root [data-a1-scrim]{
+    box-sizing:border-box!important;
+    padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px)!important;
+  }
+  #root [data-a1-scrim]>*,#veda-root [data-a1-scrim]>*{
+    box-sizing:border-box!important;max-height:100%!important;max-width:100%!important;
+    overflow-y:auto;overscroll-behavior:contain;
+  }
+}
 body{overflow-y:auto;overflow-x:clip;-webkit-overflow-scrolling:touch;}
 /* iOS PWA standalone scroll fix */
 @supports (-webkit-touch-callout: none) {
@@ -6088,6 +6110,21 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- A1's popups (popups.js): every popup backdrop dims and blurs like TaskHub's,
      a click outside closes it, a drag that ends outside never does. -->
 <script src="Shared/popups.js"></script>
+<script>
+// While any popup backdrop is on screen, html carries a1-pop-open so the fixed
+// app nav sinks beneath it (see "TaskHub popups" in the CSS above).
+(function(){
+  var raf=0,root=document.documentElement;
+  function check(){
+    raf=0;var on=false,l=document.querySelectorAll('[data-a1-scrim],.a1-scrim');
+    for(var i=0;i<l.length;i++){if(l[i].getClientRects().length&&getComputedStyle(l[i]).visibility!=='hidden'){on=true;break;}}
+    if(root.classList.contains('a1-pop-open')!==on)root.classList.toggle('a1-pop-open',on);
+  }
+  function soon(){if(!raf)raf=requestAnimationFrame(check);}
+  function start(){new MutationObserver(soon).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-a1-scrim','class','style']});soon();}
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
+})();
+</script>
 <!-- The app mark beside each title and Everwell's sync pill (apphead.js),
      shared by every A1 program; TaskHub's React headers use its components. -->
 <script src="Shared/apphead.js"></script>
