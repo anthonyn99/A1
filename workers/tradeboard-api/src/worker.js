@@ -650,7 +650,10 @@ function orderToEntry(order) {
     ticker:     order.ticker || '',
     side,
     market:     'STOCK',
-    direction:  'LONG',
+    /* Webull marks a short sale side 'SHORT' (its cover is a plain BUY), so
+       only that side is known to be short here. TradeHub works out the real
+       position direction when it groups the fills (tbGroupLegsIntoPositions). */
+    direction:  side === 'SHORT' ? 'SHORT' : 'LONG',
     qty,
     avgFill,
     gross:      qty * avgFill,
