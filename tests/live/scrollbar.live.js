@@ -276,8 +276,10 @@ async function go(c, url, wait) {
     await sleep(300);
   }
   const strip = await evalJs(c, `var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.h.on'), function (x) { return x.style.display !== 'none'; });
-    return r ? { w: r.offsetWidth, bg: getComputedStyle(r.querySelector('.vc-thumb')).backgroundColor } : null;`);
-  ok("mylist.html (Veda): hovering the lists strip shows her sideways bar", !!strip && strip.w > 50 && /168, 146, 176/.test(strip.bg), { strip, lb });
+    return r ? { w: r.offsetWidth, vis: getComputedStyle(r).visibility, bg: getComputedStyle(r.querySelector('.vc-thumb')).backgroundColor } : null;`);
+  // visibility: occlude() once hid every strip's bar (it sits under the strip,
+  // so its own spot read as "covered") while .on stayed set.
+  ok("mylist.html (Veda): hovering the lists strip shows her sideways bar", !!strip && strip.w > 50 && strip.vis !== 'hidden' && /168, 146, 176/.test(strip.bg), { strip, lb });
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

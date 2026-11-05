@@ -396,7 +396,13 @@
       var tr = r.thumb.getBoundingClientRect();
       var hide = false;
       if (tr.width && tr.height) {
-        var x = tr.left + tr.width / 2, y = tr.top + tr.height / 2;
+        // Probe inside the box itself, at the thumb's spot: a data-sb-strip's
+        // bar sits just UNDER the strip, so its thumb's own middle is outside
+        // the box and always read as covered (every strip lost its bar,
+        // 2026-11-05: Top Movers, tickers, MyList's header).
+        var bx = el.getBoundingClientRect();
+        var x = Math.max(bx.left + 1, Math.min(bx.right - 2, tr.left + tr.width / 2));
+        var y = Math.max(bx.top + 1, Math.min(bx.bottom - 2, tr.top + tr.height / 2));
         if (x >= 0 && y >= 0 && x < vw() && y < vh()) {
           var hits = doc.elementsFromPoint(x, y);
           for (var j = 0; j < hits.length; j++) {
