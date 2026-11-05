@@ -69,7 +69,8 @@ ok("Instagram's refusals are named", igWhy(302, '') === 'expired' && igWhy(401, 
 const kv = new Map();
 const env = { TOKEN_CACHE: { get: async (k, t) => (kv.has(k) ? (t === 'json' ? JSON.parse(kv.get(k)) : kv.get(k)) : null), put: async (k, v) => { kv.set(k, v); }, delete: async (k) => { kv.delete(k); } } };
 const calls = []; let igMode = 'ok';
-const item = (n) => ({ media: { code: 'POST' + String(n).padStart(5, '0'), media_type: 1, image_versions2: { candidates: [{ width: 640, url: CDN + n + '.jpg' }] } } });
+// Even posts are in collection 17912345678901234, odd ones in none.
+const item = (n) => ({ media: { code: 'POST' + String(n).padStart(5, '0'), media_type: 1, saved_collection_ids: n % 2 ? [] : ['17912345678901234'], image_versions2: { candidates: [{ width: 640, url: CDN + n + '.jpg' }] } } });
 globalThis.fetch = async (u, o) => {
   calls.push({ u: String(u), cookie: o && o.headers && o.headers.Cookie, app: o && o.headers && o.headers['X-IG-App-ID'] });
   if (igMode === 'expired') return new Response('', { status: 302, headers: { Location: 'https://www.instagram.com/accounts/login/' } });
@@ -94,10 +95,15 @@ ok('a wrong key is refused (403)', res.status === 403 && res.j.error === 'bad-ke
 res = await post('/ig/collection', { key, cid: '../../accounts' });
 ok('only a numeric collection id (or all) is read', res.status === 400);
 calls.length = 0; res = await post('/ig/collection', { key, cid: '17912345678901234' });
-ok('a full sync reads every page, in order', res.j.ok && res.j.posts.length === 6 && res.j.posts[0].c === 'POST00000' && res.j.posts[5].c === 'POST00005' && res.j.more === false &&
-  calls.length === 3 && calls[0].u.endsWith('/feed/collection/17912345678901234/posts/') && calls[1].u.endsWith('?max_id=1'), { res, calls });
+ok('a collection is read out of the saved feed (its own route is gone): its posts, in order; the others in drop', res.j.ok && res.j.posts.map((q) => q.c).join() === 'POST00000,POST00002,POST00004' &&
+  res.j.drop.join() === 'POST00001,POST00003,POST00005' && res.j.more === false && res.j.next === '' &&
+  calls.length === 3 && calls[0].u.endsWith('/feed/saved/posts/') && calls[1].u.endsWith('/feed/saved/posts/?max_id=1') && calls[2].u.endsWith('?max_id=2'), { res, calls });
+calls.length = 0; res = await post('/ig/collection', { key, cid: '17912345678901234', from: '1' });
+ok('a read goes on from the cursor it is given', res.j.ok && calls.length === 2 && calls[0].u.endsWith('?max_id=1') && res.j.posts.map((q) => q.c).join() === 'POST00002,POST00004', { res, calls });
+calls.length = 0; res = await post('/ig/collection', { key, cid: '17912345678901234', from: 'bad cursor;x' });
+ok('a malformed cursor is ignored (reads from the top)', res.j.ok && calls[0].u.endsWith('/feed/saved/posts/'), calls);
 calls.length = 0; res = await post('/ig/collection', { key, cid: 'all', quick: true });
-ok('a quick check reads one page only (and says more are there)', res.j.ok && res.j.posts.length === 2 && res.j.more === true && calls.length === 1 && calls[0].u.endsWith('/feed/saved/posts/'), { res, calls });
+ok('a quick check reads the newest two pages only (and says where to go on)', res.j.ok && res.j.posts.length === 4 && res.j.more === true && res.j.next === '2' && calls.length === 2 && calls[0].u.endsWith('/feed/saved/posts/'), { res, calls });
 igMode = 'html'; res = await post('/ig/collection', { key, cid: 'all' });
 ok("Instagram's login page instead of JSON reads as an expired session", res.j.ok === false && res.j.error === 'expired', res);
 igMode = 'ok';
