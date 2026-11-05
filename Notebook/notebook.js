@@ -164,6 +164,9 @@ function rewriteApp(text, cfg) {
 // guards, the helpers it shares with Brainstorm's block, and tj's install block
 // (everything between its @nb- markers), as one self-contained store.
 function storeSource(fb, cfg) {
+  // The markers are written with \n. A Windows checkout (core.autocrlf) serves
+  // fb.js with \r\n, and every instance failed to mount ("fb.js marker").
+  fb = String(fb).replace(/\r\n/g, '\n');
   function between(a, b, from) {
     var i = fb.indexOf(a, from || 0), j = fb.indexOf(b, i);
     if (i < 0 || j < 0) throw new Error('Notebook: fb.js marker ' + a);
@@ -214,7 +217,9 @@ function keyRules(css, nk) {
 function fetchText(f) {
   return fetch(url(f)).then(function (r) {
     if (!r.ok) throw new Error('Notebook: ' + f + ' ' + r.status);
-    return r.text();
+    // Every rewrite and marker here is written with \n; a Windows checkout
+    // (core.autocrlf) serves \r\n, which broke every instance mount.
+    return r.text().then(function (t) { return t.replace(/\r\n/g, '\n'); });
   });
 }
 function loadScript(href) {
