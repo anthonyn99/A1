@@ -170,7 +170,7 @@ async function go(c, url, wait) {
   const sv = await evalJs(c, `var s = document.getElementById('sb-strip').getBoundingClientRect();
     var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.h.on'), function (x) { return x.style.display !== 'none' && Math.abs(x.getBoundingClientRect().left - s.left) < 2; });
     return r ? { vis: getComputedStyle(r).visibility, top: Math.round(r.getBoundingClientRect().top), stripBottom: Math.round(s.bottom) } : null;`);
-  ok('a hovered data-sb-strip shows its bar, visible, at the strip's foot', !!sv && sv.vis === 'visible' && Math.abs(sv.top - sv.stripBottom) <= 4, sv);
+  ok('a hovered data-sb-strip shows its bar, visible, at the strip\'s foot',!!sv && sv.vis === 'visible' && Math.abs(sv.top - sv.stripBottom) <= 4, sv);
   await evalJs(c, "document.getElementById('sb-strip').remove(); return 1;");
 
   console.log('Fixture — phone (touch)');
