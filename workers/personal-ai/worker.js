@@ -4488,7 +4488,7 @@ async function handleIgDisconnect(body, env) {
 // read that stops early can still take them out.
 async function handleIgCollection(body, env) {
   const cid = String((body && body.cid) || ''), quick = !!(body && body.quick);
-  const from = typeof (body && body.from) === 'string' && /^[\w:=-]{1,200}$/.test(body.from) ? body.from : '';
+  const from = typeof (body && body.from) === 'string' && /^[\w:=+\/-]{1,400}$/.test(body.from) ? body.from : '';
   if (!/^(\d{5,25}|all)$/.test(cid)) return json({ ok: false, error: 'bad cid' }, 400);
   const g = await igSess(env, body && body.key);
   if (!g.s) return json({ ok: false, error: g.why }, g.why === 'bad-key' ? 403 : 200);
