@@ -4437,7 +4437,7 @@ export function igWhy(status, body) {
   if (status >= 300 && status < 400) return 'expired';
   if (status === 401 || /login_required|"require_login":\s*true/.test(b)) return 'expired';
   if (status === 429 || /please wait a few minutes/i.test(b)) return 'busy';
-  if (status === 404) return 'gone';
+  if (status === 404 || /media not found|media_not_found/i.test(b)) return 'gone';
   if (status === 403) return 'expired';
   return 'unavailable';
 }
