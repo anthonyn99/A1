@@ -315,10 +315,16 @@ def normalize_order(o):
     if status not in ("FILLED", "PARTIAL_FILLED", "PARTIALLY_FILLED"):
         return None
 
+    # Webull marks a short sale side "SHORT" (some feeds "SELL_SHORT"), and its
+    # cover is a plain "BUY". Until 2026-11-05 only BUY*/SELL* got through, so
+    # every short sale was dropped and its cover opened a phantom long (same
+    # bug as Tony's TradeHub on the 11/5 SNDK/WDC shorts). A short sale is a
+    # sell: pair_fifo opens a short on a sell with nothing held, and the
+    # covering buy closes it.
     side = str(_pick(o, ["side", "action", "order_side"], "")).upper()
     if side.startswith("BUY"):
         side = "buy"
-    elif side.startswith("SELL"):
+    elif side.startswith("SELL") or "SHORT" in side:
         side = "sell"
     else:
         return None
