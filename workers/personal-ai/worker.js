@@ -4388,15 +4388,16 @@ async function handleIgPx(url, req, ctx) {
 //   POST /ig/connect    {sessionid}      → { ok, key }  checks the session
 //        against Instagram first; a new key every time. Replacing a session
 //        for a DIFFERENT Instagram account needs the current key.
-//   POST /ig/collection {key, cid, quick} → { ok, cid, posts, more }
-//        quick: the first page only (new saves), for the automatic checks;
-//        otherwise the whole collection (unsaves too), up to IG_SYNC_PAGES.
+//   POST /ig/collection {key, cid, quick, from} → { ok, cid, posts, drop, more, next }
+//        quick: the newest saves only, for the automatic checks; otherwise
+//        IG_SYNC_PAGES pages of the saved feed from `from` (see below).
 //   POST /ig/disconnect {key}            → forgets the session.
 // The key lives in Tony's Everwell settings, like the posts it reads, so it
 // opens nothing his settings do not already show. Only these reads are ever
 // made with the session: no writes, no other account, no other endpoint.
 const IG_APP_ID = '936619743392459';
-const IG_SYNC_PAGES = 30;   // under the 50-subrequest cap with room to spare
+const IG_SYNC_PAGES = 40;   // per call: under the 50-subrequest cap with room to spare
+const IG_QUICK_PAGES = 2;  // the automatic checks: the newest ~40 saves
 const IG_SESS_KEY = 'ig_sess';
 const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 async function sha256(t) { return b64u(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(t))))); }
@@ -4477,26 +4478,41 @@ async function handleIgDisconnect(body, env) {
   await env.TOKEN_CACHE.delete(IG_SESS_KEY);
   return json({ ok: true });
 }
+// Instagram retired the web route for one collection (feed/collection/<id>/posts/
+// answers its HTML app shell, found 2026-11-05), so a collection is read out of
+// the saved feed: every saved post, newest save first, each naming the
+// collections it is in (saved_collection_ids). One call reads IG_SYNC_PAGES
+// pages from `from` (Instagram's cursor) and answers `next` when more are
+// there; Everwell chains calls for a whole read. `drop`: the posts this call
+// saw that are NOT in the collection (taken out of it, or never in it), so a
+// read that stops early can still take them out.
 async function handleIgCollection(body, env) {
   const cid = String((body && body.cid) || ''), quick = !!(body && body.quick);
+  const from = typeof (body && body.from) === 'string' && /^[\w:=-]{1,200}$/.test(body.from) ? body.from : '';
   if (!/^(\d{5,25}|all)$/.test(cid)) return json({ ok: false, error: 'bad cid' }, 400);
   const g = await igSess(env, body && body.key);
   if (!g.s) return json({ ok: false, error: g.why }, g.why === 'bad-key' ? 403 : 200);
-  const base = cid === 'all' ? 'feed/saved/posts/' : 'feed/collection/' + cid + '/posts/';
-  const posts = [], seen = new Set();
-  let max = '', more = false;
-  for (let i = 0; i < (quick ? 1 : IG_SYNC_PAGES); i++) {
-    const t = await igApi(base + (max ? '?max_id=' + encodeURIComponent(max) : ''), g.s);
+  const posts = [], drop = [], seen = new Set();
+  let max = from, more = false, read = 0;
+  for (let i = 0; i < (quick ? IG_QUICK_PAGES : IG_SYNC_PAGES); i++) {
+    const t = await igApi('feed/saved/posts/' + (max ? '?max_id=' + encodeURIComponent(max) : ''), g.s);
     if (!t.j) {
-      if (!posts.length) return json({ ok: false, error: t.why });
-      more = true; break;   // a later page failed: what was read is still good for new saves
+      if (!read) return json({ ok: false, error: t.why });
+      more = true; max = ''; break;   // a later page failed: what was read is still good for new saves
     }
-    (t.j.items || []).forEach((x) => { const q = igPostOf(x && (x.media || x)); if (q && !seen.has(q.c)) { seen.add(q.c); posts.push(q); } });
+    read++;
+    (t.j.items || []).forEach((x) => {
+      const m = x && (x.media || x), q = igPostOf(m);
+      if (!q || seen.has(q.c)) return;
+      seen.add(q.c);
+      const ids = (m.saved_collection_ids || []).map(String);
+      if (cid === 'all' || ids.includes(cid)) posts.push(q); else drop.push(q.c);
+    });
     more = !!(t.j.more_available && t.j.next_max_id);
+    max = more ? String(t.j.next_max_id) : '';
     if (!more || posts.length >= 600) break;
-    max = t.j.next_max_id;
   }
-  return json({ ok: true, cid, quick, more, posts: posts.slice(0, 600) });
+  return json({ ok: true, cid, quick, more, next: more ? max : '', read, posts: posts.slice(0, 600), drop });
 }
 
 export default {
@@ -4509,7 +4525,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 47, // bump when verifying a deploy went live
+        version: 48, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'ig-sync', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
