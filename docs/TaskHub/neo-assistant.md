@@ -101,6 +101,24 @@ Everything the mic and text buttons can do, because it uses the same engine
   rules can be undone.
 - **Open:** Gita, Notebook, TaskHub, Plans, Rules, Timer, Shield.
 - AI prep for a task ("Neo, prep my email to the professor").
+- **Apps and websites on her PC:** "Neo, open Spotify", "launch Word and Discord", "open
+  YouTube", "pull up Gmail".
+  - **The worker sees her app names.** Neo sends the names from her PC's app list
+    (`dashboards/veda_pc_apps`, published by the StudyOS bridge, Store apps included) as
+    `state.pcApps`, so Gemini copies the exact name. The actions are
+    `open_pc_app {name}` / `open_site {url}`.
+  - **The name becomes an id locally.** `matchApp` in `veda-assistant.js` turns the name into
+    the bridge's app id. It tries an exact match, then a nickname ("VS Code", "Chrome"), then
+    the shortest name containing her words, then word overlap. `chrome_proxy` never passes for
+    Chrome.
+  - **One command makes one launch.** The batch goes to `window._sosBridgeLaunch` →
+    `/api/launch` on 127.0.0.1:8781, the same path AI prep and class ▶ use. Shield is never
+    involved; that was her call.
+  - **Problems are spoken after the reply:**
+    - an app she doesn't have: "I couldn't find Photoshop on your PC."
+    - the bridge isn't running: "Start StudyOS Bridge…"
+    - the browser is blocking local network access, with how to allow it
+  - **On the phone** it says opening apps only works from her PC.
 
 ## How it works
 

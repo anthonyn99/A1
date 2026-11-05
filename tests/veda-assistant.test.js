@@ -39,7 +39,7 @@ vm.createContext(wctx);
 vm.runInContext(wsrc + '\n;globalThis.__T = { buildTaskPrompt, handleTaskhub, ACTION_SCHEMA };', wctx);
 const W = wctx.__T;
 const st = { today: '2026-11-05', calendar: {} };
-const NEO_MARKERS = ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS', 'butler', 'BRIEFINGS', 'PERSONALITY'];
+const NEO_MARKERS = ['open_pc_app', 'open_site', 'pcApps', 'rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS', 'butler', 'BRIEFINGS', 'PERSONALITY'];
 for (const audio of [true, false]) {
   const tony = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', audio, { bulk: false, neo: true });
   const hits = NEO_MARKERS.filter(m => tony.includes(m));
@@ -58,11 +58,14 @@ section('worker: state shaping');
   const seen = {};
   wctx.runModelChain = async (models, key, o) => { seen.prompt = o.prompt; throw new Error('stop'); };
   const env = { VEDA_GEMINI_KEY: 'v', TONY_GEMINI_KEY: 't' };
-  const state = { data: {}, habits: [], rules: ['No trades after 3pm'], rulesDailyGate: true, timerOpen: false };
+  const state = { data: {}, habits: [], rules: ['No trades after 3pm'], rulesDailyGate: true, timerOpen: false, pcApps: ['Spotify', 'Visual Studio Code'], onPc: true };
   await W.handleTaskhub({ profile: 'tony', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
   t('Tony\'s state never carries tradingRules', !/tradingRules|No trades after 3pm|rulesDailyGate/.test(seen.prompt || ''));
+  t('Tony\'s state never carries her PC\'s apps', !/pcApps|Visual Studio Code|"onPc"/.test(seen.prompt || ''));
   await W.handleTaskhub({ profile: 'veda', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
   t('Veda\'s state carries her trading rules', /"tradingRules":\["No trades after 3pm"\]/.test(seen.prompt || ''));
+  t('Veda\'s state carries her PC\'s app names and onPc', /"pcApps":\["Spotify","Visual Studio Code"\]/.test(seen.prompt || '') && /"onPc":true/.test(seen.prompt || ''));
+  t('Veda\'s prompt offers open_pc_app / open_site', /open_pc_app/.test(seen.prompt || '') && /open_site/.test(seen.prompt || ''));
   t('Veda + mode:neo gets the wake-word note', (seen.prompt || '').includes('wake word "Neo"'));
 
   // ── 2. voice engine (index.html) ──────────────────────────────────────────
@@ -100,6 +103,7 @@ section('worker: state shaping');
       nav: tg => log.push(['nav', tg]), openPlans: () => log.push(['plans']), openShield: () => log.push(['shield']),
       openTimer: () => log.push(['timer']), closeTimer: () => log.push(['closeTimer']),
       reelsShuffle: () => log.push(['reels']), prep: (item, dk) => log.push(['prep', item.title, dk]),
+      launchPc: (app, url) => { log.push(['launch', app, url]); return true; },
     };
   }
   const ACTIONS = [
@@ -113,6 +117,8 @@ section('worker: state shaping');
     { type: 'prep_task', match: { title: 'email professor' } },
     { type: 'timer_close' },
     { type: 'reels_shuffle' },
+    { type: 'open_pc_app', name: 'Spotify' },
+    { type: 'open_site', url: 'https://www.youtube.com' },
   ];
   {
     const log = [];
@@ -127,6 +133,7 @@ section('worker: state shaping');
     t('notebook → _vedaNav("journal")', log.some(l => l[0] === 'nav' && l[1] === 'journal'));
     t('gita → _vedaNav("gita")', log.some(l => l[0] === 'nav' && l[1] === 'gita'));
     t('prep_task finds the calendar task and its date', log.some(l => l[0] === 'prep' && l[1] === 'Email professor' && l[2] === '2026-11-05'));
+    t('open_pc_app / open_site reach launchPc', log.some(l => l[0] === 'launch' && l[1] === 'Spotify' && l[2] === null) && log.some(l => l[0] === 'launch' && l[1] === null && l[2] === 'https://www.youtube.com'));
     t('rules gate / timer close / reels reached', ['gate', 'closeTimer', 'reels', 'plans'].every(k => log.some(l => l[0] === k)));
     const e3 = makeEngine('veda', vedaBridge([]), { ok: true, actions: [{ type: 'assistant_off' }], say: 'Bye' });
     const calls = []; e3.win._vdNeo = { setOn: on => calls.push(on) };
@@ -169,7 +176,7 @@ section('worker: state shaping');
   const store = { vd_neo_on: '1' };
   let micCalls = 0;
   const actx = {
-    console, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, JSON, Math, Date, Promise, Float32Array, ArrayBuffer, DataView, Uint8Array, String, Array, Object,
+    console, URL, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, JSON, Math, Date, Promise, Float32Array, ArrayBuffer, DataView, Uint8Array, String, Array, Object,
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     CustomEvent: function (n, o) { this.type = n; this.detail = o && o.detail; },
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
@@ -234,6 +241,24 @@ section('worker: state shaping');
     const ds = T.dayStats(st, at(16, 30));
     t('telemetry: tasks 1/3, habits 1/2, next Gym', ds.done === 1 && ds.total === 3 && ds.habitsDone === 1 && ds.habits === 2 && ds.next && ds.next.title === 'Gym');
     t('spoken times', T.spokenTime('17:00') === '5 PM' && T.spokenTime('07:30') === '7:30 AM' && T.spokenTime('12:00') === 'noon');
+
+    section('veda-assistant.js: opening apps on her PC');
+    const APPS = [{ id: 'a1', name: 'Spotify' }, { id: 'a2', name: 'Visual Studio Code' }, { id: 'a3', name: 'Google Chrome' }, { id: 'a4', name: 'Chrome Remote Desktop' },
+      { id: 'a5', name: 'Word' }, { id: 'a6', name: 'Zoom Workplace' }, { id: 'a7', name: 'WhatsApp' }, { id: 'a8', name: 'Brave' }, { id: 'a9', name: 'Brave (TaskHub)' }];
+    const m = (q) => (T.matchApp(q, APPS) || {}).name || null;
+    t('exact names match', m('Spotify') === 'Spotify' && m('word') === 'Word' && m('Brave') === 'Brave');
+    t('a name that starts the app\'s name ("Zoom" → Zoom Workplace)', m('Zoom') === 'Zoom Workplace');
+    t('a word inside the name, shortest wins ("Chrome" → Google Chrome)', m('Chrome') === 'Google Chrome');
+    t('word overlap ("Visual Studio" → Visual Studio Code)', m('Visual Studio') === 'Visual Studio Code');
+    t('nicknames ("VS Code", "chrome") and never chrome_proxy', m('VS Code') === 'Visual Studio Code' && (T.matchApp('Chrome', APPS.concat([{ id: 'p', name: 'chrome_proxy' }])) || {}).name === 'Google Chrome');
+    t('nothing close → null (Photoshop)', m('Photoshop') === null && m('') === null);
+    t('urls: bare domains become https', T.webUrl('youtube.com') === 'https://youtube.com/' && T.webUrl('https://mail.google.com/x') === 'https://mail.google.com/x');
+    t('urls: no javascript:, file: or junk', T.webUrl('javascript:alert(1)') === '' && T.webUrl('file:///C:/x') === '' && T.webUrl('spotify') === '');
+    t('issue: an app she doesn\'t have is named', T.launchIssue({ ok: true }, ['Photoshop'], '', {}) === 'I couldn\'t find Photoshop on your PC, I\'m afraid.');
+    t('issue: bridge down vs blocked', /StudyOS Bridge/.test(T.launchIssue(null, [], 'down', {})) && /local network access/.test(T.launchIssue(null, [], 'blocked-or-down', {})));
+    t('issue: an app that failed to open is named', T.launchIssue({ ok: true, opened: [], unknown: ['a1'], failed: [] }, [], '', { a1: 'Spotify' }) === 'Spotify didn\'t open, I\'m afraid.');
+    t('issue: none when everything opened', T.launchIssue({ ok: true, opened: ['a1'], unknown: [], failed: [] }, [], '', {}) === '');
+    t('cards: LAUNCHING Spotify / OPENING youtube.com', T.cardFor({ type: 'open_pc_app', name: 'Spotify' }).label === 'LAUNCHING' && T.cardFor({ type: 'open_site', url: 'https://www.youtube.com/watch' }).detail === 'youtube.com');
 
     const V = (name, lang) => ({ name, lang });
     t('voice: Ryan via Orca is the default', T.VOICE === 'en-GB-RyanNeural');

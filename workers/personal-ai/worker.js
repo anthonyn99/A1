@@ -1761,6 +1761,9 @@ function vedaNeoActionLines() {
     `- {type:"reels_shuffle"}   (show a different saved reel)`,
     `- {type:"prep_task", match:{date?, title}}   (run AI prep for an existing calendar task: "prep my essay task", "get my email to the professor ready")`,
     `- {type:"assistant_off"}   ("stop listening", "go to sleep", "turn yourself off")`,
+    `- {type:"open_pc_app", name}   (open/launch/start an APPLICATION on her PC: "open Spotify", "launch Word", "start Discord and WhatsApp". state.pcApps lists the apps installed on her PC — copy "name" EXACTLY from that list, picking the best match ("VS Code" → "Visual Studio Code", "Chrome" → "Google Chrome"). One action per app. If nothing in the list fits, still emit it with the name she said.)`,
+    `- {type:"open_site", url}   (open a WEBSITE on her PC: "open YouTube", "go to Gmail", "pull up Canvas" → a full https URL, e.g. "https://www.youtube.com". Use open_site only when the thing she names is a website rather than an installed app.)`,
+    `  open_app is for parts of TaskHub itself (Gita, Notebook, Plans, Rules, Timer, Shield); open_pc_app / open_site are for everything on her computer. If state.onPc is false (she is on her phone), emit neither and say that opening apps only works from her PC.`,
   ];
 }
 function vedaNeoRuleLines(neo) {
@@ -1846,6 +1849,8 @@ const ACTION_SCHEMA = {
           on: { type: 'BOOLEAN' },
           minutes: { type: 'INTEGER' },
           target: { type: 'STRING' },
+          name: { type: 'STRING' },
+          url: { type: 'STRING' },
         },
         required: ['type'],
       },
@@ -1918,6 +1923,8 @@ async function handleTaskhub(body, env) {
     if (Array.isArray(state.rules)) shaped.tradingRules = state.rules.map(r => String(r || '').slice(0, 300)).slice(0, 60);
     if (typeof state.rulesDailyGate === 'boolean') shaped.rulesDailyGate = state.rulesDailyGate;
     if (typeof state.timerOpen === 'boolean') shaped.timerOpen = state.timerOpen;
+    if (Array.isArray(state.pcApps)) shaped.pcApps = state.pcApps.map(n => String(n || '').slice(0, 80)).filter(Boolean).slice(0, 400);
+    if (typeof state.onPc === 'boolean') shaped.onPc = state.onPc;
   }
   const neo = profile === 'veda' && body.mode === 'neo';
   const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk, neo });

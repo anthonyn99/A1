@@ -16773,7 +16773,10 @@ function App(){
 
   // ── Voice bridge (re-bound every render so getState/actions are always current) ──
   window._vdVoice={profile:"veda",uid:uid,
-    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo}),
+    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo,
+      // Neo opens PC apps by name: the names her PC's bridge published (dashboards/veda_pc_apps), and whether this device IS a PC.
+      pcApps:(window._vdPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:/Windows/i.test(navigator.userAgent||"")}),
+    launchPc:(app,url)=>window._vdNeoLaunch?window._vdNeoLaunch(app,url):false,
     // ── Neo (TaskHub/veda-assistant.js) reach — Veda-only; Tony's _thVoice has none of these ──
     // Rule changes honour the 'veda_rules' lock (alGate) exactly like the Rules button, and
     // push their own undo step (rules are outside vxSnap, see tests/vd-rules-survive-undo).
@@ -20012,6 +20015,9 @@ function applyControl(b,a,W){
       if(!hit||hit.box!=='calendar')return false;b.prep(hit.item,hit.key);return true;
     }
     case 'assistant_off':if(profile()==='veda'&&window._vdNeo){window._vdNeo.setOn(false);return true;}return false;
+    // Open an app / a website on her PC, through the StudyOS bridge (veda-assistant.js batches them).
+    case 'open_pc_app':return b.launchPc?!!b.launchPc(a.name||a.title,null):false;
+    case 'open_site':return b.launchPc?!!b.launchPc(null,a.url):false;
   }
   return false;
 }

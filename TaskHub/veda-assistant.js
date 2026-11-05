@@ -169,8 +169,59 @@
       case 'reels_shuffle': return { icon: '▶', label: 'NEW REEL', detail: '' };
       case 'prep_task': return { icon: '✦', label: 'AI PREP', detail: t };
       case 'assistant_off': return { icon: '⏻', label: 'STANDING DOWN', detail: '' };
+      case 'open_pc_app': return { icon: '⧉', label: 'LAUNCHING', detail: a.name || t };
+      case 'open_site': { var host = String(a.url || '').replace(/^[a-z]+:\/\//i, '').replace(/^www\./, '').split('/')[0]; return { icon: '◎', label: 'OPENING', detail: host }; }
     }
     return null;
+  }
+
+  // What people call an app → its Start-menu name (normalised: lower case, spaces).
+  var APP_ALIASES = {
+    'vs code': 'visual studio code', 'vscode': 'visual studio code', 'code': 'visual studio code',
+    'chrome': 'google chrome', 'google': 'google chrome', 'explorer': 'file explorer', 'files': 'file explorer',
+    'teams': 'microsoft teams', 'edge': 'microsoft edge', 'store': 'microsoft store', 'settings': 'settings',
+    'terminal': 'terminal', 'cmd': 'command prompt', 'calc': 'calculator', 'ppt': 'powerpoint', 'powerpoint': 'powerpoint',
+  };
+  // A spoken app name → one of her PC's apps ({id,name} from dashboards/veda_pc_apps,
+  // which her PC's StudyOS bridge publishes). Exact name, then a name that starts
+  // with it, then one containing it, then the best word overlap. null when nothing fits.
+  function matchApp(name, apps) {
+    // "_" stays part of a word, so "chrome_proxy" never passes for Chrome.
+    var norm = function (s) { return String(s).toLowerCase().replace(/\.exe$/, '').replace(/[^a-z0-9+#_]+/g, ' ').trim(); };
+    var q = norm(name || '');
+    if (!q) return null;
+    var list = (apps || []).filter(function (a) { return a && a.id && a.name; });
+    var i, n;
+    for (i = 0; i < list.length; i++) if (norm(list[i].name) === q) return list[i];
+    var alias = APP_ALIASES[q];
+    if (alias) for (i = 0; i < list.length; i++) if (norm(list[i].name) === alias) return list[i];
+    // Her words as whole words of an app's name; the shortest such name wins
+    // ("Chrome" → Google Chrome, not Chrome Remote Desktop; "Zoom" → Zoom Workplace).
+    var best = null;
+    if (q.length >= 2) for (i = 0; i < list.length; i++) { n = norm(list[i].name); if ((' ' + n + ' ').indexOf(' ' + q + ' ') >= 0 && (!best || n.length < norm(best.name).length)) best = list[i]; }
+    if (best) return best;
+    var qw = q.split(' ').filter(function (w) { return w.length > 1; }), score = 0;
+    for (i = 0; i < list.length; i++) {
+      var ws = norm(list[i].name).split(' '), hit = qw.filter(function (w) { return ws.indexOf(w) >= 0; }).length;
+      var sc = hit / Math.max(qw.length, ws.length);
+      if (hit && sc > score) { score = sc; best = list[i]; }
+    }
+    return score >= 0.5 ? best : null;
+  }
+  function webUrl(u) {
+    u = String(u || '').trim(); if (!u) return '';
+    if (!/^[a-z]+:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+    try { var p = new URL(u); return /^https?:$/.test(p.protocol) && p.hostname.indexOf('.') > 0 ? p.href : ''; } catch (e) { return ''; }
+  }
+  // What Neo says when a launch went wrong ('' when it didn't).
+  function launchIssue(res, missing, bridgeErr, names) {
+    if (missing && missing.length) return 'I couldn\'t find ' + missing.join(' or ') + ' on your PC, I\'m afraid.';
+    if (!res) {
+      if (/blocked/.test(bridgeErr || '')) return 'Your browser is blocking me from reaching your PC, Veda. Allow local network access for this site, then ask again.';
+      return 'Your PC\'s launcher isn\'t answering, Veda. Start StudyOS Bridge from the Start menu, and I\'ll try again.';
+    }
+    var bad = [].concat(res.unknown || [], res.failed || []).map(function (id) { return names[id] || 'one of them'; });
+    return bad.length ? bad.join(' and ') + (bad.length > 1 ? ' didn\'t' : ' didn\'t') + ' open, I\'m afraid.' : '';
   }
 
   // The device voice when Orca can't speak: British male first, like Ryan.
@@ -190,7 +241,7 @@
     stream: null, ctx: null, src: null, proc: null, sr: 48000, anMic: null, anOut: null,
     model: null, rec: null, cap: null,
     ring: [], ringLen: 0, chunks: [], vad: null, followUntil: 0,
-    floor: 0.006, greet: false, level: 0,
+    floor: 0.006, greet: false, level: 0, afterSay: '',
   };
   try { S.on = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -719,6 +770,7 @@
     function after() {
       if (done || seq !== speakSeq) return; done = true;
       speakingViaAudio = false; lightTo(spans, spans.length);
+      if (S.afterSay && S.running) { var more = S.afterSay; S.afterSay = ''; speak(more, thenFollow); return; }
       if (!S.running) { setTimeout(function () { if (!S.running) hudShow(false); }, 1600); return; }
       if (thenFollow) { S.followUntil = Date.now() + FOLLOW_MS; setMode('follow'); }
       else { setMode('wake'); newRecognizer(); }
@@ -774,6 +826,44 @@
     } catch (e) { after(); }
   }
 
+  // ══ opening apps and sites on her PC ═══════════════════════════════════════
+  // The engine's open_pc_app / open_site actions land here (through Veda's
+  // bridge, _vdVoice.launchPc). One command's launches are batched and handed to
+  // the StudyOS bridge in one go (window._sosBridgeLaunch, which splits them into
+  // the bridge's 3-apps / 5-sites requests). The same path AI prep and class ▶ use.
+  var LQ = null;
+  function queueLaunch(app, url) {
+    if (!LQ) { LQ = { ids: [], urls: [], names: {}, missing: [], offPc: false }; setTimeout(flushLaunch, 0); }
+    if (!/Windows/i.test((navigator && navigator.userAgent) || '')) { LQ.offPc = true; return false; }
+    if (app) {
+      var hit = matchApp(app, window._vdPcApps);
+      if (!hit) { LQ.missing.push(String(app)); return false; }
+      if (LQ.ids.indexOf(hit.id) < 0) LQ.ids.push(hit.id);
+      LQ.names[hit.id] = hit.name;
+      return true;
+    }
+    var u = webUrl(url); if (!u) return false;
+    if (LQ.urls.indexOf(u) < 0) LQ.urls.push(u);
+    return true;
+  }
+  function flushLaunch() {
+    var q = LQ; LQ = null; if (!q) return;
+    if (q.offPc) { tellLater('I can only open apps from your PC, Veda.'); return; }
+    if (!q.ids.length && !q.urls.length) { if (q.missing.length) tellLater(launchIssue(null, q.missing)); return; }
+    var go = window._sosBridgeLaunch;
+    Promise.resolve(go ? go(q.ids, q.urls) : null)
+      .then(function (res) { var m = launchIssue(res, q.missing, window._vdBridgeErr, q.names); if (m) tellLater(m); })
+      .catch(function () { tellLater(launchIssue(null, [], window._vdBridgeErr, {})); });
+  }
+  // Say something after the current reply (or now, if Neo is quiet).
+  function tellLater(text) {
+    if (!text) return;
+    sfx('error');
+    if (S.running && (S.mode === 'thinking' || S.mode === 'speaking')) { S.afterSay = text; return; }
+    if (S.running) speak(text, false); else hudNote(text, 'error', 5200);
+  }
+  window._vdNeoLaunch = queueLaunch;
+
   function cancel() {
     stopVoice();
     stopCaptions();
@@ -814,6 +904,6 @@
     mode: function () { return S.mode; },
     cancel: cancel,
     _test: { isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
-      cardFor: cardFor, greeting: greeting, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
+      cardFor: cardFor, greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
   };
 })();
