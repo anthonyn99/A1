@@ -17,8 +17,13 @@
 const { connect, evalJs, sleep } = require('./cdp');
 
 const BASE = 'https://anthonyn99.github.io/A1/';
-const PAGES = ['index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
-  'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html', 'shruti.html'];
+// A1-Priv's programs (moved 2026-10-10, OneInbox 2026-10-28) are served by its
+// worker; their old A1 addresses no longer hold the page.
+const PRIV = 'https://a1-priv.av1.workers.dev/';
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'shruti.html',
+  PRIV + 'oneinbox.html', PRIV + 'insight.html', PRIV + 'tradehub.html', PRIV + 'riftiq.html',
+  PRIV + 'everwell.html', PRIV + 'vault.html'];
+const at = (p) => (/^https?:/.test(p) ? p : BASE + p);
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -151,6 +156,23 @@ async function go(c, url, wait) {
   ok("Veda on <html> (MAGI's way) counts too", await evalJs(c, "document.documentElement.classList.contains('vc-veda')"));
   await evalJs(c, "document.documentElement.removeAttribute('data-profile'); return 1;");
 
+  // A data-sb-strip's bar sits just under the strip; it must be SEEN, not
+  // only switched on (2026-11-05: occlude() read the strip's own surroundings
+  // as covering it and hid every strip's bar in every program).
+  await evalJs(c, `var s = document.createElement('div'); s.id = 'sb-strip'; s.setAttribute('data-sb-strip', '');
+    s.style.cssText = 'position:fixed;left:20px;top:330px;width:300px;display:flex;gap:8px;overflow-x:auto;padding:6px 0 4px;background:#181818;z-index:5';
+    for (var i = 0; i < 10; i++) { var b = document.createElement('button'); b.textContent = 'Tab ' + i; b.style.cssText = 'flex:none;padding:6px 18px'; s.appendChild(b); }
+    document.body.appendChild(s); return 1;`);
+  await sleep(100);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 100, y: 345 });
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 110, y: 345 });
+  await sleep(500);
+  const sv = await evalJs(c, `var s = document.getElementById('sb-strip').getBoundingClientRect();
+    var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.h.on'), function (x) { return x.style.display !== 'none' && Math.abs(x.getBoundingClientRect().left - s.left) < 2; });
+    return r ? { vis: getComputedStyle(r).visibility, top: Math.round(r.getBoundingClientRect().top), stripBottom: Math.round(s.bottom) } : null;`);
+  ok('a hovered data-sb-strip shows its bar, visible, at the strip's foot', !!sv && sv.vis === 'visible' && Math.abs(sv.top - sv.stripBottom) <= 4, sv);
+  await evalJs(c, "document.getElementById('sb-strip').remove(); return 1;");
+
   console.log('Fixture — phone (touch)');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
@@ -232,7 +254,7 @@ async function go(c, url, wait) {
     console.log('Every program — ' + label);
     await c.send('Emulation.setDeviceMetricsOverride', metrics);
     for (const p of PAGES) {
-      await go(c, BASE + p, 3000);
+      await go(c, at(p), 3000);
       // Taller than the window, whatever state the page booted into.
       await evalJs(c, "var d = document.createElement('div'); d.style.height = '4000px'; d.id = 'sb-test-tall'; document.body.appendChild(d); window.scrollTo(0, 200); return 1;");
       await sleep(300);
