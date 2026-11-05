@@ -1,0 +1,220 @@
+#!/usr/bin/env node
+/**
+ * Neo — Veda's hands-free TaskHub assistant (TaskHub/veda-assistant.js).
+ *
+ * WHY THIS FILE EXISTS
+ * Neo is VEDA-ONLY, but three of its four pieces live in shared places: the
+ * voice engine in index.html (both TaskHubs use it), the personal-ai worker's
+ * /taskhub/parse prompt (both profiles), and the page that hosts both sides.
+ * These tests pin that Tony's side is untouched:
+ *   · Tony's prompt carries none of Neo's actions or rules, and his state is
+ *     shaped exactly as before (no tradingRules).
+ *   · Neo's new action types do nothing against a bridge without Veda's methods.
+ *   · veda-assistant.js never opens the mic unless the active profile is veda.
+ * …and that Veda's new reach works (rules, navigation, AI prep, timer, off).
+ *
+ * Run: node tests/veda-assistant.test.js
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+let pass = 0, fail = 0;
+const failures = [];
+function t(name, cond, detail) {
+  if (cond) { pass++; console.log('  ✓ ' + name); }
+  else { fail++; failures.push(name + (detail ? '\n      ' + detail : '')); console.log('  ✗ ' + name); }
+}
+function section(s) { console.log('\n' + s); }
+const ROOT = path.join(__dirname, '..');
+
+// ── 1. worker prompt ────────────────────────────────────────────────────────
+section('worker: Neo lines are Veda-only');
+const wsrc = fs.readFileSync(path.join(ROOT, 'workers', 'personal-ai', 'worker.js'), 'utf8')
+  .replace(/^export default\s*\{/m, 'const __workerDefault = {')
+  .replace(/^export (?=(?:async )?function |const |let )/gm, '');
+const wctx = { console, URL, Response: function (b) { this.body = b; }, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout, AbortController };
+vm.createContext(wctx);
+vm.runInContext(wsrc + '\n;globalThis.__T = { buildTaskPrompt, handleTaskhub, ACTION_SCHEMA };', wctx);
+const W = wctx.__T;
+const st = { today: '2026-11-05', calendar: {} };
+const NEO_MARKERS = ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS'];
+for (const audio of [true, false]) {
+  const tony = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', audio, { bulk: false, neo: true });
+  const hits = NEO_MARKERS.filter(m => tony.includes(m));
+  t(`Tony's prompt (${audio ? 'audio' : 'typed'}) has no Neo lines, even with neo:true`, !hits.length, hits.join(', '));
+}
+const vedaPlain = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', true, {});
+const vedaNeo = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', true, { neo: true });
+t('Veda\'s prompt offers the Neo actions', ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close'].every(m => vedaPlain.includes(m)));
+t('Veda\'s prompt answers questions in "say"', vedaPlain.includes('QUESTIONS'));
+t('the wake-word note only appears for a Neo capture', vedaNeo.includes('wake word "Neo"') && !vedaPlain.includes('wake word "Neo"'));
+t('schema carries open_app\'s target', !!W.ACTION_SCHEMA.properties.actions.items.properties.target);
+
+section('worker: state shaping');
+(async () => {
+  const seen = {};
+  wctx.runModelChain = async (models, key, o) => { seen.prompt = o.prompt; throw new Error('stop'); };
+  const env = { VEDA_GEMINI_KEY: 'v', TONY_GEMINI_KEY: 't' };
+  const state = { data: {}, habits: [], rules: ['No trades after 3pm'], rulesDailyGate: true, timerOpen: false };
+  await W.handleTaskhub({ profile: 'tony', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
+  t('Tony\'s state never carries tradingRules', !/tradingRules|No trades after 3pm|rulesDailyGate/.test(seen.prompt || ''));
+  await W.handleTaskhub({ profile: 'veda', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
+  t('Veda\'s state carries her trading rules', /"tradingRules":\["No trades after 3pm"\]/.test(seen.prompt || ''));
+  t('Veda + mode:neo gets the wake-word note', (seen.prompt || '').includes('wake word "Neo"'));
+
+  // ── 2. voice engine (index.html) ──────────────────────────────────────────
+  section('engine: Neo actions');
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const start = html.indexOf("var WORKER='https://personal-ai.av1.workers.dev';");
+  const end = html.indexOf('</script>', start);
+  t('found the voice engine in index.html', start > 0 && end > start);
+  const engine = html.slice(html.lastIndexOf('(function(){', start), end);
+
+  function makeEngine(profile, bridge, fetchReply) {
+    const ctx = {
+      console, setTimeout, clearTimeout, JSON, Object, Array, String, Math, Date, Promise, Intl, Blob: function () {}, FileReader: function () {},
+      localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+      document: { getElementById: () => null, addEventListener() {}, documentElement: { style: { setProperty() {} } }, body: {} },
+      getComputedStyle: () => ({}),
+      navigator: {},
+      fetch: async () => ({ json: async () => fetchReply }),
+    };
+    ctx.window = ctx; ctx._activeProfile = profile;   // the context IS window, like a page
+    if (profile === 'veda') ctx._vdVoice = bridge; else ctx._thVoice = bridge;
+    vm.createContext(ctx);
+    vm.runInContext(engine, ctx);
+    return { THV: ctx._THV, win: ctx };
+  }
+  function vedaBridge(log) {
+    let rules = [{ id: 'r1', text: 'No trades after 3pm' }, { id: 'r2', text: 'Always set a stop loss' }];
+    const data = { '2026-11-05': [{ id: 'e1', type: 'task', title: 'Email professor', done: false, category: 'study' }] };
+    return {
+      profile: 'veda', uid: () => 'id' + Math.random().toString(36).slice(2, 7),
+      getState: () => ({ data, habits: [], hc: {}, longGoals: [], shortGoals: [], selectedDate: '2026-11-05' }),
+      mutateData() {}, mutateHabits() {}, mutateLongGoals() {}, mutateShortGoals() {}, mutateHc() {},
+      getRules: () => rules.slice(), changeRules: fn => { rules = fn(rules.slice()); log.push(['rules', rules.map(r => r.text)]); },
+      setRulesGate: on => log.push(['gate', on]), openRules: () => log.push(['openRules']),
+      nav: tg => log.push(['nav', tg]), openPlans: () => log.push(['plans']), openShield: () => log.push(['shield']),
+      openTimer: () => log.push(['timer']), closeTimer: () => log.push(['closeTimer']),
+      reelsShuffle: () => log.push(['reels']), prep: (item, dk) => log.push(['prep', item.title, dk]),
+    };
+  }
+  const ACTIONS = [
+    { type: 'rules_add', title: 'Journal every trade' },
+    { type: 'rules_remove', match: { title: 'stop loss' } },
+    { type: 'rules_edit', match: { title: 'trades after 3' }, set: { title: 'No trades after 2pm' } },
+    { type: 'rules_gate', on: false },
+    { type: 'open_app', target: 'notebook' },
+    { type: 'open_app', target: 'gita' },
+    { type: 'open_app', target: 'plans' },
+    { type: 'prep_task', match: { title: 'email professor' } },
+    { type: 'timer_close' },
+    { type: 'reels_shuffle' },
+  ];
+  {
+    const log = [];
+    const neoCalls = [];
+    const { THV, win } = makeEngine('veda', vedaBridge(log), { ok: true, actions: ACTIONS, say: 'Done' });
+    win._vdNeo = { setOn: on => neoCalls.push(on) };
+    t('engine exports sendAudio', THV && typeof THV.sendAudio === 'function');
+    const r = await THV.sendAudio('AAAA', { extra: { mode: 'neo' }, silent: true });
+    t('every Neo action applied on Veda\'s side', r.ok && r.n === ACTIONS.length, JSON.stringify(r));
+    const lastRules = log.filter(l => l[0] === 'rules').pop();
+    t('rules add / remove / edit land in order', JSON.stringify(lastRules && lastRules[1]) === JSON.stringify(['No trades after 2pm', 'Journal every trade']), JSON.stringify(lastRules));
+    t('notebook → _vedaNav("journal")', log.some(l => l[0] === 'nav' && l[1] === 'journal'));
+    t('gita → _vedaNav("gita")', log.some(l => l[0] === 'nav' && l[1] === 'gita'));
+    t('prep_task finds the calendar task and its date', log.some(l => l[0] === 'prep' && l[1] === 'Email professor' && l[2] === '2026-11-05'));
+    t('rules gate / timer close / reels reached', ['gate', 'closeTimer', 'reels', 'plans'].every(k => log.some(l => l[0] === k)));
+    const e3 = makeEngine('veda', vedaBridge([]), { ok: true, actions: [{ type: 'assistant_off' }], say: 'Bye' });
+    const calls = []; e3.win._vdNeo = { setOn: on => calls.push(on) };
+    await e3.THV.sendAudio('AAAA', { silent: true });
+    t('assistant_off turns Neo off on Veda\'s side', calls.length === 1 && calls[0] === false);
+  }
+
+  section('engine: Tony\'s side is untouched');
+  {
+    const tonyLog = [];
+    const tonyBridge = {
+      profile: 'tony', uid: () => 'x', getState: () => ({ data: {}, habits: [], hc: {}, longGoals: [], shortGoals: [], selectedDate: '2026-11-05' }),
+      mutateData() {}, mutateHabits() {}, mutateLongGoals() {}, mutateShortGoals() {}, mutateHc() {},
+      openTimer: () => tonyLog.push('timer'), goToDate() {},
+    };
+    const { THV, win } = makeEngine('tony', tonyBridge, { ok: true, actions: ACTIONS.concat([{ type: 'assistant_off' }]), say: '' });
+    const calls = []; win._vdNeo = { setOn: on => calls.push(on) };
+    const r = await THV.sendAudio('AAAA', { silent: true });
+    t('no Neo action applies on Tony\'s bridge', r.ok && r.n === 0, JSON.stringify(r));
+    t('assistant_off never reaches Neo from Tony\'s side', calls.length === 0);
+    t('nothing was called on Tony\'s bridge', tonyLog.length === 0, tonyLog.join(','));
+  }
+
+  section('index.html wiring');
+  t('veda-assistant.js is loaded by index.html', /<script src="TaskHub\/veda-assistant\.js" defer><\/script>/.test(html));
+  const vedaStart = html.indexOf('window._vdVoice={profile:"veda"');
+  const tonyBlock = html.slice(html.indexOf('window._thVoice='), html.indexOf('window._thVoice=') + 3000);
+  t('Veda\'s bridge exposes changeRules / nav / prep', vedaStart > 0 && /changeRules:/.test(html.slice(vedaStart, vedaStart + 4000)) && /prep:\(item,dk\)/.test(html.slice(vedaStart, vedaStart + 4000)));
+  t('Tony\'s bridge gained none of them', !/changeRules|closeTimer|reelsShuffle|openShield/.test(tonyBlock));
+  t('the Neo button sits only in Veda\'s header', (html.match(/key:"vx-neo"/g) || []).length === 1 && html.indexOf('key:"vx-neo"') > html.indexOf('window._vdVoice={profile:"veda"'));
+
+  // ── 3. veda-assistant.js ──────────────────────────────────────────────────
+  section('veda-assistant.js: profile gate');
+  const asrc = fs.readFileSync(path.join(ROOT, 'TaskHub', 'veda-assistant.js'), 'utf8');
+  function el() { return { style: {}, className: '', textContent: '', setAttribute() {}, appendChild() {}, querySelector: () => el(), set innerHTML(v) {}, onclick: null }; }
+  const store = { vd_neo_on: '1' };
+  let micCalls = 0;
+  const actx = {
+    console, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, JSON, Math, Date, Promise, Float32Array, ArrayBuffer, DataView, Uint8Array, String, Array, Object,
+    btoa: s => Buffer.from(s, 'binary').toString('base64'),
+    CustomEvent: function (n, o) { this.type = n; this.detail = o && o.detail; },
+    localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
+    navigator: { mediaDevices: { getUserMedia: () => { micCalls++; return new Promise(() => {}); } } },
+  };
+  actx.document = { hidden: false, addEventListener() {}, createElement: el, head: el(), body: el() };
+  actx.window = actx; actx.dispatchEvent = () => {};
+  actx._activeProfile = 'tony';
+  vm.createContext(actx);
+  vm.runInContext(asrc, actx);
+  const N = actx._vdNeo;
+  t('window._vdNeo exists', !!N);
+  N._test.sync();
+  t('on Tony\'s side the mic is never opened (even with Neo switched on)', micCalls === 0, 'getUserMedia calls: ' + micCalls);
+  actx._activeProfile = null; N._test.sync();
+  t('on the profile picker the mic is never opened', micCalls === 0);
+  actx._activeProfile = 'veda'; N._test.sync();
+  t('on Veda\'s side it starts listening', micCalls === 1);
+  N.setOn(false);
+  t('turning Neo off clears the saved preference', !('vd_neo_on' in store));
+
+  section('veda-assistant.js: wake word + end-point');
+  const T = N._test;
+  t('"neo" wakes', T.isWake('neo'));
+  t('"hey neo" wakes', T.isWake('hey neo'));
+  t('"[unk] neo [unk]" wakes', T.isWake('[unk] neo [unk]'));
+  t('"neon" / "new" / "nemo" do not wake', !T.isWake('neon') && !T.isWake('new') && !T.isWake('nemo') && !T.isWake('[unk] [unk]'));
+  t('grammar ends with [unk]', T.GRAMMAR[T.GRAMMAR.length - 1] === '[unk]' && T.GRAMMAR.includes('neo'));
+  {
+    const floor = 0.005, ms = 85;
+    const s = { speech: false, silentMs: 0, elapsedMs: 0 };
+    let r = 'go', steps = 0;
+    for (let i = 0; i < 12 && r === 'go'; i++, steps++) r = T.vadStep(s, 0.08, floor, ms);       // ~1 s of speech
+    t('keeps recording while she talks', r === 'go');
+    while (r === 'go' && steps < 200) { r = T.vadStep(s, 0.002, floor, ms); steps++; }
+    t('ends after ~1.4 s of silence', r === 'end' && s.silentMs >= 1400 && s.silentMs < 1500, r + ' ' + s.silentMs);
+    const q = { speech: false, silentMs: 0, elapsedMs: 0 }; let r2 = 'go';
+    while (r2 === 'go') r2 = T.vadStep(q, 0.002, floor, ms);
+    t('gives up quietly when nothing is said', r2 === 'none' && q.elapsedMs >= 6000);
+    const l = { speech: false, silentMs: 0, elapsedMs: 0 }; let r3 = 'go';
+    while (r3 === 'go') r3 = T.vadStep(l, 0.08, floor, ms);
+    t('caps a capture at 30 s', r3 === 'end' && l.elapsedMs >= 30000 && l.elapsedMs < 30100);
+    t('the speech threshold rises with room noise', T.threshold(0.02) > T.threshold(0.001));
+  }
+  {
+    const buf = T.encodeWav([new Float32Array(48000)], 48000, 16000);
+    const dv = new DataView(buf);
+    t('WAV is 16 kHz mono, 1 s → 32044 bytes', buf.byteLength === 44 + 32000 && dv.getUint32(24, true) === 16000 && dv.getUint16(22, true) === 1);
+  }
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  if (fail) { console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
+})().catch(e => { console.error(e); process.exit(1); });

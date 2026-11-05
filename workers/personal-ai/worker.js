@@ -1706,6 +1706,7 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, o
     `- {type:"set_theme", dark:true|false} | {type:"toggle_theme"} | {type:"set_edit_mode", on:true|false} | {type:"refresh_quote"}`,
     `- {type:"timer_set", minutes} | {type:"timer_start"} | {type:"timer_stop"} | {type:"timer_reset"} | {type:"timer_open"}`,
     `- {type:"undo"} | {type:"redo"}`,
+    ...(isTony ? [] : vedaNeoActionLines()),
     ``,
     `FIELD RULES:`,
     `- title: clean and concise. NEVER include the time, date, category, or the word "task" in the title.`,
@@ -1743,8 +1744,37 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, o
     `"shift everything next week one day later" → [{"type":"shift_range","from":"<next Monday>","to":"<next Sunday>","days":1}]`,
     `"delete all completed tasks from this month" → [{"type":"clear_completed","box":"calendar","from":"<1st of this month>","to":"<last day of this month>"}]`,
     ``,
+    ...(isTony ? [] : vedaNeoRuleLines(!!o.neo)),
     `Return ONLY the actions object. "actions" may be long — never truncate it, never stop halfway, never summarise instead of acting.`,
   ].join('\n');
+}
+
+// ── Neo: Veda's hands-free assistant (TaskHub/veda-assistant.js) ──────────────
+// Veda-ONLY prompt additions. Tony's prompt never includes these lines, so his
+// TaskHub can never be asked to run them (tests/veda-assistant.test.js pins it).
+function vedaNeoActionLines() {
+  return [
+    `- {type:"timer_close"}   (close the focus timer panel)`,
+    `- {type:"rules_add", title} | {type:"rules_edit", match:{title}, set:{title}} | {type:"rules_remove", match:{title}}   (her TRADING RULES checklist — state.tradingRules lists them. "add a rule…", "change the rule about…", "delete the rule…")`,
+    `- {type:"rules_gate", on:true|false}   (turn the daily rules checklist pop-up on or off)`,
+    `- {type:"open_app", target}   (target: "gita" | "notebook" | "taskhub" | "plans" | "rules" | "timer" | "shield". "open my journal/notebook" → notebook; "go back to TaskHub" → taskhub)`,
+    `- {type:"reels_shuffle"}   (show a different saved reel)`,
+    `- {type:"prep_task", match:{date?, title}}   (run AI prep for an existing calendar task: "prep my essay task", "get my email to the professor ready")`,
+    `- {type:"assistant_off"}   ("stop listening", "go to sleep", "turn yourself off")`,
+  ];
+}
+function vedaNeoRuleLines(neo) {
+  return [
+    ``,
+    `VEDA'S ASSISTANT ("Neo") — these override the rules above where they differ:`,
+    neo ? `- The audio was captured after Veda said the wake word "Neo" (or "Hey Neo"). The audio may START with that wake word — it is not part of the request; ignore it. Speech that is clearly not addressed to the assistant (background talk, a TV) → return an empty "actions" array and an empty "say".` : ``,
+    `- "say" is SPOKEN ALOUD to Veda. Write it as one or two natural spoken sentences: no symbols, emoji, markdown, or lists. Say times like "3 PM", dates like "Friday the 7th".`,
+    `- QUESTIONS: when Veda asks something instead of requesting a change ("what's on today?", "what's my next event?", "did I do my habits?", "how many tasks are left this week?", "what are my rules?", "what's my long-term goal list?"), return NO actions and answer in "say" (up to 45 words), using ONLY CURRENT STATE. Count and list precisely. If the answer is not in state (or outside calendarWindow), say you can't see that. Never invent items.`,
+    `- After a change, "say" confirms it briefly in words ("Added buy milk for tomorrow.", "Timer set for 25 minutes and started.").`,
+    `- "cancel", "never mind", "nothing" → empty actions, say "Okay."`,
+    `- Her TaskHub has no light theme: for set_theme / toggle_theme requests return no action and say that isn't available on her side.`,
+    `- If a request is something TaskHub cannot do, return no actions and say so in one short sentence.`,
+  ].filter(Boolean);
 }
 
 const ACTION_SCHEMA = {
@@ -1812,6 +1842,7 @@ const ACTION_SCHEMA = {
           dark: { type: 'BOOLEAN' },
           on: { type: 'BOOLEAN' },
           minutes: { type: 'INTEGER' },
+          target: { type: 'STRING' },
         },
         required: ['type'],
       },
@@ -1878,7 +1909,15 @@ async function handleTaskhub(body, env) {
     state, today,
     bulk ? { back: 45, fwd: 120, budget: 46000 } : { back: 14, fwd: 45, budget: 14000 },
   );
-  const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk });
+  // Veda's assistant also reads/changes her trading rules and knows whether the
+  // timer is open. Tony's state is shaped exactly as before.
+  if (profile === 'veda') {
+    if (Array.isArray(state.rules)) shaped.tradingRules = state.rules.map(r => String(r || '').slice(0, 300)).slice(0, 60);
+    if (typeof state.rulesDailyGate === 'boolean') shaped.rulesDailyGate = state.rulesDailyGate;
+    if (typeof state.timerOpen === 'boolean') shaped.timerOpen = state.timerOpen;
+  }
+  const neo = profile === 'veda' && body.mode === 'neo';
+  const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk, neo });
 
   try {
     const { value, model, tried } = await runModelChain(bulk ? TASKHUB_BULK_MODELS : TASKHUB_MODELS, key, {

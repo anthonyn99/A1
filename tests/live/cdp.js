@@ -47,7 +47,12 @@ async function launch() {
     // Silent: a live test can play a real video (Tony heard one, 2026-10-12).
     '--mute-audio',
     '--window-size=1440,900', `--user-data-dir=${UDD}`, '--no-first-run',
-    '--no-default-browser-check', 'about:blank',
+    '--no-default-browser-check',
+    // CDP_EXTRA_ARGS: extra flags, one per line (e.g. a fake microphone for
+    // tests/live/neo-assistant.live.js). Use with its own CDP_PORT so the
+    // browser is launched fresh with them.
+    ...(process.env.CDP_EXTRA_ARGS ? process.env.CDP_EXTRA_ARGS.split('\n').filter(Boolean) : []),
+    'about:blank',
   ], { detached: true, stdio: 'ignore' });
   child.unref();
   for (let i = 0; i < 60; i++) {

@@ -15840,6 +15840,9 @@ function App(){
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;const nxt=h.future.pop();if(typeof nxt!=="string"){try{nxt.redo();}catch(e){console.warn("[redo]",e);}h.past.push(nxt);vxBtns();return true;}h.past.push(vxSnap());h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
   const vxPushOp=useCallback(op=>{const h=vxHist.current;vxFlush();h.past.push(op);if(h.past.length>100)h.past.shift();h.future=[];vxBtns();},[vxFlush,vxBtns]);
   useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[dataState,habitsState,hcState,mgState,mgMonthlyState,vxSnap,vxBtns]);
+  // Neo's on/off lives in TaskHub/veda-assistant.js (it loads after this app); mirror it for the header button.
+  const[neoOn,setNeoOn]=useState(()=>{try{return localStorage.getItem("vd_neo_on")==="1";}catch(e){return false;}});
+  useEffect(()=>{const f=e=>setNeoOn(!!(e&&e.detail&&e.detail.on));window.addEventListener("vd-neo-change",f);if(window._vdNeo)setNeoOn(window._vdNeo.isOn());return()=>window.removeEventListener("vd-neo-change",f);},[]);
   useEffect(()=>{window._vdVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._vdVoiceUI&&window._vdVoiceUI.setRec===setVxRec)delete window._vdVoiceUI;};},[]);
   useEffect(()=>()=>{if(window._vdVoice&&window._vdVoice.profile==='veda')delete window._vdVoice;},[]);
 
@@ -16761,7 +16764,20 @@ function App(){
 
   // ── Voice bridge (re-bound every render so getState/actions are always current) ──
   window._vdVoice={profile:"veda",uid:uid,
-    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit}),
+    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo}),
+    // ── Neo (TaskHub/veda-assistant.js) reach — Veda-only; Tony's _thVoice has none of these ──
+    // Rule changes honour the 'veda_rules' lock (alGate) exactly like the Rules button, and
+    // push their own undo step (rules are outside vxSnap, see tests/vd-rules-survive-undo).
+    getRules:()=>(rules||[]).slice(),
+    changeRules:(fn)=>{const go=()=>{const before=vdRef.current.rules||[];const after=fn(before.slice());if(!after||after===before)return;setRules(after);vxPushOp({undo:()=>setRules(before),redo:()=>setRules(after)});};if(window.alGate)window.alGate("veda_rules",go);else go();},
+    setRulesGate:(on)=>setRulesDaily(p=>({...p,enabled:!!on})),
+    openRules:()=>openRulesManage(),
+    nav:(t)=>{if(window._vedaNav)window._vedaNav(t);},
+    openPlans:()=>{if(window._thOpenPlansVeda)window._thOpenPlansVeda();},
+    openShield:()=>{if(window._shieldClick)window._shieldClick("veda");},
+    reelsShuffle:()=>{if(window.THRL&&window.THRL.shuffle)window.THRL.shuffle();},
+    prep:(item,dk)=>{if(window._vdPrepRequest)window._vdPrepRequest(item,dk);},
+    closeTimer:()=>setShowPomo(false),
     mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,mutateHc:setHc,
     setEdit:(on)=>setEdit(!!on),
     refreshQuote:()=>vgNextBanner(),
@@ -16789,6 +16805,8 @@ function App(){
       RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦")));
   const vdToolsRow=RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
       RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:GLOW(vxRec?"#c0564a":A)}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
+      /* Neo: hands-free assistant (TaskHub/veda-assistant.js). Lit while it listens for "Neo". */
+      RC("button",{key:"vx-neo",title:neoOn?"Neo is listening — say \"Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,onClick:()=>window._vdNeo&&window._vdNeo.toggle(),onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=BDL;},style:{background:neoOn?A:"transparent",color:neoOn?BG:A,border:"1px solid "+(neoOn?A:BDL),...(neoOn?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",transition:"all .15s"}},RC("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M2 12h2M6 8v8M10 5v14M14 8v8M18 10v4M22 12h0"})),"Neo"),
       /* Text → AI: typed twin of the mic, seated right beside it. */
       RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
       RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
@@ -19938,7 +19956,7 @@ function applyTask(b,W,a,mark,fx){
   }
   return false;
 }
-function applyControl(b,a){
+function applyControl(b,a,W){
   switch(a.type){
     case 'go_to_date':{var p=ymd(a.date);if(!p)return false;b.goToDate(p.y,p.mo-1,p.d);return true;}
     case 'set_theme':return b.setTheme?(b.setTheme(!!a.dark),true):false;
@@ -19952,6 +19970,34 @@ function applyControl(b,a){
     case 'timer_open':return b.openTimer?(b.openTimer(),true):false;
     case 'undo':doUndo();return true;
     case 'redo':doRedo();return true;
+    // ── Neo actions (Veda-only). Each needs a bridge method that only _vdVoice has,
+    // and the worker only offers them in Veda's prompt — on Tony's side they no-op.
+    case 'timer_close':return b.closeTimer?(b.closeTimer(),true):false;
+    case 'rules_add':{if(!b.changeRules)return false;var rt=String(a.title||'').trim();if(!rt)return false;b.changeRules(function(arr){return arr.concat([{id:b.uid(),text:rt,created:Date.now()}]);});return true;}
+    case 'rules_edit':
+    case 'rules_remove':{
+      if(!b.changeRules||!b.getRules)return false;
+      var ri=fuzzyIndex(b.getRules().map(function(r){return {title:r.text};}),(a.match||{}).title||a.title);if(ri<0)return false;
+      var nt=String(((a.set||{}).title)||'').trim();if(a.type==='rules_edit'&&!nt)return false;
+      b.changeRules(function(arr){return a.type==='rules_remove'?arr.filter(function(_,x){return x!==ri;}):arr.map(function(r,x){return x===ri?Object.assign({},r,{text:nt}):r;});});
+      return true;
+    }
+    case 'rules_gate':return b.setRulesGate?(b.setRulesGate(a.on!==false),true):false;
+    case 'reels_shuffle':return b.reelsShuffle?(b.reelsShuffle(),true):false;
+    case 'open_app':{
+      var tg=String(a.target||'').toLowerCase();
+      if(tg==='timer')return b.openTimer?(b.openTimer(),true):false;
+      if(tg==='rules')return b.openRules?(b.openRules(),true):false;
+      if(tg==='plans')return b.openPlans?(b.openPlans(),true):false;
+      if(tg==='shield')return b.openShield?(b.openShield(),true):false;
+      var nv={gita:'gita',notebook:'journal',journal:'journal',taskhub:'taskhub'}[tg];
+      return (nv&&b.nav)?(b.nav(nv),true):false;
+    }
+    case 'prep_task':{
+      if(!b.prep||!W)return false;var hit=locate(W,Object.assign({box:'calendar'},a.match||{}));
+      if(!hit||hit.box!=='calendar')return false;b.prep(hit.item,hit.key);return true;
+    }
+    case 'assistant_off':if(profile()==='veda'&&window._vdNeo){window._vdNeo.setOn(false);return true;}return false;
   }
   return false;
 }
@@ -19967,7 +20013,7 @@ function dispatch(actions,say,silent){
     var a=actions[i];if(!a||!a.type)continue;
     try{
       if(TASK_TYPES[a.type]){if(applyTask(b,W,a,mark,fx))n++;}
-      else{if(applyControl(b,a))n++;}
+      else{if(applyControl(b,a,W))n++;}
     }catch(e){console.warn('[voice] action failed',a,e);}
   }
   if(dirty.calendar)b.mutateData(function(){return W.data;});
@@ -20157,7 +20203,11 @@ window._THV={
   openText:openText, closeText:closeText, sendText:sendText,
   toggleText:function(){TXT.open?closeText():openText();},
   undo:doUndo, redo:doRedo, refreshButtons:refreshButtons,
-  isActive:function(){return V.active;}
+  isActive:function(){return V.active;},
+  isBusy:function(){return V.busy;},
+  // Neo (TaskHub/veda-assistant.js) records its own audio and hands it here; the
+  // engine applies the actions exactly like the mic button. Additive only.
+  sendAudio:function(b64,opts){return send(Object.assign({audio:b64,mimeType:'audio/wav'},(opts&&opts.extra)||{}),opts);}
 };
 })();
 </script>
@@ -24433,6 +24483,8 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="Shared/tabsync.js"></script>
+<!-- Neo: Veda's hands-free assistant (wake word "Neo"). Veda-only; sleeps on Tony's side. docs/TaskHub/neo-assistant.md -->
+<script src="TaskHub/veda-assistant.js" defer></script>
 <!-- LifeHub, headless: Tony's External Links are its list (the nav module's
      TONY'S EXTERNAL LINKS). No launcher element here; the header buttons are the display. -->
 <script src="LifeHub/lifehub.js" defer data-lock="guardian"></script>
