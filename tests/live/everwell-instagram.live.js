@@ -77,10 +77,17 @@ const mock = {
       return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 2 }] } };
     }
     // Live sync (2026-11-04): the worker reads the collection with Tony's stored session.
-    if (u.host === 'personal-ai.av1.workers.dev' && (p === '/ig/connect' || p === '/ig/collection' || p === '/ig/disconnect')) {
+    if (u.host === 'personal-ai.av1.workers.dev' && (p === '/ig/connect' || p === '/ig/collection' || p === '/ig/disconnect' || p === '/ig/posts')) {
       const b = req.postData ? JSON.parse(req.postData) : {}; LIVE.calls.push(Object.assign({ path: p }, b));
       if (p === '/ig/connect') return { json: /^1234567890%3A/.test(b.sessionid || '') ? { ok: true, key: 'KEY-1' } : { ok: false, error: 'bad-session' } };
       if (p === '/ig/disconnect') return { json: { ok: true } };
+      // /ig/posts (Refresh, 2026-11-05): each held post looked up, answered from the same fake collection.
+      if (p === '/ig/posts' && (b.key === 'KEY-1' || b.key === 'KEY-EXT')) {
+        const all = LIVE.answer(Object.assign({}, b, { quick: false }));
+        if (!all.ok) return { json: all };
+        const have = new Map((all.posts || []).map((q) => [q.c, q]));
+        return { json: { ok: true, posts: b.codes.filter((c) => have.has(c)).map((c) => have.get(c)), out: b.codes.filter((c) => !have.has(c)), miss: [] } };
+      }
       return { json: (b.key === 'KEY-1' || b.key === 'KEY-EXT') ? LIVE.answer(b) : { ok: false, error: 'bad-key' } };
     }
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily') return { json: { ok: true, date: u.searchParams.get('date'), text: 'Small steps.', via: 'orca' } };
