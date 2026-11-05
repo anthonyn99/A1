@@ -39,7 +39,7 @@ vm.createContext(wctx);
 vm.runInContext(wsrc + '\n;globalThis.__T = { buildTaskPrompt, handleTaskhub, ACTION_SCHEMA };', wctx);
 const W = wctx.__T;
 const st = { today: '2026-11-05', calendar: {} };
-const NEO_MARKERS = ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS'];
+const NEO_MARKERS = ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS', 'butler', 'BRIEFINGS', 'PERSONALITY'];
 for (const audio of [true, false]) {
   const tony = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', audio, { bulk: false, neo: true });
   const hits = NEO_MARKERS.filter(m => tony.includes(m));
@@ -49,6 +49,7 @@ const vedaPlain = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', t
 const vedaNeo = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', true, { neo: true });
 t('Veda\'s prompt offers the Neo actions', ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close'].every(m => vedaPlain.includes(m)));
 t('Veda\'s prompt answers questions in "say"', vedaPlain.includes('QUESTIONS'));
+t('Veda\'s prompt carries the butler personality and briefings', vedaPlain.includes('British AI butler') && vedaPlain.includes('BRIEFINGS'));
 t('the wake-word note only appears for a Neo capture', vedaNeo.includes('wake word "Neo"') && !vedaPlain.includes('wake word "Neo"'));
 t('schema carries open_app\'s target', !!W.ACTION_SCHEMA.properties.actions.items.properties.target);
 
@@ -160,7 +161,11 @@ section('worker: state shaping');
   // ── 3. veda-assistant.js ──────────────────────────────────────────────────
   section('veda-assistant.js: profile gate');
   const asrc = fs.readFileSync(path.join(ROOT, 'TaskHub', 'veda-assistant.js'), 'utf8');
-  function el() { return { style: {}, className: '', textContent: '', setAttribute() {}, appendChild() {}, querySelector: () => el(), set innerHTML(v) {}, onclick: null }; }
+  function el() {
+    const cls = new Set();
+    return { style: {}, className: '', textContent: '', setAttribute() {}, appendChild() {}, remove() {}, querySelector: () => el(), set innerHTML(v) {}, onclick: null,
+      classList: { add: c => cls.add(c), remove: c => cls.delete(c), toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: c => cls.has(c) } };
+  }
   const store = { vd_neo_on: '1' };
   let micCalls = 0;
   const actx = {
@@ -208,6 +213,33 @@ section('worker: state shaping');
     while (r3 === 'go') r3 = T.vadStep(l, 0.08, floor, ms);
     t('caps a capture at 30 s', r3 === 'end' && l.elapsedMs >= 30000 && l.elapsedMs < 30100);
     t('the speech threshold rises with room noise', T.threshold(0.02) > T.threshold(0.001));
+  }
+  section('veda-assistant.js: the HUD\'s words');
+  {
+    const card = (a) => T.cardFor(a) || {};
+    t('add_task → TASK ADDED with title and date', card({ type: 'add_task', box: 'calendar', title: 'Buy milk', date: '2026-11-06' }).label === 'TASK ADDED' && card({ type: 'add_task', box: 'calendar', title: 'Buy milk', date: '2026-11-06' }).detail === 'Buy milk · FRI 6 NOV');
+    t('a timed add is an EVENT, with a 🔔 for a reminder', card({ type: 'add_task', title: 'Gym', time: '17:00', notify: { date: '2026-11-06', time: '16:45' } }).label === 'EVENT ADDED' && /17:00 · 🔔$/.test(card({ type: 'add_task', title: 'Gym', time: '17:00', notify: {} }).detail));
+    t('habits and goals get their own labels', card({ type: 'add_task', box: 'dailyHabits', title: 'Read' }).label === 'HABIT ADDED' && card({ type: 'add_task', box: 'longTermGoals', title: 'X' }).label === 'GOAL ADDED');
+    t('timer_set shows mm:00', card({ type: 'timer_set', minutes: 25 }).detail === '25:00');
+    t('toggle off reads UNCHECKED', card({ type: 'toggle_task', match: { title: 'x' }, done: false }).label === 'UNCHECKED');
+    t('rules, opening, prep and stand-down have cards', ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'rules_gate'].every(ty => T.cardFor({ type: ty, title: 't', target: 'gita' })));
+    t('every engine action type has a card', ['add_task', 'edit_task', 'remove_task', 'toggle_task', 'move_task', 'swap', 'reorder', 'clear', 'shift_range', 'clear_completed', 'go_to_date', 'set_edit_mode', 'refresh_quote', 'timer_set', 'timer_start', 'timer_stop', 'timer_reset', 'timer_open', 'timer_close', 'undo', 'redo', 'rules_edit', 'rules_remove', 'reels_shuffle'].every(ty => T.cardFor({ type: ty, days: 1 })));
+    t('unknown actions show nothing', T.cardFor({ type: 'nope' }) === null);
+
+    const at = (h, m) => { const d = new Date(2026, 10, 5, h, m || 0); return d; };
+    const st = { data: { '2026-11-05': [{ id: 'a', title: 'Essay', done: true }, { id: 'b', title: 'Gym', time: '17:00' }, { id: 'c', title: 'Call mom' }] }, habits: [{ id: 'h1' }, { id: 'h2' }], hc: { 'h1-2026-10-5': true } };
+    t('greeting: evening, counts and the next event', T.greeting(st, at(16, 30)) === 'Good afternoon, Veda. Neo online. Two tasks remain today; next up, Gym at 5 PM.', T.greeting(st, at(16, 30)));
+    t('greeting: morning / evening / late', /^Good morning/.test(T.greeting(st, at(8))) && /^Good evening/.test(T.greeting(st, at(19))) && /^Working late/.test(T.greeting(st, at(2))));
+    t('greeting: a clear day', T.greeting({ data: {} }, at(9)) === 'Good morning, Veda. Neo online. Your day is clear.');
+    const ds = T.dayStats(st, at(16, 30));
+    t('telemetry: tasks 1/3, habits 1/2, next Gym', ds.done === 1 && ds.total === 3 && ds.habitsDone === 1 && ds.habits === 2 && ds.next && ds.next.title === 'Gym');
+    t('spoken times', T.spokenTime('17:00') === '5 PM' && T.spokenTime('07:30') === '7:30 AM' && T.spokenTime('12:00') === 'noon');
+
+    const V = (name, lang) => ({ name, lang });
+    t('voice: Ryan via Orca is the default', T.VOICE === 'en-GB-RyanNeural');
+    t('fallback: Microsoft Ryan first', T.pickVoiceFrom([V('Microsoft Aria Online', 'en-US'), V('Microsoft Ryan Online (Natural)', 'en-GB')]).name.startsWith('Microsoft Ryan'));
+    t('fallback: Google UK English Male next', T.pickVoiceFrom([V('Google US English', 'en-US'), V('Google UK English Female', 'en-GB'), V('Google UK English Male', 'en-GB')]).name === 'Google UK English Male');
+    t('fallback: any en-GB, then any English', T.pickVoiceFrom([V('X', 'en-US'), V('Y', 'en-GB')]).name === 'Y' && T.pickVoiceFrom([V('X', 'en-US')]).name === 'X');
   }
   {
     const buf = T.encodeWav([new Float32Array(48000)], 48000, 16000);

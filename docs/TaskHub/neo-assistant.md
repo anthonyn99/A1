@@ -17,6 +17,71 @@ the mic is released whenever the active profile isn't `veda`.
 - "Neo, stop listening" switches it off. So does tapping NEO again.
 - The switch is remembered per device (`localStorage vd_neo_on`).
 
+## The look, the voice, the personality (Jarvis edition, 2026-11-05)
+
+Veda's choices:
+
+- the HUD in **her mauve, as a hologram**
+- **Ryan**, a British male voice
+- a **Jarvis-style butler** personality
+
+It is Neo's own overlay and button only; the rest of her TaskHub's look is untouched.
+
+### The HUD
+
+`#vd-neo-hud` is built by `veda-assistant.js`. It's a glass panel at the bottom centre; on a
+phone, a full-width bottom sheet.
+
+- **The arc-reactor orb** (canvas):
+  - a tick ring, three counter-rotating arc segments and an inner ring with a moving bright arc
+  - a hexagon core
+  - 64 waveform bars that follow her voice while she talks, and Neo's voice while it speaks
+    (through an `AnalyserNode`)
+  - orbiting particles while it works
+  - on boot the rings draw in; on an error they flicker
+- **The state label** (Orbitron) glitches in on each change: INITIALISING, ONLINE, LISTENING,
+  PROCESSING, RESPONDING, STANDING BY, FAULT.
+- **Live captions** ("YOU › …") come from a second, free-form Vosk recognizer that only runs
+  during a capture. They are for display only; Gemini's cleaned-up `transcript` replaces them
+  when the answer arrives.
+- **The reply** types out word by word, in time with the voice (Orca's word timings, or the
+  device voice's boundary events).
+- **Action cards** (`cardFor`), one per change: `✓ TASK ADDED · Buy milk · FRI 6 NOV`,
+  `⏱ TIMER · 25:00`, `☐ RULE ADDED`. A question gets `≡ BRIEFING`.
+- **The telemetry strip** shows tasks done today, the next timed item, habits ticked, and the
+  voice in use (RYAN or DEVICE).
+- **Sound**, all synthesized (WebAudio, quiet): a shimmer on wake, a low pulse while it works,
+  a chirp when a change lands, a falling tone on an error, and a power-up sweep on boot.
+- **The header button** is a mini reactor that breathes while armed and spins while working.
+- **`prefers-reduced-motion`** slows the orb and drops the sweep and glitch.
+
+### The voice
+
+**Ryan** (`en-GB-RyanNeural`) comes through Orca's Edge neural voices, using
+`Shruti/app/orca.js` `speak()` and **her own Orca key**.
+
+Neo reads that key from Shruti's cache (`localStorage shruti.veda.orcaKey`). If it isn't cached
+on this device, it reads `dashboards/shruti_veda` through `window._fbLoadVedaOrcaKey`.
+Both are read-only.
+
+With no key, or when Orca fails, the device voice speaks instead, in this order:
+1. Microsoft Ryan
+2. Google UK English Male
+3. Daniel
+4. any en-GB voice
+5. any English voice
+
+### The personality
+
+Only Veda's prompt carries this (`vedaNeoRuleLines` in the worker):
+
+- a refined British AI butler: calm, precise, a light dry wit on successes, never on bad news
+- it says "Veda" now and then
+- "brief me" / "status report" gives a short rundown of her day
+
+When she switches Neo on, it greets her by the time of day from her own data. This needs no API
+call: "Good evening, Veda. Neo online. Two tasks remain today; next up, Gym at 5 PM."
+
 ## What it can do
 
 Everything the mic and text buttons can do, because it uses the same engine

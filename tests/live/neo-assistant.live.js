@@ -3,12 +3,18 @@
 // Real index.html on Veda's side and the real Vosk wake-word engine and model
 // (downloaded from their CDNs). The microphone is fake: Chrome plays a WAV,
 // made here with Windows' own speech synthesizer, of "Neo. Add buy milk
-// tomorrow." Firestore is the fake one, and the Gemini route
-// (personal-ai /taskhub/parse) is answered here, so nothing touches her real
-// data or quota. Expect:
-//   · Vosk hears "Neo" → Neo records → the engine posts the audio (mode 'neo')
-//   · the action applies (Buy milk tomorrow) and the reply is spoken
+// tomorrow." on a loop. Firestore is the fake one; the Gemini route
+// (personal-ai /taskhub/parse) and Orca's speech route are answered here, so
+// nothing touches her real data, key or quota. Expect:
+//   · switching Neo on boots the HUD and greets her
+//   · Vosk hears "Neo" → the HUD listens (live captions) → processes → the
+//     engine posts the audio (mode 'neo') → the task is added, an action card
+//     shows it, and the reply is spoken and typed out
+//   · Ryan is asked for through Orca with her key; when Orca refuses, the
+//     device's voice still speaks
+//   · the phone layout is a bottom sheet
 //   · switching to Tony's TaskHub releases the mic, and his header has no Neo
+// Screenshots of each state land in %TEMP%/magi-live-shots/neo-*.png.
 //
 // Windows only (the WAV comes from System.Speech). The first run downloads
 // ~41 MB of model. Run: node tests/live/neo-assistant.live.js
@@ -27,10 +33,11 @@ if (!fs.existsSync(WAV)) {
     `$syn.SpeakSsml('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><break time="4s"/>Neo.<break time="700ms"/>Add buy milk tomorrow.<break time="6s"/></speak>');$syn.Dispose()`]);
 }
 process.env.CDP_PORT = process.env.CDP_PORT || '9347';
+process.env.CDP_ALLOW_FONTS = '1';   // the HUD's Orbitron / JetBrains Mono, for honest screenshots
 process.env.CDP_EXTRA_ARGS = ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
   '--use-file-for-fake-audio-capture=' + WAV, '--autoplay-policy=no-user-gesture-required'].join('\n');
 
-const { connect, evalJs, sleep } = require('./cdp.js');
+const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const { firebaseMock } = require('./fake-firebase.js');
 
 const ORIGIN = 'https://anthonyn99.github.io';
@@ -42,18 +49,40 @@ const ok = (name, cond, extra) => {
 const pad = (n) => ('0' + n).slice(-2);
 const t = new Date(); t.setDate(t.getDate() + 1);
 const TOMORROW = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+const REPLY = 'Done. Buy milk is on tomorrow\'s list, Veda.';
+// A short, quiet 16 kHz tone as WAV: what "Orca" returns for the greeting.
+function toneWav(sec) {
+  const n = Math.floor(16000 * sec), b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12);
+  b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28);
+  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin(i * 2 * Math.PI * 220 / 16000) * 3000), 44 + i * 2);
+  return b;
+}
 
 (async () => {
-  const parsed = [];
+  const parsed = [], orcaCalls = [];
   const c = await connect({ mock: firebaseMock({
-    patterns: ['https://personal-ai.av1.workers.dev/taskhub/parse*'],
+    patterns: ['https://personal-ai.av1.workers.dev/taskhub/parse*', 'https://orca.vedapatel05.workers.dev/*'],
     handle(req) {
-      if (!/taskhub\/parse/.test(req.url)) return null;
       if (req.method === 'OPTIONS') return { status: 204, text: '' };
+      if (/orca\.vedapatel05/.test(req.url)) {
+        let b = {}; try { b = JSON.parse(req.postData || '{}'); } catch (e) {}
+        orcaCalls.push({ url: req.url, voice: b.voice, input: b.input });
+        // The greeting gets a real clip (Ryan, as far as the page can tell);
+        // everything after is refused, so the device-voice fallback runs too.
+        if (orcaCalls.length === 1) {
+          const words = String(b.input || '').split(/\s+/).map((w, i) => [i * 0.12, 0.1, w]);
+          return { json: { audio: toneWav(Math.max(1.2, words.length * 0.12 + 0.3)).toString('base64'), words, engine: 'edge', voice: b.voice } };
+        }
+        return { status: 400, json: { error: { message: 'voice service refused (test)' } } };
+      }
+      if (!/taskhub\/parse/.test(req.url)) return null;
       let b = {}; try { b = JSON.parse(req.postData || '{}'); } catch (e) {}
       parsed.push({ profile: b.profile, mode: b.mode, audioBytes: b.audio ? Math.floor(b.audio.length * 3 / 4) : 0 });
-      return { json: { ok: true, say: 'Added buy milk for tomorrow.',
-        actions: [{ type: 'add_task', box: 'calendar', date: TOMORROW, title: 'Buy milk', category: 'personal' }] } };
+      // a beat of "processing", like the real worker
+      return new Promise((res) => setTimeout(() => res({ json: { ok: true, say: REPLY, transcript: 'add buy milk tomorrow',
+        actions: [{ type: 'add_task', box: 'calendar', date: TOMORROW, title: 'Buy milk', category: 'personal' }] } }), 1600));
     },
   }) });
   const errs = [];
@@ -63,12 +92,15 @@ const TOMORROW = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.get
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
   });
   const js = (e) => evalJs(c, e);
-  const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 250; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(250); } return false; };
+  const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 150; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(150); } return false; };
+  const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); if (r.result && r.result.data) fs.writeFileSync(shotPath('neo-' + name), Buffer.from(r.result.data, 'base64')); };
+  const mode = () => js(`return window._vdNeo.mode();`);
 
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'local_storage,session_storage' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); localStorage.setItem('a1b_disabled','1');
-    sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vedasdash': { data: {}, habits: [], hc: {}, goals: [], monthlyGoals: [], rules: [], rulesDaily: {}, savedAt: Date.now(), rev: 1 } })); 1`);
+    localStorage.setItem('shruti.veda.orcaKey','orca_sk_livetest_123456');
+    sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vedasdash': { data: { ${JSON.stringify(TOMORROW)}: [] }, habits: [{id:'h1',title:'Read'},{id:'h2',title:'Walk'}], hc: {}, goals: [], monthlyGoals: [], rules: [], rulesDaily: {}, savedAt: Date.now(), rev: 1 } })); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
   if (await until('window._profileGoVeda && window._vdNeo', 30000)) await js(`window._profileGoVeda(); 1`);
   await until('window._activeProfile === "veda" && window._vdVoice', 20000);
@@ -77,30 +109,63 @@ const TOMORROW = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.get
 
   console.log('\nVeda\'s side');
   ok('Veda\'s TaskHub is open', await js(`return window._activeProfile === 'veda';`), await js(`return String(window._activeProfile);`));
-  ok('the NEO button is in her header', await js(`return !!document.querySelector('#veda-root button[aria-label="Neo assistant"]');`));
-  await js(`window.__spoken=[]; speechSynthesis.speak=function(u){ if(u.text) window.__spoken.push(u.text); setTimeout(function(){ u.onend && u.onend(); }, 300); }; 1`);
-  await js(`document.querySelector('#veda-root button[aria-label="Neo assistant"]').click(); 1`);
-  ok('the button shows Neo is on', await until(`document.querySelector('#veda-root button[aria-label="Neo assistant"]').getAttribute('aria-pressed') === 'true'`, 3000));
-  const ready = await until(`window._vdNeo.mode() === 'wake' || window._vdNeo.mode() === 'capture'`, 240000);
-  ok('Vosk loaded and Neo is listening for the wake word', ready, await js(`return window._vdNeo.mode() + ' / ' + ((document.querySelector('#vd-neo-pill .vdn-t')||{}).textContent||'');`));
+  ok('the NEO reactor button is in her header', await js(`return !!document.querySelector('#veda-root button.vd-neo-btn svg.vnb');`));
+  // The device voice is a spy: it records, lights words via boundary events and ends after a beat.
+  await js(`window.__spoken=[]; speechSynthesis.speak=function(u){ if(!u.text) return; window.__spoken.push({text:u.text, voice:u.voice&&u.voice.name, lang:u.lang});
+    var i=0, words=u.text.split(' '), pos=0; var iv=setInterval(function(){ if(i>=words.length){clearInterval(iv); setTimeout(function(){u.onend&&u.onend();},700); return;} u.onboundary&&u.onboundary({charIndex:pos}); pos+=words[i].length+1; i++; },160); }; 1`);
+  await js(`document.querySelector('#veda-root button.vd-neo-btn').click(); 1`);
+  ok('the button shows Neo is on', await until(`document.querySelector('#veda-root button.vd-neo-btn').classList.contains('on')`, 3000));
+  const booted = await until(`['boot','speaking'].indexOf(window._vdNeo.mode())>=0 || (window.__spoken||[]).length`, 240000);
+  ok('Neo boots (after the model loads) and the HUD shows', booted && await js(`return document.getElementById('vd-neo-hud').classList.contains('show');`), await mode());
+  await sleep(500); await shot('1-boot');
+  for (let i = 0; i < 60 && !orcaCalls.length; i++) await sleep(100);   // the greeting follows the boot sweep
+  ok('the greeting is spoken in Ryan\'s voice through Orca, with her key', orcaCalls[0] && orcaCalls[0].voice === 'en-GB-RyanNeural' && /^(Good (morning|afternoon|evening)|Working late), Veda\. Neo online\./.test(orcaCalls[0].input || ''), JSON.stringify(orcaCalls[0]));
+  ok('…played as audio (not the device voice), typed out in time with it, labelled ONLINE', await until(`document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length > 3`, 8000)
+    && (await js(`return (window.__spoken||[]).length;`)) === 0 && (await js(`return document.querySelector('#vd-neo-hud .vn-state').textContent;`)) === 'ONLINE',
+    await js(`return JSON.stringify({spoken:window.__spoken, state:document.querySelector('#vd-neo-hud .vn-state').textContent, lit:document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length});`));
+  ok('telemetry reads VOICE RYAN', /VOICE RYAN/.test(await js(`return document.querySelector('#vd-neo-hud .vn-tele').textContent;`)));
 
   console.log('\n"Neo. Add buy milk tomorrow."');
-  const heard = ready && await until(`window.__spoken.length > 0`, 60000);
-  ok('the wake word was heard and the request was sent', parsed.length >= 1, JSON.stringify(parsed));
-  ok('…as Veda, marked as a Neo capture', parsed[0] && parsed[0].profile === 'veda' && parsed[0].mode === 'neo', JSON.stringify(parsed[0]));
-  ok('…with the spoken request in it (> 1 s of audio)', parsed[0] && parsed[0].audioBytes > 32000, parsed[0] && parsed[0].audioBytes);
+  ok('the wake word opens the listening HUD', await until(`window._vdNeo.mode() === 'capture'`, 40000), await mode());
+  ok('the HUD says LISTENING', (await js(`return document.querySelector('#vd-neo-hud .vn-state').textContent;`)) === 'LISTENING');
+  const capOk = await until(`/\\w{3,}/.test(document.querySelector('#vd-neo-hud .vn-you').textContent)`, 6000);
+  await shot('2-listening');
+  ok('live captions appear while she talks', capOk, await js(`return document.querySelector('#vd-neo-hud .vn-you').textContent;`));
+  ok('…then PROCESSING', await until(`window._vdNeo.mode() === 'thinking'`, 15000), await mode());
+  await sleep(500); await shot('3-processing');
+  ok('the request was sent as Veda, marked as a Neo capture, with real audio', parsed[0] && parsed[0].profile === 'veda' && parsed[0].mode === 'neo' && parsed[0].audioBytes > 32000, JSON.stringify(parsed));
+  ok('…then RESPONDING', await until(`window._vdNeo.mode() === 'speaking'`, 15000), await mode());
+  await sleep(900); await shot('4-speaking');
+  ok('the action card shows the new task', /TASK ADDED/.test(await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`)) && /Buy milk/.test(await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`)), await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`));
+  ok('the caption becomes the clean transcript', (await js(`return document.querySelector('#vd-neo-hud .vn-you').textContent;`)) === 'add buy milk tomorrow');
   ok('the task was added for tomorrow', await js(`return ((window._vdVoice.getState().data||{})[${JSON.stringify(TOMORROW)}]||[]).some(function(x){return x.title==='Buy milk';});`));
-  ok('the reply was spoken', heard && (await js(`return window.__spoken[0];`)) === 'Added buy milk for tomorrow.', await js(`return JSON.stringify(window.__spoken);`));
+  ok('the reply asked Orca for Ryan too', orcaCalls.some(o => o.input === REPLY && o.voice === 'en-GB-RyanNeural'), JSON.stringify(orcaCalls.map(o => o.input)));
+  ok('Orca refused, so the device voice (British) spoke the reply', await until(`(window.__spoken||[]).some(function(s){return s.text===${JSON.stringify(REPLY)} && /^en-GB/.test(s.lang);})`, 8000), await js(`return JSON.stringify(window.__spoken);`));
+  ok('telemetry now reads VOICE DEVICE', /VOICE DEVICE/.test(await js(`return document.querySelector('#vd-neo-hud .vn-tele').textContent;`)));
+  ok('the reply types out word by word', await until(`document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length === ${REPLY.split(' ').length}`, 8000),
+    await js(`return document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length + '/' + document.querySelectorAll('#vd-neo-hud .vn-say .w').length;`));
+  ok('…then STANDING BY for a follow-up', await until(`window._vdNeo.mode() === 'follow' || window._vdNeo.mode() === 'wake'`, 8000), await mode());
+  await shot('5-done');
+
+  console.log('\nOn a phone');
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  const again = await until(`window._vdNeo.mode() === 'speaking'`, 45000);   // the fake mic says "Neo…" again
+  await sleep(900); await shot('6-phone');
+  const sheet = await js(`var r=document.getElementById('vd-neo-hud').getBoundingClientRect(); return JSON.stringify({l:Math.round(r.left), w:Math.round(r.width), b:Math.round(innerHeight-r.bottom)});`);
+  const sj = JSON.parse(sheet);
+  ok('the HUD is a full-width bottom sheet', again && sj.l === 0 && sj.w === 390 && Math.abs(sj.b) <= 2, sheet);
+  await c.send('Emulation.clearDeviceMetricsOverride');
 
   console.log('\nTony\'s side');
   await js(`window._profileGoTony(); 1`);
-  ok('switching to Tony puts Neo to sleep (mic released)', await until(`window._vdNeo.mode() === 'off'`, 4000), await js(`return window._vdNeo.mode();`));
-  ok('Tony\'s header has no Neo button', !(await js(`return !!document.querySelector('#root button[aria-label="Neo assistant"]');`)));
+  ok('switching to Tony puts Neo to sleep (mic released)', await until(`window._vdNeo.mode() === 'off'`, 4000), await mode());
+  ok('the HUD is gone', !(await js(`return document.getElementById('vd-neo-hud').classList.contains('show');`)));
+  ok('Tony\'s header has no Neo button', !(await js(`return !!document.querySelector('#root .vd-neo-btn');`)));
   const before = parsed.length; await sleep(14000);   // the fake mic loops "Neo…" every ~13 s
   ok('Neo hears nothing while Tony\'s TaskHub is open', parsed.length === before, parsed.length - before);
 
   ok('no page exceptions', errs.length === 0, errs.slice(0, 3).join(' | '));
-  console.log(`\n${pass} passed, ${fail} failed`);
+  console.log(`\n${pass} passed, ${fail} failed   (screenshots: ${path.dirname(shotPath('x'))}\\neo-*.png)`);
   c.ws.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
