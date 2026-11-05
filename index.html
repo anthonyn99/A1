@@ -15287,7 +15287,13 @@ function Pomodoro({onClose,T,look,profile}){
   const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};
   const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();const ms=exactMs();playTimerCue(ms>=total*1000?"start":"resume",ac());startTimer(ms/1000);setRunning(true);}else{stopTimer(true);setRunning(false);playTimerCue("pause",ac());}};
   const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};
-  useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();if(!running)startTimer(exactMs()/1000);setRunning(true);setDone(false);}else if(cmd==="stop"){if(running)stopTimer(true);setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);
+  useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();if(!running)startTimer(exactMs()/1000);setRunning(true);setDone(false);}else if(cmd==="stop"){if(running)stopTimer(true);setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}
+    // Neo: break modes (0 work, 1 short, 2 long) and adding/taking minutes off the clock.
+    else if(cmd==="mode"){pickMode(Math.max(0,Math.min(2,parseInt(arg)||0)));}
+    else if(cmd==="add"){const d=Math.round((parseFloat(arg)||0)*60);const rem=Math.max(1,Math.round(exactMs()/1000)+d);if(running)startTimer(rem);else if(remRef.current!=null)remRef.current=rem*1000;setLeft(rem);setTotal(t=>Math.max(rem,t+d));setDone(false);}};
+    // What Neo reads for "how much time is left?".
+    window._vdTimerState={left:left,total:total,running:running,done:done,mode:mode,workMin:workMin};
+    return()=>{if(window._vdTimerExec)delete window._vdTimerExec;delete window._vdTimerState;};},[left,total,running,done,workMin,mode]);
   const adjWork=(delta)=>{remRef.current=null;const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};
 
   // ── Position + drag ─────────────────────────────────────────────────────
@@ -15533,6 +15539,16 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
     return()=>document.removeEventListener("keydown",onKey,true);
   },[open,mode,editing,confirmDel,onClose]);
 
+  // Neo ticks a row by voice ("rule three done", "next one") — through the same
+  // tick(), so the frontier and the delay still hold: one row at a time, and only
+  // once it has been on screen RULES_DELAY seconds. Never all at once.
+  const tickRef=React.useRef(null);
+  React.useEffect(()=>{
+    if(!open||mode!=="gate")return;
+    window._vdRulesTick=(target)=>tickRef.current?tickRef.current(target):{ok:false,reason:"not_open"};
+    return()=>{delete window._vdRulesTick;};
+  },[open,mode]);
+
   if(!open)return null;
 
   const tick=(i)=>{
@@ -15550,6 +15566,19 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
   };
 
   const finish=()=>{ if(complete)onComplete(); };
+  tickRef.current=(target)=>{
+    if(mode!=="gate")return {ok:false,reason:"not_open"};
+    if(target==="all")return {ok:false,reason:"one_at_a_time"};
+    const next=checked.length;
+    let i=next;
+    if(typeof target==="number"||/^\d+$/.test(String(target||"")))i=parseInt(target,10)-1;
+    else if(target&&target!=="next"){const q=String(target).toLowerCase();const hit=rules.findIndex(r=>String(r.text||"").toLowerCase().indexOf(q)>=0);if(hit<0)return {ok:false,reason:"not_found"};i=hit;}
+    if(i<0||i>=total)return {ok:false,reason:"not_found"};
+    if(checked.includes(i))return {ok:false,reason:"already"};
+    if(i!==next)return {ok:false,reason:"out_of_order"};
+    if(i>unlocked)return {ok:false,reason:"too_soon"};
+    tick(i);return true;
+  };
 
   // ── authoring (manage mode only) ──
   const addRule=(text)=>onSetRules([...rules,{id:uid(),text:text.trim(),created:Date.now()}]);
@@ -16773,29 +16802,69 @@ function App(){
 
   // ── Voice bridge (re-bound every render so getState/actions are always current) ──
   window._vdVoice={profile:"veda",uid:uid,
-    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo,
+    getState:()=>{const base={data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo,
       // Neo opens PC apps by name: the names her PC's bridge published (dashboards/veda_pc_apps), and whether this device IS a PC.
-      pcApps:(window._vdPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:/Windows/i.test(navigator.userAgent||"")}),
+      pcApps:(window._vdPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:!!(window._vdNeoOps?window._vdNeoOps.onPc():/Windows/i.test(navigator.userAgent||"")),
+      weekCollapsed:!!weekCollapsed,goalTab:goalTab};
+      // What else Neo can be asked about (plans, links, earnings, classes, prep kits, the timer, open apps): veda-assistant.js.
+      return window._vdNeoOps?Object.assign(base,window._vdNeoOps.state(base,{marketCal:marketCal})):base;},
     launchPc:(app,url)=>window._vdNeoLaunch?window._vdNeoLaunch(app,url):false,
+    closePc:(name,force)=>window._vdNeoClose?window._vdNeoClose(name,force):false,
+    closeAllPc:(except,force)=>window._vdNeoCloseAll?window._vdNeoCloseAll(except,force):false,
     // ── Neo (TaskHub/veda-assistant.js) reach — Veda-only; Tony's _thVoice has none of these ──
     // Rule changes honour the 'veda_rules' lock (alGate) exactly like the Rules button, and
     // push their own undo step (rules are outside vxSnap, see tests/vd-rules-survive-undo).
+    // They answer with a promise that settles once the lock has: true, or "locked" when she
+    // cancels the prompt (or leaves it for two minutes). `gated` says the prompt is up.
     getRules:()=>(rules||[]).slice(),
-    changeRules:(fn)=>{const go=()=>{const before=vdRef.current.rules||[];const after=fn(before.slice());if(!after||after===before)return;setRules(after);vxPushOp({undo:()=>setRules(before),redo:()=>setRules(after)});};if(window.alGate)window.alGate("veda_rules",go);else go();},
+    changeRules:(fn)=>{const go=()=>{const before=vdRef.current.rules||[];const after=fn(before.slice());if(!after||after===before)return;setRules(after);vxPushOp({undo:()=>setRules(before),redo:()=>setRules(after)});};
+      const G=window.Guardian,gated=!!(window.alGate&&G&&G.mustBlock&&G.mustBlock("veda_rules"));
+      const p=new Promise(res=>{let settled=false;const end=v=>{if(!settled){settled=true;res(v);}};
+        if(!window.alGate){go();end(true);return;}
+        window.alGate("veda_rules",()=>{go();end(true);},()=>end("locked"));
+        if(gated)setTimeout(()=>end("locked"),120000);});
+      p.gated=gated;return p;},
     setRulesGate:(on)=>setRulesDaily(p=>({...p,enabled:!!on})),
     openRules:()=>openRulesManage(),
+    // The daily checklist, now. Ticking by voice keeps its rule: one row at a time,
+    // each only after it has been on screen RULES_DELAY seconds (VdRulesChecklist).
+    rulesRun:()=>{if(!(rules||[]).length)return {ok:false,reason:"no_rules"};setRulesOpen("gate");return true;},
+    rulesCheck:(target)=>window._vdRulesTick?window._vdRulesTick(target):{ok:false,reason:"not_open"},
     nav:(t)=>{if(window._vedaNav)window._vedaNav(t);},
     openPlans:()=>{if(window._thOpenPlansVeda)window._thOpenPlansVeda();},
     openShield:()=>{if(window._shieldClick)window._shieldClick("veda");},
     reelsShuffle:()=>{if(window.THRL&&window.THRL.shuffle)window.THRL.shuffle();},
-    prep:(item,dk)=>{if(window._vdPrepRequest)window._vdPrepRequest(item,dk);},
+    // AI prep: resolves to the kit, or null when it couldn't be built (Neo says so).
+    prep:(item,dk)=>window._vdNeoOps?window._vdNeoOps.prep(item,dk):(window._vdPrepRequest?window._vdPrepRequest(item,dk):null),
+    // ✦ by voice: the assistant, sites and apps (the bridge opens them on her PC).
+    prepOpen:(item,dk)=>{if(!window._vdPrepLaunch)return {ok:false,reason:"no_bridge"};window._vdPrepLaunch(item,dk);return true;},
+    prepShow:(item,dk)=>{if(window._activeDash!=="task"&&window._vedaNav)window._vedaNav("taskhub");setVdPrepOpen({id:item.id,dateKey:dk});return true;},
+    gita:(cmd,arg)=>{const L=GITA_LESSONS.length;if(window._activeDash!=="task"&&window._vedaNav)window._vedaNav("taskhub");
+      if(cmd==="list"){setShowLessons(true);return true;}
+      if(cmd==="open"){const n=parseInt(arg,10),l=GITA_LESSONS.find(x=>x.id===n);if(!l)return {ok:false,reason:"not_found"};setShowLessons(false);openGitaLesson(l);return true;}
+      if(!gitaModal){openGitaLesson(GITA_LESSONS[(bannerIdx+(cmd==="prev"?-1:1)+L)%L]);return true;}
+      if(cmd==="prev")gitaPrev();else gitaNext();return true;},
+    weekView:(collapsed)=>{setWeekCollapsed(!!collapsed);return true;},
+    goalsTab:(t)=>{setGoalTab(/long/i.test(String(t||""))?"long":"short");return true;},
+    monthShift:(by)=>{const d=new Date(vy,vm+(by||0),1);setVm(d.getMonth());setVy(d.getFullYear());return true;},
+    lockApp:(t)=>window._vdNeoOps?window._vdNeoOps.lockApp(t):false,
+    openLink:(label)=>window._vdNeoOps?window._vdNeoOps.openLink(label):false,
+    journalEntry:(text,title)=>window._vdNeoOps?window._vdNeoOps.journalEntry(text,title):false,
+    startClass:(name)=>window._vdNeoOps?window._vdNeoOps.startClass(name,data):false,
+    plan:(op,a)=>window._vdNeoOps?window._vdNeoOps.plan(op,a):false,
     closeTimer:()=>setShowPomo(false),
     mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,mutateHc:setHc,
     setEdit:(on)=>setEdit(!!on),
     refreshQuote:()=>vgNextBanner(),
     goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
     openTimer:()=>setShowPomo(true),
-    timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
+    // Timer commands queue until the panel has mounted and run one at a time, each
+    // on the component's fresh state, so "set 25 and start" starts 25 minutes and a
+    // cold open never drops a command (veda-assistant.js, timerRun). Each resolves
+    // true once run, or false if the panel never came up.
+    timer:(cmd,arg)=>{setShowPomo(true);if(window._vdNeoOps)return window._vdNeoOps.timer(cmd,arg);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
+    timerMode:(i)=>{setShowPomo(true);return window._vdNeoOps?window._vdNeoOps.timer("mode",i):false;},
+    timerAdd:(m)=>{setShowPomo(true);return window._vdNeoOps?window._vdNeoOps.timer("add",m):false;},
     undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,pushUndo:vxPushOp,
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
@@ -16817,8 +16886,8 @@ function App(){
       RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦")));
   const vdToolsRow=RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
       RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:GLOW(vxRec?"#c0564a":A)}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
-      /* Neo: hands-free assistant (TaskHub/veda-assistant.js). Lit while it listens for "Neo". */
-      RC("button",{key:"vx-neo",className:"vd-neo-btn"+(neoOn?" on":"")+(/^(capture|thinking|speaking|loading)$/.test(neoMode)?" busy":""),title:neoOn?"Neo is listening — say \"Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,onClick:()=>window._vdNeo&&window._vdNeo.toggle(),onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=BDL;},style:{background:neoOn?A:"transparent",color:neoOn?BG:A,border:"1px solid "+(neoOn?A:BDL),...(neoOn?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",transition:"all .15s"}},
+      /* Neo: hands-free assistant (TaskHub/veda-assistant.js). Lit while it listens for "Hey Neo". */
+      RC("button",{key:"vx-neo",className:"vd-neo-btn"+(neoOn?" on":"")+(/^(capture|thinking|speaking|loading)$/.test(neoMode)?" busy":""),title:neoOn?"Neo is listening — say \"Hey Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Hey Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,onClick:()=>window._vdNeo&&window._vdNeo.toggle(),onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=BDL;},style:{background:neoOn?A:"transparent",color:neoOn?BG:A,border:"1px solid "+(neoOn?A:BDL),...(neoOn?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",transition:"all .15s"}},
         /* a mini arc reactor; veda-assistant.js animates .r1 (spin) and .c (breathe) */
         RC("svg",{className:"vnb",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeLinecap:"round"},
           RC("g",{className:"r1"},RC("circle",{cx:12,cy:12,r:10,strokeWidth:1.6,strokeDasharray:"9.5 3.6"})),
@@ -19745,8 +19814,10 @@ async function send(extra,opts){
     var r=await fetch(WORKER+'/taskhub/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var j=await r.json();
     if(j.ok&&Array.isArray(j.actions)){
-      var n=dispatch(j.actions,j.say,silent);
-      return {ok:true,n:n,say:j.say||'',truncated:!!j.truncated,actions:j.actions,transcript:j.transcript||''};
+      var held=(opts&&typeof opts.hold==='function')?opts.hold(j.actions,b.getState()):null;
+      if(held)return {ok:true,n:0,results:[],held:Object.assign({actions:j.actions},held),later:Promise.resolve([]),say:j.say||'',actions:j.actions,transcript:j.transcript||''};
+      var d=dispatch(j.actions,j.say,silent);
+      return {ok:true,n:d.n,results:d.results,later:d.later,say:j.say||'',truncated:!!j.truncated,actions:j.actions,transcript:j.transcript||''};
     }
     var err=j.error||'Could not understand';
     if(!silent)toast(err,true);
@@ -19788,7 +19859,33 @@ function dkeyE(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'
 function toMonIdxJS(jsd){return jsd===0?6:jsd-1;}            // JS day (0=Sun) → Mon-based 0..6
 // notifyAt is stored as an ISO string (exactly like the app's modal) so the push scheduler accepts it
 function notifyISO(n){if(!n||!n.date)return '';var p=ymd(n.date);if(!p)return '';var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'));var hh=tm?+tm[1]:9,mm=tm?+tm[2]:0;var d=new Date(p.y,p.mo-1,p.d,hh,mm,0,0);return isNaN(d.getTime())?'':d.toISOString();}
-function setNotify(it,n){var iso=notifyISO(n);if(!iso)return false;it.notifyAt=iso;it.notifyRepeat='none';it.notifyRepeatDays=[];it.notifyRepeatId=null;return true;}
+// A reminder, as {date,time,repeat?,repeatDays?}. A repeating reminder gets its
+// own series id, exactly as the item editor gives one (notifyRepeatId).
+var NOTIFY_REPEATS={daily:1,weekly:1,monthly:1,annually:1};
+function setNotify(it,n,b){var iso=notifyISO(n);if(!iso)return false;it.notifyAt=iso;var r=(n&&NOTIFY_REPEATS[n.repeat])?n.repeat:'none';it.notifyRepeat=r;it.notifyRepeatDays=(r==='weekly'&&Array.isArray(n.repeatDays))?n.repeatDays.filter(function(x){return x>=0&&x<=6;}):[];it.notifyRepeatId=(r!=='none'&&b&&b.uid)?b.uid():null;return true;}
+function dropNotify(it){delete it.notifyAt;delete it.notifyRepeat;delete it.notifyRepeatDays;delete it.notifyRepeatId;}
+function cancelOf(it){return {id:it.id,notifyRepeatId:it.notifyRepeatId||null};}
+// Move a reminder by whole days and/or minutes, so it stays where it was relative
+// to its item ("15 minutes before" stays 15 minutes before).
+function shiftNotify(it,days,mins){if(!it.notifyAt)return false;var d=new Date(it.notifyAt);if(isNaN(d.getTime()))return false;if(days)d.setDate(d.getDate()+days);if(mins)d.setMinutes(d.getMinutes()+mins);it.notifyAt=d.toISOString();return true;}
+function hhmmMin(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));return m?(+m[1])*60+(+m[2]):null;}
+function daysBetween(a,b){var pa=ymd(a),pb=ymd(b);if(!pa||!pb)return 0;return Math.round((new Date(pb.y,pb.mo-1,pb.d)-new Date(pa.y,pa.mo-1,pa.d))/86400000);}
+// The model writes a repeat's end as {year, month 1-12, day} (or "YYYY-MM-DD");
+// items store the editor's shape, {year, month 0-11, day}.
+function endDateFrom(e){if(!e)return null;if(typeof e==='string'){var p=ymd(e);return p?{year:p.y,month:p.mo-1,day:p.d}:null;}if(typeof e.year!=='number')return null;var mo=typeof e.month==='number'?Math.max(1,Math.min(12,e.month)):1;return {year:e.year,month:mo-1,day:typeof e.day==='number'?e.day:1};}
+// AI prep rides on the item as plain keys, exactly as the item editor writes them.
+var PREP_SITES={perplexity:1,chatgpt:1,claude:1,gemini:1};
+function applyAi(it,src){
+  if(!src)return '';
+  if(src.aiPrep===false){var had=!!it.aiPrep;delete it.aiPrep;delete it.aiNote;delete it.aiSite;return had?'off':'';}
+  if(src.aiPrep===true||(it.aiPrep&&(src.aiNote!=null||src.aiSite!=null))){
+    it.aiPrep=true;
+    if(src.aiNote!=null&&String(src.aiNote).trim())it.aiNote=String(src.aiNote).trim();else if(it.aiNote==null)it.aiNote='';
+    if(src.aiSite!=null)it.aiSite=PREP_SITES[src.aiSite]?src.aiSite:'';else if(it.aiSite==null)it.aiSite='';
+    return 'on';
+  }
+  return '';
+}
 var DKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
 function shiftKey(k,days){var p=ymd(k);if(!p)return null;var d=new Date(p.y,p.mo-1,p.d);d.setDate(d.getDate()+days);return dkeyE(d);}
 function habitKey(id,dateStr){var p=dateStr?ymd(dateStr):null,y,m,d;if(p){y=p.y;m=p.mo-1;d=p.d;}else{var dn=new Date();y=dn.getFullYear();m=dn.getMonth();d=dn.getDate();}return id+'-'+y+'-'+m+'-'+d;}
@@ -19796,7 +19893,7 @@ function buildCalItem(b,a){
   var it={id:b.uid(),type:(a.kind==='event'||a.time)?'event':'task',title:(a.title||'').trim(),done:!!a.done};
   it.category=(a.category&&VALID_CATS.indexOf(a.category)>=0)?a.category:'other';  // always categorise
   if(a.time){it.time=fixTime(a.time);it.tz=tzName();}
-  if(a.notify)setNotify(it,a.notify);
+  if(a.notify)setNotify(it,a.notify,b);
   if(Array.isArray(a.altSeqTitles)&&a.altSeqTitles.filter(Boolean).length>=2){
     it.altSeqId=b.uid();it.altSeqTitles=a.altSeqTitles.filter(Boolean);it.title=it.altSeqTitles[0];
   }
@@ -19805,36 +19902,53 @@ function buildCalItem(b,a){
     else if(a.repeat==='weekdays'){it.repeat='weekly';it.repeatDays=[0,1,2,3,4];}
     else{it.repeat='weekly';it.repeatDays=Array.isArray(a.repeatDays)&&a.repeatDays.length?a.repeatDays.slice():[];}
     it.repeatId=b.uid();
-    if(a.repeatEndDate&&a.repeatEndDate.year)it.repeatEndDate=a.repeatEndDate;
+    var ed=endDateFrom(a.repeatEndDate);if(ed)it.repeatEndDate=ed;
   }
+  applyAi(it,a);
   return it;
+}
+// Fill in a repeating item's later occurrences from startKey, exactly like the
+// app's modal (14 days by default, a year at most). A day that already holds an
+// occurrence of the same series is left alone.
+function expandRepeat(b,W,base,startKey){
+  var sp=ymd(startKey);if(!sp||!base.repeat||base.repeat==='none')return;
+  var sd=new Date(sp.y,sp.mo-1,sp.d),ed;
+  if(base.repeatEndDate&&typeof base.repeatEndDate.year==='number')ed=new Date(base.repeatEndDate.year,base.repeatEndDate.month,base.repeatEndDate.day);
+  else{ed=new Date(sd);ed.setDate(ed.getDate()+14);}   // matches the app modal's default repeat horizon
+  var maxEd=new Date(sd);maxEd.setFullYear(maxEd.getFullYear()+1);if(ed>maxEd)ed=maxEd;
+  var c=new Date(sd);c.setDate(c.getDate()+1);var guard=0;
+  while(c<=ed&&guard<400){
+    var on=base.repeat==='daily'?true:(base.repeatDays||[]).indexOf(toMonIdxJS(c.getDay()))>=0;
+    if(on){
+      var ck=dkeyE(c);
+      var have=(W.data[ck]||[]).some(function(x){return x&&base.repeatId&&x.repeatId===base.repeatId;});
+      if(!have){var occ=Object.assign({},base,{id:b.uid(),done:false});dropNotify(occ);if(!W.data[ck])W.data[ck]=[];W.data[ck].push(occ);}
+    }
+    c.setDate(c.getDate()+1);guard++;
+  }
 }
 // add a calendar item, expanding repeats across days exactly like the app's modal
 function addCalItem(b,W,a,fx){
   var startKey=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;
-  var base=buildCalItem(b,a);if(!base.title)return false;
+  var base=buildCalItem(b,a);if(!base.title)return null;
   if(!W.data[startKey])W.data[startKey]=[];W.data[startKey].push(base);
   if(base.notifyAt)fx.schedule.push(base);
-  if(base.repeat&&base.repeat!=='none'){
-    var sp=ymd(startKey);if(sp){
-      var sd=new Date(sp.y,sp.mo-1,sp.d),ed;
-      if(base.repeatEndDate&&typeof base.repeatEndDate.year==='number')ed=new Date(base.repeatEndDate.year,base.repeatEndDate.month,base.repeatEndDate.day);
-      else{ed=new Date(sd);ed.setDate(ed.getDate()+14);}   // matches the app modal's default repeat horizon
-      var maxEd=new Date(sd);maxEd.setFullYear(maxEd.getFullYear()+1);if(ed>maxEd)ed=maxEd;
-      var c=new Date(sd);c.setDate(c.getDate()+1);var guard=0;
-      while(c<=ed&&guard<400){
-        var on=base.repeat==='daily'?true:(base.repeatDays||[]).indexOf(toMonIdxJS(c.getDay()))>=0;
-        if(on){var ck=dkeyE(c);var occ=Object.assign({},base,{id:b.uid(),done:false});delete occ.notifyAt;delete occ.notifyRepeat;delete occ.notifyRepeatDays;delete occ.notifyRepeatId;if(!W.data[ck])W.data[ck]=[];W.data[ck].push(occ);}
-        c.setDate(c.getDate()+1);guard++;
-      }
-    }
-  }
-  return true;
+  expandRepeat(b,W,base,startKey);
+  return {item:base,key:startKey};
 }
 function arrFor(W,box){return box==='dailyHabits'?W.habits:box==='shortTermGoals'?W.shortGoals:box==='longTermGoals'?W.longGoals:null;}
-// returns {box, arr (live ref into W), key?, idx, item}
+function findById(W,id){
+  var ks=Object.keys(W.data||{});
+  for(var i=0;i<ks.length;i++){var arr=W.data[ks[i]];if(!arr)continue;for(var j=0;j<arr.length;j++)if(arr[j]&&arr[j].id===id)return {box:'calendar',arr:arr,key:ks[i],idx:j,item:arr[j]};}
+  var bx=['dailyHabits','shortTermGoals','longTermGoals'];
+  for(var k=0;k<bx.length;k++){var a=arrFor(W,bx[k])||[];for(var m=0;m<a.length;m++)if(a[m]&&a[m].id===id)return {box:bx[k],arr:a,idx:m,item:a[m]};}
+  return null;
+}
+// returns {box, arr (live ref into W), key?, idx, item}. match.id (an item the
+// previous turn added) wins over the title.
 function locate(W,match){
   match=match||{};
+  if(match.id){var byId=findById(W,String(match.id));if(byId&&(!match.box||match.box===byId.box))return byId;}
   var boxes=match.box?[match.box]:['calendar','dailyHabits','shortTermGoals','longTermGoals'];
   for(var bi=0;bi<boxes.length;bi++){
     var box=boxes[bi];
@@ -19848,85 +19962,163 @@ function locate(W,match){
   }
   return null;
 }
+// The occurrences an edit/remove reaches. scope: "one" (default) | "future" (this
+// one and every later one of the same series) | "all" (the whole series), the
+// same choice the item editor offers for a repeating item.
+function seriesOf(W,f,scope){
+  if(!f||f.box!=='calendar'||!scope||scope==='one')return [f];
+  var sk=f.item.repeatId?'repeatId':(f.item.altSeqId?'altSeqId':null);if(!sk)return [f];
+  var sv=f.item[sk],out=[f];
+  Object.keys(W.data||{}).sort().forEach(function(k){
+    if(!DKEY_RE.test(k)||(scope==='future'&&k<f.key))return;
+    (W.data[k]||[]).forEach(function(x,i){if(x&&x!==f.item&&x[sk]===sv)out.push({box:'calendar',arr:W.data[k],key:k,idx:i,item:x});});
+  });
+  return out;
+}
 function newItemFor(b,box,moved){
   if(box==='dailyHabits')return {id:b.uid(),title:moved.title};
   if(box==='calendar'){var it={id:b.uid(),type:moved.type||'task',title:moved.title,done:!!moved.done,category:moved.category||'other'};if(moved.time){it.time=moved.time;it.tz=moved.tz||tzName();}if(moved.notifyAt){it.notifyAt=moved.notifyAt;it.notifyRepeat=moved.notifyRepeat||'none';it.notifyRepeatDays=moved.notifyRepeatDays||[];it.notifyRepeatId=null;}if(moved.altSeqId){it.altSeqId=b.uid();it.altSeqTitles=moved.altSeqTitles;}return it;}
   return {id:b.uid(),title:moved.title,done:!!moved.done};
 }
-// apply one TASK action to the working copy W; mark() flags which slice changed; fx collects notif side-effects
+// Why the last action failed ('' when it didn't). Executors return false through
+// fail(reason) so dispatch can say WHICH action didn't happen and why:
+// not_found · no_bridge · invalid · off_pc · locked · no_reminder · no_lock · error
+var why='';
+function fail(r){why=r||'';return false;}
+// The item the last action added/changed, so a follow-up ("…and remind me at 4")
+// can name it by id.
+var lastRef=null;
+function ref(it,box,key){if(it&&it.id)lastRef={id:it.id,box:box,date:key||null,title:it.title||''};}
+// Actions only Veda's side runs (Neo). On any other bridge they do nothing.
+var VEDA_ONLY={prep_task:1,prep_off:1};
+function prepJob(b,a,it,key){return {action:a,run:function(){return b.prep(Object.assign({},it),key);},check:function(kit){return kit?'':'prep_failed';}};}
+// apply one TASK action to the working copy W; mark() flags which slice changed;
+// fx collects notification side-effects and work to run after the commit (fx.after)
 function applyTask(b,W,a,mark,fx){
+  if(VEDA_ONLY[a.type]&&b.profile!=='veda')return fail('no_bridge');
   switch(a.type){
     case 'add_task':{
       var box=a.box||'calendar';
-      if(box==='calendar')return addCalItem(b,W,a,fx)?(mark('calendar'),true):false;
-      var arr=arrFor(W,box);if(!arr)return false;var title=(a.title||'').trim();if(!title)return false;
-      arr.push(box==='dailyHabits'?{id:b.uid(),title:title}:{id:b.uid(),title:title,done:!!a.done});mark(box);return true;
+      if(box==='calendar'){
+        var made=addCalItem(b,W,a,fx);if(!made)return fail('invalid');mark('calendar');ref(made.item,'calendar',made.key);
+        if(made.item.aiPrep&&b.prep&&b.profile==='veda')fx.after.push(prepJob(b,a,made.item,made.key));
+        return true;
+      }
+      var arr=arrFor(W,box);if(!arr)return fail('invalid');var title=(a.title||'').trim();if(!title)return fail('invalid');
+      var ni0=box==='dailyHabits'?{id:b.uid(),title:title}:{id:b.uid(),title:title,done:!!a.done};arr.push(ni0);mark(box);ref(ni0,box);return true;
     }
     case 'edit_task':{
-      var f=locate(W,a.match);if(!f)return false;var set=a.set||{};var it2=f.arr[f.idx];
-      if(set.title!=null)it2.title=String(set.title).trim();
-      if(f.box==='calendar'){
-        if(set.kind)it2.type=set.kind==='event'?'event':'task';
-        if(set.category!=null)it2.category=(VALID_CATS.indexOf(set.category)>=0)?set.category:'other';
-        if(set.time!=null){var tt=fixTime(set.time);if(tt){it2.time=tt;it2.tz=tzName();it2.type='event';}else{delete it2.time;delete it2.tz;}}
-        if(set.notify){if(setNotify(it2,set.notify))fx.schedule.push(it2);}
-        if(typeof set.done==='boolean')it2.done=set.done;
-        if(set.repeat!=null){if(set.repeat==='none'){delete it2.repeat;delete it2.repeatDays;delete it2.repeatId;}else{var tmp=buildCalItem(b,{repeat:set.repeat,repeatDays:set.repeatDays});it2.repeat=tmp.repeat;it2.repeatDays=tmp.repeatDays;it2.repeatId=it2.repeatId||tmp.repeatId;}}
-        mark('calendar');
-        if(set.date){var nd=ymd(set.date);if(nd&&nd.key!==f.key){var mv=f.arr.splice(f.idx,1)[0];if(!W.data[nd.key])W.data[nd.key]=[];W.data[nd.key].push(mv);}}
-      }else{ if(typeof set.done==='boolean'&&f.box!=='dailyHabits')it2.done=set.done;mark(f.box); }
+      var f=locate(W,a.match);if(!f)return fail('not_found');var set=a.set||{};
+      if(f.box!=='calendar'){
+        if(set.title!=null&&String(set.title).trim())f.item.title=String(set.title).trim();
+        if(typeof set.done==='boolean'&&f.box!=='dailyHabits')f.item.done=set.done;
+        mark(f.box);ref(f.item,f.box);return true;
+      }
+      var dd=0;if(set.date){var nd=ymd(set.date);if(!nd)return fail('invalid');dd=daysBetween(f.key,nd.key);}
+      var newTime=set.time!=null?fixTime(set.time):null;
+      var oldMin=hhmmMin(f.item.time),newMin=newTime?hhmmMin(newTime):null;
+      var dm=(newTime&&oldMin!=null&&newMin!=null)?newMin-oldMin:0;
+      var clearN=set.notify===null||set.clearNotify===true;
+      var targets=seriesOf(W,f,a.scope),moves=[],aiOn=false;
+      targets.forEach(function(t){
+        var it=t.item,hadN=!!it.notifyAt,before=hadN?cancelOf(it):null;
+        if(set.title!=null&&String(set.title).trim())it.title=String(set.title).trim();
+        if(set.kind)it.type=set.kind==='event'?'event':'task';
+        if(set.category!=null)it.category=(VALID_CATS.indexOf(set.category)>=0)?set.category:'other';
+        if(set.time!=null){if(newTime){it.time=newTime;it.tz=tzName();it.type='event';}else{delete it.time;delete it.tz;}}
+        if(typeof set.done==='boolean')it.done=set.done;
+        if(applyAi(it,set)==='on'&&t===f)aiOn=true;
+        // Reminders: a new one replaces the old (cancelled first, or both fire);
+        // a cleared one is cancelled; otherwise one moves with its item's date and time.
+        if(clearN){if(hadN){fx.cancel.push(before);dropNotify(it);}}
+        else if(set.notify&&t===f){if(setNotify(it,set.notify,b)){if(hadN)fx.cancel.push(before);fx.schedule.push(it);}}
+        else if(hadN&&(dd||dm)){shiftNotify(it,dd,dm);fx.cancel.push(before);fx.schedule.push(it);}
+        if(dd){var nk=shiftKey(t.key,dd);if(nk&&nk!==t.key)moves.push({from:t.key,to:nk,item:it});}
+      });
+      moves.forEach(function(m){W.data[m.from]=(W.data[m.from]||[]).filter(function(x){return x!==m.item;});if(!W.data[m.to])W.data[m.to]=[];W.data[m.to].push(m.item);});
+      var fKey=dd?(shiftKey(f.key,dd)||f.key):f.key;
+      if(set.repeat!=null||(Array.isArray(set.repeatDays)&&set.repeatDays.length)||set.repeatEndDate)changeRepeat(b,W,f.item,fKey,set,fx);
+      mark('calendar');ref(f.item,'calendar',fKey);
+      if(aiOn&&b.prep&&b.profile==='veda')fx.after.push(prepJob(b,a,f.item,fKey));
       return true;
     }
-    case 'remove_task':{var fr=locate(W,a.match);if(!fr)return false;var rm=fr.arr.splice(fr.idx,1)[0];mark(fr.box);if(rm&&rm.notifyAt)fx.cancel.push({id:rm.id,notifyRepeatId:rm.notifyRepeatId||null});return true;}
+    case 'remove_task':{
+      var fr=locate(W,a.match);if(!fr)return fail('not_found');
+      if(fr.box!=='calendar'||!a.scope||a.scope==='one'){var rm=fr.arr.splice(fr.idx,1)[0];mark(fr.box);if(rm&&rm.notifyAt)fx.cancel.push(cancelOf(rm));return true;}
+      var gone=seriesOf(W,fr,a.scope).map(function(t){return t.item;});
+      gone.forEach(function(it){if(it.notifyAt)fx.cancel.push(cancelOf(it));});
+      Object.keys(W.data||{}).forEach(function(k){var arr=W.data[k];if(arr&&arr.some(function(x){return gone.indexOf(x)>=0;}))W.data[k]=arr.filter(function(x){return gone.indexOf(x)<0;});});
+      mark('calendar');return true;
+    }
+    case 'clear_reminder':{
+      var fc=locate(W,a.match);if(!fc)return fail('not_found');
+      var withN=seriesOf(W,fc,a.scope).map(function(t){return t.item;}).filter(function(it){return it.notifyAt;});
+      if(!withN.length)return fail('no_reminder');
+      withN.forEach(function(it){fx.cancel.push(cancelOf(it));dropNotify(it);});
+      mark('calendar');ref(fc.item,'calendar',fc.key);return true;
+    }
     case 'toggle_task':{
-      var ft=locate(W,a.match);if(!ft)return false;var want=typeof a.done==='boolean'?a.done:null;
+      var ft=locate(W,a.match);if(!ft)return fail('not_found');var want=typeof a.done==='boolean'?a.done:null;
       if(ft.box==='dailyHabits'){var dstr=(a.match&&a.match.date)||a.date||'';var hk=habitKey(ft.item.id,dstr);W.hc[hk]=want==null?!W.hc[hk]:want;mark('hc');return true;}
-      ft.item.done=want==null?!ft.item.done:want;mark(ft.box);return true;
+      ft.item.done=want==null?!ft.item.done:want;mark(ft.box);ref(ft.item,ft.box,ft.key);return true;
     }
     case 'move_task':{
-      var fm=locate(W,a.match);if(!fm)return false;var toBox=a.toBox||'calendar';var moved=fm.item;
+      var fm=locate(W,a.match);if(!fm)return fail('not_found');var toBox=a.toBox||'calendar';var moved=fm.item;
+      if(toBox!=='calendar'&&!arrFor(W,toBox))return fail('invalid');
       fm.arr.splice(fm.idx,1);mark(fm.box);
-      if(moved.notifyAt)fx.cancel.push({id:moved.id,notifyRepeatId:moved.notifyRepeatId||null});
-      if(toBox==='calendar'){var key2=(a.toDate?(ymd(a.toDate)||{}).key:null)||(fm.box==='calendar'?fm.key:null)||W.selectedDate;if(!W.data[key2])W.data[key2]=[];var ni=newItemFor(b,'calendar',moved);W.data[key2].push(ni);mark('calendar');if(ni.notifyAt)fx.schedule.push(ni);}
-      else{var ta=arrFor(W,toBox);if(!ta)return true;ta.push(newItemFor(b,toBox,moved));mark(toBox);}
+      if(toBox==='calendar'){
+        var key2=(a.toDate?(ymd(a.toDate)||{}).key:null)||(fm.box==='calendar'?fm.key:null)||W.selectedDate;
+        if(!W.data[key2])W.data[key2]=[];
+        var ni;
+        if(fm.box==='calendar'){
+          // The SAME item, moved: AI prep, repeats, reminders and everything else
+          // stay on it. Its reminder moves by the same number of days.
+          ni=moved;var dd2=daysBetween(fm.key,key2);
+          if(ni.notifyAt&&dd2){fx.cancel.push(cancelOf(ni));shiftNotify(ni,dd2,0);fx.schedule.push(ni);}
+        }else ni=newItemFor(b,'calendar',moved);
+        W.data[key2].push(ni);mark('calendar');ref(ni,'calendar',key2);
+      }else{
+        if(moved.notifyAt)fx.cancel.push(cancelOf(moved));
+        var nn=newItemFor(b,toBox,moved);arrFor(W,toBox).push(nn);mark(toBox);ref(nn,toBox);
+      }
       return true;
     }
     case 'swap':{
-      var sa=locate(W,a.first),sb=locate(W,a.second);if(!sa||!sb)return false;
+      var sa=locate(W,a.first),sb=locate(W,a.second);if(!sa||!sb)return fail('not_found');
       var tmp2=sa.arr[sa.idx];sa.arr[sa.idx]=sb.arr[sb.idx];sb.arr[sb.idx]=tmp2;
       mark(sa.box);mark(sb.box);return true;
     }
     case 'reorder':{
-      var fo=locate(W,a.match);if(!fo)return false;var arr2=fo.arr;var item=arr2.splice(fo.idx,1)[0];var ni=fo.idx;
-      if(a.relativeTo){var ti=fuzzyIndex(arr2,a.relativeTo.title||a.relativeTo);if(ti<0)ti=Math.min(fo.idx,arr2.length);ni=(a.position==='before'||a.before)?ti:ti+1;}
-      else if(a.position==='top')ni=0;
-      else if(a.position==='bottom')ni=arr2.length;
-      else if(a.position==='up')ni=Math.max(0,fo.idx-1);
-      else if(a.position==='down')ni=Math.min(arr2.length,fo.idx+1);
-      else if(typeof a.toIndex==='number')ni=Math.max(0,Math.min(arr2.length,a.toIndex));
-      arr2.splice(ni,0,item);mark(fo.box);return true;
+      var fo=locate(W,a.match);if(!fo)return fail('not_found');var arr2=fo.arr;var item=arr2.splice(fo.idx,1)[0];var nix=fo.idx;
+      if(a.relativeTo){var ti=fuzzyIndex(arr2,a.relativeTo.title||a.relativeTo);if(ti<0)ti=Math.min(fo.idx,arr2.length);nix=(a.position==='before'||a.before)?ti:ti+1;}
+      else if(a.position==='top')nix=0;
+      else if(a.position==='bottom')nix=arr2.length;
+      else if(a.position==='up')nix=Math.max(0,fo.idx-1);
+      else if(a.position==='down')nix=Math.min(arr2.length,fo.idx+1);
+      else if(typeof a.toIndex==='number')nix=Math.max(0,Math.min(arr2.length,a.toIndex));
+      arr2.splice(nix,0,item);mark(fo.box);return true;
     }
     case 'clear':{
       var box2=a.box||'calendar';
-      if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;(W.data[key3]||[]).forEach(function(x){if(x.notifyAt)fx.cancel.push({id:x.id,notifyRepeatId:x.notifyRepeatId||null});});W.data[key3]=[];mark('calendar');return true;}
-      var ca=arrFor(W,box2);if(!ca)return false;ca.length=0;mark(box2);return true;
+      if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;(W.data[key3]||[]).forEach(function(x){if(x.notifyAt)fx.cancel.push(cancelOf(x));});W.data[key3]=[];mark('calendar');return true;}
+      var ca=arrFor(W,box2);if(!ca)return fail('invalid');ca.length=0;mark(box2);return true;
     }
     /* ── Bulk range ops. Applied here rather than as N model-authored actions:
        exact, instant, and they also reach days the model was never shown. ── */
     case 'shift_range':{
-      var days=parseInt(a.days,10);if(!days||!isFinite(days))return false;
-      var f=a.from?(ymd(a.from)||{}).key:null,t=a.to?(ymd(a.to)||{}).key:null;
-      if(!f&&!t)return false;if(!f)f=t;if(!t)t=f;
-      if(f>t){var swp=f;f=t;t=swp;}
+      var days=parseInt(a.days,10);if(!days||!isFinite(days))return fail('invalid');
+      var fk=a.from?(ymd(a.from)||{}).key:null,tk=a.to?(ymd(a.to)||{}).key:null;
+      if(!fk&&!tk)return fail('invalid');if(!fk)fk=tk;if(!tk)tk=fk;
+      if(fk>tk){var swp=fk;fk=tk;tk=swp;}
       // Lift every affected day out first, so a shift that lands inside its own
       // range can't overwrite a day it hasn't moved yet.
       var lifted=[];
       Object.keys(W.data||{}).forEach(function(k){
-        if(!DKEY_RE.test(k)||k<f||k>t)return;
+        if(!DKEY_RE.test(k)||k<fk||k>tk)return;
         var arr=W.data[k];if(!arr||!arr.length)return;
         lifted.push({key:k,items:arr.slice()});
       });
-      if(!lifted.length)return false;
+      if(!lifted.length)return fail('not_found');
       lifted.forEach(function(g){W.data[g.key]=[];});
       lifted.forEach(function(g){
         var nk=shiftKey(g.key,days);if(!nk){W.data[g.key]=g.items;return;}
@@ -19934,10 +20126,10 @@ function applyTask(b,W,a,mark,fx){
         g.items.forEach(function(it){
           var ni=Object.assign({},it);
           if(ni.notifyAt){
-            fx.cancel.push({id:it.id,notifyRepeatId:it.notifyRepeatId||null});
+            fx.cancel.push(cancelOf(it));
             var nd=new Date(ni.notifyAt);
             if(!isNaN(nd.getTime())){nd.setDate(nd.getDate()+days);ni.notifyAt=nd.toISOString();ni.notifyRepeatId=null;fx.schedule.push(ni);}
-            else{delete ni.notifyAt;delete ni.notifyRepeat;delete ni.notifyRepeatDays;delete ni.notifyRepeatId;}
+            else dropNotify(ni);
           }
           W.data[nk].push(ni);
         });
@@ -19955,7 +20147,7 @@ function applyTask(b,W,a,mark,fx){
           var arr=W.data[k];if(!arr||!arr.length)return;
           var keep=[];
           arr.forEach(function(it){
-            if(it&&it.done){hit++;if(it.notifyAt)fx.cancel.push({id:it.id,notifyRepeatId:it.notifyRepeatId||null});}
+            if(it&&it.done){hit++;if(it.notifyAt)fx.cancel.push(cancelOf(it));}
             else keep.push(it);
           });
           if(keep.length!==arr.length)W.data[k]=keep;
@@ -19968,73 +20160,192 @@ function applyTask(b,W,a,mark,fx){
         for(var i=arr.length-1;i>=0;i--)if(arr[i]&&arr[i].done)arr.splice(i,1);
         if(arr.length!==before){hit+=before-arr.length;mark(bx);}
       });
-      return hit>0;
+      return hit>0?true:fail('not_found');
+    }
+    // ── AI prep (Veda). Turning it on sets the same three keys the editor's "AI
+    // prep" box does, so the ✦ button shows and the kit is never swept as stale;
+    // the kit itself is requested after the commit and reported when it lands.
+    case 'prep_task':{
+      if(!b.prep)return fail('no_bridge');
+      var hp=locate(W,Object.assign({box:'calendar'},a.match||{}));
+      if(!hp||hp.box!=='calendar')return fail('not_found');
+      applyAi(hp.item,{aiPrep:true,aiNote:a.note!=null?a.note:a.aiNote,aiSite:a.site!=null?a.site:a.aiSite});
+      mark('calendar');ref(hp.item,'calendar',hp.key);
+      fx.after.push(prepJob(b,a,hp.item,hp.key));
+      return true;
+    }
+    case 'prep_off':{
+      var ho=locate(W,Object.assign({box:'calendar'},a.match||{}));
+      if(!ho||ho.box!=='calendar')return fail('not_found');
+      applyAi(ho.item,{aiPrep:false});mark('calendar');ref(ho.item,'calendar',ho.key);return true;
     }
   }
-  return false;
+  return fail('invalid');
 }
-function applyControl(b,a,W){
+// Repeat changes on an existing item: its later, unfinished occurrences are
+// dropped and filled in again from the new rule, like saving it in the editor.
+function changeRepeat(b,W,it,key,set,fx){
+  var rid=it.repeatId;
+  var dropLater=function(){if(!rid)return;Object.keys(W.data||{}).forEach(function(k){if(!DKEY_RE.test(k)||k<=key)return;var arr=W.data[k];if(arr&&arr.some(function(x){return x&&x!==it&&x.repeatId===rid&&!x.done;}))W.data[k]=arr.filter(function(x){if(x&&x!==it&&x.repeatId===rid&&!x.done){if(x.notifyAt)fx.cancel.push(cancelOf(x));return false;}return true;});});};
+  if(set.repeat==='none'){dropLater();delete it.repeat;delete it.repeatDays;delete it.repeatId;delete it.repeatEndDate;return;}
+  var rule=set.repeat||(it.repeat==='daily'?'daily':'custom');
+  var days=Array.isArray(set.repeatDays)&&set.repeatDays.length?set.repeatDays:it.repeatDays;
+  var tmp=buildCalItem(b,{title:'x',repeat:rule,repeatDays:days});
+  it.repeat=tmp.repeat;it.repeatDays=tmp.repeatDays;it.repeatId=rid||tmp.repeatId;
+  var ed=endDateFrom(set.repeatEndDate);if(ed)it.repeatEndDate=ed;
+  dropLater();
+  expandRepeat(b,W,it,key);
+}
+// A bridge method may answer with a promise (the rules lock, the timer, a plan's
+// biometric check): the action is then reported when it settles, not before.
+function later(fx,a,ret,check){
+  if(ret&&typeof ret.then==='function'){
+    fx.after.push({action:a,promise:ret,check:check||function(v){return v===false?'failed':(typeof v==='string'&&v!=='ok'?v:'');}});
+    if(ret.gated)fx.gated=true;     // a lock prompt is up: the change waits for her
+    return true;
+  }
+  if(ret&&typeof ret==='object'&&ret.ok===false){why=ret.reason||'failed';return false;}
+  return ret===false?fail('failed'):true;
+}
+function pcOutcome(fx,a,r,dflt){
+  if(r===false||r==null)return fail(dflt);
+  if(typeof r==='object'&&r.ok===false){why=r.reason||dflt;return false;}
+  return later(fx,a,r);
+}
+function applyControl(b,a,W,fx){
+  fx=fx||{after:[]};
+  var has=function(m){return typeof b[m]==='function';};
+  var call=function(m){if(!has(m))return fail('no_bridge');var args=Array.prototype.slice.call(arguments,1);return later(fx,a,b[m].apply(b,args));};
+  var vedaOnly=function(){return b.profile==='veda';};
   switch(a.type){
-    case 'go_to_date':{var p=ymd(a.date);if(!p)return false;b.goToDate(p.y,p.mo-1,p.d);return true;}
-    case 'set_theme':return b.setTheme?(b.setTheme(!!a.dark),true):false;
-    case 'toggle_theme':return b.toggleTheme?(b.toggleTheme(),true):false;
-    case 'set_edit_mode':return b.setEdit?(b.setEdit(!!a.on),true):false;
-    case 'refresh_quote':return b.refreshQuote?(b.refreshQuote(),true):false;
-    case 'timer_set':return b.timer?(b.timer('set',a.minutes),true):false;
-    case 'timer_start':return b.timer?(b.timer('start'),true):false;
-    case 'timer_stop':return b.timer?(b.timer('stop'),true):false;
-    case 'timer_reset':return b.timer?(b.timer('reset'),true):false;
-    case 'timer_open':return b.openTimer?(b.openTimer(),true):false;
+    case 'go_to_date':{var p=ymd(a.date);if(!p)return fail('invalid');if(!has('goToDate'))return fail('no_bridge');b.goToDate(p.y,p.mo-1,p.d);return true;}
+    case 'set_theme':return b.setTheme?(b.setTheme(!!a.dark),true):fail('no_bridge');
+    case 'toggle_theme':return b.toggleTheme?(b.toggleTheme(),true):fail('no_bridge');
+    case 'set_edit_mode':return b.setEdit?(b.setEdit(!!a.on),true):fail('no_bridge');
+    case 'refresh_quote':return b.refreshQuote?(b.refreshQuote(),true):fail('no_bridge');
+    case 'timer_set':{
+      if(!b.timer)return fail('no_bridge');
+      var r1=b.timer('set',a.minutes);
+      if(a.start===true&&vedaOnly()){var r2=b.timer('start');return later(fx,a,(r1&&r1.then)?Promise.all([r1,r2]).then(function(v){return v[0]!==false&&v[1]!==false;}):r2);}
+      return later(fx,a,r1);
+    }
+    case 'timer_start':return b.timer?later(fx,a,b.timer('start')):fail('no_bridge');
+    case 'timer_stop':return b.timer?later(fx,a,b.timer('stop')):fail('no_bridge');
+    case 'timer_reset':return b.timer?later(fx,a,b.timer('reset')):fail('no_bridge');
+    case 'timer_open':return b.openTimer?(b.openTimer(),true):fail('no_bridge');
     case 'undo':doUndo();return true;
     case 'redo':doRedo();return true;
     // ── Neo actions (Veda-only). Each needs a bridge method that only _vdVoice has,
     // and the worker only offers them in Veda's prompt — on Tony's side they no-op.
-    case 'timer_close':return b.closeTimer?(b.closeTimer(),true):false;
-    case 'rules_add':{if(!b.changeRules)return false;var rt=String(a.title||'').trim();if(!rt)return false;b.changeRules(function(arr){return arr.concat([{id:b.uid(),text:rt,created:Date.now()}]);});return true;}
+    case 'timer_close':return b.closeTimer?(b.closeTimer(),true):fail('no_bridge');
+    case 'timer_mode':{if(!has('timerMode'))return fail('no_bridge');var mi={work:0,focus:0,pomodoro:0,short:1,'short break':1,break:1,long:2,'long break':2}[String(a.mode||'').toLowerCase()];if(mi==null)return fail('invalid');return later(fx,a,b.timerMode(mi));}
+    case 'timer_add':{if(!has('timerAdd'))return fail('no_bridge');var am=Number(a.minutes);if(!am||!isFinite(am))return fail('invalid');return later(fx,a,b.timerAdd(am));}
+    case 'rules_add':{if(!b.changeRules)return fail('no_bridge');var rt=String(a.title||'').trim();if(!rt)return fail('invalid');return later(fx,a,b.changeRules(function(arr){return arr.concat([{id:b.uid(),text:rt,created:Date.now()}]);}));}
     case 'rules_edit':
-    case 'rules_remove':{
-      if(!b.changeRules||!b.getRules)return false;
-      var ri=fuzzyIndex(b.getRules().map(function(r){return {title:r.text};}),(a.match||{}).title||a.title);if(ri<0)return false;
-      var nt=String(((a.set||{}).title)||'').trim();if(a.type==='rules_edit'&&!nt)return false;
-      b.changeRules(function(arr){return a.type==='rules_remove'?arr.filter(function(_,x){return x!==ri;}):arr.map(function(r,x){return x===ri?Object.assign({},r,{text:nt}):r;});});
-      return true;
+    case 'rules_remove':
+    case 'rules_move':{
+      if(!b.changeRules||!b.getRules)return fail('no_bridge');
+      var rl=b.getRules();
+      var ri=fuzzyIndex(rl.map(function(r){return {title:r.text};}),(a.match||{}).title||a.title);
+      if(ri<0&&typeof (a.match||{}).index==='number')ri=a.match.index-1;
+      if(ri<0||ri>=rl.length)return fail('not_found');
+      var nt=String(((a.set||{}).title)||'').trim();if(a.type==='rules_edit'&&!nt)return fail('invalid');
+      if(a.type==='rules_move'){
+        var to=a.position==='top'?0:a.position==='bottom'?rl.length-1:a.position==='up'?ri-1:a.position==='down'?ri+1:(typeof a.toIndex==='number'?a.toIndex-1:-1);
+        if(to<0||to>=rl.length||to===ri)return fail('invalid');
+        return later(fx,a,b.changeRules(function(arr){var x=arr.splice(ri,1)[0];arr.splice(to,0,x);return arr;}));
+      }
+      return later(fx,a,b.changeRules(function(arr){return a.type==='rules_remove'?arr.filter(function(_,x){return x!==ri;}):arr.map(function(r,x){return x===ri?Object.assign({},r,{text:nt}):r;});}));
     }
-    case 'rules_gate':return b.setRulesGate?(b.setRulesGate(a.on!==false),true):false;
-    case 'reels_shuffle':return b.reelsShuffle?(b.reelsShuffle(),true):false;
+    case 'rules_gate':return b.setRulesGate?(b.setRulesGate(a.on!==false),true):fail('no_bridge');
+    case 'rules_run':return call('rulesRun');
+    case 'rules_check':return call('rulesCheck',a.all===true?'all':((a.match||{}).index||(a.match||{}).title||a.title||''),a.done!==false);
+    case 'reels_shuffle':return b.reelsShuffle?(b.reelsShuffle(),true):fail('no_bridge');
     case 'open_app':{
       var tg=String(a.target||'').toLowerCase();
-      if(tg==='timer')return b.openTimer?(b.openTimer(),true):false;
-      if(tg==='rules')return b.openRules?(b.openRules(),true):false;
-      if(tg==='plans')return b.openPlans?(b.openPlans(),true):false;
-      if(tg==='shield')return b.openShield?(b.openShield(),true):false;
+      if(tg==='timer')return b.openTimer?(b.openTimer(),true):fail('no_bridge');
+      if(tg==='rules')return b.openRules?(b.openRules(),true):fail('no_bridge');
+      if(tg==='plans')return b.openPlans?(b.openPlans(),true):fail('no_bridge');
+      if(tg==='shield')return b.openShield?(b.openShield(),true):fail('no_bridge');
+      if(tg==='lessons')return call('gita','list');
       var nv={gita:'gita',notebook:'journal',journal:'journal',taskhub:'taskhub'}[tg];
-      return (nv&&b.nav)?(b.nav(nv),true):false;
+      if(!nv)return fail('invalid');
+      return b.nav?(b.nav(nv),true):fail('no_bridge');
     }
-    case 'prep_task':{
-      if(!b.prep||!W)return false;var hit=locate(W,Object.assign({box:'calendar'},a.match||{}));
-      if(!hit||hit.box!=='calendar')return false;b.prep(hit.item,hit.key);return true;
+    case 'open_link':return call('openLink',a.label||a.name||a.title||'');
+    case 'gita_next':return call('gita','next');
+    case 'gita_prev':return call('gita','prev');
+    case 'gita_open':return call('gita','open',a.lesson);
+    case 'week_view':return call('weekView',a.collapsed!==false);
+    case 'goals_tab':return call('goalsTab',a.tab||a.target);
+    case 'month_shift':return call('monthShift',parseInt(a.by,10)||1);
+    case 'lock_app':return call('lockApp',String(a.target||'').toLowerCase());
+    case 'journal_entry':return call('journalEntry',String(a.text||'').trim(),a.title||'');
+    case 'start_class':return call('startClass',a.name||a.title||'');
+    case 'plan_add':case 'plan_propose':case 'plan_confirm':case 'plan_decline':case 'plan_cancel_request':case 'plan_done':
+      return call('plan',a.type.slice(5),a);
+    case 'prep_open':
+    case 'prep_show':{
+      if(!has(a.type==='prep_open'?'prepOpen':'prepShow')||!W)return fail('no_bridge');
+      var hs=locate(W,Object.assign({box:'calendar'},a.match||{}));
+      if(!hs||hs.box!=='calendar')return fail('not_found');
+      if(a.type==='prep_open'&&!hs.item.aiPrep)return fail('not_flagged');
+      return later(fx,a,b[a.type==='prep_open'?'prepOpen':'prepShow'](hs.item,hs.key));
     }
-    case 'assistant_off':if(profile()==='veda'&&window._vdNeo){window._vdNeo.setOn(false);return true;}return false;
-    // Open an app / a website on her PC, through the StudyOS bridge (veda-assistant.js batches them).
-    case 'open_pc_app':return b.launchPc?!!b.launchPc(a.name||a.title,null):false;
-    case 'open_site':return b.launchPc?!!b.launchPc(null,a.url):false;
+    case 'assistant_off':if(profile()==='veda'&&b.profile==='veda'&&window._vdNeo){window._vdNeo.setOn(false);return true;}return fail('no_bridge');
+    // Open / close an app or a website on her PC, through the StudyOS bridge (veda-assistant.js batches them).
+    // Each answers false / {ok:false, reason} at once (no such app, not on her PC),
+    // or true / a promise of its outcome once the bridge has answered.
+    case 'open_pc_app':return b.launchPc?pcOutcome(fx,a,b.launchPc(a.name||a.title,null),'not_found'):fail('no_bridge');
+    case 'open_site':return b.launchPc?pcOutcome(fx,a,b.launchPc(null,a.url),'invalid'):fail('no_bridge');
+    case 'close_pc_app':return b.closePc?pcOutcome(fx,a,b.closePc(a.name||a.title,a.force===true),'not_found'):fail('no_bridge');
+    case 'close_all_pc_apps':return b.closeAllPc?pcOutcome(fx,a,b.closeAllPc(Array.isArray(a.except)?a.except:[],a.force===true),'off_pc'):fail('no_bridge');
   }
-  return false;
+  return fail('invalid');
 }
-var TASK_TYPES={add_task:1,edit_task:1,remove_task:1,toggle_task:1,move_task:1,swap:1,reorder:1,clear:1,shift_range:1,clear_completed:1};
+var TASK_TYPES={add_task:1,edit_task:1,remove_task:1,toggle_task:1,move_task:1,swap:1,reorder:1,clear:1,shift_range:1,clear_completed:1,clear_reminder:1,prep_task:1,prep_off:1};
+// Reminder writes: every cancel lands BEFORE any schedule. A one-shot reminder's
+// Firestore doc is keyed by the item's id, so a cancel racing a re-schedule of
+// the same item could delete the new reminder.
+function runNotifs(fx,who){
+  var cancels=fx.cancel.map(function(c){
+    if(!window.thCancelNotif)return null;
+    try{var p=window.thCancelNotif(c.id,c.notifyRepeatId);return p&&p.then?Promise.race([p.catch(function(){}),new Promise(function(r){setTimeout(r,6000);})]):null;}catch(e){return null;}
+  }).filter(Boolean);
+  var sched=function(){fx.schedule.forEach(function(it){if(window.thScheduleNotif){try{window.thScheduleNotif(Object.assign({},it,{dashboard:who}));}catch(e){}}});};
+  if(cancels.length)Promise.all(cancels).then(sched);else sched();
+}
+// An after-commit outcome: {ok:false, reason, say?} from the bridge, or whatever
+// the job's check makes of the value it resolved to.
+function settle(job,v){
+  var say=(v&&typeof v==='object'&&typeof v.say==='string')?v.say:'';
+  if(v&&typeof v==='object'&&v.ok===false)return {action:job.action,ok:false,reason:v.reason||'failed',say:say};
+  var bad=job.check?job.check(v):'';
+  return {action:job.action,ok:!bad,reason:bad||'',say:say};
+}
+// Returns {n, results:[{action, ok, reason, ref}], later}. `later` resolves to the
+// results of work that finishes after the commit (an AI prep kit, the rules
+// lock, the timer), so a caller never reports success for something that is
+// still running or failed.
 function dispatch(actions,say,silent){
-  var b=bridge();if(!b){if(!silent)toast('TaskHub not ready',true);return 0;}
+  var b=bridge();if(!b){if(!silent)toast('TaskHub not ready',true);return {n:0,results:[],later:Promise.resolve([])};}
   var s=b.getState();
   var W={data:clone(s.data)||{},habits:clone(s.habits)||[],shortGoals:clone(s.shortGoals)||[],longGoals:clone(s.longGoals)||[],hc:clone(s.hc)||{},selectedDate:s.selectedDate};
   var dirty={};var mark=function(k){dirty[k]=true;};
-  var fx={schedule:[],cancel:[]};
-  var n=0;
-  for(var i=0;i<actions.length;i++){
+  var fx={schedule:[],cancel:[],after:[]};
+  var n=0,results=[];
+  for(var i=0;i<(actions||[]).length;i++){
     var a=actions[i];if(!a||!a.type)continue;
-    try{
-      if(TASK_TYPES[a.type]){if(applyTask(b,W,a,mark,fx))n++;}
-      else{if(applyControl(b,a,W))n++;}
-    }catch(e){console.warn('[voice] action failed',a,e);}
+    why='';lastRef=null;var ok=false,before=fx.after.length;
+    try{ok=TASK_TYPES[a.type]?applyTask(b,W,a,mark,fx):applyControl(b,a,W,fx);}
+    catch(e){console.warn('[voice] action failed',a,e);ok=false;why='error';}
+    var r={action:a,ok:!!ok,reason:ok?'':(why||'invalid')};
+    if(lastRef)r.ref=lastRef;
+    if(!ok&&why==='')r.reason='invalid';
+    if(ok&&fx.after.length>before)r.pending=true;
+    if(ok&&fx.gated){r.gated=true;fx.gated=false;}
+    if(ok)n++;
+    results.push(r);
   }
   if(dirty.calendar)b.mutateData(function(){return W.data;});
   if(dirty.dailyHabits)b.mutateHabits(function(){return W.habits;});
@@ -20043,16 +20354,21 @@ function dispatch(actions,say,silent){
   if(dirty.hc&&b.mutateHc)b.mutateHc(function(){return W.hc;});
   if(b.flushHistory)b.flushHistory();
   // fire/cancel push reminders exactly like the app's own add/delete paths
-  var who=profile();
-  fx.cancel.forEach(function(c){if(window.thCancelNotif){try{window.thCancelNotif(c.id,c.notifyRepeatId);}catch(e){}}});
-  fx.schedule.forEach(function(it){if(window.thScheduleNotif){try{window.thScheduleNotif(Object.assign({},it,{dashboard:who}));}catch(e){}}});
+  runNotifs(fx,profile());
+  // Work that runs after the commit: each settles into a result of its own.
+  var laterP=Promise.all(fx.after.map(function(job){
+    var p;try{p=job.promise||(job.run&&job.run());}catch(e){p=Promise.reject(e);}
+    return Promise.resolve(p).then(function(v){return settle(job,v);},function(){return {action:job.action,ok:false,reason:'error'};});
+  }));
   refreshButtons();
   if(!silent){
-    if(say)toast(say);
-    else if(n)toast(n+' change'+(n>1?'s':'')+' applied');
+    var bad=results.filter(function(r){return !r.ok;}).length;
+    if(results.length&&!n)toast(bad===1?"Couldn't find that one — nothing changed":"Couldn't do that — nothing changed",true);
+    else if(say)toast(bad?say+' ('+bad+' not done)':say);
+    else if(n)toast(n+' change'+(n>1?'s':'')+' applied'+(bad?', '+bad+' not done':''));
     else toast("Didn't catch a command — try again",true);
   }
-  return n;
+  return {n:n,results:results,later:laterP};
 }
 
 // ── undo / redo / button refresh ──
@@ -20227,7 +20543,10 @@ window._THV={
   isBusy:function(){return V.busy;},
   // Neo (TaskHub/veda-assistant.js) records its own audio and hands it here; the
   // engine applies the actions exactly like the mic button. Additive only.
-  sendAudio:function(b64,opts){return send(Object.assign({audio:b64,mimeType:'audio/wav'},(opts&&opts.extra)||{}),opts);}
+  sendAudio:function(b64,opts){return send(Object.assign({audio:b64,mimeType:'audio/wav'},(opts&&opts.extra)||{}),opts);},
+  // Run actions already in hand (Neo, after she says "yes" to a held one). Same
+  // executor, same results.
+  runActions:function(actions,opts){var d=dispatch(actions||[],'',!(opts&&opts.loud));return {ok:true,n:d.n,results:d.results,later:d.later};}
 };
 })();
 </script>
@@ -24503,7 +24822,7 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="Shared/tabsync.js"></script>
-<!-- Neo: Veda's hands-free assistant (wake word "Neo"). Veda-only; sleeps on Tony's side. docs/TaskHub/neo-assistant.md -->
+<!-- Neo: Veda's hands-free assistant (wake phrase "Hey Neo"). Veda-only; sleeps on Tony's side. docs/TaskHub/neo-assistant.md -->
 <script src="TaskHub/veda-assistant.js" defer></script>
 <!-- LifeHub, headless: Tony's External Links are its list (the nav module's
      TONY'S EXTERNAL LINKS). No launcher element here; the header buttons are the display. -->

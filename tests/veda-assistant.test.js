@@ -50,7 +50,7 @@ const vedaNeo = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', tru
 t('Veda\'s prompt offers the Neo actions', ['rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close'].every(m => vedaPlain.includes(m)));
 t('Veda\'s prompt answers questions in "say"', vedaPlain.includes('QUESTIONS'));
 t('Veda\'s prompt carries the butler personality and briefings', vedaPlain.includes('British AI butler') && vedaPlain.includes('BRIEFINGS'));
-t('the wake-word note only appears for a Neo capture', vedaNeo.includes('wake word "Neo"') && !vedaPlain.includes('wake word "Neo"'));
+t('the wake-word note only appears for a Neo capture', vedaNeo.includes('wake phrase "Hey Neo"') && !vedaPlain.includes('wake phrase "Hey Neo"'));
 t('schema carries open_app\'s target', !!W.ACTION_SCHEMA.properties.actions.items.properties.target);
 
 section('worker: state shaping');
@@ -66,7 +66,23 @@ section('worker: state shaping');
   t('Veda\'s state carries her trading rules', /"tradingRules":\["No trades after 3pm"\]/.test(seen.prompt || ''));
   t('Veda\'s state carries her PC\'s app names and onPc', /"pcApps":\["Spotify","Visual Studio Code"\]/.test(seen.prompt || '') && /"onPc":true/.test(seen.prompt || ''));
   t('Veda\'s prompt offers open_pc_app / open_site', /open_pc_app/.test(seen.prompt || '') && /open_site/.test(seen.prompt || ''));
-  t('Veda + mode:neo gets the wake-word note', (seen.prompt || '').includes('wake word "Neo"'));
+  t('Veda + mode:neo gets the wake-word note', (seen.prompt || '').includes('wake phrase "Hey Neo"'));
+
+  // Tony's call: the same schema, item fields and prompt as before Neo grew.
+  wctx.runModelChain = async (models, key, o) => { seen.prompt = o.prompt; seen.schema = o.schema; throw new Error('stop'); };
+  const flagged = { data: { '2026-11-05': [{ id: 'x', title: 'Email prof', aiPrep: true, aiSite: 'claude', aiNote: 'secret note' }] }, habits: [],
+    plans: [{ title: 'Dinner', stage: 'proposed', waitingOn: 'veda' }], marketCal: [{ date: '2026-11-06', title: 'NVDA Earnings', kind: 'earnings' }] };
+  const prev = { said: 'add gym tomorrow', reply: 'Done.', did: [{ type: 'add_task', ok: true, id: 'u9', title: 'Gym', date: '2026-11-06' }] };
+  await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  t('Tony\'s call keeps ACTION_SCHEMA exactly', seen.schema === W.ACTION_SCHEMA && !('aiPrep' in W.ACTION_SCHEMA.properties.actions.items.properties));
+  t('Tony\'s items never show aiPrep; his state has no plans, earnings or previous turn', !/aiPrep|aiSite|"plans"|NVDA|previousTurn/.test(seen.prompt || ''));
+  for (const m of ['close_pc_app', 'prep_off', 'plan_add', 'journal_entry', 'previousTurn', 'PREVIOUS TURN', 'clear_reminder']) {
+    t(`Tony's prompt has no "${m}"`, !(seen.prompt || '').includes(m));
+  }
+  await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  t('Veda\'s call uses her own wider schema', seen.schema && seen.schema !== W.ACTION_SCHEMA && !!seen.schema.properties.actions.items.properties.aiPrep && !!seen.schema.properties.actions.items.properties.set.properties.aiPrep);
+  t('Veda\'s items show aiPrep / aiSite (never the note itself)', /"aiPrep":true/.test(seen.prompt) && /"aiSite":"claude"/.test(seen.prompt) && !/secret note/.test(seen.prompt));
+  t('Veda\'s state carries plans, earnings and the previous turn (with the id)', /"waitingOn":"veda"/.test(seen.prompt) && /NVDA Earnings/.test(seen.prompt) && /"previousTurn":\{[^}]*"said":"add gym tomorrow"/.test(seen.prompt) && /"id":"u9"/.test(seen.prompt));
 
   // ── 2. voice engine (index.html) ──────────────────────────────────────────
   section('engine: Neo actions');
@@ -155,6 +171,160 @@ section('worker: state shaping');
     t('no Neo action applies on Tony\'s bridge', r.ok && r.n === 0, JSON.stringify(r));
     t('assistant_off never reaches Neo from Tony\'s side', calls.length === 0);
     t('nothing was called on Tony\'s bridge', tonyLog.length === 0, tonyLog.join(','));
+    // The actions added for "full functionality" (2026-11-05) are just as inert there.
+    const NEW = [{ type: 'prep_task', match: { title: 'x' } }, { type: 'prep_off', match: { title: 'x' } }, { type: 'prep_open', match: { title: 'x' } },
+      { type: 'prep_show', match: { title: 'x' } }, { type: 'close_pc_app', name: 'Spotify' }, { type: 'close_all_pc_apps' }, { type: 'timer_mode', mode: 'short' },
+      { type: 'timer_add', minutes: 5 }, { type: 'rules_run' }, { type: 'rules_check' }, { type: 'rules_move', match: { title: 'x' }, position: 'top' },
+      { type: 'open_link', label: 'Shruti' }, { type: 'gita_next' }, { type: 'gita_open', lesson: 3 }, { type: 'week_view', collapsed: true },
+      { type: 'goals_tab', target: 'long' }, { type: 'month_shift', by: 1 }, { type: 'lock_app', target: 'notebook' }, { type: 'journal_entry', text: 'hi' },
+      { type: 'start_class', name: 'CS' }, { type: 'plan_add', title: 'Dinner' }, { type: 'plan_confirm', match: { title: 'Dinner' } }];
+    const e2 = makeEngine('tony', tonyBridge, { ok: true, actions: NEW, say: 'Done' });
+    const r2 = await e2.THV.sendAudio('AAAA', { silent: true });
+    t('the new Neo actions do nothing on Tony\'s bridge either', r2.ok && r2.n === 0 && r2.results.every(x => !x.ok) && tonyLog.length === 0, JSON.stringify(r2.results.filter(x => x.ok)));
+  }
+
+  // ── 2b. the engine tells the truth: per-action results ────────────────────
+  section('engine: every action reports what actually happened');
+  {
+    // A Veda bridge whose writes land, so the resulting state can be checked.
+    function liveBridge(opts) {
+      opts = opts || {};
+      const st = { data: opts.data || {}, habits: [], hc: {}, longGoals: [], shortGoals: [], selectedDate: '2026-11-05' };
+      let n = 0;
+      const log = [];
+      const b = {
+        profile: 'veda', uid: () => 'u' + (++n),
+        getState: () => st,
+        mutateData: fn => { st.data = fn(st.data); }, mutateHabits() {}, mutateLongGoals() {}, mutateShortGoals() {}, mutateHc() {},
+        prep: (item, dk) => { log.push(['prep', item.title, dk, item.aiPrep]); return Promise.resolve(opts.kit === undefined ? { summary: 'ok' } : opts.kit); },
+        prepOpen: (item, dk) => { log.push(['prepOpen', item.title, dk]); return true; },
+        launchPc: (app) => app === 'Photoshop' ? { ok: false, reason: 'not_found' } : Promise.resolve(app === 'Slack' ? { ok: false, reason: 'bridge_down', say: 'down' } : true),
+        timer: (cmd, arg) => { log.push(['timer', cmd, arg]); return Promise.resolve(true); },
+        changeRules: () => { const p = Promise.resolve('locked'); p.gated = true; return p; }, getRules: () => [{ id: 'r', text: 'No trades after 3pm' }],
+      };
+      return { b, st, log };
+    }
+    function engineWith(lb, extra) {
+      const e = makeEngine('veda', lb.b, { ok: true, actions: [], say: '' });
+      const nlog = [];
+      e.win.thCancelNotif = (id, rid) => { nlog.push(['cancel', id, rid]); return new Promise(r => setTimeout(r, 5)); };
+      e.win.thScheduleNotif = (it) => { nlog.push(['schedule', it.id, it.notifyAt]); };
+      Object.assign(e.win, extra || {});
+      return { THV: e.THV, nlog };
+    }
+    const day = (k, items) => ({ [k]: items });
+
+    // not found / missing bridge / partial success
+    {
+      const lb = liveBridge({ data: day('2026-11-05', [{ id: 'a', type: 'task', title: 'Buy milk', category: 'personal' }]) });
+      const { THV } = engineWith(lb);
+      const r = THV.runActions([
+        { type: 'toggle_task', match: { title: 'buy milk' }, done: true },
+        { type: 'remove_task', match: { title: 'dentist appointment' } },
+        { type: 'open_app', target: 'plans' },
+      ]);
+      t('partial success: n counts only what ran', r.n === 1, JSON.stringify(r.results));
+      t('a task that isn\'t there is not_found', r.results[1].ok === false && r.results[1].reason === 'not_found');
+      t('a bridge without the method is no_bridge', r.results[2].ok === false && r.results[2].reason === 'no_bridge');
+      t('…and the one that worked really changed state', lb.st.data['2026-11-05'][0].done === true);
+    }
+
+    // AI prep: the flag is set, the kit is requested, the result arrives later
+    {
+      const lb = liveBridge({ data: day('2026-11-05', [{ id: 'p1', type: 'task', title: 'Email professor', category: 'study' }]) });
+      const { THV } = engineWith(lb);
+      const r = THV.runActions([{ type: 'prep_task', match: { title: 'email professor' }, aiNote: 'Ask about the midterm', aiSite: 'claude' }]);
+      const it = lb.st.data['2026-11-05'][0];
+      t('prep_task sets aiPrep:true on the task (so ✦ shows and the kit survives the stale sweep)', it.aiPrep === true && it.aiNote === 'Ask about the midterm' && it.aiSite === 'claude', JSON.stringify(it));
+      t('…and asks for the kit with the flagged item', lb.log.some(l => l[0] === 'prep' && l[1] === 'Email professor' && l[3] === true));
+      t('…reported as pending, not done', r.results[0].ok && r.results[0].pending === true);
+      const later = await r.later;
+      t('the kit landing settles it ok', later.length === 1 && later[0].ok === true);
+      const lb2 = liveBridge({ data: day('2026-11-05', [{ id: 'p2', type: 'task', title: 'Essay', category: 'study' }]), kit: null });
+      const later2 = await engineWith(lb2).THV.runActions([{ type: 'prep_task', match: { title: 'essay' } }]).later;
+      t('a kit that never comes is a failure (prep_failed)', later2[0].ok === false && later2[0].reason === 'prep_failed');
+      THV.runActions([{ type: 'prep_off', match: { title: 'email professor' } }]);
+      const off = lb.st.data['2026-11-05'][0];
+      t('prep_off removes all three keys', !('aiPrep' in off) && !('aiNote' in off) && !('aiSite' in off));
+      const lb3 = liveBridge();
+      engineWith(lb3).THV.runActions([{ type: 'add_task', box: 'calendar', date: '2026-11-06', title: 'Email the professor', category: 'study', aiPrep: true, aiSite: 'claude' }]);
+      const added = lb3.st.data['2026-11-06'][0];
+      t('add_task with aiPrep flags the new task and preps it', added.aiPrep === true && added.aiSite === 'claude' && lb3.log.some(l => l[0] === 'prep' && l[1] === 'Email the professor'));
+      const r4 = engineWith(lb3).THV.runActions([{ type: 'prep_open', match: { title: 'email the professor' } }, { type: 'prep_open', match: { title: 'nothing like it' } }]);
+      t('prep_open starts a flagged task; an unknown one is not_found', r4.results[0].ok && lb3.log.some(l => l[0] === 'prepOpen') && r4.results[1].reason === 'not_found');
+    }
+
+    // Reminders
+    {
+      const at = (d, h, m) => new Date(2026, 10, d, h, m || 0).toISOString();
+      const lb = liveBridge({ data: day('2026-11-05', [
+        { id: 'g', type: 'event', title: 'Gym', time: '17:00', category: 'health', notifyAt: at(5, 16, 45), notifyRepeat: 'none', notifyRepeatId: null },
+        { id: 'm', type: 'event', title: 'Meeting', time: '10:00', category: 'work', notifyAt: at(5, 9, 30), notifyRepeat: 'weekly', notifyRepeatId: 'series1' },
+      ]) });
+      const { THV, nlog } = engineWith(lb);
+      THV.runActions([{ type: 'edit_task', match: { title: 'meeting' }, set: { notify: { date: '2026-11-05', time: '09:00' } } }]);
+      await new Promise(r => setTimeout(r, 30));
+      const ci = nlog.findIndex(l => l[0] === 'cancel' && l[1] === 'm' && l[2] === 'series1'), si = nlog.findIndex(l => l[0] === 'schedule' && l[1] === 'm');
+      t('a changed reminder cancels the old series first, then schedules the new one', ci >= 0 && si > ci, JSON.stringify(nlog));
+      nlog.length = 0;
+      THV.runActions([{ type: 'edit_task', match: { title: 'gym' }, set: { date: '2026-11-07' } }]);
+      await new Promise(r => setTimeout(r, 30));
+      const gym = lb.st.data['2026-11-07'] && lb.st.data['2026-11-07'][0];
+      t('moving a task\'s date moves its reminder by the same days', gym && gym.notifyAt === at(7, 16, 45), gym && gym.notifyAt);
+      nlog.length = 0;
+      THV.runActions([{ type: 'edit_task', match: { title: 'gym' }, set: { time: '18:30' } }]);
+      await new Promise(r => setTimeout(r, 30));
+      t('a new event time keeps "15 minutes before" 15 minutes before', lb.st.data['2026-11-07'][0].notifyAt === at(7, 18, 15) && nlog.some(l => l[0] === 'cancel'));
+      const r = THV.runActions([{ type: 'clear_reminder', match: { title: 'gym' } }, { type: 'clear_reminder', match: { title: 'gym' } }]);
+      t('clear_reminder removes it; a second time says no_reminder', !lb.st.data['2026-11-07'][0].notifyAt && r.results[0].ok && r.results[1].reason === 'no_reminder', JSON.stringify(r.results));
+      THV.runActions([{ type: 'edit_task', match: { title: 'gym' }, set: { notify: { date: '2026-11-07', time: '08:00', repeat: 'weekly', repeatDays: [0, 2] } } }]);
+      const g2 = lb.st.data['2026-11-07'][0];
+      t('repeating reminders carry their cadence and a series id', g2.notifyRepeat === 'weekly' && JSON.stringify(g2.notifyRepeatDays) === '[0,2]' && !!g2.notifyRepeatId);
+    }
+
+    // Moving keeps everything; ids; repeat scope
+    {
+      const rep = (k, id) => ({ id, type: 'task', title: 'Gym', category: 'health', repeat: 'weekly', repeatDays: [3], repeatId: 'R' });
+      const lb = liveBridge({ data: Object.assign(
+        day('2026-11-05', [{ id: 'e', type: 'task', title: 'Email professor', category: 'study', aiPrep: true, aiNote: 'n', aiSite: 'claude' }, rep('2026-11-05', 'g1')]),
+        day('2026-11-12', [rep('2026-11-12', 'g2')]), day('2026-11-19', [rep('2026-11-19', 'g3')])) });
+      const { THV } = engineWith(lb);
+      THV.runActions([{ type: 'move_task', match: { title: 'email professor' }, toBox: 'calendar', toDate: '2026-11-06' }]);
+      const mv = lb.st.data['2026-11-06'][0];
+      t('move_task keeps the SAME item: id, AI prep and all', mv.id === 'e' && mv.aiPrep === true && mv.aiNote === 'n' && mv.aiSite === 'claude', JSON.stringify(mv));
+      const r = THV.runActions([{ type: 'edit_task', match: { id: 'e' }, set: { title: 'Email Dr Smith' } }]);
+      t('match.id finds the item the last turn touched', r.results[0].ok && lb.st.data['2026-11-06'][0].title === 'Email Dr Smith' && r.results[0].ref.id === 'e');
+      THV.runActions([{ type: 'remove_task', match: { title: 'gym', date: '2026-11-12' }, scope: 'future' }]);
+      t('remove scope:"future" takes this and later occurrences, never earlier ones',
+        (lb.st.data['2026-11-05'] || []).some(x => x.id === 'g1') && !(lb.st.data['2026-11-12'] || []).length && !(lb.st.data['2026-11-19'] || []).length);
+      const lb2 = liveBridge({ data: day('2026-11-05', [{ id: 'w', type: 'task', title: 'Water plants', category: 'personal' }]) });
+      engineWith(lb2).THV.runActions([{ type: 'edit_task', match: { title: 'water plants' }, set: { repeat: 'daily' } }]);
+      const days = Object.keys(lb2.st.data).filter(k => (lb2.st.data[k] || []).some(x => x.title === 'Water plants')).length;
+      t('edit set.repeat fills in the future occurrences like the editor (15 days)', days === 15, String(days));
+    }
+
+    // PC actions and gated rules report through results
+    {
+      const lb = liveBridge();
+      const { THV } = engineWith(lb);
+      const r = THV.runActions([{ type: 'open_pc_app', name: 'Photoshop' }, { type: 'open_pc_app', name: 'Spotify' }, { type: 'open_pc_app', name: 'Slack' }, { type: 'rules_add', title: 'Journal trades' }]);
+      t('an app she doesn\'t have fails at once (not_found)', r.results[0].ok === false && r.results[0].reason === 'not_found');
+      t('a launch is pending until the bridge answers', r.results[1].ok && r.results[1].pending);
+      t('a rule change behind the lock is marked gated', r.results[3].gated === true);
+      const later = await r.later;
+      t('bridge down / lock cancelled settle as failures with their reasons',
+        later.find(l => l.action.name === 'Slack').reason === 'bridge_down' && later.find(l => l.action.type === 'rules_add').reason === 'locked', JSON.stringify(later.map(l => l.reason)));
+      THV.runActions([{ type: 'timer_set', minutes: 25, start: true }]);
+      t('"set 25 and start" is one action: set, then start', JSON.stringify(lb.log.filter(l => l[0] === 'timer').map(l => l[1])) === '["set","start"]');
+    }
+
+    // Neo can hold a destructive request for a yes/no before anything runs
+    {
+      const lb = liveBridge({ data: day('2026-11-07', [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]) });
+      const e = makeEngine('veda', lb.b, { ok: true, actions: [{ type: 'clear', box: 'calendar', date: '2026-11-07' }], say: 'Cleared.' });
+      const r = await e.THV.sendAudio('AAAA', { silent: true, hold: () => ({ question: 'Shall I?' }) });
+      t('a held request changes nothing and hands back the question', r.held && r.held.question === 'Shall I?' && r.n === 0 && lb.st.data['2026-11-07'].length === 2);
+    }
   }
 
   section('index.html wiring');
@@ -200,9 +370,9 @@ section('worker: state shaping');
 
   section('veda-assistant.js: wake word + end-point');
   const T = N._test;
-  t('"neo" wakes', T.isWake('neo'));
   t('"hey neo" wakes', T.isWake('hey neo'));
-  t('"[unk] neo [unk]" wakes', T.isWake('[unk] neo [unk]'));
+  t('"[unk] hey neo [unk]" wakes', T.isWake('[unk] hey neo [unk]'));
+  t('"neo" alone / "okay neo" / "neo hey" do not wake (the phrase is "Hey Neo")', !T.isWake('neo') && !T.isWake('okay neo') && !T.isWake('[unk] neo [unk]') && !T.isWake('neo hey'));
   t('"neon" / "new" / "nemo" do not wake', !T.isWake('neon') && !T.isWake('new') && !T.isWake('nemo') && !T.isWake('[unk] [unk]'));
   t('grammar ends with [unk]', T.GRAMMAR[T.GRAMMAR.length - 1] === '[unk]' && T.GRAMMAR.includes('neo'));
   {
@@ -259,6 +429,73 @@ section('worker: state shaping');
     t('issue: an app that failed to open is named', T.launchIssue({ ok: true, opened: [], unknown: ['a1'], failed: [] }, [], '', { a1: 'Spotify' }) === 'Spotify didn\'t open, I\'m afraid.');
     t('issue: none when everything opened', T.launchIssue({ ok: true, opened: ['a1'], unknown: [], failed: [] }, [], '', {}) === '');
     t('cards: LAUNCHING Spotify / OPENING youtube.com', T.cardFor({ type: 'open_pc_app', name: 'Spotify' }).label === 'LAUNCHING' && T.cardFor({ type: 'open_site', url: 'https://www.youtube.com/watch' }).detail === 'youtube.com');
+
+    t('issue: a refused app is named from res.failed (names, not ids)', T.launchIssue({ ok: true, opened: [], unknown: [], failed: ['Word'] }, [], '', {}) === 'Word didn\'t open, I\'m afraid.');
+
+    section('veda-assistant.js: saying only what happened');
+    const R = (a, ok, reason, extra) => Object.assign({ action: a, ok, reason: reason || '' }, extra || {});
+    const milk = { type: 'add_task', title: 'Buy milk' }, gym = { type: 'remove_task', match: { title: 'Gym' } };
+    t('all worked → the model\'s line', T.compose('Done. Buy milk is on.', [R(milk, true)]) === 'Done. Buy milk is on.');
+    t('nothing worked → only the failure, never "Done"', T.compose('Done. Gym is gone.', [R(gym, false, 'not_found')]) === 'I\'m afraid I couldn\'t find a task called Gym.');
+    t('some worked → the line, then what didn\'t', T.compose('Added milk and removed gym.', [R(milk, true), R(gym, false, 'not_found')]) === 'Added milk and removed gym. I\'m afraid I couldn\'t find a task called Gym.');
+    t('a question (no actions) → the answer', T.compose('You have two tasks left.', []) === 'You have two tasks left.');
+    t('n=0 with an empty say still names the failure', /couldn't find/.test(T.compose('', [R(gym, false, 'not_found')])));
+    t('a bridge\'s own line wins (Spotify wasn\'t running)', T.failLine(R({ type: 'close_pc_app', name: 'Spotify' }, false, 'not_running', { say: 'Spotify wasn\'t running.' })) === 'Spotify wasn\'t running.');
+    t('closing off the PC says so', T.failLine(R({ type: 'close_pc_app', name: 'Spotify' }, false, 'off_pc')) === 'I can only close apps on your PC, Veda.');
+    t('duplicate lines are said once', T.failSpeech([R({ type: 'open_pc_app', name: 'A' }, false, 'off_pc'), R({ type: 'open_pc_app', name: 'B' }, false, 'off_pc')]) === 'I can only open apps from your PC, Veda.');
+    t('a failed action gets a red ✕ card', T.failCard(R(gym, false, 'not_found')).bad === true && /COULDN'T/.test(T.failCard(R(gym, false, 'not_found')).label));
+    t('cards: CLOSING / FORCE QUIT / AI PREP OFF / PLAN CONFIRMED', T.cardFor({ type: 'close_pc_app', name: 'Spotify' }).label === 'CLOSING' && T.cardFor({ type: 'close_pc_app', name: 'X', force: true }).label === 'FORCE QUIT'
+      && T.cardFor({ type: 'prep_off', match: { title: 'x' } }).label === 'AI PREP OFF' && T.cardFor({ type: 'plan_confirm', match: { title: 'x' } }).label === 'PLAN CONFIRMED');
+    const NEO_TYPES = ['prep_task', 'prep_off', 'prep_open', 'prep_show', 'close_pc_app', 'close_all_pc_apps', 'clear_reminder', 'timer_mode', 'timer_add', 'rules_run', 'rules_check', 'rules_move',
+      'open_link', 'gita_next', 'gita_prev', 'gita_open', 'week_view', 'goals_tab', 'month_shift', 'lock_app', 'journal_entry', 'start_class',
+      'plan_add', 'plan_propose', 'plan_confirm', 'plan_decline', 'plan_cancel_request', 'plan_done'];
+    t('every Neo action in the prompt has a card', NEO_TYPES.every(ty => T.cardFor({ type: ty, text: 'x' })), NEO_TYPES.filter(ty => !T.cardFor({ type: ty, text: 'x' })).join(','));
+    t('…and an executor in the engine', NEO_TYPES.every(ty => html.includes("case '" + ty + "'")), NEO_TYPES.filter(ty => !html.includes("case '" + ty + "'")).join(','));
+    t('…and a line in Veda\'s prompt', NEO_TYPES.every(ty => vedaPlain.includes('"' + ty + '"')), NEO_TYPES.filter(ty => !vedaPlain.includes('"' + ty + '"')).join(','));
+    const merged = T.mergeLater([R(milk, true), R({ type: 'open_pc_app', name: 'Slack' }, true, '', { pending: true })], [{ action: null }, { action: null }]);
+    t('mergeLater keeps an unsettled pending result as it was', merged[1].pending === true);
+    const sl = { type: 'open_pc_app', name: 'Slack' };
+    const merged2 = T.mergeLater([R(sl, true, '', { pending: true })], [{ action: sl, ok: false, reason: 'bridge_down', say: 'Start the bridge.' }]);
+    t('…and turns a failed outcome into a failure with its line', merged2[0].ok === false && T.failLine(merged2[0]) === 'Start the bridge.');
+
+    section('veda-assistant.js: asking first');
+    const sat = { data: { '2026-11-07': [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }] }, selectedDate: '2026-11-05' };
+    t('clearing a day asks, with the count and the day', (T.needsConfirm([{ type: 'clear', box: 'calendar', date: '2026-11-07' }], sat) || {}).question === 'Shall I clear all two items on Saturday the 7th?');
+    t('more than three removals ask', /remove four items/.test((T.needsConfirm([gym, gym, gym, gym], sat) || {}).question || ''));
+    t('one removal does not ask', T.needsConfirm([gym], sat) === null && T.needsConfirm([milk], sat) === null);
+    t('shift_range / clear_completed / close_all ask', ['shift_range', 'clear_completed', 'close_all_pc_apps'].every(ty => T.needsConfirm([{ type: ty, days: 1, from: '2026-11-09', to: '2026-11-15' }], sat)));
+    t('confirming a plan with no date asks first', /no date yet/.test((T.needsConfirm([{ type: 'plan_confirm', match: { title: 'dinner' } }], { plans: [{ title: 'Dinner at Nobu', stage: 'proposed' }] }) || {}).question || ''));
+    t('yes / no', T.isYes('yes') && T.isYes('yeah go ahead') && T.isYes('do it') && T.isNo('no') && T.isNo('never mind') && !T.isYes('no') && !T.isNo('yes please'));
+
+    section('veda-assistant.js: closing apps, websites on the phone, the timer queue');
+    t('close: closed → nothing to say', T.closeNote('Spotify', { closed: ['Spotify'] }) === '');
+    t('close: not running', T.closeNote('Spotify', { closed: [], notRunning: ['Spotify'] }).say === 'Spotify wasn\'t running.');
+    t('close: asking to save is left open, and said', /asking to save, so I've left it open/.test(T.closeNote('Word', { closed: [], stillOpen: ['Word'] }).say));
+    t('off her PC, an app can\'t be closed or opened', T.queueClose('Spotify', false).reason === 'off_pc' && T.queueLaunch('Spotify', null).reason === 'off_pc');
+    const opened = []; actx.open = (u) => { opened.push(u); return {}; };
+    t('…but a website opens on the phone in a new tab', T.queueLaunch(null, 'youtube.com') === true && opened[0] === 'https://youtube.com/');
+    actx.open = () => null;
+    t('…and a blocked pop-up is said, not claimed', T.queueLaunch(null, 'youtube.com').reason === 'blocked');
+    {
+      const ran = [];
+      let gen = 0;
+      const mk = () => { const g = ++gen; return (cmd, arg) => { ran.push([cmd, arg, g]); actx._vdTimerExec = mk(); }; };
+      actx._vdTimerExec = mk();
+      const p1 = T.timerRun('set', 25), p2 = T.timerRun('start');
+      const v = await Promise.all([p1, p2]);
+      t('timer: "set" then "start", each on a fresh hook (never the stale one)', v[0] === true && v[1] === true && ran.length === 2 && ran[0][0] === 'set' && ran[1][0] === 'start' && ran[1][2] === ran[0][2] + 1, JSON.stringify(ran));
+    }
+    {
+      let locked = null;
+      actx.Guardian = { status: id => ({ hasLock: id === 'veda_journal' }), lockNow: id => { locked = id; } };
+      t('lock_app locks a program that has a lock', T.ops.lockApp('notebook') === true && locked === 'veda_journal');
+      t('…and says when there is none', T.ops.lockApp('gita').reason === 'no_lock');
+      const openedL = [];
+      actx._navGetLinks = () => [{ id: 'l1', label: 'Shruti' }, { id: 'l2', label: 'Study Playlist' }];
+      actx._navOpenLink = (p, id) => openedL.push([p, id]);
+      t('open_link opens a header link by its label', T.ops.openLink('shruti') === true && openedL[0][0] === 'veda' && openedL[0][1] === 'l1');
+      t('…an unknown label is not_found', T.ops.openLink('Netflix').reason === 'not_found');
+    }
 
     const V = (name, lang) => ({ name, lang });
     t('voice: Ryan via Orca is the default', T.VOICE === 'en-GB-RyanNeural');

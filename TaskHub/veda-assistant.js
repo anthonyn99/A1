@@ -5,7 +5,7 @@
    Tony's TaskHub (or the profile picker) the mic is released and Neo sleeps.
 
    Pipeline (all free):
-     mic ─► Vosk (on-device, WASM; fixed word list) hears "Neo" / "Hey Neo"
+     mic ─► Vosk (on-device, WASM; fixed word list) hears "Hey Neo"
          ─► record until she stops talking (loudness end-point, with a 1.5 s
             pre-roll so "Neo, add milk" in one breath keeps its first words);
             a second, free-form Vosk recognizer shows live captions meanwhile
@@ -41,9 +41,9 @@
   // Mauve, as hologram.
   var C = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a' };
 
-  // Words Vosk may choose between. Only "neo" wakes; the near-sounding decoys
-  // give similar speech somewhere else to land, so "new"/"no"/"video" don't
-  // fire it. Every word here is in the small model's vocabulary.
+  // Words Vosk may choose between. Only "hey neo" wakes; "neo" on its own and the
+  // near-sounding decoys give similar speech somewhere else to land, so "neo",
+  // "new", "no", "video" don't fire it. Every word here is in the small model's vocabulary.
   var GRAMMAR = ['neo', 'hey neo', 'okay neo', 'new', 'no', 'know', 'now', 'leo', 'neon', 'nemo', 'knee', 'video', 'oh', 'hey', '[unk]'];
 
   var PRE_ROLL_S = 1.5;      // audio kept from before the wake word fired
@@ -53,9 +53,12 @@
   var FOLLOW_MS = 6000;      // after a reply: listen without the wake word
 
   // ══ pure helpers (tested in tests/veda-assistant.test.js) ══════════════════
+  // The wake phrase is "Hey Neo" (Veda's call, 2026-11-05): "hey" right before
+  // "neo". A bare "neo" (or "okay neo") is heard but doesn't wake it.
   function isWake(text) {
     var w = String(text || '').toLowerCase().split(/\s+/).filter(function (t) { return t && t !== '[unk]'; });
-    return w.indexOf('neo') >= 0;
+    for (var i = 1; i < w.length; i++) if (w[i] === 'neo' && w[i - 1] === 'hey') return true;
+    return false;
   }
   function rms(buf) { var s = 0; for (var i = 0; i < buf.length; i++) s += buf[i] * buf[i]; return Math.sqrt(s / (buf.length || 1)); }
   function threshold(floor) { return Math.max(0.012, floor * 2.8); }
@@ -171,9 +174,153 @@
       case 'assistant_off': return { icon: '⏻', label: 'STANDING DOWN', detail: '' };
       case 'open_pc_app': return { icon: '⧉', label: 'LAUNCHING', detail: a.name || t };
       case 'open_site': { var host = String(a.url || '').replace(/^[a-z]+:\/\//i, '').replace(/^www\./, '').split('/')[0]; return { icon: '◎', label: 'OPENING', detail: host }; }
+      case 'close_pc_app': return { icon: '⊗', label: a.force ? 'FORCE QUIT' : 'CLOSING', detail: a.name || t };
+      case 'close_all_pc_apps': return { icon: '⊗', label: 'CLOSING ALL', detail: (a.except && a.except.length) ? 'EXCEPT ' + a.except.join(', ') : '' };
+      case 'prep_off': return { icon: '✦', label: 'AI PREP OFF', detail: t };
+      case 'prep_open': return { icon: '✦', label: 'STARTING', detail: t };
+      case 'prep_show': return { icon: '✦', label: 'PREP PANEL', detail: t };
+      case 'clear_reminder': return { icon: '🔕', label: 'REMINDER CLEARED', detail: t };
+      case 'timer_mode': return { icon: '⏱', label: 'TIMER', detail: String(a.mode || '').toUpperCase() };
+      case 'timer_add': return { icon: '⏱', label: 'TIMER', detail: (a.minutes > 0 ? '+' : '') + a.minutes + ' MIN' };
+      case 'rules_run': return { icon: '☐', label: 'RULES CHECK', detail: 'NOW' };
+      case 'rules_check': return { icon: '☑', label: 'RULE TICKED', detail: t };
+      case 'rules_move': return { icon: '☐', label: 'RULE MOVED', detail: t };
+      case 'open_link': return { icon: '◎', label: 'OPENING', detail: String(a.label || t).toUpperCase() };
+      case 'gita_next': return { icon: '❝', label: 'NEXT LESSON', detail: '' };
+      case 'gita_prev': return { icon: '❝', label: 'PREVIOUS LESSON', detail: '' };
+      case 'gita_open': return { icon: '❝', label: 'LESSON', detail: String(a.lesson || '') };
+      case 'week_view': return { icon: '▤', label: 'WEEK', detail: a.collapsed === false ? 'EXPANDED' : 'COLLAPSED' };
+      case 'goals_tab': return { icon: '◆', label: 'GOALS', detail: /long/i.test(a.tab || '') ? 'LONG TERM' : 'SHORT TERM' };
+      case 'month_shift': return { icon: '◎', label: 'MONTH', detail: (a.by > 0 ? 'NEXT' : 'PREVIOUS') };
+      case 'lock_app': return { icon: '🔒', label: 'LOCKED', detail: String(a.target || '').toUpperCase() };
+      case 'journal_entry': return { icon: '✎', label: 'JOURNAL ENTRY', detail: a.title || clip(a.text, 30) };
+      case 'start_class': return { icon: '▶', label: 'CLASS', detail: a.name || t };
+      case 'plan_add': return { icon: '✧', label: 'PLAN IDEA', detail: t };
+      case 'plan_propose': return { icon: '✧', label: 'PLAN PROPOSED', detail: t };
+      case 'plan_confirm': return { icon: '✧', label: 'PLAN CONFIRMED', detail: t };
+      case 'plan_decline': return { icon: '✧', label: 'PLAN DECLINED', detail: t };
+      case 'plan_cancel_request': return { icon: '✧', label: 'CANCEL ASKED', detail: t };
+      case 'plan_done': return { icon: '✧', label: 'PLAN DONE', detail: t };
     }
     return null;
   }
+
+  // ══ saying only what actually happened ═════════════════════════════════════
+  // The engine reports every action as {action, ok, reason}. A failed one never
+  // gets a ✓ card or the model's "Done": it gets a red card and its own line.
+  function actName(a) {
+    a = a || {}; var m = a.match || {};
+    return String(a.name || a.title || m.title || a.label || (a.first || {}).title || '').trim();
+  }
+  var BAD_CARD = {
+    not_found: 'COULDN\'T FIND', no_bridge: 'OUT OF REACH', off_pc: 'PC ONLY', locked: 'LOCKED', no_reminder: 'NO REMINDER',
+    not_flagged: 'NO AI PREP', prep_failed: 'PREP FAILED', not_running: 'NOT RUNNING', still_open: 'LEFT OPEN', bridge_down: 'BRIDGE DOWN',
+    blocked: 'BLOCKED', too_soon: 'TOO SOON', out_of_order: 'OUT OF ORDER', one_at_a_time: 'ONE AT A TIME', bioFailed: 'NOT VERIFIED',
+  };
+  function failCard(r) {
+    var a = (r && r.action) || {};
+    var base = cardFor(a) || { detail: actName(a) };
+    return { icon: '✕', label: 'COULDN\'T ' + (BAD_CARD[r.reason] ? '· ' + BAD_CARD[r.reason] : 'DO IT'), detail: base.detail || actName(a), bad: true };
+  }
+  // One failed result → the line Neo says about it.
+  function failLine(r) {
+    if (!r || r.ok) return '';
+    if (r.say) return r.say;
+    var a = r.action || {}, ty = a.type || '', t = actName(a);
+    switch (r.reason) {
+      case 'not_found':
+        if (/^rules_/.test(ty)) return 'I\'m afraid I can\'t find a rule like ' + (t || 'that') + '.';
+        if (/^plan_/.test(ty)) return 'I can\'t find a plan called ' + (t || 'that') + '.';
+        if (ty === 'open_pc_app' || ty === 'close_pc_app') return 'I couldn\'t find ' + (t || 'that app') + ' on your PC, I\'m afraid.';
+        if (ty === 'open_link') return 'There\'s no link called ' + (t || 'that') + ' in your header.';
+        if (ty === 'start_class') return 'I can\'t find a class called ' + (t || 'that') + '.';
+        if (ty === 'gita_open') return 'There\'s no lesson ' + (a.lesson || 'by that number') + ', I\'m afraid.';
+        if (ty === 'shift_range' || ty === 'clear_completed') return 'There was nothing there to change.';
+        return t ? 'I\'m afraid I couldn\'t find a task called ' + t + '.' : 'I\'m afraid I couldn\'t find that one.';
+      case 'off_pc': return /^close_/.test(ty) ? 'I can only close apps on your PC, Veda.' : 'I can only open apps from your PC, Veda.';
+      case 'locked': return 'It stayed locked, so I\'ve left everything as it was.';
+      case 'no_reminder': return (t || 'That one') + ' has no reminder to clear.';
+      case 'not_flagged': return (t || 'That task') + ' has no AI prep yet. Ask me to turn it on first.';
+      case 'prep_failed': return 'I couldn\'t prepare ' + (t || 'that task') + ' just now, I\'m afraid. I\'ll try again shortly.';
+      case 'no_lock': return 'That has no lock set up, so there\'s nothing to lock.';
+      case 'too_soon': return 'Give that rule a moment on screen first.';
+      case 'out_of_order': return 'The rules go in order, Veda. Tick the next one first.';
+      case 'one_at_a_time': return 'The checklist goes one rule at a time, I\'m afraid. Tell me each one as you read it.';
+      case 'already': return /^plan_/.test(ty) ? 'You\'ve already done that for ' + (t || 'that plan') + '.' : 'That one is already ticked.';
+      case 'not_open': return 'The rules checklist isn\'t open.';
+      case 'no_rules': return 'You have no rules to check yet.';
+      case 'not_waiting': return (t || 'That plan') + ' isn\'t waiting on you.';
+      case 'not_confirmed': return (t || 'That plan') + ' isn\'t confirmed yet.';
+      case 'bioFailed': return 'The fingerprint check didn\'t pass, so I haven\'t confirmed it.';
+      case 'journal_not_ready': return 'Your journal hasn\'t loaded yet. Open it once, then ask me again.';
+      case 'invalid': return 'I didn\'t quite follow that one, I\'m afraid.';
+      case 'no_bridge': return 'That one is beyond my reach here, I\'m afraid.';
+    }
+    return t ? 'I couldn\'t manage ' + t + ', I\'m afraid.' : 'I couldn\'t manage that one, I\'m afraid.';
+  }
+  function failSpeech(results) {
+    var seen = {}, out = [];
+    (results || []).forEach(function (r) { var l = failLine(r); if (l && !seen[l]) { seen[l] = 1; out.push(l); } });
+    return out.join(' ');
+  }
+  // What Neo says once the actions have run. The model wrote `say` before
+  // anything ran, so it is only trusted for the actions that worked:
+  //   nothing returned (a question)  → the model's answer
+  //   everything worked             → the model's line
+  //   nothing worked                → only the failures (never "Done")
+  //   some worked                   → the model's line, then the failures
+  function compose(say, results) {
+    results = results || [];
+    say = String(say || '').trim();
+    if (!results.length) return say;
+    var bad = results.filter(function (r) { return !r.ok; });
+    if (!bad.length) return say || 'Done.';
+    var fl = failSpeech(bad);
+    if (bad.length === results.length) return fl;
+    return (say ? say + ' ' : 'The rest is done. ') + fl;
+  }
+
+  // ══ asking first ═══════════════════════════════════════════════════════════
+  // Bulk deletions, range shifts and "close everything" are said back as a
+  // question; nothing runs until she says yes. → {question} | null
+  var BOXN = { dailyHabits: 'daily habits', shortTermGoals: 'short-term goals', longTermGoals: 'long-term goals' };
+  function cap1(s) { return String(s).replace(/^./, function (c) { return c.toUpperCase(); }); }
+  function spokenNum(n) { return n <= 12 ? (n === 0 ? 'no' : NUMW[n]) : String(n); }
+  function spokenDate(k) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(k || '')); if (!m) return 'that day';
+    var d = new Date(+m[1], +m[2] - 1, +m[3]), n = d.getDate();
+    var th = (n % 10 === 1 && n !== 11) ? 'st' : (n % 10 === 2 && n !== 12) ? 'nd' : (n % 10 === 3 && n !== 13) ? 'rd' : 'th';
+    return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()] + ' the ' + n + th;
+  }
+  function needsConfirm(acts, st) {
+    st = st || {};
+    var data = st.data || {}, q = [], removes = 0;
+    (acts || []).forEach(function (a) {
+      if (!a || !a.type) return;
+      if (a.type === 'remove_task') {
+        removes++;
+        if (a.scope === 'future' || a.scope === 'all') q.push('remove ' + (a.scope === 'all' ? 'every' : 'every future') + ' ' + (actName(a) || 'occurrence') + ' in that series');
+      } else if (a.type === 'clear') {
+        if (a.box && a.box !== 'calendar') { q.push('clear all your ' + (BOXN[a.box] || 'items')); return; }
+        var k = a.date || st.selectedDate, n = (data[k] || []).filter(function (x) { return x && x.title; }).length;
+        if (n) q.push('clear all ' + spokenNum(n) + ' item' + (n === 1 ? '' : 's') + ' on ' + spokenDate(k));
+      } else if (a.type === 'clear_completed') {
+        q.push('delete every completed item' + (a.from && a.to ? ' from ' + spokenDate(a.from) + ' to ' + spokenDate(a.to) : ''));
+      } else if (a.type === 'shift_range') {
+        var d = parseInt(a.days, 10) || 0;
+        q.push('move everything ' + (a.from ? 'from ' + spokenDate(a.from) + ' ' : '') + (a.to && a.to !== a.from ? 'to ' + spokenDate(a.to) + ' ' : '') + spokenNum(Math.abs(d)) + ' day' + (Math.abs(d) === 1 ? '' : 's') + (d < 0 ? ' earlier' : ' later'));
+      } else if (a.type === 'close_all_pc_apps') {
+        q.push('close all your apps' + (a.except && a.except.length ? ' except ' + a.except.join(' and ') : ''));
+      } else if (a.type === 'plan_confirm') {
+        var pl = (st.plans || []).filter(function (p) { return p && p.title && actName(a) && p.title.toLowerCase().indexOf(actName(a).toLowerCase()) >= 0; })[0];
+        if (pl && !pl.date) q.push('confirm ' + pl.title + ', though it has no date yet');
+      }
+    });
+    if (removes > 3) q.unshift('remove ' + spokenNum(removes) + ' items');
+    return q.length ? { question: 'Shall I ' + q.join(', and ') + '?' } : null;
+  }
+  function isYes(t) { return /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|do it|go ahead|confirm(ed)?|please( do)?|affirmative|correct|right)\b/i.test(String(t || '')); }
+  function isNo(t) { return /^\s*(no|nope|nah|don'?t|do not|cancel|stop|never ?mind|leave it|wait)\b/i.test(String(t || '')); }
 
   // What people call an app → its Start-menu name (normalised: lower case, spaces).
   var APP_ALIASES = {
@@ -220,7 +367,8 @@
       if (/blocked/.test(bridgeErr || '')) return 'Your browser is blocking me from reaching your PC, Veda. Allow local network access for this site, then ask again.';
       return 'Your PC\'s launcher isn\'t answering, Veda. Start StudyOS Bridge from the Start menu, and I\'ll try again.';
     }
-    var bad = [].concat(res.unknown || [], res.failed || []).map(function (id) { return names[id] || 'one of them'; });
+    // unknown holds the ids it never knew; failed holds the NAMES of what Windows refused.
+    var bad = (res.unknown || []).map(function (id) { return names[id] || 'one of them'; }).concat(res.failed || []);
     return bad.length ? bad.join(' and ') + (bad.length > 1 ? ' didn\'t' : ' didn\'t') + ' open, I\'m afraid.' : '';
   }
 
@@ -242,6 +390,9 @@
     model: null, rec: null, cap: null,
     ring: [], ringLen: 0, chunks: [], vad: null, followUntil: 0,
     floor: 0.006, greet: false, level: 0, afterSay: '',
+    capText: '',            // what the caption recognizer heard this capture (for a spoken yes / no)
+    pending: null,          // actions held for a yes / no: {actions, say, transcript, at}
+    prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
   };
   try { S.on = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -305,6 +456,10 @@
       '#vd-neo-hud .vn-card b{font-weight:600;color:var(--vn-core);white-space:nowrap;}',
       '#vd-neo-hud .vn-card i{font-style:normal;color:var(--vn-ring);font-size:13px;text-shadow:0 0 8px var(--vn-glow);}',
       '#vd-neo-hud .vn-card span{color:rgba(230,217,240,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '#vd-neo-hud .vn-card.bad{background:rgba(210,122,138,.12);border-color:rgba(210,122,138,.5);}',
+      '#vd-neo-hud .vn-card.bad i,#vd-neo-hud .vn-card.bad b{color:' + C.red + ';text-shadow:0 0 8px rgba(210,122,138,.5);}',
+      '#vd-neo-hud .vn-ask button{font:inherit;font-size:11px;letter-spacing:1.5px;padding:3px 10px;border-radius:6px;cursor:pointer;background:transparent;color:var(--vn-core);border:1px solid rgba(201,179,217,.45);}',
+      '#vd-neo-hud .vn-ask button:hover{border-color:var(--vn-ring);box-shadow:0 0 8px var(--vn-glow);}',
       // telemetry
       '#vd-neo-hud .vn-tele{position:relative;display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px dashed rgba(201,179,217,.18);',
       ' font-size:10px;letter-spacing:1.5px;color:rgba(230,217,240,.5);}',
@@ -394,8 +549,9 @@
   function hudCards(actions) {
     var h = ensureHud(); if (!h) return;
     h.cards.innerHTML = '';
-    (actions || []).map(cardFor).filter(Boolean).slice(0, 6).forEach(function (c, i) {
-      var d = document.createElement('div'); d.className = 'vn-card'; d.style.animationDelay = (i * 90) + 'ms';
+    // Cards, or actions (each → cardFor). A failed action's card is red (failCard).
+    (actions || []).map(function (x) { return x && x.icon && !x.type ? x : cardFor(x); }).filter(Boolean).slice(0, 6).forEach(function (c, i) {
+      var d = document.createElement('div'); d.className = 'vn-card' + (c.bad ? ' bad' : ''); d.style.animationDelay = (i * 90) + 'ms';
       d.innerHTML = '<i></i><b></b><span></span>';
       d.querySelector('i').textContent = c.icon; d.querySelector('b').textContent = c.label;
       d.querySelector('span').textContent = clip(c.detail, 46);
@@ -578,8 +734,8 @@
     var strip = function (s) { return String(s || '').replace(/^\s*(hey |okay )?neo\b[,.]?\s*/i, ''); };
     try {
       var r = new S.model.KaldiRecognizer(S.sr);
-      r.on('partialresult', function (m) { if (S.mode === 'capture' && H && m.result) H.you.textContent = strip((done + ' ' + (m.result.partial || '')).trim()); });
-      r.on('result', function (m) { if (m.result && m.result.text) { done = (done + ' ' + m.result.text).trim(); if (S.mode === 'capture' && H) H.you.textContent = strip(done); } });
+      r.on('partialresult', function (m) { if (S.mode === 'capture' && m.result) { S.capText = strip((done + ' ' + (m.result.partial || '')).trim()); if (H) H.you.textContent = S.capText; } });
+      r.on('result', function (m) { if (m.result && m.result.text) { done = (done + ' ' + m.result.text).trim(); S.capText = strip(done); if (S.mode === 'capture' && H) H.you.textContent = S.capText; } });
       S.cap = r;
     } catch (e) { S.cap = null; }
   }
@@ -695,6 +851,7 @@
     if (S.mode !== 'wake') return;
     if (window._THV && window._THV.isBusy && window._THV.isBusy()) return;
     sfx('wake');
+    refreshRunning();
     beginCapture(PRE_ROLL_S, false);
   }
   function beginCapture(preSec, alreadySpeaking) {
@@ -709,31 +866,117 @@
 
   async function finishCapture() {
     var buffers = S.chunks; S.chunks = []; S.vad = null;
+    var heard = S.capText || ''; S.capText = '';
     stopCaptions();
+    // A yes / no to a question Neo just asked is decided here, on the device.
+    if (S.pending) {
+      var pend = S.pending; S.pending = null;
+      if (Date.now() - pend.at < 30000) {
+        if (isYes(heard)) return runHeld(pend);
+        if (isNo(heard) || !heard.trim()) { hudCards([]); speak('Very well. I\'ve left everything as it was.', true); return; }
+        // Anything else is a new request: send it as usual.
+      }
+    }
     setMode('thinking'); sfx('think');
     var res = null;
     try {
       if (!window._THV || !window._THV.sendAudio) throw new Error('TaskHub voice is not ready');
       var wav = encodeWav(buffers, S.sr, 16000);
-      res = await window._THV.sendAudio(b64(wav), { extra: { mode: 'neo' } });
+      var extra = { mode: 'neo' };
+      // The last turn, so "…and remind me at 4" / "actually make it 5" find their item.
+      if (S.prev && Date.now() - S.prev.at < PREV_MS) extra.prev = S.prev.data;
+      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: needsConfirm });
     } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
     if (res && res.transcript && H) H.you.textContent = res.transcript;
-    if (res && res.ok) {
-      var acts = res.actions || [];
-      if (acts.length) hudCards(acts);
-      else if (res.say && H) H.cards.innerHTML = '<div class="vn-card"><i>≡</i><b>BRIEFING</b></div>';   // a question, answered
-      if (res.n) sfx('done');
-    }
     if (!S.running) { if (res && res.say) speak(res.say, false); return; }   // turned off mid-request ("stop listening")
-    var say = '';
-    if (res && res.ok) say = res.say || (res.n ? 'Done.' : '');
-    else {
+    if (!res || !res.ok) {
       sfx('error'); hudMode('error');
-      say = res && /network/i.test(res.error || '') ? 'My apologies, Veda. The connection seems to be down.' : 'My apologies. I couldn\'t manage that one. Do try again.';
+      speak(res && /network/i.test(res.error || '') ? 'My apologies, Veda. The connection seems to be down.' : 'My apologies. I couldn\'t manage that one. Do try again.', true);
+      return;
+    }
+    if (res.held) {   // a bulk delete, a shift, "close everything": ask first
+      S.pending = { actions: res.held.actions, say: res.say, transcript: res.transcript || '', at: Date.now() };
+      showConfirm(res.held.question);
+      speak(res.held.question, true);
+      return;
+    }
+    await report(res, res.transcript || '');
+  }
+
+  // Says and shows what the engine reports, never what the model hoped.
+  var PREV_MS = 120000, SETTLE_MS = 700;
+  function mergeLater(results, list) {
+    return results.map(function (r) {
+      if (!r.pending) return r;
+      var mine = (list || []).filter(function (l) { return l.action === r.action; });
+      if (!mine.length) return r;
+      var bad = mine.filter(function (l) { return !l.ok; })[0];
+      return Object.assign({}, r, bad ? { ok: false, reason: bad.reason, say: bad.say } : { note: mine.map(function (l) { return l.say; }).filter(Boolean).join(' ') }, { pending: false });
+    });
+  }
+  function cardsFor(results, say) {
+    if (!results.length) { if (say && H) H.cards.innerHTML = '<div class="vn-card"><i>≡</i><b>BRIEFING</b></div>'; return; }   // a question, answered
+    hudCards(results.map(function (r) { return r.ok ? cardFor(r.action) : failCard(r); }));
+  }
+  function rememberTurn(transcript, say, results) {
+    S.prev = { at: Date.now(), data: { said: clip(transcript, 300), reply: clip(say, 300), did: results.slice(0, 12).map(function (r) {
+      var o = { type: r.action.type, ok: !!r.ok }, t = actName(r.action);
+      if (t) o.title = clip(t, 80);
+      if (r.ref) { o.id = r.ref.id; o.box = r.ref.box; if (r.ref.date) o.date = r.ref.date; if (r.ref.title) o.title = clip(r.ref.title, 80); }
+      return o;
+    }) } };
+  }
+  async function report(res, transcript) {
+    var results = (res.results || []).slice();
+    var laterP = res.later || Promise.resolve([]);
+    var gated = results.some(function (r) { return r.gated; });
+    var early = await Promise.race([laterP.then(function (l) { return { done: true, l: l }; }, function () { return { done: true, l: [] }; }), timeoutP(SETTLE_MS, { done: false })]);
+    if (early.done) results = mergeLater(results, early.l);
+    cardsFor(results, res.say);
+    if (results.some(function (r) { return r.ok; })) sfx('done');
+    rememberTurn(transcript, res.say, results);
+    refreshTele();
+    var say;
+    if (gated && !early.done) say = 'Unlock it, Veda, and I\'ll make the change.';
+    else {
+      say = compose(res.say, results);
+      var notes = results.map(function (r) { return r.ok && r.note; }).filter(Boolean).join(' ');
+      if (notes) say = (say ? say + ' ' : '') + notes;
+    }
+    if (!early.done) {
+      // Still running (a kit being built, an app opening, the lock prompt): say
+      // the outcome when it lands, and redraw the cards.
+      laterP.then(function (l) {
+        var after = mergeLater(results, l);
+        if (H && H.el.classList.contains('show')) cardsFor(after, res.say);
+        var bad = after.filter(function (r, i) { return !r.ok && results[i].ok; });
+        if (bad.length) tellLater(failSpeech(bad));
+        else if (gated) tellLater(res.say || 'Done.', true);
+        var notes2 = after.map(function (r) { return r.ok && r.note; }).filter(Boolean).join(' ');
+        if (notes2) tellLater(notes2, true);
+      });
     }
     if (!say) { setMode('wake'); newRecognizer(); return; }   // background talk: stay quiet
-    refreshTele();
     speak(say, true);
+  }
+  // She said yes (or tapped it): run what was held, and report it like any other.
+  function runHeld(pend) {
+    setMode('thinking');
+    var r = window._THV && window._THV.runActions ? window._THV.runActions(pend.actions) : { ok: false, results: [], later: Promise.resolve([]) };
+    return report({ ok: true, results: r.results, later: r.later, say: pend.say }, pend.transcript);
+  }
+  function showConfirm(question) {
+    var h = ensureHud(); if (!h) return;
+    h.cards.innerHTML = '';
+    var d = document.createElement('div'); d.className = 'vn-card vn-ask';
+    d.innerHTML = '<i>?</i><b>CONFIRM</b><button type="button" data-a="1">YES</button><button type="button" data-a="0">NO</button>';
+    d.querySelectorAll('button').forEach(function (btn) { btn.onclick = function () { confirmTap(btn.getAttribute('data-a') === '1'); }; });
+    h.cards.appendChild(d);
+  }
+  function confirmTap(yes) {
+    var p = S.pending; if (!p) return; S.pending = null;
+    stopVoice();
+    if (yes) runHeld(p); else { hudCards([]); speak('Very well. I\'ve left everything as it was.', true); }
   }
 
   // ══ voice: Ryan through Orca, the device's voice as fallback ═══════════════
@@ -826,45 +1069,324 @@
     } catch (e) { after(); }
   }
 
-  // ══ opening apps and sites on her PC ═══════════════════════════════════════
-  // The engine's open_pc_app / open_site actions land here (through Veda's
-  // bridge, _vdVoice.launchPc). One command's launches are batched and handed to
-  // the StudyOS bridge in one go (window._sosBridgeLaunch, which splits them into
-  // the bridge's 3-apps / 5-sites requests). The same path AI prep and class ▶ use.
+  // ══ opening and closing apps and sites on her PC ═══════════════════════════
+  // The engine's open_pc_app / open_site / close_pc_app actions land here (through
+  // Veda's bridge, _vdVoice.launchPc / closePc). One command's launches are
+  // batched and handed to the StudyOS bridge in one go (window._sosBridgeLaunch,
+  // which splits them into the bridge's 3-apps / 5-sites requests), the same path
+  // AI prep and class ▶ use; closes go to its /api/close (window._sosBridgeClose).
+  //
+  // Each action answers at once with {ok:false, reason} when it can't even be
+  // tried (no such app, not on her PC), or a promise of its own outcome once the
+  // bridge has answered, so Neo reports each one truthfully.
+  // "Her PC": the bridge answering is proof; a Windows browser is the fallback.
+  function onPc() {
+    if (window._vdBridgeUp === true) return true;
+    return /Windows/i.test((navigator && navigator.userAgent) || '');
+  }
+  var BROWSERS = /^(brave|google chrome|chrome|microsoft edge|edge|firefox|mozilla firefox|opera|vivaldi)\b/i;
   var LQ = null;
   function queueLaunch(app, url) {
-    if (!LQ) { LQ = { ids: [], urls: [], names: {}, missing: [], offPc: false }; setTimeout(flushLaunch, 0); }
-    if (!/Windows/i.test((navigator && navigator.userAgent) || '')) { LQ.offPc = true; return false; }
-    if (app) {
-      var hit = matchApp(app, window._vdPcApps);
-      if (!hit) { LQ.missing.push(String(app)); return false; }
-      if (LQ.ids.indexOf(hit.id) < 0) LQ.ids.push(hit.id);
-      LQ.names[hit.id] = hit.name;
-      return true;
+    if (!onPc()) {
+      if (app) return { ok: false, reason: 'off_pc' };
+      // A website needs no bridge: on her phone it opens in a new tab.
+      var w = webUrl(url); if (!w) return { ok: false, reason: 'invalid' };
+      var tab = null; try { tab = window.open(w, '_blank'); if (tab) tab.opener = null; } catch (e) { tab = null; }
+      return tab ? true : { ok: false, reason: 'blocked', say: 'Your browser blocked the new tab, Veda. Allow pop-ups for this site and ask again.' };
     }
-    var u = webUrl(url); if (!u) return false;
-    if (LQ.urls.indexOf(u) < 0) LQ.urls.push(u);
-    return true;
+    var hit = null, u = '';
+    if (app) { hit = matchApp(app, window._vdPcApps); if (!hit) return { ok: false, reason: 'not_found' }; }
+    else { u = webUrl(url); if (!u) return { ok: false, reason: 'invalid' }; }
+    if (!LQ) { LQ = { items: [] }; setTimeout(flushLaunch, 0); }
+    return new Promise(function (res) { LQ.items.push({ app: hit, url: u, done: res }); });
   }
   function flushLaunch() {
     var q = LQ; LQ = null; if (!q) return;
-    if (q.offPc) { tellLater('I can only open apps from your PC, Veda.'); return; }
-    if (!q.ids.length && !q.urls.length) { if (q.missing.length) tellLater(launchIssue(null, q.missing)); return; }
+    var ids = [], urls = [], names = {};
+    q.items.forEach(function (it) {
+      if (it.app) { if (ids.indexOf(it.app.id) < 0) ids.push(it.app.id); names[it.app.id] = it.app.name; }
+      else if (urls.indexOf(it.url) < 0) urls.push(it.url);
+    });
     var go = window._sosBridgeLaunch;
-    Promise.resolve(go ? go(q.ids, q.urls) : null)
-      .then(function (res) { var m = launchIssue(res, q.missing, window._vdBridgeErr, q.names); if (m) tellLater(m); })
-      .catch(function () { tellLater(launchIssue(null, [], window._vdBridgeErr, {})); });
+    Promise.resolve(go ? go(ids, urls) : null).catch(function () { return null; }).then(function (res) {
+      var down = res ? '' : launchIssue(null, [], window._vdBridgeErr, {});
+      q.items.forEach(function (it) {
+        if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
+        var key = it.app ? it.app.id : it.url, label = it.app ? it.app.name : it.url;
+        var bad = (res.unknown || []).indexOf(key) >= 0 || (res.failed || []).indexOf(label) >= 0;
+        it.done(bad ? { ok: false, reason: 'failed', say: label === it.url ? 'That site didn\'t open, I\'m afraid.' : label + ' didn\'t open, I\'m afraid.' } : true);
+      });
+    });
+  }
+  var CQ = null;
+  function queueClose(app, force) {
+    if (!onPc()) return { ok: false, reason: 'off_pc' };
+    var hit = matchApp(app, window._vdPcApps); if (!hit) return { ok: false, reason: 'not_found' };
+    if (!CQ) { CQ = { items: [] }; setTimeout(flushClose, 0); }
+    return new Promise(function (res) { CQ.items.push({ app: hit, force: !!force, done: res }); });
+  }
+  // What to say about one app after /api/close: '' when it closed.
+  function closeNote(name, res) {
+    if (!res) return null;
+    if ((res.closed || []).indexOf(name) >= 0) return '';
+    if ((res.notRunning || []).indexOf(name) >= 0) return { ok: false, reason: 'not_running', say: name + ' wasn\'t running.' };
+    if ((res.stillOpen || []).indexOf(name) >= 0) return { ok: false, reason: 'still_open', say: name + ' is asking to save, so I\'ve left it open. Say "force quit ' + name + '" if you\'re sure.' };
+    return { ok: false, reason: 'failed', say: name + ' wouldn\'t close, I\'m afraid.' };
+  }
+  function flushClose() {
+    var q = CQ; CQ = null; if (!q) return;
+    // One request per kind: a force quit never rides along with a graceful close.
+    [false, true].forEach(function (force) {
+      var mine = q.items.filter(function (it) { return it.force === force; });
+      if (!mine.length) return;
+      var ids = [], browser = false;
+      mine.forEach(function (it) { if (ids.indexOf(it.app.id) < 0) ids.push(it.app.id); if (BROWSERS.test(it.app.name)) browser = true; });
+      var go = window._sosBridgeClose;
+      Promise.resolve(go ? go(ids, force, browser) : null).catch(function () { return null; }).then(function (res) {
+        var down = res ? '' : launchIssue(null, [], window._vdBridgeErr, {});
+        mine.forEach(function (it) {
+          if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
+          var n = closeNote(it.app.name, res);
+          it.done(n === '' ? true : n);
+        });
+      });
+    });
+  }
+  // "Close everything (but Spotify)": what is open now, less what she kept and
+  // less any browser (TaskHub runs in one), closed gracefully.
+  function closeAll(except, force) {
+    if (!onPc()) return { ok: false, reason: 'off_pc' };
+    var keep = (except || []).map(function (n) { return matchApp(n, window._vdPcApps); }).filter(Boolean).map(function (a) { return a.id; });
+    var run = window._sosBridgeRunning, go = window._sosBridgeClose;
+    if (!run || !go) return { ok: false, reason: 'no_bridge' };
+    return Promise.resolve(run()).then(function (list) {
+      if (!list) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) };
+      var todo = list.filter(function (a) { return keep.indexOf(a.id) < 0 && !BROWSERS.test(a.name); });
+      if (!todo.length) return { ok: true, say: 'There was nothing else open to close.' };
+      return Promise.resolve(go(todo.map(function (a) { return a.id; }), !!force, false)).then(function (res) {
+        if (!res) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) };
+        var left = (res.stillOpen || []), bad = (res.failed || []);
+        var line = (res.closed || []).length ? 'Closed ' + listWords(res.closed) + '.' : '';
+        if (left.length) line += ' ' + listWords(left) + (left.length > 1 ? ' are' : ' is') + ' asking to save, so I\'ve left ' + (left.length > 1 ? 'them' : 'it') + ' open.';
+        if (bad.length) line += ' ' + listWords(bad) + ' wouldn\'t close.';
+        return (left.length || bad.length) ? { ok: false, reason: 'still_open', say: line.trim() } : { ok: true, say: line.trim() };
+      });
+    }).catch(function () { return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) }; });
+  }
+  function listWords(a) { a = (a || []).slice(0, 6); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  // Which of her apps are open: refreshed when she wakes Neo, read into state
+  // (pcRunning) for "what's open?".
+  function refreshRunning() {
+    if (!onPc() || !window._sosBridgeRunning) return;
+    var r = window._vdPcRunning;
+    if (r && Date.now() - r.at < 20000) return;
+    Promise.resolve(window._sosBridgeRunning()).then(function (list) {
+      if (Array.isArray(list)) window._vdPcRunning = { at: Date.now(), names: list.map(function (a) { return a.name; }) };
+    }).catch(function () {});
   }
   // Say something after the current reply (or now, if Neo is quiet).
-  function tellLater(text) {
+  function tellLater(text, good) {
     if (!text) return;
-    sfx('error');
-    if (S.running && (S.mode === 'thinking' || S.mode === 'speaking')) { S.afterSay = text; return; }
-    if (S.running) speak(text, false); else hudNote(text, 'error', 5200);
+    if (!good) sfx('error');
+    if (S.running && (S.mode === 'thinking' || S.mode === 'speaking')) { S.afterSay = S.afterSay ? S.afterSay + ' ' + text : text; return; }
+    if (S.running) speak(text, false); else hudNote(text, good ? 'note' : 'error', 5200);
   }
+  // The bridge's /api/close and /api/running live here, not in index.html: AI prep
+  // is the page's one sanctioned caller of the local bridge (tests/reels-widget.test.js).
+  /* Neo ("close Spotify", "what's open?"): the bridge's /api/close and /api/running
+   * (launcher.py). Same origin gate as /api/launch, ids from its own scan only.
+   * Resolve to the bridge's answer, or null when it could not be reached. */
+  window._sosBridgeCall = function(path, body, ms){
+    if (!/Windows/i.test(navigator.userAgent || '')) return Promise.resolve(null);
+    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    var t = ac ? setTimeout(function(){ ac.abort(); }, ms || 8000) : null;
+    var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' };
+    if (ac) opts.signal = ac.signal;
+    return fetch('http://127.0.0.1:8781' + path, opts).then(function(r){ return r.json(); })
+      .then(function(j){ if (t) clearTimeout(t); window._vdBridgeUp = !!(j && j.ok); return (j && j.ok) ? j : null; },
+            function(){ if (t) clearTimeout(t); window._vdBridgeUp = false; return null; });
+  };
+  window._sosBridgeClose = function(appIds, force, browser){
+    return window._sosBridgeCall('/api/close', { apps: (appIds || []).slice(0, 12), force: force === true, browser: browser === true }, 30000);
+  };
+  window._sosBridgeRunning = function(){
+    return window._sosBridgeCall('/api/running', null, 20000).then(function(j){ return j ? (j.running || []) : null; });
+  };
   window._vdNeoLaunch = queueLaunch;
+  window._vdNeoClose = queueClose;
+  window._vdNeoCloseAll = closeAll;
+
+  // ══ the rest of her TaskHub, for Veda's bridge (_vdVoice) ══════════════════
+  // Kept here, not in the App: none of it needs React state, and the App
+  // re-binds its bridge on every render. Every entry answers true, a promise of
+  // its outcome, or {ok:false, reason}. Veda-only by construction: Tony's bridge
+  // never calls _vdNeoOps.
+  function timeoutP(ms, v) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms); }); }
+  function escH(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  // Timer commands, one at a time: each waits for the panel to mount, runs, then
+  // waits for the component to re-register its hook with the new state, so
+  // "set 25 and start" starts 25 minutes, never the old length.
+  var TQ = [], tBusy = false;
+  function timerRun(cmd, arg) { return new Promise(function (res) { TQ.push({ cmd: cmd, arg: arg, res: res }); pump(); }); }
+  function pump() {
+    if (tBusy || !TQ.length) return;
+    tBusy = true;
+    var t0 = Date.now();
+    (function wait() {
+      var ex = window._vdTimerExec;
+      if (ex) {
+        var job = TQ.shift();
+        try { ex(job.cmd, job.arg); job.res(true); } catch (e) { job.res(false); }
+        var t1 = Date.now();
+        (function fresh() { if (window._vdTimerExec !== ex || Date.now() - t1 > 400) { tBusy = false; pump(); } else setTimeout(fresh, 30); })();
+        return;
+      }
+      if (Date.now() - t0 > 4000) { TQ.shift().res(false); tBusy = false; pump(); return; }
+      setTimeout(wait, 50);
+    })();
+  }
+  var LOCKS = { taskhub: 'veda_taskhub', gita: 'veda_gita', notebook: 'veda_journal', journal: 'veda_journal', rules: 'veda_rules', shield: 'veda_shield' };
+  function normWords(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+  function findByName(list, q, key) {
+    q = normWords(q); if (!q) return null;
+    var n = function (x) { return normWords(x[key]); };
+    return list.filter(function (x) { return n(x) === q; })[0]
+      || list.filter(function (x) { return (' ' + n(x) + ' ').indexOf(' ' + q + ' ') >= 0 || (' ' + q + ' ').indexOf(' ' + n(x) + ' ') >= 0; })[0]
+      || null;
+  }
+  function allPlans() {
+    var PC = window.PlansCore; if (!PC || !PC.bucket) return [];
+    var b = PC.bucket(), seen = {}, out = [];
+    ['mine', 'overdue', 'confirmed', 'proposed', 'ideas', 'archive'].forEach(function (k) { (b[k] || []).forEach(function (p) { if (p && !seen[p.id]) { seen[p.id] = 1; out.push(p); } }); });
+    return out;
+  }
+  function planGated(fn) {
+    // Plans live in her TaskHub, so they keep its lock.
+    var G = window.Guardian;
+    if (!window.alGate || !G || !G.mustBlock || !G.mustBlock('veda_taskhub')) return fn();
+    var p = new Promise(function (res) { window.alGate('veda_taskhub', function () { res(fn()); }, function () { res({ ok: false, reason: 'locked' }); }); setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000); });
+    p.gated = true; return p;
+  }
+  var NEO_OPS = {
+    onPc: onPc,
+    timer: timerRun,
+    // A kit, or null. A task whose kit is already being built waits for that one.
+    prep: function (item, dk) {
+      if (!window._vdPrepRequest) return Promise.resolve(null);
+      if (!(window._vdPrepBusy || {})[item.id]) return window._vdPrepRequest(item, dk);
+      var t0 = Date.now();
+      return new Promise(function (res) {
+        (function wait() {
+          if (!(window._vdPrepBusy || {})[item.id]) return res((window._vdPrepKits || {})[item.id] || null);
+          if (Date.now() - t0 > 90000) return res(null);
+          setTimeout(wait, 500);
+        })();
+      });
+    },
+    lockApp: function (t) {
+      var id = LOCKS[t], G = window.Guardian;
+      if (!id || !G || !G.lockNow) return { ok: false, reason: 'invalid' };
+      var st = null; try { st = G.status(id); } catch (e) {}
+      if (!st || !st.hasLock) return { ok: false, reason: 'no_lock' };
+      G.lockNow(id); return true;
+    },
+    openLink: function (label) {
+      var links = (window._navGetLinks ? window._navGetLinks('veda') : []) || [];
+      var hit = findByName(links, label, 'label');
+      if (hit && window._navOpenLink) { window._navOpenLink('veda', hit.id); return true; }
+      // Warden is her links page: it replaces this page, so Neo finishes speaking first.
+      if (/^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
+      return { ok: false, reason: 'not_found' };
+    },
+    // A new page in V's Notebook, through Notebook's public API only.
+    journalEntry: function (text, title) {
+      if (!text) return { ok: false, reason: 'invalid' };
+      var NB = window.Notebook; if (!NB || !NB.putPage) return { ok: false, reason: 'no_bridge' };
+      var d = new Date();
+      var page = { id: 'neo' + d.getTime().toString(36), title: String(title || '').trim() || ('Note · ' + d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })),
+        data: { html: String(text).split(/\n+/).map(function (p) { return '<p>' + escH(p) + '</p>'; }).join('') }, tags: [], folder: null };
+      return Promise.race([NB.putPage('bj', page).then(function (p) { return p ? true : { ok: false, reason: 'failed' }; }), timeoutP(10000, { ok: false, reason: 'journal_not_ready' })])
+        .catch(function () { return { ok: false, reason: 'journal_not_ready' }; });
+    },
+    // StudyOS classes on her calendar → the class ▶ path (apps and sites via the bridge).
+    startClass: function (name, data) {
+      var seen = {}, list = [];
+      Object.keys(data || {}).forEach(function (k) { (data[k] || []).forEach(function (t) { if (t && t._sosClassId && t._sosClassName && !seen[t._sosClassId]) { seen[t._sosClassId] = 1; list.push({ id: t._sosClassId, name: t._sosClassName }); } }); });
+      var hit = findByName(list, name, 'name'); if (!hit) return { ok: false, reason: 'not_found' };
+      if (!window._sosLaunchClassClick) return { ok: false, reason: 'no_bridge' };
+      window._sosLaunchClassClick(hit.id, hit.name); return true;
+    },
+    // Plans shared with Tony: only through PlansCore, only as Veda (PlansCore acts
+    // as the active profile), and inside the TaskHub lock.
+    plan: function (op, a) {
+      var PC = window.PlansCore;
+      if (!PC || window._activeProfile !== 'veda') return { ok: false, reason: 'no_bridge' };
+      if (op === 'add') {
+        var title = String(a.title || '').trim(); if (!title) return { ok: false, reason: 'invalid' };
+        var dt = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : null, tm = /^\d{2}:\d{2}$/.test(a.time || '') ? a.time : null;
+        return planGated(function () { PC.addIdea(title, String(a.notes || a.text || ''), dt, tm); return true; });
+      }
+      var p = findByName(allPlans(), (a.match || {}).title || a.title, 'title');
+      if (!p) return { ok: false, reason: 'not_found' };
+      return planGated(function () {
+        var q = PC.get(p.id) || p;
+        if (op === 'propose') { if (q.stage === 'proposed' || q.stage === 'confirmed') return { ok: false, reason: 'already' }; return PC.promote(q.id); }
+        if (op === 'confirm') {
+          if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' };
+          if (q.confirms && q.confirms.veda) return { ok: false, reason: 'already' };
+          return Promise.resolve(PC.confirmPlan(q.id)).then(function (v) { return v === 'ok' ? (q.date ? true : { ok: true, say: 'Do note it has no date yet.' }) : v; });
+        }
+        if (op === 'decline') { if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' }; PC.declinePlan(q.id, String(a.reason || '')); return true; }
+        if (op === 'cancel_request') { if (q.stage !== 'confirmed') return { ok: false, reason: 'not_confirmed' }; PC.requestCancel(q.id, String(a.reason || '')); return true; }
+        if (op === 'done') { if (q.stage !== 'confirmed') return { ok: false, reason: 'not_confirmed' }; PC.markDone(q.id); return true; }
+        return { ok: false, reason: 'invalid' };
+      });
+    },
+    // What Neo may be asked about beyond tasks. Small, and nothing it can't say aloud.
+    state: function (base, extra) {
+      var out = {}, now = new Date(), today = dkey(now), soon = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14));
+      try {
+        out.plans = allPlans().slice(0, 30).map(function (p) {
+          var o = { title: p.title, stage: p.stage };
+          if (p.date) o.date = p.date; if (p.time) o.time = p.time;
+          if (p.stage === 'proposed' && p.confirms) o.waitingOn = !p.confirms.veda ? 'veda' : (!p.confirms.tony ? 'tony' : null);
+          if (p.cancelReq && p.cancelReq.by) o.cancelRequestedBy = p.cancelReq.by;
+          return o;
+        });
+      } catch (e) {}
+      try { out.links = ((window._navGetLinks ? window._navGetLinks('veda') : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
+      try {
+        out.marketCal = ((extra && extra.marketCal) || []).filter(function (e) { return e && e.date >= today && e.date <= soon; }).slice(0, 40)
+          .map(function (e) { var o = { date: e.date, title: e.title, kind: e.kind }; if (e.when) o.when = e.when; return o; });
+      } catch (e) {}
+      try {
+        var cls = {}; Object.keys(base.data || {}).forEach(function (k) { (base.data[k] || []).forEach(function (t) { if (t && t._sosClassName) cls[t._sosClassName] = 1; }); });
+        out.classes = Object.keys(cls).slice(0, 20);
+      } catch (e) {}
+      try {
+        var kits = window._vdPrepKits || {}, tm = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        out.prepKits = [];
+        [today, tm].forEach(function (k) {
+          ((base.data || {})[k] || []).forEach(function (t) {
+            var kit = t && t.aiPrep && kits[t.id]; if (!kit) return;
+            var o = { task: t.title, date: k, summary: clip(kit.summary, 300) };
+            if (kit.draft && kit.draft.kind && kit.draft.kind !== 'none') o.draft = { kind: kit.draft.kind, to: kit.draft.to || '', subject: clip(kit.draft.subject, 140), body: clip(kit.draft.body, 900) };
+            out.prepKits.push(o);
+          });
+        });
+        out.prepKits = out.prepKits.slice(0, 8);
+      } catch (e) {}
+      var ts = window._vdTimerState;
+      if (ts && base.timerOpen) out.timer = { secondsLeft: Math.round(ts.left), running: !!ts.running, mode: ['work', 'short break', 'long break'][ts.mode] || 'work' };
+      var pr = window._vdPcRunning;
+      if (pr && Date.now() - pr.at < 120000) out.pcRunning = pr.names.slice(0, 60);
+      return out;
+    },
+  };
+  window._vdNeoOps = NEO_OPS;
 
   function cancel() {
+    S.pending = null;
     stopVoice();
     stopCaptions();
     if (S.running) { S.chunks = []; S.vad = null; setMode('wake'); newRecognizer(); }
@@ -904,6 +1426,8 @@
     mode: function () { return S.mode; },
     cancel: cancel,
     _test: { isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
-      cardFor: cardFor, greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
+      cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, isYes: isYes, isNo: isNo,
+      mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
+      greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
   };
 })();

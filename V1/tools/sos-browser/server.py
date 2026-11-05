@@ -14,6 +14,8 @@ at http://127.0.0.1:8781 is the only client change needed.
   GET    /health
   GET    /api/apps          Veda's PC apps for TaskHub AI prep (origin-gated, see launcher.py)
   POST   /api/launch        open a prep kit's apps + sites  (origin-gated)
+  POST   /api/close         close her apps by id, gracefully unless force  (origin-gated, Neo)
+  GET    /api/running       which of her apps are open now  (origin-gated, Neo)
 
 ── WHY A SEPARATE PROCESS AND NOT THE WORKER ─────────────────────────────────
 A Cloudflare Worker cannot drive a browser. The whole point of the browser route
@@ -901,6 +903,12 @@ class Handler(BaseHTTPRequestHandler):
             listed = launcher.public_list()
             launcher.log("apps", self.headers.get("Origin"), len(listed))
             return self._send({"ok": True, "apps": listed})
+        if p == "/api/running":
+            # Which of her apps are open now (Neo: "what's open?", "close all but Spotify").
+            if not launcher.origin_allowed(self.headers.get("Origin")):
+                launcher.log("running-refused", self.headers.get("Origin"), None)
+                return self._send({"ok": False, "error": "origin not allowed"}, 403)
+            return self._send({"ok": True, "running": launcher.running()})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -981,6 +989,20 @@ class Handler(BaseHTTPRequestHandler):
             launcher.log("launch", self.headers.get("Origin"),
                          {"asked": {"apps": body.get("apps"), "urls": body.get("urls"),
                                     "focus": (str(body.get("focus"))[:80] if body.get("focus") else None)}, **res})
+            return self._send(res)
+
+        if p == "/api/close":
+            # Closes programs on this PC, so like /api/launch it answers only
+            # TaskHub's own origin. See launcher.close().
+            if not launcher.origin_allowed(self.headers.get("Origin")):
+                launcher.log("close-refused", self.headers.get("Origin"), None)
+                return self._send({"ok": False, "error": "origin not allowed"}, 403)
+            if not isinstance(body, dict):
+                return self._send({"ok": False, "error": "bad body"}, 400)
+            res = launcher.close(body.get("apps"), force=body.get("force") is True,
+                                 allow_browser=body.get("browser") is True)
+            launcher.log("close", self.headers.get("Origin"),
+                         {"asked": {"apps": body.get("apps"), "force": body.get("force") is True}, **res})
             return self._send(res)
 
         if p == "/api/ai/jobs/adopt":

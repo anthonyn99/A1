@@ -70,6 +70,18 @@ n = len(calls)
 st, h, j = req("/api/launch", "POST", "https://evil.example", {"apps": ["abc"], "urls": []})
 t("another site cannot launch", st == 403 and len(calls) == n)
 
+closes = []
+launcher.close = lambda apps, force=False, allow_browser=False: (closes.append((apps, force))
+                                                                 or {"ok": True, "closed": ["Word"], "notRunning": [], "stillOpen": [], "failed": [], "unknown": []})
+launcher.running = lambda: [{"id": "abc", "name": "Word"}]
+st, h, j = req("/api/close", "POST", TASKHUB, {"apps": ["abc"], "force": True})
+t("TaskHub's close reaches the launcher, force passed through", st == 200 and closes[-1] == (["abc"], True) and j["closed"] == ["Word"])
+st, h, j = req("/api/close", "POST", "https://evil.example", {"apps": ["abc"]})
+t("another site cannot close", st == 403 and len(closes) == 1)
+st, h, j = req("/api/running", origin=TASKHUB)
+t("TaskHub sees what is running", st == 200 and j["running"] == [{"id": "abc", "name": "Word"}])
+t("another site cannot see what is running", req("/api/running", origin="https://evil.example")[0] == 403)
+
 st, h, j = req("/api/launch", "OPTIONS", TASKHUB)
 t("the preflight is answered", st == 204 and h.get("Access-Control-Allow-Private-Network") == "true")
 

@@ -7,6 +7,8 @@ handed to this bridge, which already runs on her PC from logon.
 
   GET  /api/apps     -> { ok, apps:[{id, name}] }   every Start Menu / Desktop app
   POST /api/launch   { apps:[id], urls:[url], focus?:url } -> { ok, opened, unknown }
+  POST /api/close    { apps:[id], force? } -> { ok, closed, notRunning, stillOpen, failed }  (Neo)
+  GET  /api/running  -> { ok, running:[{id, name}] }     which of her apps are open (Neo)
 
 ── ORDER: THE AI TAB ENDS UP IN FRONT ────────────────────────────────────────
 Apps open first, then the sites, then `focus` (the AI assistant, prompt typed
@@ -36,6 +38,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -292,3 +295,229 @@ def launch(app_ids, urls, *, focus=None, starter=None, table=None) -> dict:
         except OSError:
             failed.append("focus")
     return {"ok": True, "opened": opened, "unknown": unknown, "failed": failed}
+
+
+# ══ closing apps (Neo: "close Spotify") ═══════════════════════════════════════
+#   POST /api/close    { apps:[id], force?:false, browser?:false }
+#                      -> { ok, closed, notRunning, stillOpen, failed, unknown }
+#   GET  /api/running  -> { ok, running:[{id, name}] }     which of her apps are open now
+#
+# The same rules as launching: a request names only ids from this module's own
+# scan, never a process or a path, and only TaskHub's origin may ask. An app id
+# becomes processes by what the app IS on disk:
+#   · a .lnk          → its target .exe (read through WScript.Shell)
+#   · a Store app     → shell:AppsFolder\<family>!<app> → that package's folder
+#   · a desktop app Windows lists by AppID → the .exe inside it, when it names one
+# and, for every kind, a windowed process whose own description is the app's
+# name ("Microsoft Word" for Word, "Discord" for Discord's Update.exe shortcut).
+#
+# Graceful first: CloseMainWindow is the same as clicking ✕, so an app with
+# unsaved work asks "save changes?" and stays open. That is reported as
+# stillOpen, never as closed. Only force:true ("force quit Spotify") kills.
+#
+# Never: Windows' own processes, this bridge's Python, or anything not matched
+# to one of her apps. The default browser (the one TaskHub runs in) is closed
+# only when the request says browser:true, i.e. she named it herself.
+
+CLOSE_WAIT_S = 2.5               # time an app gets to close before it counts as "asking to save"
+MAX_CLOSE = 12
+
+# Processes nothing here may ever close, whatever an app entry resolves to.
+DENY_PROCS = {"explorer", "dwm", "csrss", "winlogon", "wininit", "lsass", "services", "smss",
+              "svchost", "sihost", "fontdrvhost", "system", "idle", "registry", "conhost",
+              "ctfmon", "taskhostw", "runtimebroker", "startmenuexperiencehost",
+              "shellexperiencehost", "searchhost", "searchapp", "textinputhost",
+              "applicationframehost", "lockapp", "securityhealthsystray", "taskmgr",
+              "python", "pythonw", "py", "pyw", "python3", "pythonw3", "python3.11", "pythonw3.11"}
+
+# FOLDERID GUIDs that Get-StartApps puts at the front of a desktop app's AppID.
+_WINDIR = os.environ.get("SystemRoot") or r"C:\Windows"
+_KNOWN_FOLDERS = {
+    "{6d809377-6af0-444b-8957-a3773f02200e}": os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles") or r"C:\Program Files",
+    "{7c5a40ef-a0fb-4bfc-874a-c0f2e0b9fa8e}": os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)",
+    "{f38bf404-1d43-42f2-9305-67de0b28fc23}": _WINDIR,
+    "{1ac14e77-02e7-4e5d-b744-2eb1ae5198b7}": os.path.join(_WINDIR, "System32"),
+    "{d65231b0-b2f1-4857-a4ce-a8e7c6ea7d27}": os.path.join(_WINDIR, "SysWOW64"),
+}
+
+
+def _ps_json(script: str, stdin: str = "", timeout: int = 20):
+    """Run a PowerShell snippet and parse its JSON output (None on any failure)."""
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           input=stdin, capture_output=True, text=True, timeout=timeout,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return json.loads(r.stdout or "null")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def list_processes() -> list[dict]:
+    """Windowed processes: [{Id, ProcessName, Path, Description}]. Only those
+    with a main window, because those are the ones a person means by "open"."""
+    data = _ps_json("Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | "
+                    "Select-Object Id, ProcessName, Path, Description | ConvertTo-Json -Compress")
+    if isinstance(data, dict):
+        data = [data]
+    return [d for d in (data or []) if isinstance(d, dict) and isinstance(d.get("Id"), int)]
+
+
+def _lnk_targets(paths: list[str]) -> dict[str, str]:
+    if not paths:
+        return {}
+    data = _ps_json("$s = New-Object -ComObject WScript.Shell; $o = @{}; "
+                    "foreach ($p in ($input | Out-String | ConvertFrom-Json)) "
+                    "{ try { $o[$p] = $s.CreateShortcut($p).TargetPath } catch {} }; "
+                    "$o | ConvertTo-Json -Compress", stdin=json.dumps(paths), timeout=40)
+    return {k: v for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
+
+
+_pkg_cache: dict = {"at": 0.0, "map": {}}
+
+
+def _store_locations() -> dict[str, str]:
+    """{PackageFamilyName (lower): InstallLocation} for her Store apps."""
+    if time.time() - _pkg_cache["at"] > CACHE_TTL_S or not _pkg_cache["map"]:
+        data = _ps_json("Get-AppxPackage | Select-Object PackageFamilyName, InstallLocation | "
+                        "ConvertTo-Json -Compress", timeout=30)
+        if isinstance(data, dict):
+            data = [data]
+        _pkg_cache["map"] = {str(d.get("PackageFamilyName") or "").lower(): str(d.get("InstallLocation") or "")
+                             for d in (data or []) if isinstance(d, dict) and d.get("InstallLocation")}
+        _pkg_cache["at"] = time.time()
+    return _pkg_cache["map"]
+
+
+def aumid_target(aumid: str, store: dict[str, str] | None = None) -> str:
+    """The .exe, or folder (ending in a backslash), an AppsFolder AppID points at; '' when unknown."""
+    a = str(aumid or "")
+    low = a.lower()
+    for guid, folder in _KNOWN_FOLDERS.items():
+        if low.startswith(guid):
+            rest = a[len(guid):].lstrip("\\/")
+            return os.path.join(folder, rest).lower() if rest.lower().endswith(".exe") else ""
+    if "!" in a:                                     # a Store app: <PackageFamilyName>!<AppId>
+        loc = (store if store is not None else _store_locations()).get(a.split("!", 1)[0].lower(), "")
+        return (loc.rstrip("\\") + "\\").lower() if loc else ""
+    if re.match(r"^[a-z]:\\", low) and low.endswith(".exe"):
+        return low
+    return ""
+
+
+def resolve_targets(table: dict[str, dict], lnk_reader=None, store=None) -> None:
+    """Fill in each entry's "exe" (a lower-case .exe path or folder prefix, or "")
+    once. Cached on the entry, so the PowerShell calls happen once per scan."""
+    todo = [a for a in table.values() if "exe" not in a]
+    if not todo:
+        return
+    lnks = [a["path"] for a in todo if str(a.get("path", "")).lower().endswith(".lnk")]
+    got = (lnk_reader or _lnk_targets)(lnks) if lnks else {}
+    for a in todo:
+        p = str(a.get("path", ""))
+        if p.lower().endswith(".lnk"):
+            a["exe"] = str(got.get(p) or "").lower()
+        elif p.lower().startswith("shell:appsfolder\\"):
+            a["exe"] = aumid_target(p[len("shell:AppsFolder\\"):], store)
+        else:
+            a["exe"] = ""
+
+
+def _words(s) -> list[str]:
+    return [w for w in re.sub(r"[^a-z0-9+#]+", " ", str(s or "").lower()).split() if w]
+
+
+def proc_matches(app: dict, proc: dict) -> bool:
+    """Is this running process (one of) this app?"""
+    pname = str(proc.get("ProcessName") or "").lower()
+    if pname in DENY_PROCS:
+        return False
+    path = str(proc.get("Path") or "").lower()
+    exe = str(app.get("exe") or "")
+    if exe and path:
+        if exe.endswith("\\") and path.startswith(exe):
+            return True
+        if path == exe:
+            return True
+    # By what the process calls itself: its description IS the app's name, or
+    # the name with the maker in front ("Microsoft Word" for Word). Not a name
+    # that merely starts the description: "Visual Studio" is not VS Code.
+    # Never a name shorter than three letters.
+    name = _words(app.get("name"))
+    if not name or len("".join(name)) < 3:
+        return False
+    desc = _words(proc.get("Description"))
+    if desc and (desc == name or desc[1:] == name):
+        return True
+    return _words(pname) == name
+
+
+def browser_exe() -> str:
+    """The default browser's .exe (lower case), or ''. TaskHub runs in it."""
+    cmd = browser_command() or ""
+    m = re.match(r'^\s*"([^"]+\.exe)"', cmd) or re.match(r"^\s*(\S+\.exe)", cmd, re.I)
+    return m.group(1).lower() if m else ""
+
+
+def running(*, table=None, lister=None, lnk_reader=None, store=None) -> list[dict]:
+    table = table if table is not None else apps()
+    resolve_targets(table, lnk_reader, store)
+    procs = (lister or list_processes)()
+    out = [{"id": i, "name": a["name"]} for i, a in table.items() if any(proc_matches(a, p) for p in procs)]
+    return sorted(out, key=lambda a: a["name"].lower())
+
+
+def _close_gracefully(pid: int) -> bool:
+    """WM_CLOSE to its main window, the same as clicking ✕. True when the
+    window took the message (the app may still ask to save)."""
+    r = _ps_json(f"$p = Get-Process -Id {int(pid)} -ErrorAction SilentlyContinue; "
+                 "if ($p) { $p.CloseMainWindow() | ConvertTo-Json } else { 'true' }")
+    return r is True or r == "true"
+
+
+def _kill(pid: int) -> bool:
+    try:
+        r = subprocess.run(["taskkill", "/F", "/T", "/PID", str(int(pid))], capture_output=True, text=True,
+                           timeout=15, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def close(app_ids, *, force=False, allow_browser=False, table=None, lister=None, closer=None,
+          killer=None, wait_s=None, lnk_reader=None, store=None, bexe=None) -> dict:
+    """Close her apps by id. allow_browser: she named the browser itself."""
+    table = table if table is not None else apps()
+    lister = lister or list_processes
+    ids = [str(i) for i in (app_ids or []) if isinstance(i, str)][:MAX_CLOSE]
+    if table is _cache.get("apps") and any(i not in table for i in ids):
+        table = apps(force=True)
+    resolve_targets(table, lnk_reader, store)
+    procs = lister()
+    protect = "" if allow_browser else (browser_exe() if bexe is None else bexe)
+    res = {"ok": True, "closed": [], "notRunning": [], "stillOpen": [], "failed": [], "unknown": []}
+    asked: list[tuple[str, list[int]]] = []
+    for i in ids:
+        a = table.get(i)
+        if not a:
+            res["unknown"].append(i)
+            continue
+        mine = [p for p in procs if proc_matches(a, p)
+                and not (protect and str(p.get("Path") or "").lower() == protect)]
+        if not mine:
+            res["notRunning"].append(a["name"])
+            continue
+        pids = [p["Id"] for p in mine]
+        if force:
+            ok = all([(killer or _kill)(pid) for pid in pids])
+            res["closed" if ok else "failed"].append(a["name"])
+            continue
+        if not any([(closer or _close_gracefully)(pid) for pid in pids]):
+            res["failed"].append(a["name"])
+            continue
+        asked.append((a["name"], pids))
+    if asked:
+        time.sleep(CLOSE_WAIT_S if wait_s is None else wait_s)
+        alive = {p.get("Id") for p in lister()}
+        for name, pids in asked:
+            res["stillOpen" if any(pid in alive for pid in pids) else "closed"].append(name)
+    return res

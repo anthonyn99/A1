@@ -8,6 +8,8 @@ origin gate, and nothing else:
   GET  /health       -> { ok, bridge: "prep" }
   GET  /api/apps     -> { ok, apps:[{id, name}] }          (origin-gated)
   POST /api/launch   { apps, urls, focus? } -> launcher.launch  (origin-gated)
+  POST /api/close    { apps, force? }       -> launcher.close   (origin-gated, Neo)
+  GET  /api/running                         -> launcher.running (origin-gated, Neo)
 
 It runs from logon through the "A1 Prep Bridge" shortcut in the Startup folder
 (pythonw, no window). Only the standard library is needed. If the port is
@@ -68,14 +70,20 @@ class Handler(BaseHTTPRequestHandler):
             listed = launcher.public_list()
             launcher.log("apps", self.headers.get("Origin"), len(listed))
             return self._send({"ok": True, "apps": listed})
+        if p == "/api/running":
+            # Which of her apps are open now (Neo: "what's open?", "close all but Spotify").
+            if not launcher.origin_allowed(self.headers.get("Origin")):
+                launcher.log("running-refused", self.headers.get("Origin"), None)
+                return self._send({"ok": False, "error": "origin not allowed"}, 403)
+            return self._send({"ok": True, "running": launcher.running()})
         return self._send({"ok": False, "error": "not found"}, 404)
 
     def do_POST(self):
         p = urlparse(self.path).path
-        if p != "/api/launch":
+        if p not in ("/api/launch", "/api/close"):
             return self._send({"ok": False, "error": "not found"}, 404)
         if not launcher.origin_allowed(self.headers.get("Origin")):
-            launcher.log("launch-refused", self.headers.get("Origin"), None)
+            launcher.log(p.rsplit("/", 1)[-1] + "-refused", self.headers.get("Origin"), None)
             return self._send({"ok": False, "error": "origin not allowed"}, 403)
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -86,6 +94,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": False, "error": "bad json"}, 400)
         if not isinstance(body, dict):
             return self._send({"ok": False, "error": "bad body"}, 400)
+        if p == "/api/close":
+            res = launcher.close(body.get("apps"), force=body.get("force") is True,
+                                 allow_browser=body.get("browser") is True)
+            launcher.log("close", self.headers.get("Origin"),
+                         {"asked": {"apps": body.get("apps"), "force": body.get("force") is True}, **res})
+            return self._send(res)
         res = launcher.launch(body.get("apps"), body.get("urls"), focus=body.get("focus"))
         launcher.log("launch", self.headers.get("Origin"),
                      {"asked": {"apps": body.get("apps"), "urls": body.get("urls"),

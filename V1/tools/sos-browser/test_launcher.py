@@ -39,6 +39,7 @@ import atexit  # noqa: E402
 atexit.register(lambda: _shutil.rmtree(_tmp_jobs, ignore_errors=True))
 
 launcher.LAUNCH_GAP_S = 0
+launcher.CLOSE_WAIT_S = 0
 launcher.LOG_FILE = _tmp_jobs / "launch.log"     # never append test traffic to the real log
 started: list[str] = []
 launcher._start = lambda target: started.append(target)
@@ -120,6 +121,81 @@ started.clear()
 r = launcher.launch(["../../etc", {"id": "x"}, 5], None, table=table)
 t("junk ids launch nothing", started == [] and r["opened"] == [])
 
+# ── close (Neo: "close Spotify") ──────────────────────────────────────────────
+# No process is ever touched: the lister, closer and killer are stubs.
+print("\nclose")
+ctable = {
+    "sp": {"name": "Spotify", "path": r"C:\Users\v\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Spotify.lnk"},
+    "wd": {"name": "Word", "path": "shell:AppsFolder\\Microsoft.Office.WINWORD.EXE.15"},
+    "np": {"name": "Notepad", "path": "shell:AppsFolder\\Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"},
+    "ch": {"name": "Google Chrome", "path": "shell:AppsFolder\\{6D809377-6AF0-444B-8957-A3773F02200E}\\Google\\Chrome\\Application\\chrome.exe"},
+    "dc": {"name": "Discord", "path": r"C:\Users\v\Desktop\Discord.lnk"},
+    "ex": {"name": "File Explorer", "path": "shell:AppsFolder\\Microsoft.Windows.Explorer"},
+}
+lnk = {ctable["sp"]["path"]: r"C:\Users\v\AppData\Roaming\Spotify\Spotify.exe",
+       ctable["dc"]["path"]: r"C:\Users\v\AppData\Local\Discord\Update.exe"}
+store = {"microsoft.windowsnotepad_8wekyb3d8bbwe": r"C:\Program Files\WindowsApps\Microsoft.WindowsNotepad_11.2409_x64__8wekyb3d8bbwe"}
+procs = [
+    {"Id": 11, "ProcessName": "Spotify", "Path": r"C:\Users\v\AppData\Roaming\Spotify\Spotify.exe", "Description": "Spotify"},
+    {"Id": 12, "ProcessName": "WINWORD", "Path": r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE", "Description": "Microsoft Word"},
+    {"Id": 13, "ProcessName": "Notepad", "Path": r"C:\Program Files\WindowsApps\Microsoft.WindowsNotepad_11.2409_x64__8wekyb3d8bbwe\Notepad\Notepad.exe", "Description": "Notepad.exe"},
+    {"Id": 14, "ProcessName": "Discord", "Path": r"C:\Users\v\AppData\Local\Discord\app-1.0\Discord.exe", "Description": "Discord"},
+    {"Id": 15, "ProcessName": "explorer", "Path": r"C:\Windows\explorer.exe", "Description": "Windows Explorer"},
+    {"Id": 16, "ProcessName": "pythonw", "Path": r"C:\Python311\pythonw.exe", "Description": "Spotify"},
+]
+alive = {p["Id"] for p in procs}
+closed_pids, killed = [], []
+
+
+def lister():
+    return [p for p in procs if p["Id"] in alive]
+
+
+def closer(pid):                         # like clicking ✕: Word asks to save, the rest go
+    closed_pids.append(pid)
+    if pid != 12:
+        alive.discard(pid)
+    return True
+
+
+def killer(pid):
+    killed.append(pid)
+    alive.discard(pid)
+    return True
+
+
+t("a name that only starts the description is not that app (Visual Studio is not VS Code)",
+  not launcher.proc_matches({"name": "Visual Studio", "exe": ""}, {"ProcessName": "Code", "Path": "", "Description": "Visual Studio Code"})
+  and launcher.proc_matches({"name": "Visual Studio Code", "exe": ""}, {"ProcessName": "Code", "Path": "", "Description": "Visual Studio Code"}))
+kw = dict(table=ctable, lister=lister, closer=closer, killer=killer, wait_s=0, lnk_reader=lambda ps: lnk, store=store)
+t("a Store app resolves to its package folder",
+  launcher.aumid_target("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", store).endswith("8wekyb3d8bbwe\\"))
+t("a desktop AppID under Program Files resolves to its exe",
+  launcher.aumid_target(ctable["ch"]["path"][len("shell:AppsFolder\\"):]).endswith("\\google\\chrome\\application\\chrome.exe"))
+run = launcher.running(table=ctable, lister=lister, lnk_reader=lambda ps: lnk, store=store)
+t("running: every open app is found, by path, package or description",
+  [a["name"] for a in run] == ["Discord", "Notepad", "Spotify", "Word"], run)
+t("running: Windows' Explorer and the bridge's Python never count", "File Explorer" not in [a["name"] for a in run])
+r = launcher.close(["sp", "np", "ch"], **kw)
+t("graceful close: open apps close, a closed one is 'not running'",
+  r["closed"] == ["Spotify", "Notepad"] and r["notRunning"] == ["Google Chrome"] and not killed, r)
+t("the bridge's own python is never touched even when it claims to be Spotify", 16 not in closed_pids)
+r = launcher.close(["wd"], **kw)
+t("an app that asks to save stays open and says so", r["stillOpen"] == ["Word"] and r["closed"] == [] and 12 in alive, r)
+r = launcher.close(["wd"], force=True, **kw)
+t("force quits it", r["closed"] == ["Word"] and killed == [12] and 12 not in alive, r)
+r = launcher.close(["dc"], **kw)
+t("a launcher shortcut (Discord's Update.exe) still closes the app by its description", r["closed"] == ["Discord"], r)
+r = launcher.close(["ex", "nope0000", {"x": 1}], **kw)
+t("Explorer is never closed; unknown ids are reported", 15 not in closed_pids and r["unknown"] == ["nope0000"], r)
+procs.append({"Id": 20, "ProcessName": "chrome", "Path": r"C:\Program Files\Google\Chrome\Application\chrome.exe", "Description": "Google Chrome"})
+alive.add(20)
+bx = r"c:\program files\google\chrome\application\chrome.exe"
+r = launcher.close(["ch"], bexe=bx, **kw)
+t("the browser TaskHub runs in is left alone unless she named it", r["notRunning"] == ["Google Chrome"] and 20 in alive, r)
+r = launcher.close(["ch"], bexe=bx, allow_browser=True, **kw)
+t("…and closes when she did", r["closed"] == ["Google Chrome"] and 20 not in alive, r)
+
 # ── origin gate ───────────────────────────────────────────────────────────────
 print("\norigin gate")
 t("TaskHub's origin is allowed", launcher.origin_allowed("https://anthonyn99.github.io"))
@@ -164,6 +240,20 @@ try:
     t("POST /api/launch with no origin is 403", st == 403 and started == [])
     st, j = call("POST", "/api/launch", "https://anthonyn99.github.io", {"apps": [word], "urls": ["https://x.com"]})
     t("POST /api/launch from TaskHub opens the kit", st == 200 and j["opened"] == ["Microsoft Word", "https://x.com"], j)
+    # /api/close and /api/running: never the real process list here.
+    launcher.list_processes = lambda: [{"Id": 99, "ProcessName": "WINWORD", "Path": "", "Description": "Microsoft Word"}]
+    launcher._lnk_targets = lambda paths: {}
+    launcher._close_gracefully = lambda pid: (_ for _ in ()).throw(AssertionError("refused request reached the closer"))
+    st, j = call("POST", "/api/close", "https://evil.example", {"apps": [word]})
+    t("POST /api/close from another site is 403", st == 403)
+    st, j = call("POST", "/api/close", None, {"apps": [word]})
+    t("POST /api/close with no origin is 403", st == 403)
+    t("GET /api/running from another site is 403", call("GET", "/api/running", "https://evil.example")[0] == 403)
+    st, j = call("GET", "/api/running", "https://anthonyn99.github.io")
+    t("GET /api/running from TaskHub names the open apps", st == 200 and j["running"] == [{"id": word, "name": "Microsoft Word"}], j)
+    launcher._close_gracefully = lambda pid: True
+    st, j = call("POST", "/api/close", "https://anthonyn99.github.io", {"apps": [word]})
+    t("POST /api/close from TaskHub closes it (stub)", st == 200 and j["ok"] and (j["closed"] + j["stillOpen"]) == ["Microsoft Word"], j)
     t("health still answers", call("GET", "/health")[1].get("ok") is True)
 finally:
     srv.shutdown()

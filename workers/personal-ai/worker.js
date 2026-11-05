@@ -1592,11 +1592,14 @@ const CATEGORIES = ['work', 'personal', 'health', 'urgent', 'study', 'finance', 
 // model sees is always valid JSON, and the days it is most likely to be asked
 // about are the ones that survive.
 const TASK_ITEM_FIELDS = ['title', 'type', 'done', 'time', 'category', 'repeat', 'repeatDays', 'notifyAt', 'altSeqTitles'];
+// Veda's items also show AI prep, so Neo can answer "which tasks have prep?" and
+// knows what prep_open can start. Tony's projection is exactly as before.
+const VEDA_ITEM_FIELDS = TASK_ITEM_FIELDS.concat(['aiPrep', 'aiSite', 'notifyRepeat']);
 
-function slimTaskItem(it) {
+function slimTaskItem(it, fields) {
   if (!it || typeof it !== 'object') return null;
   const o = {};
-  for (const k of TASK_ITEM_FIELDS) {
+  for (const k of (fields || TASK_ITEM_FIELDS)) {
     const v = it[k];
     if (v === undefined || v === null || v === '' || v === false) continue;
     if (Array.isArray(v) && !v.length) continue;
@@ -1623,7 +1626,7 @@ function daysApart(a, b) {
   return (isNaN(pa) || isNaN(pb)) ? 9e9 : Math.round((pa - pb) / 86400000);
 }
 
-function compactTaskState(state, today, { back, fwd, budget }) {
+function compactTaskState(state, today, { back, fwd, budget, fields }) {
   const src = (state && typeof state === 'object') ? state : {};
   const out = {
     today: src.today || today,
@@ -1645,7 +1648,7 @@ function compactTaskState(state, today, { back, fwd, budget }) {
   const kept = {};
   let dropped = 0;
   for (const k of keys) {
-    const arr = (src.data[k] || []).map(slimTaskItem).filter(Boolean);
+    const arr = (src.data[k] || []).map(it => slimTaskItem(it, fields)).filter(Boolean);
     if (!arr.length) continue;
     const cost = JSON.stringify(arr).length + 16;
     if (usedChars + cost > budget) { dropped++; continue; }
@@ -1752,31 +1755,53 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, o
 // ── Neo: Veda's hands-free assistant (TaskHub/veda-assistant.js) ──────────────
 // Veda-ONLY prompt additions. Tony's prompt never includes these lines, so his
 // TaskHub can never be asked to run them (tests/veda-assistant.test.js pins it).
+// Every action here has an executor in index.html's voice engine, a bridge
+// method on _vdVoice and a card in veda-assistant.js; the page reports each
+// one's real outcome, so "say" never has to guess (docs/TaskHub/neo-assistant.md).
 function vedaNeoActionLines() {
   return [
     `- {type:"timer_close"}   (close the focus timer panel)`,
-    `- {type:"rules_add", title} | {type:"rules_edit", match:{title}, set:{title}} | {type:"rules_remove", match:{title}}   (her TRADING RULES checklist — state.tradingRules lists them. "add a rule…", "change the rule about…", "delete the rule…")`,
-    `- {type:"rules_gate", on:true|false}   (turn the daily rules checklist pop-up on or off)`,
-    `- {type:"open_app", target}   (target: "gita" | "notebook" | "taskhub" | "plans" | "rules" | "timer" | "shield". "open my journal/notebook" → notebook; "go back to TaskHub" → taskhub)`,
+    `- {type:"timer_set", minutes, start?:true}   (on her side "set 25 minutes and start" is ONE timer_set with start:true) | {type:"timer_mode", mode:"work"|"short"|"long"} (Pomodoro break modes) | {type:"timer_add", minutes} (add time; negative takes it off)`,
+    `- {type:"rules_add", title} | {type:"rules_edit", match:{title}, set:{title}} | {type:"rules_remove", match:{title}} | {type:"rules_move", match:{title}, position:"top"|"bottom"|"up"|"down"}   (her TRADING RULES checklist — state.tradingRules lists them in order. "add a rule…", "change the rule about…", "delete the rule…", "move the stop-loss rule to the top")`,
+    `- {type:"rules_gate", on:true|false}   (turn the daily rules checklist pop-up on or off) | {type:"rules_run"} ("run my rules check now") | {type:"rules_check", match?:{index}}   ("next rule", "rule three done" → match.index 3. The checklist goes ONE rule at a time, in order, each after a short wait: never emit several rules_check for "all done")`,
+    `- {type:"open_app", target}   (target: "gita" | "notebook" | "taskhub" | "plans" | "rules" | "timer" | "shield" | "lessons". "open my journal/notebook" → notebook; "go back to TaskHub" → taskhub; "the lessons list" → lessons)`,
+    `- {type:"open_link", label}   (a button in her header — state.links lists their labels, e.g. Shruti; "Warden"/"my links" opens her links page)`,
+    `- {type:"gita_next"} | {type:"gita_prev"} | {type:"gita_open", lesson:<number>}   (Gita lessons: "next lesson", "open lesson 12")`,
+    `- {type:"week_view", collapsed:true|false} | {type:"goals_tab", target:"short"|"long"} | {type:"month_shift", by:1|-1}   (collapse/expand the week, switch the goals tab, next/previous month. "go to today" → go_to_date with TODAY)`,
+    `- {type:"lock_app", target:"taskhub"|"gita"|"notebook"|"rules"|"shield"}   (lock it now. Unlocking is never by voice: she does that herself)`,
+    `- {type:"journal_entry", text, title?}   ("journal entry: …", "note in my journal that …" → her words as text, lightly cleaned up, never summarised away)`,
+    `- {type:"start_class", name}   ("start my CS class" → opens that StudyOS class's apps and sites; state.classes lists them)`,
+    `- {type:"plan_add", title, date?, time?, text?} | {type:"plan_propose", match:{title}} | {type:"plan_confirm", match:{title}} | {type:"plan_decline", match:{title}, reason?} | {type:"plan_cancel_request", match:{title}, reason?} | {type:"plan_done", match:{title}}   (plans she shares with Tony — state.plans. plan_add makes an IDEA, not a commitment. Only HER side is ever acted on; Tony confirms his own.)`,
     `- {type:"reels_shuffle"}   (show a different saved reel)`,
-    `- {type:"prep_task", match:{date?, title}}   (run AI prep for an existing calendar task: "prep my essay task", "get my email to the professor ready")`,
+    `- {type:"prep_task", match:{date?, title}, aiNote?, aiSite?}   (turn on AI PREP for an existing calendar task and build its kit: "prep my essay task", "get my email to the professor ready", "turn on AI prep for X". aiNote = any details she gives for the AI; aiSite = "perplexity"|"chatgpt"|"claude"|"gemini" if she names one. The kit takes a moment: "say" that you are preparing it, never that it is ready)`,
+    `- {type:"prep_off", match}   ("turn off AI prep for X") | {type:"prep_open", match}   ("start my email task", "open the prep for X": opens the assistant, sites and apps) | {type:"prep_show", match}   ("show me the prep for X": the Prep panel)`,
+    `- add_task and edit_task.set also take aiPrep:true|false, aiNote, aiSite on her side ("add email the professor tomorrow with AI prep, use Claude").`,
+    `- {type:"clear_reminder", match, scope?}   ("remove the reminder on X", "no reminder for that")`,
+    `- notify may also carry repeat:"daily"|"weekly"|"monthly"|"annually" and repeatDays (0=Mon..6=Sun, for weekly): "remind me every Monday at 9".`,
+    `- edit_task and remove_task take scope:"one"|"future"|"all" for a REPEATING item ("delete all future gym sessions" → scope "future"; default "one"). edit_task.set may also carry repeatEndDate {year, month 1-12, day}.`,
+    `- match may carry id: when PREVIOUS TURN lists the item ("…and remind me at 4", "actually make it 5", "move that to Friday"), copy its id into match.id.`,
     `- {type:"assistant_off"}   ("stop listening", "go to sleep", "turn yourself off")`,
     `- {type:"open_pc_app", name}   (open/launch/start an APPLICATION on her PC: "open Spotify", "launch Word", "start Discord and WhatsApp". state.pcApps lists the apps installed on her PC — copy "name" EXACTLY from that list, picking the best match ("VS Code" → "Visual Studio Code", "Chrome" → "Google Chrome"). One action per app. If nothing in the list fits, still emit it with the name she said.)`,
-    `- {type:"open_site", url}   (open a WEBSITE on her PC: "open YouTube", "go to Gmail", "pull up Canvas" → a full https URL, e.g. "https://www.youtube.com". Use open_site only when the thing she names is a website rather than an installed app.)`,
-    `  open_app is for parts of TaskHub itself (Gita, Notebook, Plans, Rules, Timer, Shield); open_pc_app / open_site are for everything on her computer. If state.onPc is false (she is on her phone), emit neither and say that opening apps only works from her PC.`,
+    `- {type:"close_pc_app", name, force?:true}   (close an application on her PC: "close Spotify", "quit Word". force only for "force quit"/"kill". One action per app, name copied from state.pcApps.) | {type:"close_all_pc_apps", except?:[name], force?}   ("close everything", "close all but Spotify")`,
+    `- {type:"open_site", url}   (open a WEBSITE: "open YouTube", "go to Gmail", "pull up Canvas" → a full https URL, e.g. "https://www.youtube.com". Use open_site only when the thing she names is a website rather than an installed app. Websites open on her phone too.)`,
+    `  open_app is for parts of TaskHub itself (Gita, Notebook, Plans, Rules, Timer, Shield); open_pc_app / close_pc_app / open_site are for her computer. If state.onPc is false (she is on her phone), emit no open_pc_app / close_pc_app and say that apps only open and close from her PC. Browser TABS cannot be closed by Neo: say so plainly.`,
   ];
 }
 function vedaNeoRuleLines(neo) {
   return [
     ``,
     `VEDA'S ASSISTANT ("Neo") — these override the rules above where they differ:`,
-    neo ? `- The audio was captured after Veda said the wake word "Neo" (or "Hey Neo"). The audio may START with that wake word — it is not part of the request; ignore it. Speech that is clearly not addressed to the assistant (background talk, a TV) → return an empty "actions" array and an empty "say".` : ``,
+    neo ? `- The audio was captured after Veda said the wake phrase "Hey Neo". The audio may START with that wake phrase — it is not part of the request; ignore it. Speech that is clearly not addressed to the assistant (background talk, a TV) → return an empty "actions" array and an empty "say".` : ``,
     `- "say" is SPOKEN ALOUD to Veda. Write it as one or two natural spoken sentences: no symbols, emoji, markdown, or lists. Say times like "3 PM", dates like "Friday the 7th".`,
+    `- "say" describes ONLY what the actions do. The page checks every action and speaks its own line for any that fail, so never promise more than the actions carry, and never claim something is finished that only starts (a prep kit, an app opening).`,
     `- QUESTIONS: when Veda asks something instead of requesting a change ("what's on today?", "what's my next event?", "did I do my habits?", "how many tasks are left this week?", "what are my rules?", "what's my long-term goal list?"), return NO actions and answer in "say" (up to 45 words), using ONLY CURRENT STATE. Count and list precisely. If the answer is not in state (or outside calendarWindow), say you can't see that. Never invent items.`,
+    `- More she can ask about, all in CURRENT STATE: state.plans (her plans with Tony: stage, date, waitingOn — "anything waiting on me from Tony?" = plans with waitingOn "veda"), state.marketCal (earnings and economic releases for the next two weeks: "any earnings tomorrow?", "when does NVDA report?"), state.classes (her StudyOS classes), state.prepKits (AI prep kits: summary and draft — "read me the draft for the professor email" → read the draft's subject and body aloud, up to 90 words), state.timer (secondsLeft, running, mode: "how much time is left?"), state.pcRunning (apps open on her PC: "what's open?").`,
+    `- PREVIOUS TURN, when present, is what she said last and what Neo did (with item ids). Use it to resolve "it", "that", "actually", "and also" — and copy the id into match.id.`,
+    `- Undo covers TaskHub changes only. Opening or closing an app, a website, a journal entry and plan changes cannot be undone: if she asks, say so plainly.`,
     `- VOICE & PERSONALITY: Neo is a refined British AI butler in the style of a film's genius-inventor assistant — calm, precise, quietly confident, with a light dry wit on successes (never on errors, bad news or anything she seems stressed about). Address her as "Veda" now and then (not every line). Never cheesy, never gushing, no exclamation marks, no emoji.`,
     `- After a change, "say" confirms it in one or two polished sentences: "Done. Buy milk is on tomorrow's list.", "Timer set for twenty-five minutes. Focus well, Veda.", "Removed. One less thing on your plate.", "The rule is in place: no trades after three PM."`,
     `- When something can't be found or done: "I'm afraid I can't find a task by that name." / "That one is beyond my reach, I'm afraid."`,
-    `- BRIEFINGS: "brief me", "status report", "what does my day look like", "catch me up" → no actions; "say" (up to 60 words) gives tasks left today (count, and the next one or two by name), the next timed event, how many daily habits are ticked today out of the total, and anything from earlier days still not done. Open with the time of day ("Good morning, Veda.").`,
+    `- BRIEFINGS: "brief me", "status report", "what does my day look like", "catch me up" → no actions; "say" (up to 60 words) gives tasks left today (count, and the next one or two by name), the next timed event, how many daily habits are ticked today out of the total, anything from earlier days still not done, and any plan waiting on her. Open with the time of day ("Good morning, Veda.").`,
     `- "cancel", "never mind", "nothing" → empty actions, say "Okay."`,
     `- Her TaskHub has no light theme: for set_theme / toggle_theme requests return no action and say that isn't available on her side.`,
     `- If a request is something TaskHub cannot do, return no actions and say so in one short sentence.`,
@@ -1859,6 +1884,28 @@ const ACTION_SCHEMA = {
   required: ['actions'],
 };
 
+// Veda's schema: Tony's plus the fields Neo's actions carry. Tony's calls keep
+// ACTION_SCHEMA exactly as it was.
+const VEDA_ACTION_SCHEMA = (() => {
+  const s = JSON.parse(JSON.stringify(ACTION_SCHEMA));
+  const it = s.properties.actions.items.properties;
+  const NOTIFY = { type: 'OBJECT', properties: { date: { type: 'STRING' }, time: { type: 'STRING' }, repeat: { type: 'STRING' }, repeatDays: { type: 'ARRAY', items: { type: 'INTEGER' } } } };
+  Object.assign(it, {
+    notify: NOTIFY,
+    aiPrep: { type: 'BOOLEAN' }, aiNote: { type: 'STRING' }, aiSite: { type: 'STRING' },
+    scope: { type: 'STRING' }, force: { type: 'BOOLEAN' }, except: { type: 'ARRAY', items: { type: 'STRING' } },
+    start: { type: 'BOOLEAN' }, mode: { type: 'STRING' }, label: { type: 'STRING' }, lesson: { type: 'INTEGER' },
+    collapsed: { type: 'BOOLEAN' }, by: { type: 'INTEGER' }, text: { type: 'STRING' }, reason: { type: 'STRING' },
+  });
+  Object.assign(it.set.properties, {
+    notify: NOTIFY,
+    aiPrep: { type: 'BOOLEAN' }, aiNote: { type: 'STRING' }, aiSite: { type: 'STRING' }, clearNotify: { type: 'BOOLEAN' },
+    repeatEndDate: { type: 'OBJECT', properties: { year: { type: 'INTEGER' }, month: { type: 'INTEGER' }, day: { type: 'INTEGER' } } },
+  });
+  it.match.properties.index = { type: 'INTEGER' };
+  return s;
+})();
+
 // Deterministic loss check for TYPED requests. ACTION_SCHEMA is necessarily wide
 // (one object shape covering every action type), and a wide schema is exactly
 // where these models quietly drop optional fields — "dentist next Tuesday at 2pm
@@ -1896,6 +1943,32 @@ function cleanAction(a) {
   return out.type ? out : null;
 }
 
+// What else Neo may be asked about, passed through small and capped. Veda only.
+function vedaNeoState(state, prev) {
+  const out = {};
+  const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const list = (v, n) => (Array.isArray(v) ? v : []).slice(0, n);
+  const pick = (o, keys, n) => { const r = {}; for (const k of keys) if (o && o[k] != null && o[k] !== '') r[k] = typeof o[k] === 'string' ? str(o[k], n || 200) : o[k]; return r; };
+  if (Array.isArray(state.plans)) out.plans = list(state.plans, 30).map(p => pick(p, ['title', 'stage', 'date', 'time', 'waitingOn', 'cancelRequestedBy']));
+  if (Array.isArray(state.links)) out.links = list(state.links, 30).map(l => str(l, 60)).filter(Boolean);
+  if (Array.isArray(state.marketCal)) out.marketCal = list(state.marketCal, 40).map(e => pick(e, ['date', 'title', 'kind', 'when'], 120));
+  if (Array.isArray(state.classes)) out.classes = list(state.classes, 20).map(c => str(c, 80)).filter(Boolean);
+  if (Array.isArray(state.prepKits)) out.prepKits = list(state.prepKits, 8).map(k => {
+    const o = pick(k, ['task', 'date', 'summary'], 300);
+    if (k && k.draft && typeof k.draft === 'object') o.draft = pick(k.draft, ['kind', 'to', 'subject', 'body'], 900);
+    return o;
+  });
+  if (state.timer && typeof state.timer === 'object') out.timer = pick(state.timer, ['secondsLeft', 'running', 'mode']);
+  if (Array.isArray(state.pcRunning)) out.pcRunning = list(state.pcRunning, 60).map(n => str(n, 80)).filter(Boolean);
+  if (typeof state.weekCollapsed === 'boolean') out.weekCollapsed = state.weekCollapsed;
+  if (typeof state.goalTab === 'string') out.goalTab = str(state.goalTab, 10);
+  if (prev && typeof prev === 'object') {
+    out.previousTurn = { said: str(prev.said, 300), reply: str(prev.reply, 300),
+      did: list(prev.did, 12).map(d => pick(d, ['type', 'ok', 'title', 'id', 'box', 'date'], 80)) };
+  }
+  return out;
+}
+
 async function handleTaskhub(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const transcript = String(body.transcript || '').trim();
@@ -1913,9 +1986,10 @@ async function handleTaskhub(body, env) {
   // Typed bulk is the opposite — it needs to SEE more of the calendar, write far
   // more actions, and is allowed to take longer.
   const bulk = !audio && isBulkRequest(transcript);
+  const fields = profile === 'veda' ? VEDA_ITEM_FIELDS : TASK_ITEM_FIELDS;
   const shaped = compactTaskState(
     state, today,
-    bulk ? { back: 45, fwd: 120, budget: 46000 } : { back: 14, fwd: 45, budget: 14000 },
+    bulk ? { back: 45, fwd: 120, budget: 46000, fields } : { back: 14, fwd: 45, budget: 14000, fields },
   );
   // Veda's assistant also reads/changes her trading rules and knows whether the
   // timer is open. Tony's state is shaped exactly as before.
@@ -1925,6 +1999,7 @@ async function handleTaskhub(body, env) {
     if (typeof state.timerOpen === 'boolean') shaped.timerOpen = state.timerOpen;
     if (Array.isArray(state.pcApps)) shaped.pcApps = state.pcApps.map(n => String(n || '').slice(0, 80)).filter(Boolean).slice(0, 400);
     if (typeof state.onPc === 'boolean') shaped.onPc = state.onPc;
+    Object.assign(shaped, vedaNeoState(state, body.prev));
   }
   const neo = profile === 'veda' && body.mode === 'neo';
   const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk, neo });
@@ -1932,7 +2007,7 @@ async function handleTaskhub(body, env) {
   try {
     const { value, model, tried } = await runModelChain(bulk ? TASKHUB_BULK_MODELS : TASKHUB_MODELS, key, {
       prompt,
-      schema: ACTION_SCHEMA,
+      schema: profile === 'veda' ? VEDA_ACTION_SCHEMA : ACTION_SCHEMA,
       maxOutputTokens: bulk ? 32768 : 8192,
       feature: 'taskhub',
       audio,
