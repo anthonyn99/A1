@@ -319,6 +319,31 @@ async def test_very_short_answer_does_not_wait_for_the_stall_timeout():
 
 
 @pytest.mark.asyncio
+async def test_thinking_label_that_holds_still_is_not_the_answer():
+    """Regression (2026-11-04, 2026-11-06): ChatGPT's stop button went
+    unrecognised, its thinking header ("Checking market updates") sat still
+    past the stability window, and that label was recorded as the answer.
+    Stability must not end on a progress label; the real answer that follows
+    is what comes back."""
+    label = [{"turns": ["old", "Checking market updates"], "stop": False}] * 12
+    answer = [{"turns": ["old", "# Daily report\n- the real answer"], "stop": False}] * 12
+    page = FakePage(label + answer)
+    site = make_site(stability_samples=2, stall_timeout_s=30, hard_timeout_s=60)
+    r = await completion.wait_for_completion(page, site, turns_before=1)
+    assert "real answer" in r.text
+
+
+def test_progress_label_shape():
+    from magi.browser.completion import _is_progress_label
+    for s in ("Checking market updates", "Checked release timing",
+              "Searching the web", "Thinking…", "Reviewing earnings calendars"):
+        assert _is_progress_label(s), s
+    for s in ("OK", "Four", "42", "Use Postgres.", "No, it is fine.",
+              "# Daily report\n- x", "Checking accounts is fine."):
+        assert not _is_progress_label(s), s
+
+
+@pytest.mark.asyncio
 async def test_stability_still_waits_while_generation_is_visibly_running():
     """The short-answer fix must not resurrect the preamble-truncation bug."""
     page = FakePage([
