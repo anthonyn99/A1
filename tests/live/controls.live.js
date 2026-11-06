@@ -327,7 +327,7 @@ const VEDA = [
   // area entirely: it ran off the bottom, unseeable and unscrollable
   // (Tony's year list, 2026-11-06). Same with the control near the top.
   for (const [where, css] of [['bottom', 'bottom:70px'], ['middle', 'top:45%'], ['top', 'top:10px']]) {
-    await evalJs(c, `document.body.click(); var s = document.getElementById('plain'); s.innerHTML = '';
+    await evalJs(c, `document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); var s = document.getElementById('plain'); s.innerHTML = '';
       for (var i = 2026; i < 2046; i++) s.add(new Option(String(i), String(i)));
       s.style.cssText += ';position:fixed;left:150px;${css};z-index:5'; return 1;`);
     await sleep(200);
