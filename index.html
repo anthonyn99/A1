@@ -7917,6 +7917,40 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
         foot("go",ok,run))));
 }
 
+// ── Edit a plan straight from its day card ──────────────────────────────────
+// In a TaskHub's edit mode a plan card's time gives way to a ✎ (Tony,
+// 2026-11-06). It opens the Plans edit form on its own, without the Plans
+// window behind it: the same PlanDialog and the same rules, so changing an
+// agreed plan still goes to the other person for approval.
+function PlanQuickEdit({P,id,onClose}){
+  const PC=window.PlansCore;
+  const[dlg,setDlgRaw]=useState({mode:'edit',id});
+  const[busy,setBusy]=useState(false);
+  const setDlg=v=>{if(!v){onClose();return;}setDlgRaw(v);};
+  const guard=(promise)=>{setBusy(true);return Promise.resolve(promise)
+    .then(r=>{setBusy(false);return r;},()=>{setBusy(false);});};
+  const doConfirm=(pid)=>guard(PC.confirmPlan(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid});});
+  const doApproveEdit=(pid)=>guard(PC.approveEdit(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid,approve:true});});
+  if(!PC||!PC.get(id))return null;
+  return React.createElement(PlanDialog,{key:dlg.mode,P,dlg,setDlg,startDateKey:null,busy,guard,doConfirm,doApproveEdit});
+}
+function thOpenPlanEdit(P,id){
+  if(!window.PlansCore||!id)return;
+  if(!window.PlansCore.get(id)){if(window._planReadOnlyNudge)window._planReadOnlyNudge('That plan is still loading — try again in a moment.');return;}
+  const host=document.createElement('div');document.body.appendChild(host);
+  const close=()=>{try{ReactDOM.unmountComponentAtNode(host);}catch(e){}host.remove();};
+  ReactDOM.render(React.createElement(PlanQuickEdit,{P,id,onClose:close}),host);
+}
+// The right end of a plan card's header: its time in view mode, a ✎ in edit
+// mode, in the same spot (the ✎ is absolutely placed, so nothing reflows).
+function thPlanSlot(edit,c,timeEl,onEdit){
+  return React.createElement("span",{style:{marginLeft:"auto",position:"relative",display:"inline-flex",
+      alignItems:"center",justifyContent:"flex-end",minWidth:20,minHeight:12}},
+    timeEl?thHide(edit,timeEl):null,
+    React.createElement(ThPop,{show:!!edit},thIconBtn(c,"Edit plan",c.tx,onEdit,TH_PENCIL,
+      {position:"absolute",right:0,top:"50%",marginTop:-10,zIndex:1})));
+}
+
 function SimpleTextEditModal({open,onClose,onSave,initialText,heading,T}){
   const[val,setVal]=useState("");
   useEffect(()=>{if(open)setVal(initialText||"");},[open,initialText]);
