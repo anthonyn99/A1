@@ -7790,7 +7790,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
           React.createElement("input",{style:{...inp,cursor:"pointer"},type:"time",value:tm,
             onChange:e=>setTm(e.target.value)}))),
       React.createElement("label",{style:lbl},"Notes"),
-      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the text box",style:{...inp,minHeight:88,
+      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the notes",style:{...inp,minHeight:88,
         lineHeight:1.55},maxLength:2000,placeholder:"Optional",value:notes,
         onChange:e=>setNotes(e.target.value)}),
       React.createElement("div",{style:{fontSize:11.5,color:P.BAD,marginTop:9,
@@ -7832,7 +7832,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
           React.createElement("input",{style:{...inp,cursor:"pointer"},type:"time",value:tm,
             onChange:e=>setTm(e.target.value)}))),
       React.createElement("label",{style:lbl},"Why (optional)"),
-      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the text box",style:{...inp,minHeight:70,
+      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the reason",style:{...inp,minHeight:70,
         lineHeight:1.55},maxLength:500,placeholder:"Working late, out of town…",value:reason,
         onChange:e=>setReason(e.target.value)}),
       React.createElement("div",{style:{fontSize:11.5,color:P.BAD,marginTop:9,
@@ -7923,7 +7923,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
     title='Decline this plan';
     body=React.createElement(React.Fragment,null,
       React.createElement("label",{style:lbl},"Reason (optional)"),
-      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the text box",style:{...inp,minHeight:88,
+      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the reason",style:{...inp,minHeight:88,
         lineHeight:1.55},autoFocus:true,maxLength:500,placeholder:"Why not?",value:reason,
         onChange:e=>setReason(e.target.value)}));
     ok='Decline';
@@ -7937,7 +7937,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
         ?"The other person already asked to cancel this. Agreeing drops the plan and removes it from both TaskHubs."
         :"This plan stays Confirmed — and stays in both TaskHubs — until "+oName+" agrees."),
       React.createElement("label",{style:lbl},"Reason (optional)"),
-      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the text box",style:{...inp,minHeight:88,
+      React.createElement(ThPrepNote,{tint:{ac:P.AC,tx:P.TX,txd:P.TXD},label:"the reason",style:{...inp,minHeight:88,
         lineHeight:1.55},autoFocus:true,maxLength:500,value:reason,
         onChange:e=>setReason(e.target.value)}));
     ok=two?'Agree — drop it':'Send request';
