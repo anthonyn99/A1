@@ -92,8 +92,12 @@ balance figures (`account`), open orders, the last 30 days of orders
 (`history`), Webull cash activity (`activity`, re-read at most every 10 min,
 cached in `broker_activity.json`) and a position's day % when Webull gives one.
 Field names follow Tony's `workers/tradeboard-api`. A piece the sync could not
-read is left out, and its tab says it appears after the PC sync runs. The PC
-sync must be restarted once to load the new code.
+read is left out, and its tab says it appears after the PC sync runs.
+
+**No restart by hand.** MAGI's watchdog (every 2 min on her PC, right after it
+pulls A1) restarts the running sync when its `wb_*.py` changed after it started
+(`magi/tbsync.py`, tests `magi/tests/test_tbsync.py`). A pushed `wb_sync.py`
+change reaches her in about 5-8 minutes; she only reloads the page.
 
 ## Journal
 
