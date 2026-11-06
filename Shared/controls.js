@@ -590,6 +590,10 @@
     var sel = selectFrom(e.target);
     if (!sel || e.button !== 0) return;
     e.preventDefault();
+    // The mouse event a browser still sends after a tap (it does not always
+    // honour touchend's preventDefault) is the same press again: it closed
+    // the list a moment after the tap opened it (2026-11-06).
+    if (sel === tapSel && Date.now() - tapAt < 800) return;
     if (isOpenFor(sel)) { closePopover(); return; }
     try { sel.focus({ preventScroll: true, focusVisible: false }); } catch (x) {}
     openSelect(sel);
@@ -597,7 +601,7 @@
   // Touch: a tap's touchend, prevented, never becomes a mousedown, focus or
   // click, so neither Android's nor iOS's picker opens. A finger that moved
   // was scrolling, and is left alone.
-  var touch = null;
+  var touch = null, tapSel = null, tapAt = 0;
   doc.addEventListener('touchstart', function (e) {
     var sel = selectFrom(e.target);
     touch = sel && e.touches.length === 1 ? { sel: sel, x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
@@ -608,6 +612,7 @@
     var c = e.changedTouches[0];
     if (!c || Math.abs(c.clientX - t.x) > 10 || Math.abs(c.clientY - t.y) > 10) return;
     e.preventDefault();
+    tapSel = t.sel; tapAt = Date.now();
     if (isOpenFor(t.sel)) { closePopover(); return; }
     openSelect(t.sel);
   }, { capture: true, passive: false });
