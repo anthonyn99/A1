@@ -5,8 +5,10 @@
 // border is missing or transparent on all four sides.
 //
 // Not buttons in look, so not held to it: the page tabs (an underline marks
-// them), segments inside a .tbx-seg group (the group is the outline), the News
-// pulse cells (cells of one bordered strip), the Control prompt rows (a list),
+// them, and the Portfolio / trade-form tabs .tbtabs), segments inside a .tbx-seg,
+// .tbp-tools or .tbmd-dir group (the group is the outline), the News pulse
+// cells and the Portfolio / Journal figure cells .tbf (cells of one bordered
+// strip), the rows of the trade form's fills list, the Control prompt rows (a list),
 // Notebook's own controls (Notebook's look), and the app header's LifeHub and
 // lock buttons (apphead.js's).
 //
@@ -33,7 +35,7 @@ const worker = { patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'http
   } };
 
 const AUDIT = `
-  const skip = (b) => b.closest('.tb-navtab,.tbx-seg,.nh-pulse,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock')
+  const skip = (b) => b.closest('.tb-navtab,.tbtabs,.tbx-seg,.tbp-tools,.tbmd-dir,.nh-pulse,.tbf,.tbmd-legs,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock')
     || b.classList.contains('a1-grip') || b.classList.contains('dsort-grip');
   const seen = (b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05; };
   const outlined = (b) => { const s = getComputedStyle(b);
