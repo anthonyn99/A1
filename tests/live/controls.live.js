@@ -94,9 +94,11 @@ const AUDIT = `var bad = [];
   });
   return { on: !!window.A1Controls || !!window.VaultControls || !!window.SosControls, bad: bad };`;
 
+const PRIV = process.env.A1_PRIV_BASE || 'https://a1-priv.av1.workers.dev/';
 const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'shruti.html', 'V1/wellness.html',
   'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
-  'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
+  // A1-Priv's programs are served from its own worker, not from A1.
+  ...['oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'].map(function (p) { return PRIV + p; })];
 const VEDA = [
   ['index.html', "document.body.setAttribute('data-th-profile', 'veda')"],
   ['magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
@@ -322,9 +324,9 @@ const VEDA = [
     ['phone', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true }]]) {
     await c.send('Emulation.setDeviceMetricsOverride', metrics);
     for (const p of PAGES) {
-      await go(c, BASE + p, 3500);
+      await go(c, /^https?:/.test(p) ? p : BASE + p, 3500);
       const r = await evalJs(c, AUDIT);
-      ok(`${p} (${label}): controls on, none native`, r.on && r.bad.length === 0, r);
+      ok(`${p.replace(PRIV, '')} (${label}): controls on, none native`, r.on && r.bad.length === 0, r);
     }
   }
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
