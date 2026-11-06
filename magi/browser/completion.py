@@ -71,6 +71,24 @@ def _is_status_only(text: str) -> bool:
     return bool(t) and len(t) < 60 and "\n" not in t and bool(_STATUS_LINE.match(t))
 
 
+# ChatGPT's thinking header is free-form and names what it is doing:
+# "Checking market updates" (2026-11-06), "Checked release timing"
+# (2026-11-04). It can sit unchanged for longer than the stability window
+# while the model searches, and both times it was captured as the whole
+# answer. Too varied to list, and too close to a terse real reply to blank
+# out the way _STATUS_LINE does, so it only stops the WEAKEST gate (text
+# stability) from ending on it: the stop button, the streaming marker and the
+# stall timeout still apply, and the validator judges whatever comes back.
+_PROGRESS_LABEL = re.compile(
+    r"^[A-Za-z]+(?:ing|ed)\b(?:\s+[\w'’&/-]+){0,5}\s*(?:\.\.\.|…)?$"
+)
+
+
+def _is_progress_label(text: str) -> bool:
+    t = text.strip()
+    return bool(t) and len(t) < 60 and "\n" not in t and bool(_PROGRESS_LABEL.match(t))
+
+
 def _is_canned(text: str) -> bool:
     # Imported late: engine/ imports providers/, which import this module.
     from ..engine.validate import _is_canned_refusal
@@ -525,6 +543,7 @@ async def wait_for_completion(
             and stable_count >= min(needed, MIN_QUIET_SAMPLES)
             and quiet_for >= quiet_needed
             and not signal_pending
+            and not _is_progress_label(text)
         ):
             return CompletionResult(
                 text=text,
