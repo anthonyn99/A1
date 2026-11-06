@@ -7002,7 +7002,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
         React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC}},isPlan?"Plans":((initial?.id?"Edit":"New")+" — "+dateLabel)),
         isPlan&&React.createElement("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
       React.createElement("div",{style:{marginBottom:isPlan?18:14}},React.createElement("div",{style:lbl},"Type"),React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},React.createElement("button",{type:"button",style:tb(type==="task",false),onClick:()=>setType("task")},"Task"),React.createElement("button",{type:"button",style:tb(type==="event",false),onClick:()=>setType("event")},"Event"),canPlan&&React.createElement("button",{type:"button",style:tb(isPlan,false),onClick:()=>setType("plan")},"Plan"))),
-      isPlan?React.createElement(PlanPanel,{P:PLAN_PAL_TONY,startDateKey}):React.createElement(React.Fragment,null,
+      isPlan?React.createElement(PlanPanel,{P:PLAN_PAL_TONY,startDateKey,focusId:initial&&initial._focusPlan}):React.createElement(React.Fragment,null,
       React.createElement("div",{style:{marginBottom:14}},React.createElement("div",{style:lbl},"Title"),
         repeat==="altSeq"&&!initial?.altSeqId
           ?React.createElement("div",{style:{fontSize:11,color:T.TXD,padding:"8px 10px",background:T.S2,borderRadius:4,border:"1px solid "+T.BDL}},"Title set by sequence steps below.")
@@ -7234,14 +7234,26 @@ function usePlansWaiting(){
   return n;
 }
 
-function PlanPanel({P,startDateKey,onExit}){
+function PlanPanel({P,startDateKey,onExit,focusId}){
   const PC=window.PlansCore;
   usePlansTick();
   // Confirmed and archived plans are settled business, so they collapse to
   // title + date and open on click. Expanded ids live for this open only — a
   // reopened panel starts tidy.
-  const[expanded,setExpanded]=useState({});
-  const[archOpen,setArchOpen]=useState(false);
+  // focusId: opened from a day card's ✎ (Tony, 2026-11-06). That plan starts
+  // open, the archive too if it is there, and it is scrolled to and lit.
+  const[expanded,setExpanded]=useState(()=>focusId?{[focusId]:true}:{});
+  const[archOpen,setArchOpen]=useState(()=>!!(focusId&&PC&&PC.bucket().archive.some(x=>x.id===focusId)));
+  const[flash,setFlash]=useState(focusId||null);
+  useEffect(()=>{
+    if(!focusId)return;
+    const t1=setTimeout(()=>{
+      const el=document.querySelector('.plp-card[data-plan-id="'+focusId+'"]');
+      if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+    },120);
+    const t2=setTimeout(()=>setFlash(null),2400);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+  },[focusId]);
   const[dlg,setDlg]=useState(null);     // {mode,id,...} while a sub-dialog is up
   const[busy,setBusy]=useState(false);  // a biometric prompt is on screen
 
@@ -7568,11 +7580,13 @@ function PlanPanel({P,startDateKey,onExit}){
     // Waiting on you is the one card with a raised, accent-lined look; overdue
     // carries a red hairline so its section reads as things still owed. The
     // rest are quiet surfaces. Solid fills only (no gradients on either side).
-    return React.createElement("div",{key:p.id,className:"plp-card",style:{
+    const lit=flash===p.id;
+    return React.createElement("div",{key:p.id,className:"plp-card","data-plan-id":p.id,style:{
       background:wait?(P===PLAN_PAL_TONY?"#2d2b34":P.S2):P.S1,
       border:"1px solid "+(over?PLAN_OVERDUE_RED+"59":(wait?AC_LINE:P.BD)),
       borderRadius:14,overflow:"hidden",opacity:finished?.66:1,
-      boxShadow:wait?"0 6px 20px rgba(0,0,0,.28)":"none",transition:"border-color .16s"}},
+      boxShadow:lit?"0 0 0 2px "+P.AC+", 0 6px 24px rgba(0,0,0,.35)":(wait?"0 6px 20px rgba(0,0,0,.28)":"none"),
+      transition:"border-color .16s,box-shadow .6s ease"}},
       collapsible
         ?React.createElement("button",{type:"button",onClick:()=>toggleFold(p.id),"aria-expanded":open?"true":"false",
           className:"plp-pad",
@@ -7973,32 +7987,10 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
         foot("go",ok,run))));
 }
 
-// ── Edit a plan straight from its day card ──────────────────────────────────
-// In a TaskHub's edit mode a plan card's time gives way to a ✎ (Tony,
-// 2026-11-06). It opens the Plans edit form on its own, without the Plans
-// window behind it: the same PlanDialog and the same rules, so changing an
-// agreed plan still goes to the other person for approval.
-function PlanQuickEdit({P,id,onClose}){
-  const PC=window.PlansCore;
-  const[dlg,setDlgRaw]=useState({mode:'edit',id});
-  const[busy,setBusy]=useState(false);
-  const setDlg=v=>{if(!v){onClose();return;}setDlgRaw(v);};
-  const guard=(promise)=>{setBusy(true);return Promise.resolve(promise)
-    .then(r=>{setBusy(false);return r;},()=>{setBusy(false);});};
-  const doConfirm=(pid)=>guard(PC.confirmPlan(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid});});
-  const doApproveEdit=(pid)=>guard(PC.approveEdit(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid,approve:true});});
-  if(!PC||!PC.get(id))return null;
-  return React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey:null,busy,guard,doConfirm,doApproveEdit});
-}
-function thOpenPlanEdit(P,id){
-  if(!window.PlansCore||!id)return;
-  if(!window.PlansCore.get(id)){if(window._planReadOnlyNudge)window._planReadOnlyNudge('That plan is still loading — try again in a moment.');return;}
-  const host=document.createElement('div');document.body.appendChild(host);
-  const close=()=>setTimeout(()=>{try{ReactDOM.unmountComponentAtNode(host);}catch(e){}host.remove();},0);
-  ReactDOM.render(React.createElement(PlanQuickEdit,{P,id,onClose:close}),host);
-}
 // The right end of a plan card's header: its time in view mode, a ✎ in edit
 // mode, in the same spot (the ✎ is absolutely placed, so nothing reflows).
+// The ✎ opens the Plans page on that plan (PlanPanel focusId), where every
+// action on it lives (Tony, 2026-11-06).
 function thPlanSlot(edit,c,timeEl,onEdit){
   return React.createElement("span",{style:{marginLeft:"auto",position:"relative",display:"inline-flex",
       alignItems:"center",justifyContent:"flex-end",minWidth:20,minHeight:12}},
@@ -10576,8 +10568,8 @@ function App(){
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
                  checkbox and no delete — the next reconcile would revert them.
-                 Edit mode swaps its time for a ✎ that opens the Plans edit form
-                 (thOpenPlanEdit), which writes the plan itself. It gets a "Plan"
+                 Edit mode swaps its time for a ✎ that opens the Plans page
+                 on this plan, where it is edited. It gets a "Plan"
                  header instead of a category chip, because it is a commitment you
                  both made, not a task you filed.
                  Position is the exception, and it is not content: where a plan
@@ -10589,7 +10581,7 @@ function App(){
                   t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
-                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_TONY,t._planId))),
+                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>{setEi({type:"plan",_focusPlan:t._planId});setMdt(k);setMo(true);})),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?0.85:1,cursor:"grab"})},
                                 /* Completed box takes the task's category colour so a
@@ -10661,7 +10653,7 @@ function App(){
                   t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
-                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_TONY,t._planId))),
+                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>{setEi({type:"plan",_focusPlan:t._planId});setMdt(k);setMo(true);})),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:4,marginBottom:3,opacity:t.done?0.85:1,cursor:"grab"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:8,col:T.BG})),
@@ -15150,7 +15142,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
         RC("div",{style:{fontSize:16,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1}},isPlan?"Plans":((initial?.id?"Edit":"New")+" \u2014 "+dateLabel)),
         isPlan&&RC("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+BD,borderRadius:5,color:TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
       RC("div",{style:{marginBottom:isPlan?18:12}},RC("div",{style:lbl},"Type"),RC("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},typeOpts.map(t=>RC("button",{key:t,onClick:()=>setType(t),style:{background:type===t?A:BG,color:type===t?BG:TX,fontWeight:700,padding:"7px 20px",border:type===t?"1px solid "+A:"1px solid "+BDL,...(type===t?{boxShadow:GLOW_A}:{}),borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"inherit"}},t.charAt(0).toUpperCase()+t.slice(1))))),
-      isPlan?RC(PlanPanel,{P:PLAN_PAL_VEDA,startDateKey}):RC(React.Fragment,null,
+      isPlan?RC(PlanPanel,{P:PLAN_PAL_VEDA,startDateKey,focusId:initial&&initial._focusPlan}):RC(React.Fragment,null,
       RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Title"),
         repeat==="altSeq"&&!initial?.altSeqId
           ?RC("div",{style:{fontSize:11,color:TXD,padding:"8px 10px",background:BG,borderRadius:4,border:"1px solid "+BDL}},"Title set by sequence steps below.")
@@ -17092,7 +17084,7 @@ function App(){
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
                  checkbox and no delete — the next reconcile would revert them.
-                 Edit mode swaps its time for a ✎ that opens the Plans edit form.
+                 Edit mode swaps its time for a ✎ that opens Plans on it.
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
@@ -17101,7 +17093,7 @@ function App(){
                   t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
-                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_VEDA,t._planId))),
+                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>{setEi({type:"plan",_focusPlan:t._planId});setMdt(k);setMo(true);})),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:5,marginBottom:5,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:10})),
@@ -17160,7 +17152,7 @@ function App(){
                   t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
-                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_VEDA,t._planId))),
+                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>{setEi({type:"plan",_focusPlan:t._planId});setMdt(k);setMo(true);})),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:4,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:0,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
