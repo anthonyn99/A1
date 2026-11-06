@@ -7258,10 +7258,10 @@ function PlanPanel({P,startDateKey,onExit}){
 
   const btn=(kind)=>({background:kind==="go"?P.AC:"transparent",
     color:kind==="go"?P.ACINK:(kind==="no"?P.TXD:P.TXD),
-    border:"1px solid "+(kind==="go"?P.AC:P.BD),borderRadius:8,padding:"0 13px",
-    height:33,fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:.7,
-    cursor:"pointer",fontFamily:P.MONO,display:"inline-flex",alignItems:"center",
-    gap:6,whiteSpace:"nowrap",transition:"all .16s"});
+    border:"1px solid "+(kind==="go"?P.AC:P.BD),borderRadius:8,padding:"0 14px",
+    height:34,fontSize:12,fontWeight:600,letterSpacing:.1,
+    cursor:"pointer",fontFamily:P.FONT,display:"inline-flex",alignItems:"center",
+    justifyContent:"center",gap:6,whiteSpace:"nowrap",transition:"background .16s,border-color .16s,color .16s,filter .16s"});
   const hoverBtn=(kind)=>({
     onMouseEnter:e=>{const s=e.currentTarget.style;
       if(kind==="go"){s.filter="brightness(1.09)";}
@@ -7315,10 +7315,11 @@ function PlanPanel({P,startDateKey,onExit}){
   const toggleFold=(id)=>setExpanded(e=>{const n={...e};if(n[id])delete n[id];else n[id]=true;return n;});
 
   // ── Card ──────────────────────────────────────────────────────────────────
-  const badge=(text,t)=>React.createElement("span",{key:text,style:{fontSize:9,fontWeight:800,
-    textTransform:"uppercase",letterSpacing:.7,borderRadius:999,padding:"3px 9px",
-    whiteSpace:"nowrap",fontFamily:P.MONO,background:t?t.bg:P.S2,color:t?t.fg:P.TXD,
-    border:"1px solid "+(t?t.line:P.BD)}},text);
+  // Sentence case, no shouting: a badge is a fact about the plan, read in passing.
+  const badge=(text,t)=>React.createElement("span",{key:text,style:{fontSize:11,fontWeight:600,
+    borderRadius:999,padding:"2px 9px",lineHeight:1.5,
+    whiteSpace:"nowrap",fontFamily:P.FONT,background:t?t.bg:P.S2,color:t?t.fg:P.TXD,
+    border:"1px solid "+(t?t.line:P.BD)}},text.charAt(0).toUpperCase()+text.slice(1));
 
   const card=(p,ctx)=>{
     const c=p.confirms||{veda:null,tony:null};
