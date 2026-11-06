@@ -80,7 +80,7 @@ def _is_status_only(text: str) -> bool:
 # stability) from ending on it: the stop button, the streaming marker and the
 # stall timeout still apply, and the validator judges whatever comes back.
 _PROGRESS_LABEL = re.compile(
-    r"^[A-Za-z]+(?:ing|ed)\b(?:\s+[\w'’&/-]+){0,5}\s*(?:\.\.\.|…)?$"
+    r"^[A-Za-z]+(?:ing|ed)\b(?:\s+[\w'’&/-]+){1,5}\s*(?:\.\.\.|…)?$"
 )
 
 
