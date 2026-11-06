@@ -154,7 +154,12 @@ sites:
       # The submit button flips to its stop state while generating; it never
       # disappears. completion.py treats a matched stop_button as "generating".
       # VERIFIED: the :has(.wm-composer-stopIcon) form is the one that matches;
-      # data-action-mode is not set on the button in the current shell.
+      # data-action-mode is not set on the button in the wm-* shell.
+      # 2026-10 shell, captured live 2026-11-06 (`magi capture chatgpt`): none
+      # of the older selectors match it, so from 2026-10-06 every ChatGPT
+      # answer ended on text stability alone, and a long pause on a thinking
+      # label ("Checking market updates") was captured as the whole answer.
+      - "form[data-chatgpt-composer] button[aria-label='Stop']"
       - "button.wm-composer-submitButton:has(.wm-composer-stopIcon)"
       - "button[data-composer-submit][data-action-mode='stop']"
       - "button[aria-label='Stop generating']"
