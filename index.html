@@ -6997,7 +6997,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const canPlan=!initial?.id;
   const isPlan=canPlan&&type==="plan";
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
-    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
+    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:isPlan?10:6,padding:isPlan?"clamp(16px,3.5vw,28px)":28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:20}},
         React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC}},isPlan?"Plans":((initial?.id?"Edit":"New")+" — "+dateLabel)),
         isPlan&&React.createElement("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
@@ -15140,7 +15140,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const isPlan=canPlan&&type==="plan";
   const typeOpts=canPlan?["task","event","plan"]:["task","event"];
   return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
-    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",transition:"width .18s"},onClick:e=>e.stopPropagation()},
+    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:isPlan?"clamp(16px,3.5vw,24px)":24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",transition:"width .18s"},onClick:e=>e.stopPropagation()},
       RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16}},
         RC("div",{style:{fontSize:16,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1}},isPlan?"Plans":((initial?.id?"Edit":"New")+" \u2014 "+dateLabel)),
         isPlan&&RC("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+BD,borderRadius:5,color:TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
