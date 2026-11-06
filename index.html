@@ -7932,13 +7932,13 @@ function PlanQuickEdit({P,id,onClose}){
   const doConfirm=(pid)=>guard(PC.confirmPlan(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid});});
   const doApproveEdit=(pid)=>guard(PC.approveEdit(pid)).then(r=>{if(r==='bioFailed')setDlg({mode:'bioFailed',id:pid,approve:true});});
   if(!PC||!PC.get(id))return null;
-  return React.createElement(PlanDialog,{key:dlg.mode,P,dlg,setDlg,startDateKey:null,busy,guard,doConfirm,doApproveEdit});
+  return React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey:null,busy,guard,doConfirm,doApproveEdit});
 }
 function thOpenPlanEdit(P,id){
   if(!window.PlansCore||!id)return;
   if(!window.PlansCore.get(id)){if(window._planReadOnlyNudge)window._planReadOnlyNudge('That plan is still loading — try again in a moment.');return;}
   const host=document.createElement('div');document.body.appendChild(host);
-  const close=()=>{try{ReactDOM.unmountComponentAtNode(host);}catch(e){}host.remove();};
+  const close=()=>setTimeout(()=>{try{ReactDOM.unmountComponentAtNode(host);}catch(e){}host.remove();},0);
   ReactDOM.render(React.createElement(PlanQuickEdit,{P,id,onClose:close}),host);
 }
 // The right end of a plan card's header: its time in view mode, a ✎ in edit
@@ -10519,8 +10519,9 @@ function App(){
               tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
-                 checkbox, no edit/delete buttons even in edit mode — every one of
-                 those would be reverted by the next reconcile. It gets a "Plan"
+                 checkbox and no delete — the next reconcile would revert them.
+                 Edit mode swaps its time for a ✎ that opens the Plans edit form
+                 (thOpenPlanEdit), which writes the plan itself. It gets a "Plan"
                  header instead of a category chip, because it is a commitment you
                  both made, not a task you filed.
                  Position is the exception, and it is not content: where a plan
@@ -10532,7 +10533,7 @@ function App(){
                   t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
-                  t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_TONY,t._planId))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?0.85:1,cursor:"grab"})},
                                 /* Completed box takes the task's category colour so a
@@ -10604,7 +10605,7 @@ function App(){
                   t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
-                  t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                  thPlanSlot(edit,{tx:T.TXD,bd:T.BDL,bdHi:T.TXM,radius:5},t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_TONY,t._planId))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:4,marginBottom:3,opacity:t.done?0.85:1,cursor:"grab"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:8,col:T.BG})),
@@ -17033,8 +17034,8 @@ function App(){
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
-                 checkbox, no edit/delete buttons even in edit mode — each would
-                 be reverted by the next reconcile. Manage it in Plans.
+                 checkbox and no delete — the next reconcile would revert them.
+                 Edit mode swaps its time for a ✎ that opens the Plans edit form.
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
@@ -17043,7 +17044,7 @@ function App(){
                   t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
-                  t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_VEDA,t._planId))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:5,marginBottom:5,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:10})),
@@ -17102,7 +17103,7 @@ function App(){
                   t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
-                  t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                  thPlanSlot(edit,{tx:TXD,bd:BDL,bdHi:TXM,radius:4},t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),()=>thOpenPlanEdit(PLAN_PAL_VEDA,t._planId))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:4,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:0,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
