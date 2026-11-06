@@ -16,6 +16,11 @@
 //   · switching to Tony's TaskHub releases the mic, and his header has no Neo
 // Screenshots of each state land in %TEMP%/magi-live-shots/neo-*.png.
 //
+// KNOWN (2026-11-06): with this synthesized voice the small Vosk model hears
+// "Hey Neo" as just "neo" (the "hey" is swallowed), so the wake step fails and
+// everything after it with it. Veda's own voice wakes it fine, so wake detection
+// was left alone; the wake rule itself is unit-tested in tests/veda-assistant.test.js.
+//
 // Windows only (the WAV comes from System.Speech). The first run downloads
 // ~41 MB of model. Run: node tests/live/neo-assistant.live.js
 'use strict';
