@@ -20784,6 +20784,9 @@ window._THV={
     // ITSELF, so the backdrop has to be excluded explicitly: without that the
     // gesture we most need to block is the one treated as allowed.
     if(e.target && e.target !== ov && ov.contains(e.target))return;
+    // An A1 list (controls.js) is in the top layer and may be mounted outside
+    // the overlay's DOM; it must still scroll.
+    if(e.target && e.target.closest && e.target.closest('.a1c-pop'))return;
     if(e.cancelable)e.preventDefault();
   }
   document.addEventListener('touchmove',_uimBlockGesture,{passive:false,capture:true});
