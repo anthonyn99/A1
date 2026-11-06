@@ -7445,9 +7445,9 @@ function PlanPanel({P,startDateKey,onExit}){
       const sig=(who,at)=>{
         const mm=m[who]||{};
         const verified=mm.v==='bio';
-        return React.createElement("span",{key:who,style:{fontSize:10.5,fontWeight:700,
-          color:P.TXD,display:"inline-flex",alignItems:"center",gap:6,fontFamily:P.MONO,
-          flexWrap:"wrap"}},
+        return React.createElement("span",{key:who,style:{fontSize:11.5,fontWeight:600,
+          color:P.TXD,display:"inline-flex",alignItems:"center",gap:7,fontFamily:P.FONT,
+          flexWrap:"wrap",fontVariantNumeric:"tabular-nums"}},
           React.createElement("span",{style:{color:P.OK,fontWeight:800}},"✓"),
           NAMES[who],
           React.createElement("span",{style:{color:P.TXF,fontWeight:500}},PC.fmtWhen(at)),
@@ -7456,14 +7456,15 @@ function PlanPanel({P,startDateKey,onExit}){
           // Say plainly whether the OS actually proved who this was.
           React.createElement("span",{title:verified?("Verified by "+bioName)
               :"No biometric check — profile chooser only",
-            style:{fontSize:8.5,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,
-              padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap",
-              background:verified?OK.bg:P.S2,color:verified?P.OK:P.TXF}},
-            verified?"verified":"unverified"));
+            style:{fontSize:10,fontWeight:600,
+              padding:"1px 7px",borderRadius:999,whiteSpace:"nowrap",
+              border:"1px solid "+(verified?OK.line:P.BD),
+              background:verified?OK.bg:"transparent",color:verified?P.OK:P.TXF}},
+            verified?"Verified":"Unverified"));
       };
       const f=PC.confirmFlags(p);
-      footer=React.createElement("div",{style:{marginTop:13,paddingTop:12,
-        borderTop:"1px solid "+P.BD,display:"flex",flexWrap:"wrap",gap:"7px 20px"}},
+      footer=React.createElement("div",{style:{marginTop:14,paddingTop:12,
+        borderTop:"1px solid "+P.BD,display:"flex",flexWrap:"wrap",gap:"8px 22px"}},
         sig('veda',c.veda),sig('tony',c.tony),
         // Both confirmations from one device cannot evidence two independent
         // people. Surface it rather than let it pass as a normal agreement.
@@ -7545,38 +7546,40 @@ function PlanPanel({P,startDateKey,onExit}){
     const title=React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:7}},
       finished?React.createElement("span",{style:{flexShrink:0,marginTop:4,display:"inline-flex"}},
         React.createElement(PlanCheck,{size:13,color:P.OK})):null,
-      React.createElement("span",{style:{fontSize:15,fontWeight:finished?500:700,lineHeight:1.4,
-        wordBreak:"break-word",color:finished?P.TXM:P.TX,letterSpacing:-.15,
+      React.createElement("span",{style:{fontSize:15,fontWeight:finished?500:650,lineHeight:1.35,
+        wordBreak:"break-word",color:finished?P.TXM:P.TX,letterSpacing:-.1,
         textDecoration:finished?"line-through":"none"}},p.title||'Untitled'));
 
-    const body=open?React.createElement(React.Fragment,null,
-      p.notes?React.createElement("div",{style:{fontSize:12.5,color:P.TXD,marginTop:11,
+    const body=open?React.createElement("div",{className:"plp-body"},
+      p.notes?React.createElement("div",{style:{fontSize:13,color:P.TXD,marginTop:12,
         lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}},p.notes):null,
       peBox,reason,footer,
-      React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:14}},acts)):null;
+      React.createElement("div",{className:"plp-acts"},acts)):null;
 
-    // An overdue card is never collapsible (see above) and carries a red
-    // hairline, so the section reads as a list of things still owed rather than
-    // a second, quieter Confirmed.
-    return React.createElement("div",{key:p.id,style:{background:wait
-        // Tony: solid (12% purple pre-mixed over S1), never a gradient.
-        ?(P===PLAN_PAL_TONY?"#36343e":"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1):P.S1,
-      border:"1px solid "+(ctx==='overdue'?PLAN_OVERDUE_RED+"4d":(wait?AC_LINE:P.BD)),
-      borderRadius:12,
-      padding:collapsible?0:"15px 16px",marginBottom:10,opacity:finished?.62:1,
-      boxShadow:wait?"0 4px 16px rgba(0,0,0,.32)":"0 1px 2px rgba(0,0,0,.3)"}},
+    const head=React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:14}},
+      tile,
+      React.createElement("div",{style:{flex:1,minWidth:0,paddingTop:2}},title,meta),
+      collapsible?React.createElement("span",{"aria-hidden":"true",style:{flexShrink:0,color:P.TXF,
+        marginTop:6,display:"inline-flex",transition:"transform .18s",transform:open?"rotate(90deg)":"none"}},
+        React.createElement("svg",{width:12,height:12,viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",
+          strokeWidth:1.6,strokeLinecap:"round",strokeLinejoin:"round"},
+          React.createElement("path",{d:"M4.5 2.5 8 6l-3.5 3.5"}))):null);
+
+    // Waiting on you is the one card with a raised, accent-lined look; overdue
+    // carries a red hairline so its section reads as things still owed. The
+    // rest are quiet surfaces. Solid fills only (no gradients on either side).
+    return React.createElement("div",{key:p.id,className:"plp-card",style:{
+      background:wait?(P===PLAN_PAL_TONY?"#2d2b34":P.S2):P.S1,
+      border:"1px solid "+(over?PLAN_OVERDUE_RED+"59":(wait?AC_LINE:P.BD)),
+      borderRadius:14,overflow:"hidden",opacity:finished?.66:1,
+      boxShadow:wait?"0 6px 20px rgba(0,0,0,.28)":"none",transition:"border-color .16s"}},
       collapsible
-        ?React.createElement("button",{type:"button",onClick:()=>toggleFold(p.id),
-          style:{display:"flex",alignItems:"flex-start",gap:11,width:"100%",
-            background:"transparent",border:0,padding:"15px 16px",cursor:"pointer",
-            textAlign:"left",fontFamily:"inherit",color:"inherit",borderRadius:12}},
-          React.createElement("span",{style:{color:P.TXF,fontSize:10,lineHeight:1.9,
-            flexShrink:0}},open?"▾":"▸"),
-          React.createElement("span",{style:{flex:1,minWidth:0}},title,meta))
-        :React.createElement(React.Fragment,null,title,meta),
-      collapsible&&open
-        ?React.createElement("div",{style:{padding:"0 16px 16px"}},body)
-        :body);
+        ?React.createElement("button",{type:"button",onClick:()=>toggleFold(p.id),"aria-expanded":open?"true":"false",
+          className:"plp-pad",
+          style:{display:"block",width:"100%",background:"transparent",border:0,cursor:"pointer",
+            textAlign:"left",fontFamily:"inherit",color:"inherit",borderRadius:0}},head)
+        :React.createElement("div",{className:"plp-pad"},head),
+      body?React.createElement("div",{className:"plp-pad plp-pad-b"},body):null);
   };
 
   // ── Section ───────────────────────────────────────────────────────────────
