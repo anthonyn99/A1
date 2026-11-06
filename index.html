@@ -7646,7 +7646,12 @@ function PlanPanel({P,startDateKey,onExit,focusId}){
     +".plp-root .plp-pad:has(+ .plp-pad-b){padding-bottom:2px}"
     +".plp-root .plp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}"
     +".plp-root .plp-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}"
-    +".plp-root .plp-card>button:focus-visible,.plp-root .plp-stat:focus-visible{outline:2px solid "+P.AC+";outline-offset:-2px}"
+    // The shared focus ring (hoverfx) sits 1px OUTSIDE a button; on a
+    // full-width row it cut into the card below (Archive, 2026-11-06). Inside
+    // Plans it is drawn inside the button instead. The repeated class only
+    // outranks hoverfx's selector.
+    +".plp-root.plp-root.plp-root button:focus-visible{outline:2px solid "+P.AC+"!important;outline-offset:-2px!important}"
+    +".plp-root .plp-arch:hover{background:"+P.S1+"}"
     +"@media (max-width:640px){"
     // Phone: the counts become one wrapping row of compact chips.
     +".plp-root .plp-stats{display:flex;flex-wrap:wrap;gap:6px}"
@@ -7729,9 +7734,9 @@ function PlanPanel({P,startDateKey,onExit,focusId}){
             "Nothing active. Past plans are in the archive."),
         // The Archive only earns a row once something is actually in it.
         b.archive.length?React.createElement("div",{style:{marginTop:26,borderTop:"1px solid "+P.BD}},
-          React.createElement("button",{type:"button",onClick:()=>setArchOpen(v=>!v),"aria-expanded":archOpen?"true":"false",
-            style:{width:"100%",background:"transparent",border:0,
-              borderRadius:0,color:P.TXM,padding:"14px 2px",fontSize:13,fontWeight:600,
+          React.createElement("button",{type:"button",className:"plp-arch",onClick:()=>setArchOpen(v=>!v),"aria-expanded":archOpen?"true":"false",
+            style:{width:"100%",background:"transparent",border:0,margin:"8px 0",
+              borderRadius:8,color:P.TXM,padding:"10px 10px",fontSize:13,fontWeight:600,transition:"background .16s",
               cursor:"pointer",fontFamily:P.FONT,
               textAlign:"left",display:"flex",alignItems:"center",gap:9}},
             chev(archOpen),
