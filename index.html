@@ -7756,9 +7756,9 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
   const tone=c=>({fg:c,bg:c+"1c",line:c+"4d"});
   const WARN=tone(P.WARN),BAD=tone(P.BAD);
 
-  const lbl={display:"block",fontSize:9.5,fontWeight:800,textTransform:"uppercase",
-    letterSpacing:1.1,color:P.TXM,margin:"16px 0 7px",fontFamily:P.MONO};
-  const inp={width:"100%",background:P.BG,border:"1px solid "+P.BD,borderRadius:8,color:P.TX,
+  const lbl={display:"block",fontSize:12,fontWeight:600,
+    color:P.TXD,margin:"16px 0 7px",fontFamily:P.FONT};
+  const inp={width:"100%",background:P.BG,border:"1px solid "+P.BD,borderRadius:10,color:P.TX,
     padding:"11px 12px",fontSize:13.5,fontFamily:P.FONT,outline:"none",boxSizing:"border-box"};
   const note=(hard,children)=>React.createElement("div",{style:{fontSize:12.5,lineHeight:1.6,
     color:hard?P.BAD:P.WARN,background:hard?BAD.bg:WARN.bg,
@@ -7947,17 +7947,17 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
   const foot=(kind,label,onClick)=>React.createElement("button",{type:"button",disabled:busy,
     onClick,style:{background:kind==="go"?P.AC:"transparent",
       color:kind==="go"?P.ACINK:P.TXD,border:"1px solid "+(kind==="go"?P.AC:P.BD),
-      borderRadius:8,padding:"0 15px",height:34,fontSize:10.5,fontWeight:700,
-      textTransform:"uppercase",letterSpacing:.7,cursor:"pointer",fontFamily:P.MONO,
+      borderRadius:10,padding:"0 16px",height:38,fontSize:13,fontWeight:600,
+      cursor:"pointer",fontFamily:P.FONT,minWidth:88,
       opacity:busy?.6:1}},label);
 
   return React.createElement("div",{onClick:close,
     style:{position:"fixed",inset:0,background:"rgba(8,8,10,.72)",
       backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",
-      alignItems:"center",justifyContent:"center",padding:20,zIndex:4200}},
+      alignItems:"center",justifyContent:"center",padding:"clamp(10px,3vw,20px)",zIndex:4200}},
     React.createElement("div",{onClick:e=>e.stopPropagation(),
-      style:{background:P.S1,border:"1px solid "+P.BDL,borderRadius:16,padding:22,
-        width:"100%",maxWidth:460,maxHeight:"calc(100vh - 40px)",overflowY:"auto",overscrollBehavior:"contain",
+      style:{background:P.S1,border:"1px solid "+P.BDL,borderRadius:16,padding:"clamp(18px,4vw,24px)",
+        width:"100%",maxWidth:460,maxHeight:"calc(100dvh - 24px)",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box",
         boxShadow:"0 24px 60px rgba(0,0,0,.55)",fontFamily:P.FONT,color:P.TX}},
       React.createElement("h3",{style:{margin:"0 0 4px",fontSize:17,fontWeight:700,
         letterSpacing:-.2,color:P.TX}},title),
