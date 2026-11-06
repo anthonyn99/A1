@@ -266,7 +266,7 @@ same TaskHub-only origin gate as `/api/launch`, in both `server.py` and
 | Step | Where |
 |---|---|
 | Wake phrase | `TaskHub/veda-assistant.js` runs Vosk (open source, offline WASM, `vosk-browser@0.0.8`) with a fixed word list: "hey neo", "neo", near-sounding decoys, and `[unk]`. Only "hey" then "neo" wakes it. |
-| Capture | The same mic stream. It keeps a 1.5 s pre-roll and stops after 1.4 s of silence (a loudness threshold that adapts to room noise), or after 30 s at most. |
+| Capture | The same mic stream. It keeps a 1.5 s pre-roll and stops after 1.1 s of silence (a loudness threshold that adapts to room noise), or after 30 s at most. |
 | Understanding | `_THV.sendAudio(b64, {extra:{mode:'neo'}})` posts the WAV with her state. The worker adds Neo's Veda-only actions and rules to the prompt (`vedaNeoActionLines` / `vedaNeoRuleLines`). |
 | Doing | The engine's `dispatch` → `applyControl` → Veda's bridge `window._vdVoice` (`changeRules`, `nav`, `prep`, `closeTimer`, …). Tony's `_thVoice` has none of these, so the actions do nothing on his side. |
 | Answering | `speechSynthesis`, using a natural en-US voice when the device has one. |

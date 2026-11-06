@@ -393,7 +393,7 @@ section('worker: state shaping');
     for (let i = 0; i < 12 && r === 'go'; i++, steps++) r = T.vadStep(s, 0.08, floor, ms);       // ~1 s of speech
     t('keeps recording while she talks', r === 'go');
     while (r === 'go' && steps < 200) { r = T.vadStep(s, 0.002, floor, ms); steps++; }
-    t('ends after ~1.4 s of silence', r === 'end' && s.silentMs >= 1400 && s.silentMs < 1500, r + ' ' + s.silentMs);
+    t('ends after ~1.1 s of silence', r === 'end' && s.silentMs >= 1100 && s.silentMs < 1200, r + ' ' + s.silentMs);
     const q = { speech: false, silentMs: 0, elapsedMs: 0 }; let r2 = 'go';
     while (r2 === 'go') r2 = T.vadStep(q, 0.002, floor, ms);
     t('gives up quietly when nothing is said', r2 === 'none' && q.elapsedMs >= 6000);
@@ -541,6 +541,13 @@ section('worker: state shaping');
     t('"finish calculous homework" → "finish Calculus homework"', T.fixCaption('finish calculous homework', vocab) === 'finish Calculus homework', T.fixCaption('finish calculous homework', vocab));
     t('ordinary words are left alone', T.fixCaption('add buy milk tomorrow and call mom', vocab) === 'add buy milk tomorrow and call mom', T.fixCaption('add buy milk tomorrow and call mom', vocab));
     t('an exact word is kept as she said it', T.fixCaption('open spotify', vocab) === 'open spotify');
+    const v2 = ['Shield'].map(x => ({ text: x, n: 1, l: x.toLowerCase(), sk: T.skel(x) }));
+    t('"should" is never snapped to "Shield"', T.fixCaption('which one i should keep', v2) === 'which one i should keep', T.fixCaption('which one i should keep', v2));
+    t('…a misheard "shield" still is', T.fixCaption('open sheild', v2) === 'open Shield', T.fixCaption('open sheild', v2));
+    t('tidy: noise word and misheard wake phrase are dropped', T.tidyText('you hey new hello') === 'Hello', T.tidyText('you hey new hello'));
+    t('tidy: "her new" is the wake phrase too', T.tidyText('her new so tell me about each task') === 'So tell me about each task', T.tidyText('her new so tell me about each task'));
+    t('tidy: a lone "you" is nothing', T.tidyText('you') === '' && T.tidyText('you hey neo') === '');
+    t('tidy: "i" becomes "I", a "new task" is kept', T.tidyText('add a new task i need milk') === 'Add a new task I need milk', T.tidyText('add a new task i need milk'));
   }
   {
     const buf = T.encodeWav([new Float32Array(48000)], 48000, 16000);

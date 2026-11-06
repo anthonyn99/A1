@@ -47,7 +47,7 @@
   var GRAMMAR = ['neo', 'hey neo', 'okay neo', 'new', 'no', 'know', 'now', 'leo', 'neon', 'nemo', 'knee', 'video', 'oh', 'hey', '[unk]'];
 
   var PRE_ROLL_S = 1.5;      // audio kept from before the wake word fired
-  var END_SILENCE_MS = 1400; // she stopped talking
+  var END_SILENCE_MS = 1100; // she stopped talking
   var NO_SPEECH_MS = 6000;   // woke but nothing followed
   var MAX_CAPTURE_MS = 30000;
   var FOLLOW_MS = 10000;     // after a reply: listen without the wake word
@@ -526,6 +526,7 @@
       '#vd-neo-hud.vn-dock .vn-you{font-size:10.5px;min-height:0;-webkit-line-clamp:1;text-align:left;color:#76777C;}',
       '#vd-neo-hud.vn-dock .vn-you:not(:empty)::before{content:"you  ";color:' + C.accent + ';letter-spacing:0;}',
       '#vd-neo-hud.vn-dock .vn-you:empty{display:none;}',
+      '#vd-neo-hud .vn-you.vn-heard{color:rgba(230,217,240,.85);}#vd-neo-hud.vn-dock .vn-you.vn-heard{color:#A9AAB0;}',
       '#vd-neo-hud.vn-dock .vn-say{font-family:var(--font-accent,inherit);font-size:12.5px;line-height:1.45;min-height:0;text-align:left;color:#D8D3DC;text-shadow:none;',
       ' display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
       '#vd-neo-hud.vn-dock .vn-say:empty{display:none;}',
@@ -613,7 +614,7 @@
       if (h.state.textContent !== LABEL[m]) { h.state.textContent = LABEL[m]; h.state.classList.remove('vn-glitch'); void h.state.offsetWidth; if (!reduced && !h.el.classList.contains('vn-dock')) h.state.classList.add('vn-glitch'); }
       hudShow(true);
     }
-    if (m === 'capture') { h.you.textContent = ''; h.say.innerHTML = ''; h.cards.innerHTML = ''; }
+    if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('vn-heard'); h.say.innerHTML = ''; h.cards.innerHTML = ''; }
     if (m === 'thinking') startTicker(); else stopTicker();
     if (m === 'wake' || m === 'off') hideTimer = setTimeout(function () { hudShow(false); }, m === 'off' ? 0 : 900);
   }
@@ -834,8 +835,18 @@
   // (task titles, habits, apps, plans) so "spotty fi" reads "Spotify".
   // The final transcript (Gemini) replaces the caption when the turn lands.
   var WS = window.SpeechRecognition || window.webkitSpeechRecognition, wsBroken = false;
-  function stripWake(s) { return String(s || '').replace(/^\s*(hey |okay )?neo\b[,.]?\s*/i, ''); }
-  function showCap(text) { S.capText = fixCaption(stripWake(text), S.capVocab); if (S.mode === 'capture' && H) H.you.textContent = S.capText; }
+  // The wake phrase as the small model mishears it ("her new", "hey know"),
+  // with the noise words it puts before it ("you", "the", "uh").
+  var WAKE_RE = /^\s*(?:(?:you|the|uh+|um+|hmm+|ah|oh|huh)[,.]?\s+)*(?:(?:hey|hi|hay|her|okay|ok)[,.]?\s+(?:neo|new|neil|nio|knee|know|now|leo|neon|nemo|no)|neo|nio)\b[,.!?]?\s*/i;
+  function stripWake(s) { return String(s || '').replace(WAKE_RE, ''); }
+  // What she sees: no wake phrase, no lone noise word, a capital, "I" not "i".
+  function tidyText(s) {
+    s = stripWake(s).replace(/\s+/g, ' ').trim();
+    if (/^(?:you|the|uh+|um+|hmm+|ah|oh|huh)[.?!]?$/i.test(s)) return '';
+    s = s.replace(/\bi\b(?!\.)/g, 'I');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function showCap(text) { S.capText = tidyText(fixCaption(stripWake(text), S.capVocab)); if (S.mode === 'capture' && H) H.you.textContent = S.capText; }
   function startCaptions() {
     stopCaptions();
     S.capVocab = captionVocab();
@@ -905,6 +916,12 @@
   // Replace caption word runs that sound like one of her phrases. Strict, so
   // ordinary words are left alone: same first letter, close spelling, and the
   // same consonant skeleton (or very close spelling).
+  // Everyday words that sound like one of her names ("should" ~ "Shield") are
+  // what she said, so a run made only of them is never swapped.
+  var COMMON_SET = {};
+  ('a about after again all also am an and any are as ask at back be because been before being both but by call can check close could day did do does done each else even every first for from get give go going good got had has have he help her here him his how i if in into is it its just keep know last later let like list long look make many me more morning most move much must my need never new next night no not now of off on once one only open or other our out over please put read really remind right said same say see set shall she should show so some start still stop such take tell than thank thanks that the their them then there these they thing things think this those through time to today told tomorrow tonight too under until up us very wait want was way we week well were what when where which while who why will with work would yes yet you your')
+    .split(' ').forEach(function (w) { COMMON_SET[w] = 1; });
+  function allCommon(ws) { return ws.every(function (w) { return COMMON_SET[letters(w)]; }); }
   function fixCaption(text, vocab) {
     if (!text || !vocab || !vocab.length) return text;
     var words = text.split(/\s+/), out = [], i = 0;
@@ -914,6 +931,7 @@
         var P = vocab[v];
         for (var k = P.n; k <= P.n + 1 && i + k <= words.length; k++) {
           var win = words.slice(i, i + k).join(' '), wl = letters(win);
+          if (wl !== P.l && allCommon(words.slice(i, i + k))) continue;
           if (!wl || wl === P.l) { if (wl === P.l && (!best || P.l.length > best.score)) best = { k: k, text: P.text, score: P.l.length, exact: true }; continue; }
           if (wl.charAt(0) !== P.l.charAt(0) || Math.abs(wl.length - P.l.length) > 3) continue;
           var sim = 1 - lev(wl, P.l) / Math.max(wl.length, P.l.length);
@@ -1083,7 +1101,8 @@
       if (hist.length) extra.history = hist;
       res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn });
     } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
-    if (res && res.transcript && H) H.you.textContent = res.transcript;
+    // What Neo actually understood replaces the live guess.
+    if (res && res.transcript && H) { H.you.textContent = tidyText(res.transcript); H.you.classList.add('vn-heard'); }
     if (res && res.dropped) { console.info('[neo] ignored:', res.dropped, res.transcript || ''); setMode('wake'); newRecognizer(); return; }
     if (!S.running) { if (res && res.say) speak(res.say, false); return; }   // turned off mid-request ("stop listening")
     if (!res || !res.ok) {
@@ -1629,7 +1648,7 @@
     toggle: function () { setOn(!S.on); },
     mode: function () { return S.mode; },
     cancel: cancel,
-    _test: { fixCaption: fixCaption, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
+    _test: { fixCaption: fixCaption, tidyText: tidyText, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
       cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
       greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
