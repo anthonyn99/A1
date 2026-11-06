@@ -336,9 +336,9 @@ async def test_thinking_label_that_holds_still_is_not_the_answer():
 def test_progress_label_shape():
     from magi.browser.completion import _is_progress_label
     for s in ("Checking market updates", "Checked release timing",
-              "Searching the web", "Thinking…", "Reviewing earnings calendars"):
+              "Searching the web", "Reviewing earnings calendars", "Looking up filings…"):
         assert _is_progress_label(s), s
-    for s in ("OK", "Four", "42", "Use Postgres.", "No, it is fine.",
+    for s in ("OK", "Four", "42", "settled", "Thinking", "Use Postgres.", "No, it is fine.",
               "# Daily report\n- x", "Checking accounts is fine."):
         assert not _is_progress_label(s), s
 
