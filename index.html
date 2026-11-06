@@ -7583,108 +7583,142 @@ function PlanPanel({P,startDateKey,onExit}){
   };
 
   // ── Section ───────────────────────────────────────────────────────────────
-  // An empty bucket collapses to one muted line. A full header, a "0" chip and
-  // a sentence for every empty bucket is what made this read as busy while
-  // saying nothing. `live` marks the bucket genuinely waiting on the active
-  // profile — the only one that gets the accent count, so the page has exactly
-  // one place the eye lands first.
-  // `accent` recolours the header and its count chip — used only by Overdue,
-  // which is never rendered empty, so the collapsed-empty row below never sees it.
-  const section=(title,list,ctx,emptyMsg,sub,live,accent)=>{
-    if(!list.length)return React.createElement("div",{key:title,style:{display:"flex",
-      alignItems:"center",gap:10,flexWrap:"wrap",padding:"11px 14px",
-      border:"1px solid "+P.BD,borderRadius:8,background:P.S1,opacity:.62}},
-      React.createElement("span",{style:{fontSize:10,fontWeight:800,textTransform:"uppercase",
-        letterSpacing:1.1,color:P.TXM,fontFamily:P.MONO}},title),
-      React.createElement("span",{style:{fontSize:11.5,color:P.TXF}},emptyMsg));
-    return React.createElement("div",{key:title},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,marginBottom:12}},
-        React.createElement("span",{style:{fontSize:10.5,fontWeight:800,textTransform:"uppercase",
-          letterSpacing:1.3,color:accent||(live?P.TX:P.TXD),fontFamily:P.MONO}},title),
-        React.createElement("span",{style:{
-          background:accent?accent+"1c":(live?P.AC:P.S2),
-          color:accent||(live?P.ACINK:P.TXD),
-          border:"1px solid "+(accent?accent+"4d":(live?P.AC:P.BD)),
-          borderRadius:999,fontSize:10,fontWeight:800,
-          padding:"1px 8px",minWidth:20,textAlign:"center",fontFamily:P.MONO,lineHeight:1.6}},
-          list.length),
-        sub?React.createElement("span",{style:{fontSize:11,color:P.TXF,fontWeight:500,
+  // Only buckets with something in them get a section. Empty ones used to be a
+  // stack of muted boxes ("nothing proposed", "no ideas yet") that said nothing
+  // five times; the summary row above already shows every count, zeros too.
+  // `live` marks the bucket waiting on the active profile; `accent` (Overdue
+  // only) recolours the heading.
+  const section=(title,list,ctx,sub,live,accent)=>{
+    if(!list.length)return null;
+    return React.createElement("section",{key:ctx,id:"plp-sec-"+ctx,style:{scrollMarginTop:12}},
+      React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:9,margin:"0 2px 10px"}},
+        React.createElement("h4",{style:{margin:0,fontSize:13,fontWeight:650,letterSpacing:-.05,
+          color:accent||(live?P.AC:P.TX),fontFamily:P.FONT}},title),
+        React.createElement("span",{style:{fontSize:12,fontWeight:600,color:accent||(live?P.AC:P.TXM),
+          fontVariantNumeric:"tabular-nums",opacity:.85}},list.length),
+        sub?React.createElement("span",{style:{fontSize:12,color:P.TXF,fontWeight:500,
           fontFamily:P.FONT,marginLeft:"auto",textAlign:"right"}},sub):null),
-      list.map(p=>card(p,ctx)));
+      React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
+        list.map(p=>card(p,ctx))));
   };
 
   const total=b.mine.length+b.overdue.length+b.confirmed.length+b.proposed.length+b.ideas.length;
 
-  return React.createElement("div",{style:{fontFamily:P.FONT,color:P.TX}},
-    // ── Head: who is acting, and the one action you came here to take ───────
-    React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:"10px 14px",
-      alignItems:"center",justifyContent:"space-between",paddingBottom:14,marginBottom:16,
-      borderBottom:"1px solid "+P.BD}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
-        React.createElement("button",{type:"button",disabled:busy,
-          onClick:()=>setDlg({mode:'edit',id:null}),
-          style:{display:"inline-flex",alignItems:"center",gap:8,background:P.AC,
-            border:"1px solid "+P.AC,borderRadius:8,color:P.ACINK,height:36,padding:"0 16px",
-            fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:P.MONO,
-            textTransform:"uppercase",letterSpacing:.9,transition:"filter .16s"},
-          onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},
-          onMouseLeave:e=>{e.currentTarget.style.filter="";}},
-          React.createElement("span",{style:{fontSize:16,lineHeight:0,fontWeight:400}},"+"),
-          "New idea"),
-        // Offer enrolment when this device can do it and this profile has not
-        // yet. It is an ACTION, not a description, and it states the security
-        // posture at the point of use.
-        (w&&!PC.bioEnrolled(w)&&bioOn)?React.createElement("button",{type:"button",
-          onClick:()=>setDlg({mode:'bioEnrol'}),
-          style:{display:"inline-flex",alignItems:"center",gap:8,background:"transparent",
-            border:"1px dashed "+P.BD,borderRadius:8,color:P.TXM,padding:"0 13px",height:36,
-            fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:P.MONO,letterSpacing:.5,
-            transition:"all .16s"},
-          onMouseEnter:e=>{e.currentTarget.style.borderColor=AC_LINE;e.currentTarget.style.color=P.AC;},
-          onMouseLeave:e=>{e.currentTarget.style.borderColor=P.BD;e.currentTarget.style.color=P.TXM;}},
-          "Require "+bioName+" for "+(NAMES[w]||w)+"’s confirmations"):null),
-      React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:7,
-        fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:.9,color:P.TXM,
-        background:P.S1,border:"1px solid "+P.BD,borderRadius:999,padding:"5px 12px",
-        whiteSpace:"nowrap",fontFamily:P.MONO}},
-        React.createElement("span",{style:{width:6,height:6,borderRadius:"50%",
+  // ── Summary row ───────────────────────────────────────────────────────────
+  // Every bucket's count in one quiet row; a tap jumps to that section. Waiting
+  // on you lights in the accent and Overdue in red, and only when non-zero, so
+  // a calm week reads calm.
+  const jump=ctx=>{const el=document.getElementById("plp-sec-"+ctx);
+    if(el)el.scrollIntoView({behavior:"smooth",block:"start"});};
+  const stat=(label,n,ctx,col)=>{
+    const on=n>0,c=on&&col?col:null;
+    return React.createElement("button",{key:ctx,type:"button",disabled:!on,onClick:()=>jump(ctx),
+      className:"plp-stat",
+      style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,minWidth:0,
+        background:c?c+"14":P.S1,border:"1px solid "+(c?c+"4d":P.BD),borderRadius:12,
+        padding:"10px 12px",cursor:on?"pointer":"default",textAlign:"left",fontFamily:P.FONT,
+        color:P.TX,transition:"border-color .16s,background .16s"},
+      onMouseEnter:e=>{if(on)e.currentTarget.style.borderColor=c?c:P.BDL;},
+      onMouseLeave:e=>{e.currentTarget.style.borderColor=c?c+"4d":P.BD;}},
+      React.createElement("span",{style:{fontSize:20,fontWeight:600,lineHeight:1.1,
+        fontVariantNumeric:"tabular-nums",color:c||(on?P.TX:P.TXF)}},n),
+      React.createElement("span",{style:{fontSize:11.5,fontWeight:500,color:c||(on?P.TXD:P.TXF),
+        whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}},label));
+  };
+
+  // Layout that inline styles cannot say: the phone breakpoints.
+  const css=".plp-root .plp-pad{padding:16px 18px}"
+    +".plp-root .plp-pad-b{padding-top:0;padding-left:80px}"
+    +".plp-root .plp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}"
+    +".plp-root .plp-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}"
+    +".plp-root .plp-card>button:focus-visible,.plp-root .plp-stat:focus-visible{outline:2px solid "+P.AC+";outline-offset:-2px}"
+    +"@media (max-width:640px){"
+    +".plp-root .plp-stats{grid-template-columns:repeat(3,minmax(0,1fr))}"
+    +".plp-root .plp-pad{padding:14px}"
+    +".plp-root .plp-pad-b{padding-top:0;padding-left:14px}"
+    +".plp-root .plp-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}"
+    +".plp-root .plp-acts>button{width:100%;white-space:normal;height:auto;min-height:40px;padding:6px 10px;line-height:1.25}"
+    +".plp-root .plp-acts>button:last-child:nth-child(odd){grid-column:1/-1}"
+    +".plp-root .plp-head .plp-new{flex:1 1 100%;justify-content:center}"
+    +"}"
+    +"@media (max-width:380px){.plp-root .plp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}";
+
+  const chev=open=>React.createElement("span",{"aria-hidden":"true",style:{display:"inline-flex",
+      transition:"transform .18s",transform:open?"rotate(90deg)":"none"}},
+    React.createElement("svg",{width:12,height:12,viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",
+      strokeWidth:1.6,strokeLinecap:"round",strokeLinejoin:"round"},
+      React.createElement("path",{d:"M4.5 2.5 8 6l-3.5 3.5"})));
+
+  return React.createElement("div",{className:"plp-root",style:{fontFamily:P.FONT,color:P.TX}},
+    React.createElement("style",null,css),
+    // ── Head: the one action you came here to take, and who is acting ───────
+    React.createElement("div",{className:"plp-head",style:{display:"flex",flexWrap:"wrap",gap:10,
+      alignItems:"center",marginBottom:16}},
+      React.createElement("button",{type:"button",disabled:busy,className:"plp-new",
+        onClick:()=>setDlg({mode:'edit',id:null}),
+        style:{display:"inline-flex",alignItems:"center",gap:8,background:P.AC,
+          border:"1px solid "+P.AC,borderRadius:10,color:P.ACINK,height:38,padding:"0 16px",
+          fontSize:13,fontWeight:650,cursor:"pointer",fontFamily:P.FONT,transition:"filter .16s"},
+        onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},
+        onMouseLeave:e=>{e.currentTarget.style.filter="";}},
+        React.createElement("svg",{width:13,height:13,viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",
+          strokeWidth:1.8,strokeLinecap:"round","aria-hidden":"true"},React.createElement("path",{d:"M6 1.5v9M1.5 6h9"})),
+        "New idea"),
+      // Offer enrolment when this device can do it and this profile has not
+      // yet. It is an ACTION, not a description, and it states the security
+      // posture at the point of use.
+      (w&&!PC.bioEnrolled(w)&&bioOn)?React.createElement("button",{type:"button",
+        onClick:()=>setDlg({mode:'bioEnrol'}),
+        style:{display:"inline-flex",alignItems:"center",gap:8,background:"transparent",
+          border:"1px solid transparent",borderRadius:10,color:P.TXM,padding:"0 10px",height:38,
+          fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:P.FONT,transition:"color .16s,border-color .16s"},
+        onMouseEnter:e=>{e.currentTarget.style.borderColor=P.BD;e.currentTarget.style.color=P.AC;},
+        onMouseLeave:e=>{e.currentTarget.style.borderColor="transparent";e.currentTarget.style.color=P.TXM;}},
+        React.createElement("svg",{width:14,height:14,viewBox:"0 0 16 16",fill:"none",stroke:"currentColor",
+          strokeWidth:1.4,strokeLinejoin:"round","aria-hidden":"true"},
+          React.createElement("path",{d:"M8 1.5 2.5 3.6v4c0 3.2 2.3 5.9 5.5 6.9 3.2-1 5.5-3.7 5.5-6.9v-4z"})),
+        "Require "+bioName+" for "+(NAMES[w]||w)+"’s confirmations"):null,
+      React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:7,marginLeft:"auto",
+        fontSize:12,fontWeight:600,color:P.TXD,background:P.S1,border:"1px solid "+P.BD,
+        borderRadius:999,padding:"5px 12px 5px 10px",whiteSpace:"nowrap",fontFamily:P.FONT}},
+        React.createElement("span",{style:{width:7,height:7,borderRadius:"50%",
           background:P.AC,flexShrink:0}}),
-        w?NAMES[w]:'no profile')),
+        w?NAMES[w]:'No profile')),
 
     (!total&&!b.archive.length)
-      // Nothing exists at all: say so once. Five empty section headers said the
-      // same thing five times and buried the one control that matters.
-      ?React.createElement("div",{style:{textAlign:"center",padding:"46px 24px 42px",
-        border:"1px solid "+P.BD,borderRadius:16,background:P.S1}},
-        React.createElement("div",{style:{fontSize:16,fontWeight:700,color:P.TX,marginBottom:8,
+      // Nothing exists at all: say so once.
+      ?React.createElement("div",{style:{textAlign:"center",padding:"52px 24px 48px",
+        border:"1px dashed "+P.BD,borderRadius:16}},
+        React.createElement("div",{style:{fontSize:16,fontWeight:650,color:P.TX,marginBottom:8,
           letterSpacing:-.2}},"No plans yet"),
         React.createElement("div",{style:{fontSize:13,color:P.TXM,lineHeight:1.6,maxWidth:360,
           margin:"0 auto"}},"Add an idea above. It stays an idea until you both confirm it."))
       :React.createElement(React.Fragment,null,
-        React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:24}},
-          section('Needs your response',b.mine,'mine','nothing waiting on you','',true),
-          // Overdue is the one section with no empty state: a heading announcing
-          // that nothing is overdue is noise on every good day. It only exists
-          // when something is actually late.
-          b.overdue.length?section('Overdue',b.overdue,'overdue','','still owed',false,
-            PLAN_OVERDUE_RED):null,
-          section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet'),
-          section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[PC.other(w)]:''),
-          section('Ideas',b.ideas,'ideas','no ideas yet','not commitments')),
+        React.createElement("div",{className:"plp-stats",style:{marginBottom:22}},
+          stat('Waiting on you',b.mine.length,'mine',P.AC),
+          stat('Overdue',b.overdue.length,'overdue',PLAN_OVERDUE_RED),
+          stat('Confirmed',b.confirmed.length,'confirmed'),
+          stat('Proposed',b.proposed.length,'proposed'),
+          stat('Ideas',b.ideas.length,'ideas')),
+        total?React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:26}},
+          section('Needs your response',b.mine,'mine','',true),
+          section('Overdue',b.overdue,'overdue','still owed',false,PLAN_OVERDUE_RED),
+          section('Confirmed',b.confirmed,'confirmed'),
+          section('Proposed',b.proposed,'proposed',w?'waiting on '+NAMES[PC.other(w)]:''),
+          section('Ideas',b.ideas,'ideas','not commitments yet'))
+          :React.createElement("div",{style:{fontSize:13,color:P.TXM,textAlign:"center",padding:"18px 0 6px"}},
+            "Nothing active. Past plans are in the archive."),
         // The Archive only earns a row once something is actually in it.
-        b.archive.length?React.createElement("div",{style:{marginTop:24}},
-          React.createElement("button",{type:"button",onClick:()=>setArchOpen(v=>!v),
-            style:{width:"100%",background:"transparent",border:0,borderTop:"1px solid "+P.BD,
-              borderRadius:0,color:P.TXM,padding:"15px 2px 0",fontSize:10,fontWeight:800,
-              textTransform:"uppercase",letterSpacing:1.2,cursor:"pointer",fontFamily:P.MONO,
-              textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",
-              gap:10}},
-            React.createElement("span",null,(archOpen?"▾":"▸")+" Archive"),
-            React.createElement("span",{style:{background:P.S2,color:P.TXD,
-              border:"1px solid "+P.BD,borderRadius:999,fontSize:10,fontWeight:800,
-              padding:"1px 8px",minWidth:20,textAlign:"center",fontFamily:P.MONO,
-              lineHeight:1.6}},b.archive.length)),
-          archOpen?React.createElement("div",{style:{marginTop:14}},
+        b.archive.length?React.createElement("div",{style:{marginTop:26,borderTop:"1px solid "+P.BD}},
+          React.createElement("button",{type:"button",onClick:()=>setArchOpen(v=>!v),"aria-expanded":archOpen?"true":"false",
+            style:{width:"100%",background:"transparent",border:0,
+              borderRadius:0,color:P.TXM,padding:"14px 2px",fontSize:13,fontWeight:600,
+              cursor:"pointer",fontFamily:P.FONT,
+              textAlign:"left",display:"flex",alignItems:"center",gap:9}},
+            chev(archOpen),
+            "Archive",
+            React.createElement("span",{style:{fontSize:12,color:P.TXF,fontVariantNumeric:"tabular-nums"}},b.archive.length)),
+          archOpen?React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10,paddingBottom:4}},
             b.archive.map(p=>card(p,'archive'))):null):null),
 
     dlg?React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey,busy,guard,doConfirm,
