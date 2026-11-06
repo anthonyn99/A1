@@ -1271,6 +1271,167 @@
   .sec-lock-gate button{background:#8D769A;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
   .section-nav button .navlock{font-size:10px;margin-left:4px;opacity:.85;}
 </style>
+<style id="tb-pfj-2026-11">
+/* Portfolio + Journal, TradeHub's 2026-11-04 layout in TradeBoard's own colours
+   and fonts (her tokens only: --accent, --bg-card, DM Sans, IBM Plex Mono). */
+.tbp{display:flex;flex-direction:column;gap:14px;}
+.tbp-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.tbp-head h2{font-size:22px;font-weight:700;letter-spacing:-.2px;color:var(--text);line-height:1.2;}
+.tbp-meta{display:flex;align-items:center;flex-wrap:wrap;gap:0 8px;font-size:12.5px;color:var(--muted);margin-top:3px;}
+.tbp-meta i{width:3px;height:3px;border-radius:50%;background:var(--border);display:inline-block;}
+.tbp-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tbp-tools{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;}
+.tbp-tools button{background:transparent;border:0;border-right:1px solid var(--border-soft);color:var(--text-2);width:36px;height:34px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--transition),color var(--transition);}
+.tbp-tools button:last-child{border-right:0;}
+.tbp-tools button:hover:not(:disabled){background:var(--accent-light);color:var(--text);}
+.tbp-tools button:disabled{opacity:.4;cursor:default;}
+.tbp-tools button .tbi{width:15px;height:15px;}
+/* market clock */
+.tbmk{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-md);padding:12px 16px;max-width:960px;}
+.tbmk-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.tbmk-st{display:flex;align-items:center;gap:8px;min-width:0;}
+.tbmk-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tbmk-dot.live{animation:tbmk-pulse 2s ease-in-out infinite;}
+@keyframes tbmk-pulse{50%{opacity:.35}}
+.tbmk-lbl{font-size:12px;font-weight:700;letter-spacing:1.4px;}
+.tbmk-sub{font-size:12.5px;color:var(--muted);}
+.tbmk-hrs{font-size:12.5px;color:var(--text-2);margin-left:auto;}
+.tbmk-cd{display:flex;align-items:baseline;gap:7px;}
+.tbmk-cd small{font-size:11px;color:var(--muted);}
+.tbmk-cd b{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;}
+.tbmk-hol{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);font-size:12px;color:var(--text-2);}
+.tbmk-hol>span:first-child{color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-size:10.5px;font-weight:600;}
+.tbmk-hol em{font-style:normal;color:var(--muted);margin-right:6px;}
+.tbmk-hol .tag{margin-left:6px;font-size:10px;padding:1px 6px;border-radius:5px;background:var(--bg-slot);color:var(--muted);}
+.tbmk-hol .tag.half{color:var(--amber);background:var(--amber-dim);}
+/* account figures */
+.tbf{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;max-width:960px;}
+.tbf>div{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0;}
+.tbf .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;font-weight:600;}
+.tbf .v{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tbf .v.mut{color:var(--muted);}
+.tbf .s{font-size:11.5px;color:var(--muted);}
+.tbf .hero{border-color:var(--accent);background:var(--accent-light);}
+.tbf .hero .v{font-size:19px;}
+.tbdet{max-width:960px;background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-md);}
+.tbdet summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--text-2);}
+.tbdet summary::-webkit-details-marker{display:none;}
+.tbdet summary .n{font-weight:400;color:var(--muted);}
+.tbdet summary .chev{margin-left:auto;transition:transform .18s;}
+.tbdet[open] summary .chev{transform:rotate(180deg);}
+.tbdet .tbf{padding:0 12px 12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+.tbdet .tbf>div{background:var(--bg-inset);}
+/* tabs + tables */
+.tb-pf-w{max-width:960px;width:100%;}
+.tbtabs{display:flex;gap:4px;border-bottom:1px solid var(--border-soft);}
+.tbtabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:600;padding:8px 12px;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;transition:color var(--transition);}
+.tbtabs button:hover{color:var(--text-2);}
+.tbtabs button.on{color:var(--text);border-bottom-color:var(--accent);}
+.tbtabs .n{font-size:10.5px;font-weight:600;color:var(--text-2);background:var(--bg-slot);border-radius:6px;padding:0 6px;}
+.tbt-card{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-md);overflow:hidden;}
+.tb-fit{overflow:auto;overscroll-behavior:contain;}
+.tbt{width:100%;border-collapse:collapse;font-size:13px;}
+.tbt th{position:sticky;top:0;z-index:1;background:var(--bg-slot);color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;text-align:left;padding:9px 12px;white-space:nowrap;border-bottom:1px solid var(--border-soft);}
+.tbt td{padding:9px 12px;border-bottom:1px solid var(--border-soft);color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums;vertical-align:top;}
+.tbt tbody tr:last-child td{border-bottom:0;}
+.tbt tbody tr:hover td{background:rgba(255,255,255,.02);}
+.tbt .r{text-align:right;font-family:var(--mono);}
+.tbt th.r{font-family:var(--sans);}
+.tbt .sym{font-weight:700;color:var(--text);}
+.tbt .side{font-weight:700;font-size:12px;letter-spacing:.4px;}
+.tbt .mut{color:var(--muted);}
+.tbt .strong{color:var(--text);}
+.tbt .warn{color:var(--amber);}
+.tbt .sub{display:block;font-size:11.5px;margin-top:2px;}
+.tbt .sub.soft{opacity:.72;}
+.tbt-w{display:flex !important;align-items:center;justify-content:flex-end;gap:6px;color:var(--muted);}
+.tbt-w i{display:inline-block;width:44px;height:4px;border-radius:3px;background:var(--bg-slot);overflow:hidden;}
+.tbt-w i b{display:block;height:100%;background:var(--accent);border-radius:3px;}
+.tbt-w em{font-style:normal;font-size:10.5px;}
+.tbt tfoot td{background:var(--bg-inset);color:var(--text);font-weight:600;border-top:1px solid var(--border);position:sticky;bottom:0;}
+.tbt tfoot .k{text-transform:uppercase;font-size:10.5px;letter-spacing:.9px;color:var(--muted);}
+.tbt-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:13px;}
+/* activity */
+.tb-act{display:flex;flex-direction:column;gap:10px;}
+.tb-act-bar{display:flex;align-items:center;gap:10px;}
+.tb-act-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+.tb-act-tile{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-md);padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-weight:600;transition:border-color var(--transition);}
+.tb-act-tile b{font-family:var(--mono);font-size:15px;letter-spacing:0;text-transform:none;}
+.tb-act-tile.on,.tb-act-tile:hover{border-color:var(--accent);}
+.tb-act-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.tb-chip{background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--text-2);font-size:12px;padding:4px 11px;display:inline-flex;align-items:center;gap:6px;}
+.tb-chip.on{background:var(--accent-light);border-color:var(--accent);color:var(--text);}
+.tb-chip.dim{opacity:.45;}
+.tb-chip .n{font-size:10.5px;color:var(--muted);}
+.tb-act .m-list{display:none;}
+.tbt-card .pf-m{display:none;}
+.tb-act-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);}
+.tb-act-row .m{flex:1;min-width:0;}
+.tb-act-row .t{font-weight:600;color:var(--text);}
+.tb-act-row .t .s{margin-left:6px;font-size:11px;color:var(--muted);}
+.tb-act-row .sub{font-size:11.5px;color:var(--muted);}
+.tb-act-row b{font-family:var(--mono);}
+/* journal */
+.tbj-top{display:grid;grid-template-columns:minmax(0,900px) minmax(280px,1fr);gap:14px;align-items:start;}
+.tbj-top .curve-card{margin:0;max-width:900px;}
+.tbj-top .stat-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin:0;}
+.tbj-top .tile{padding:12px 13px;min-width:0;}
+.tbj-top .tile .t-val{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tbj-top .tile .t-name,.tbj-top .tile .t-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tbj-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tbj-search{flex:1;min-width:200px;display:flex;align-items:center;gap:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 10px;height:36px;color:var(--muted);}
+.tbj-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--text);font:inherit;font-size:13.5px;}
+.tbj-search:focus-within{border-color:var(--accent);}
+.tbj-count{margin-left:auto;font-size:12.5px;color:var(--muted);}
+.tbx-seg{display:inline-flex;background:var(--bg-inset);border:1px solid var(--border-soft);border-radius:var(--radius-sm);padding:2px;gap:2px;}
+.tbx-seg button{background:transparent;border:0;color:var(--muted);font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:8px;}
+.tbx-seg button.on{background:var(--bg-card);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent);}
+.jr-day td{background:var(--bg-inset) !important;color:var(--muted);font-size:11.5px;font-weight:600;padding:7px 12px !important;}
+.jr-day td b{font-family:var(--mono);margin-left:4px;}
+.jr-day .jr-day-n{font-weight:400;margin-left:8px;}
+.m-day{font-size:11.5px;font-weight:600;color:var(--muted);padding:10px 4px 4px;display:flex;justify-content:space-between;}
+/* equity curve: shorter, a pill toggle and an inset table */
+.curve-card #curve-svg{height:clamp(120px,12vw,170px) !important;}
+.tb-eq-tog{display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--text-2);font-size:11.5px;font-weight:600;padding:4px 11px;}
+.tb-eq-tog:hover,.tb-eq-tog.on{border-color:var(--accent);color:var(--text);}
+.tb-eq-tog .chev{transition:transform .18s;}
+.tb-eq-tog.on .chev{transform:rotate(180deg);}
+.tb-eq-tbl{margin-top:10px;background:var(--bg-inset);border:1px solid var(--border-soft);border-radius:var(--radius-sm);overflow:hidden;}
+.tb-eq-scroll{max-height:240px;overflow:auto;}
+.tb-eq-tbl table{width:100%;border-collapse:collapse;font-size:12px;}
+.tb-eq-tbl th{position:sticky;top:0;background:var(--bg-inset);color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;text-align:left;padding:7px 12px;border-bottom:1px solid var(--border-soft);}
+.tb-eq-tbl td{padding:6px 12px;border-bottom:1px solid var(--border-soft);color:var(--text-2);white-space:nowrap;}
+.tb-eq-tbl .r{text-align:right;font-family:var(--mono);}
+.tb-eq-chip{display:inline-block;padding:1px 8px;border-radius:6px;font-family:var(--mono);font-size:11.5px;}
+.tb-eq-chip.up{color:var(--green);background:var(--green-dim);}
+.tb-eq-chip.dn{color:var(--red);background:var(--red-dim);}
+.tb-eq-foot{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;font-size:11.5px;color:var(--muted);}
+.tb-eq-foot b{font-family:var(--mono);margin:0 3px;}
+.tb-eq-foot .up{color:var(--green);}.tb-eq-foot .dn{color:var(--red);}
+@media (max-width:1100px){.tbj-top{grid-template-columns:1fr;}}
+@media (max-width:900px){.tbf{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media (max-width:720px){
+  .tbf{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .tbf .hero{grid-column:1/-1;}
+  .tbmk-hrs{margin-left:0;flex-basis:100%;order:3;}
+  .tb-act-tiles{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .tb-act .tb-act-table{display:none;}
+  .tb-act .m-list{display:block;}
+  .tbt-card .tbt-pos{display:none;}
+  .tbt-card .pf-m{display:block;padding:8px;}
+  .tbt-card .tb-fit{max-height:none !important;}
+  .tbp-head h2{font-size:20px;}
+  .tbj-top .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+.nh-mkt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--border-soft);border:1px solid var(--border-soft);border-radius:var(--radius-md);overflow:hidden;margin-bottom:12px;}
+.nh-mkt-t{background:var(--bg-card);padding:9px 12px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;min-width:0;}
+.nh-mkt-t .l{font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nh-mkt-t .d{font-family:var(--mono);font-size:11.5px;text-align:right;}
+.nh-mkt-t b{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
+.nh-mkt-t .nh-spark{justify-self:end;}
+.nh-held{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-hover);background:var(--accent-light);border:1px solid var(--accent);border-radius:5px;padding:0 6px;}
+@media (max-width:767px){.nh-mkt-t{grid-template-columns:1fr;grid-template-rows:auto;row-gap:2px;}.nh-mkt-t .d{text-align:left;}.nh-mkt-t .nh-spark{justify-self:start;}}
+</style>
 </head>
 <body>
 
@@ -1365,76 +1526,62 @@
 
 <!-- ══════════════════════ PORTFOLIO ══════════════════════ -->
 <section class="section-view active" id="view-portfolio">
-  <div class="wrap">
-    <div class="section-label">
-      <span>Portfolio — <span id="pf-broker">Webull</span></span>
-      <span class="meta" id="pf-meta"></span>
+  <div class="wrap tbp">
+    <div class="tbp-head">
+      <div class="ttl"><h2>Portfolio</h2><div class="tbp-meta" id="pf-meta"></div></div>
+      <div class="tbp-acts"><button class="btn btn-ghost btn-sm" onclick="TB.pf.refresh()" title="Re-pull the latest Webull sync from the cloud"><svg class="tbi" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>Refresh</span></button></div>
     </div>
-
-    <!-- market status + actions -->
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:20px;">
-      <span class="mkt-status mkt-closed" id="mkt-status"><span class="m-dot"></span><span id="mkt-text">Market —</span></span>
-      <span class="curve-meta mono" id="mkt-clock" style="color:var(--muted);"></span>
-      <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="TB.pf.refresh()" title="Re-fetch from sync server (when served) or reload cache"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>Refresh</span></button>
-    </div>
-
-    <!-- account hero tiles -->
-    <div class="grid hero-grid" id="pf-hero"></div>
-
-    <!-- positions -->
-    <div class="section-label" style="margin-top:6px;">
-      <span>Open Positions</span>
-      <span class="meta" id="pf-pos-meta"></span>
-    </div>
-    <div id="pf-positions-host"></div>
+    <div class="tbmk" id="pf-mkt"></div>
+    <div class="tbf tbf-pf" id="pf-hero"></div>
+    <div id="pf-details"></div>
+    <div class="tbtabs tb-pf-w" role="tablist" id="pf-tabs"></div>
+    <div id="pf-tab-host"></div>
   </div>
 </section>
 
 <!-- ══════════════════════ JOURNAL ══════════════════════ -->
 <section class="section-view" id="view-journal">
-  <div class="wrap">
-    <div class="section-label">
-      <span>Journal — performance (realized)</span>
-      <span class="meta" id="jr-count"></span>
-    </div>
-
-    <!-- toolbar -->
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
-      <button class="btn btn-primary" onclick="TB.jr.openAdd()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Manual trade</span></button>
-      <button class="btn btn-ghost btn-sm" onclick="TB.jr.remerge()" title="Re-merge fills sharing symbol+side+exit-date into single entries"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="12" height="12" rx="2"/><path d="M15 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h4"/></svg><span>Re-merge</span></button>
-      <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="TB.jr.exportCSV()">Export CSV</button>
-      <button class="btn btn-ghost btn-sm" onclick="TB.jr.exportJSON()">Export JSON</button>
-    </div>
-
-    <!-- stats -->
-    <div class="grid stat-grid" id="jr-stats"></div>
-
-    <!-- equity curve -->
-    <div class="card curve-card">
-      <div class="curve-head">
-        <span class="curve-title">Equity Curve</span>
-        <span class="curve-meta" id="jr-curve-meta"></span>
+  <div class="wrap tbp">
+    <div class="tbp-head">
+      <div class="ttl"><h2>Journal</h2><div class="tbp-meta"><span id="jr-count"></span><i></i><span>performance (realized)</span></div></div>
+      <div class="tbp-acts">
+        <button class="btn btn-primary btn-sm" onclick="TB.jr.openAdd()"><svg class="tbi" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Manual trade</span></button>
+        <div class="tbp-tools">
+          <button type="button" onclick="TB.jr.remerge()" title="Re-merge: fills sharing symbol + side + exit date become one entry" aria-label="Re-merge"><svg class="tbi" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="12" height="12" rx="2"/><path d="M15 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h4"/></svg></button>
+          <button type="button" onclick="TB.jr.exportCSV()" title="Export CSV" aria-label="Export CSV"><svg class="tbi" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></button>
+          <button type="button" onclick="TB.jr.exportJSON()" title="Export JSON" aria-label="Export JSON"><svg class="tbi" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg></button>
+        </div>
       </div>
-      <div id="jr-curve-host"></div>
     </div>
 
-    <!-- filters -->
-    <div class="section-label"><span>Trade Log</span></div>
-    <div class="filter-bar">
-      <input class="form-input grow" id="jr-search" placeholder="Search symbol, tag, or notes…" oninput="TB.jr.render()">
+    <!-- the curve beside the stats (TradeHub's Journal, 2026-11-04) -->
+    <div class="tbj-top">
+      <div class="card curve-card">
+        <div class="curve-head">
+          <span class="curve-title">Equity Curve</span>
+          <span class="curve-meta" id="jr-curve-meta"></span>
+        </div>
+        <div id="jr-curve-host"></div>
+      </div>
+      <div class="grid stat-grid" id="jr-stats"></div>
+    </div>
+
+    <!-- search, result segments, the rest of her filters -->
+    <div class="tbj-bar">
+      <label class="tbj-search"><svg class="tbi" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="jr-search" placeholder="Search symbol, tag, or notes…" oninput="TB.jr.render()"></label>
+      <div class="tbx-seg" role="group" aria-label="Show" id="jr-seg"></div>
+      <select class="select" id="jr-f-result" hidden onchange="TB.jr.render()">
+        <option value="all">All results</option><option value="win">Wins</option><option value="loss">Losses</option><option value="open">Open</option>
+      </select>
       <select class="select" id="jr-f-side" onchange="TB.jr.render()">
         <option value="all">All sides</option><option value="long">Long</option><option value="short">Short</option>
-      </select>
-      <select class="select" id="jr-f-result" onchange="TB.jr.render()">
-        <option value="all">All results</option><option value="win">Wins</option><option value="loss">Losses</option><option value="open">Open</option>
       </select>
       <select class="select" id="jr-f-source" onchange="TB.jr.render()">
         <option value="all">All sources</option><option value="broker">Broker</option><option value="manual">Manual</option>
       </select>
       <select class="select" id="jr-f-tag" onchange="TB.jr.render()"><option value="all">All tags</option></select>
       <button class="btn btn-ghost btn-sm" onclick="TB.jr.clearFilters()">Clear</button>
+      <span class="tbj-count" id="jr-shown"></span>
     </div>
 
     <!-- selection toolbar -->
@@ -2397,6 +2544,74 @@ const TB = {
      { broker, equity, generated_at, positions:[ {symbol,asset,qty,avg,last,
        market_value,unrealized,unrealized_pct} ], account:{...} }
    ═══════════════════════════════════════════════════════════════════════════ */
+/* US market clock (NYSE/Nasdaq), computed in true Eastern Time with holidays from
+   NYSE's rules: TradeHub's functions verbatim (A1-Priv tradehub.html, "US Market Clock"). */
+function tbMktDow(y,m,d){return new Date(Date.UTC(y,m-1,d)).getUTCDay();}
+function tbMktNthDow(y,m,wd,n){let c=0;for(let d=1;d<=31;d++){if(tbMktDow(y,m,d)===wd&&++c===n)return d;}return null;}
+function tbMktLastDow(y,m,wd){const dim=new Date(Date.UTC(y,m,0)).getUTCDate();for(let d=dim;d>=1;d--)if(tbMktDow(y,m,d)===wd)return d;}
+function tbMktIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function tbMktEaster(Y){const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);return [Math.floor((h+l-7*m+114)/31),((h+l-7*m+114)%31)+1];}
+function tbMktObserve(y,m,d,isNY){const w=tbMktDow(y,m,d);if(w===6)return isNY?null:tbMktIso(y,m,d-1);if(w===0)return tbMktIso(y,m,d+1);return tbMktIso(y,m,d);}
+function tbMktComputeYear(Y){
+  const H={},HD={};
+  const ny=tbMktObserve(Y,1,1,true); if(ny)H[ny]="New Year's Day";
+  H[tbMktIso(Y,1,tbMktNthDow(Y,1,1,3))]='MLK Jr. Day';
+  H[tbMktIso(Y,2,tbMktNthDow(Y,2,1,3))]="Presidents' Day";
+  const [em,ed]=tbMktEaster(Y); const gf=new Date(Date.UTC(Y,em-1,ed)); gf.setUTCDate(gf.getUTCDate()-2);
+  H[tbMktIso(gf.getUTCFullYear(),gf.getUTCMonth()+1,gf.getUTCDate())]='Good Friday';
+  H[tbMktIso(Y,5,tbMktLastDow(Y,5,1))]='Memorial Day';
+  if(Y>=2022)H[tbMktObserve(Y,6,19,false)]='Juneteenth';
+  H[tbMktObserve(Y,7,4,false)]='Independence Day';
+  H[tbMktIso(Y,9,tbMktNthDow(Y,9,1,1))]='Labor Day';
+  const tg=tbMktNthDow(Y,11,4,4); H[tbMktIso(Y,11,tg)]='Thanksgiving Day';
+  const xm=tbMktObserve(Y,12,25,false); H[xm]='Christmas Day';
+  HD[tbMktIso(Y,11,tg+1)]='Day after Thanksgiving';
+  const j4=tbMktDow(Y,7,4); if(j4>=2&&j4<=5)HD[tbMktIso(Y,7,3)]='Independence Day Eve';
+  const d24=tbMktDow(Y,12,24); if(d24>=1&&d24<=5&&xm!==tbMktIso(Y,12,24))HD[tbMktIso(Y,12,24)]='Christmas Eve';
+  return {H,HD};
+}
+const _tbMktHolCache={};
+function tbMktHolYear(Y){return _tbMktHolCache[Y]||(_tbMktHolCache[Y]=tbMktComputeYear(Y));}
+function tbMktHolidayName(ds){return tbMktHolYear(+ds.slice(0,4)).H[ds]||null;}
+function tbMktHalfdayName(ds){return tbMktHolYear(+ds.slice(0,4)).HD[ds]||null;}
+
+function tbMktDateAdd(s,n){const[Y,M,D]=s.split('-').map(Number);const d=new Date(Date.UTC(Y,M-1,D));d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function tbMktWeekday(s){const[Y,M,D]=s.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D)).getUTCDay();} // 0=Sun..6=Sat
+function tbMktIsTradingDay(s){const wd=tbMktWeekday(s);return wd!==0&&wd!==6&&!tbMktHolidayName(s);}
+function tbMktNextTradingDay(s,incl){let d=incl?s:tbMktDateAdd(s,1);for(let i=0;i<14;i++){if(tbMktIsTradingDay(d))return d;d=tbMktDateAdd(d,1);}return d;}
+// Wall-clock parts in America/New_York for a given Date.
+function tbNyParts(date){const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hh=+p.hour;if(hh===24)hh=0;return{dateStr:`${p.year}-${p.month}-${p.day}`,hh,mm:+p.minute,ss:+p.second};}
+// UTC ms timestamp for a given NY wall-clock date+time (DST-safe).
+function tbNyTs(dateStr,hh,mm){const[Y,M,D]=dateStr.split('-').map(Number);const guess=Date.UTC(Y,M-1,D,hh,mm,0);const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(guess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hr=+p.hour;if(hr===24)hr=0;const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);return guess-(asTz-guess);}
+function tbMktState(now){
+  const {dateStr,hh,mm}=tbNyParts(now);
+  const t=hh*60+mm;
+  const wd=tbMktWeekday(dateStr);
+  const tradable=wd!==0&&wd!==6&&!tbMktHolidayName(dateStr);
+  const half=tbMktHalfdayName(dateStr);
+  const regClose=half?13*60:16*60;          // 1:00 or 4:00 PM ET
+  const postEnd=half?17*60:20*60;            // extended session end
+  let phase='closed';
+  if(tradable){
+    if(t<240)phase='closed';                 // before 4:00 AM
+    else if(t<570)phase='pre';               // 4:00–9:30
+    else if(t<regClose)phase='regular';      // 9:30–close
+    else if(t<postEnd)phase='after';         // close–8:00 PM
+    else phase='closed';
+  }
+  const nextOpenDate=(tradable&&t<570)?dateStr:tbMktNextTradingDay(dateStr,false);
+  return {dateStr,t,phase,half,tradable,holiday:tbMktHolidayName(dateStr),regClose,postEnd,
+    regOpenTs:tbNyTs(dateStr,9,30),
+    regCloseTs:tbNyTs(dateStr,Math.floor(regClose/60),regClose%60),
+    postEndTs:tbNyTs(dateStr,Math.floor(postEnd/60),postEnd%60),
+    nextOpenTs:tbNyTs(nextOpenDate,9,30),nextOpenDate};
+}
+function tbCountdown(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const d=Math.floor(s/86400);const h=Math.floor(s%86400/3600);const m=Math.floor(s%3600/60);const ss=s%60;if(d>0)return `${d}d ${h}h ${m}m`;if(h>0)return `${h}h ${m}m ${ss}s`;return `${m}m ${ss}s`;}
+function tbMktDayLabel(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});}
+// Format a UTC timestamp in the VIEWER'S local timezone (auto-detected by the
+// browser), so market times read e.g. "7:30 AM MST" in Colorado, "9:30 AM EDT" in NY.
+function tbLocalTime(ts){return new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+function tbLocalTimeTz(ts){return new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZoneName:'short'});}
 TB.pf = {
   _init() {
     // seed a realistic demo on first run so the UI is visible pre-API-key
@@ -2432,104 +2647,217 @@ TB.pf = {
 
   data() { return TBStore.get(TBStore.KEYS.positions, null); },
 
+  /* Portfolio, rebuilt 2026-11-06 to TradeHub's layout (A1-Priv tradehub.html,
+     TBPortfolioPage, 2026-11-04) in TradeBoard's own colours: a header with one
+     meta line, the market clock card, the account figures (Total Value first),
+     Account details, then Positions / Open Orders / History / Activity, each a
+     table that scrolls inside a window-height box with a sticky header.
+     Orders, history and activity come from the same PC-side Webull sync
+     (wb_sync.py → orders / history / activity on the cloud doc). */
+  tab: "positions",
+  actRange: "ytd",
+  actGroup: "all",
+  setTab(t) { TB.pf.tab = t; TB.pf.render(); },
+
   render() {
     const d = TB.pf.data();
     const heroHost = document.getElementById("pf-hero");
-    const posHost = document.getElementById("pf-positions-host");
-    document.getElementById("pf-broker").textContent = d && d.broker ? d.broker : "Webull";
-
+    const tabHost = document.getElementById("pf-tab-host");
+    const tabsHost = document.getElementById("pf-tabs");
+    const detHost = document.getElementById("pf-details");
+    TB.pf.tickClock();
     if (!d) {
-      heroHost.innerHTML = "";
-      posHost.innerHTML = TB.pf._emptyCallout();
-      document.getElementById("pf-meta").textContent = "";
-      document.getElementById("pf-pos-meta").textContent = "";
+      heroHost.innerHTML = ""; detHost.innerHTML = ""; tabsHost.innerHTML = "";
+      tabHost.innerHTML = TB.pf._emptyCallout();
+      document.getElementById("pf-meta").innerHTML = "";
       return;
     }
-
     const acct = d.account || {};
     const positions = Array.isArray(d.positions) ? d.positions : [];
-    const totalUnreal = positions.reduce((s, p) => s + (Number(p.unrealized) || 0), 0);
-    const mktVal = acct.market_value != null ? acct.market_value
-      : positions.reduce((s, p) => s + (Number(p.market_value) || 0), 0);
-
-    // hero tiles — show all major account data Webull exposes
-    const tiles = [
-      { name: "Net Liquidation", val: U.money(acct.net_liquidation != null ? acct.net_liquidation : d.equity || 0),
-        sub: "total account value" },
-      { name: "Buying Power", val: acct.buying_power != null ? U.money(acct.buying_power) : "—",
-        sub: "available to trade" },
-      { name: "Cash", val: acct.cash != null ? U.money(acct.cash) : "—", sub: "settled + unsettled" },
-      { name: "Positions Value", val: U.money(mktVal), sub: positions.length + " holding" + (positions.length === 1 ? "" : "s") },
-      { name: "Day P&L", val: acct.day_pnl != null ? U.signedMoney(acct.day_pnl) : "—",
-        cls: acct.day_pnl, sub: acct.day_pnl_pct != null ? (acct.day_pnl_pct > 0 ? "+" : "") + U.num(acct.day_pnl_pct, 2) + "% today" : "&nbsp;" },
-      { name: "Unrealized P&L", val: U.signedMoney(totalUnreal), cls: totalUnreal, sub: "open positions" },
-    ];
-    heroHost.innerHTML = tiles.map(t => `
-      <div class="hero-tile">
-        <div class="h-name">${t.name}</div>
-        <div class="h-val ${t.cls != null ? U.pnClass(t.cls) : ""}">${t.val}</div>
-        <div class="h-sub">${t.sub}</div>
-      </div>`).join("");
+    const orders = Array.isArray(d.orders) ? d.orders : null;
+    const history = Array.isArray(d.history) ? d.history : null;
+    const activity = Array.isArray(d.activity) ? d.activity : null;
+    const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+    const totalUnreal = positions.reduce((s, p) => s + num(p.unrealized), 0);
+    const mktVal = acct.market_value != null ? num(acct.market_value) : positions.reduce((s, p) => s + num(p.market_value), 0);
+    const totalVal = acct.net_liquidation != null ? num(acct.net_liquidation) : num(d.equity);
+    const cash = acct.cash != null ? num(acct.cash) : null;
+    let bp = acct.buying_power != null ? num(acct.buying_power) : null;
+    if (bp != null && cash != null && (bp <= 0 || (totalVal > 0 && bp > totalVal * 4 + 0.01))) bp = cash;
+    const dayPnL = acct.day_pnl != null ? num(acct.day_pnl) : null;
+    const dayPct = acct.day_pnl_pct != null ? num(acct.day_pnl_pct) : (dayPnL && totalVal > 0 ? dayPnL / (totalVal - dayPnL) * 100 : null);
+    const realized = acct.realized_pnl != null ? num(acct.realized_pnl) : TB.pf._realizedFromHistory(history);
+    const pc = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
 
     // meta line
     const when = d.generated_at ? new Date(d.generated_at) : null;
-    const stamp = when && !isNaN(when) ? TB.pf.fmtET(when) : "";
-    document.getElementById("pf-meta").innerHTML =
-      (d._demo ? "demo data · " : "") + (stamp ? "synced " + U.esc(stamp) : "");
-    document.getElementById("pf-pos-meta").innerHTML =
-      `Unrealized <span class="${U.pnClass(totalUnreal)}">${U.signedMoney(totalUnreal)}</span>`;
+    const stamp = when && !isNaN(when) ? when.toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "";
+    document.getElementById("pf-meta").innerHTML = [U.esc(d.broker || "Webull"), d._demo ? "demo data" : "", stamp ? "Synced " + U.esc(stamp) : ""]
+      .filter(Boolean).map(s => `<span>${s}</span>`).join("<i></i>");
 
-    // positions table
-    if (positions.length === 0) {
-      posHost.innerHTML = `<div class="table-wrap"><table><tbody><tr><td class="table-empty">No open positions.</td></tr></tbody></table></div>`;
-      return;
-    }
+    // account figures (Total Value is the hero)
+    const F = (label, value, sub, cls, hero) => `<div class="${hero ? "hero" : ""}"><span class="k">${label}</span><span class="v ${cls || ""}">${value}</span>${sub ? `<span class="s">${sub}</span>` : ""}</div>`;
+    heroHost.innerHTML =
+      F("Total Value", U.money(totalVal), [acct.account_type, acct.currency || "USD"].filter(Boolean).map(U.esc).join(" · "), "", true) +
+      F("Cash Balance", cash != null ? U.money(cash) : "—") +
+      F("Buying Power", bp != null ? U.money(bp) : "—") +
+      F("Day P&amp;L", dayPnL ? U.signedMoney(dayPnL) : "—", dayPct != null && dayPnL ? (dayPct > 0 ? "+" : "") + U.num(dayPct, 2) + "% today" : "Today", dayPnL ? pc(dayPnL) : "mut") +
+      F("Unrealized P&amp;L", U.signedMoney(totalUnreal), positions.length + " position" + (positions.length === 1 ? "" : "s"), pc(totalUnreal)) +
+      F("Realized P&amp;L", realized ? U.signedMoney(realized) : "—", realized && acct.realized_pnl == null ? "Last 30 days · FIFO" : "", realized ? pc(realized) : "mut");
+
+    // account details (only the figures the sync sent)
+    const extra = [["Market Value", "market_value"], ["Settled Cash", "settled_cash"], ["Unsettled Cash", "unsettled_cash"], ["Intraday BP", "intraday_bp"],
+      ["Overnight BP", "overnight_bp"], ["Options BP", "options_bp"], ["Initial Margin", "initial_margin"], ["Maint. Margin", "maintenance_margin"], ["Excess Liquidity", "excess_liquidity"]]
+      .filter(([, k]) => acct[k] != null && acct[k] !== "" && isFinite(parseFloat(acct[k])));
+    const open = detHost.querySelector("details") && detHost.querySelector("details").open;
+    detHost.innerHTML = extra.length ? `<details class="tbdet"${open ? " open" : ""}><summary>Account details<span class="n">${extra.length} figures</span>${TB.pf._chev}</summary>
+      <div class="tbf">${extra.map(([l, k]) => F(l, U.money(num(acct[k])))).join("")}</div></details>` : "";
+
+    // tabs
+    const tabs = [["positions", "Positions", positions.length], ["orders", "Open Orders", orders ? orders.length : 0], ["history", "History", history ? history.length : 0], ["activity", "Activity", 0]];
+    tabsHost.innerHTML = tabs.map(([id, label, n]) => `<button type="button" role="tab" class="${TB.pf.tab === id ? "on" : ""}" aria-selected="${TB.pf.tab === id}" onclick="TB.pf.setTab('${id}')">${label}${n > 0 ? `<span class="n">${n}</span>` : ""}</button>`).join("");
+    const t = TB.pf.tab;
+    tabHost.innerHTML = t === "orders" ? TB.pf._orders(orders) : t === "history" ? TB.pf._history(history) : t === "activity" ? TB.pf._activity(activity) : TB.pf._positions(positions, totalUnreal, mktVal);
+    TB.pf.fit();
+  },
+  _chev: '<svg class="tbi chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+  // Not sent yet by the PC sync (an older wb_sync.py): say where it comes from.
+  _notYet(what) { return `<div class="tbt-card tb-pf-w"><div class="tbt-empty">${what} appear after your PC's Webull sync runs (wb_sync.py, every 2 minutes).</div></div>`; },
+  _positions(positions, totalUnreal, mktVal) {
+    if (!positions.length) return `<div class="tbt-card tb-pf-w"><div class="tbt-empty">No open positions.</div></div>`;
     const rows = positions.slice().sort((a, b) => (Number(b.market_value) || 0) - (Number(a.market_value) || 0));
-    posHost.innerHTML = `
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Symbol</th><th class="num">Qty</th><th class="num">Avg</th><th class="num">Last</th>
-            <th class="num">Mkt Value</th><th class="num">Unrealized</th><th class="num">Return</th>
-          </tr></thead>
-          <tbody>${rows.map(p => {
-            const isOpt = p.asset === "option";
-            const unreal = Number(p.unrealized) || 0;
-            const pct = Number(p.unrealized_pct) || 0;
-            return `<tr>
-              <td class="sym">${isOpt ? '<span class="opt-badge">OPT</span>' : ""}${U.esc(p.symbol)}</td>
-              <td class="num mono">${U.esc(String(p.qty))}${isOpt ? " ct" : ""}</td>
-              <td class="num mono">${U.num(Number(p.avg))}</td>
-              <td class="num mono">${U.num(Number(p.last))}</td>
-              <td class="num mono">${U.money(Number(p.market_value) || 0)}</td>
-              <td class="num mono ${U.pnClass(unreal)}">${U.signedMoney(unreal)}</td>
-              <td class="num mono ${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</td>
-            </tr>`;
-          }).join("")}</tbody>
-        </table>
-        <!-- phone view of the same positions (CSS swaps table ⇄ list at ≤720px) -->
-        <div class="m-list">${rows.map(p => {
-          const isOpt = p.asset === "option";
-          const unreal = Number(p.unrealized) || 0;
-          const pct = Number(p.unrealized_pct) || 0;
-          return `<div class="m-card">
-            <div class="m-card-top">
-              <div class="m-card-id">
-                <span class="sym">${isOpt ? '<span class="opt-badge">OPT</span>' : ""}${U.esc(p.symbol)}</span>
-              </div>
-              <div class="m-card-val">
-                <div class="v1">${U.money(Number(p.market_value) || 0)}</div>
-                <div class="v2 ${U.pnClass(unreal)}">${U.signedMoney(unreal)} · ${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</div>
-              </div>
-            </div>
-            <div class="m-card-facts">
-              <span><b>${U.esc(String(p.qty))}</b> ${isOpt ? "ct" : "sh"}</span>
-              <span>Avg <b>${U.num(Number(p.avg))}</b></span>
-              <span>Last <b>${U.num(Number(p.last))}</b></span>
-            </div>
-          </div>`;
-        }).join("")}</div>
-      </div>`;
+    const maxMv = Math.max(0, ...rows.map(p => Number(p.market_value) || 0));
+    const pc = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
+    const body = rows.map(p => {
+      const isOpt = p.asset === "option", mv = Number(p.market_value) || 0, un = Number(p.unrealized) || 0, pct = Number(p.unrealized_pct) || 0;
+      const w = mktVal > 0 ? Math.max(0, mv / mktVal * 100) : 0;
+      const dp = p.day_pct != null && isFinite(parseFloat(p.day_pct)) ? parseFloat(p.day_pct) : null;
+      return `<tr>
+        <td class="sym">${isOpt ? '<span class="opt-badge">OPT</span>' : ""}${U.esc(p.symbol)}</td>
+        <td class="r">${U.esc(String(p.qty))}${isOpt ? " ct" : ""}</td>
+        <td class="r mut">${p.avg != null ? U.money(Number(p.avg)) : "—"}</td>
+        <td class="r">${p.last != null ? U.money(Number(p.last)) : "—"}</td>
+        <td class="r strong">${U.money(mv)}<span class="sub tbt-w"><i><b style="width:${maxMv > 0 ? Math.min(100, mv / maxMv * 100) : 0}%"></b></i><em>${U.num(w, 1)}% of total</em></span></td>
+        <td class="r ${pc(un)}">${U.signedMoney(un)}<span class="sub soft ${pc(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span></td>
+        <td class="r ${dp == null ? "mut" : pc(dp)}">${dp == null ? "—" : (dp > 0 ? "+" : "") + U.num(dp, 2) + "%"}</td>
+      </tr>`;
+    }).join("");
+    let foot = "";
+    if (rows.length > 1) {
+      const cost = rows.reduce((s, p) => s + (Number(p.avg) || 0) * (Number(p.qty) || 0) * (p.asset === "option" ? 100 : 1), 0);
+      const pct = cost > 0 ? totalUnreal / cost * 100 : null;
+      foot = `<tfoot><tr><td class="k">Total</td><td></td><td></td><td></td><td class="r">${U.money(mktVal)}</td>
+        <td class="r ${pc(totalUnreal)}">${U.signedMoney(totalUnreal)}${pct != null ? `<span class="sub soft ${pc(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span>` : ""}</td><td></td></tr></tfoot>`;
+    }
+    return `<div class="tbt-card tb-pf-w"><div class="tb-fit"><table class="tbt tbt-pos">
+      <thead><tr><th>Symbol</th><th class="r">Qty</th><th class="r">Avg Cost</th><th class="r">Last</th><th class="r">Market Value</th><th class="r">Unrealized P&amp;L</th><th class="r">Day</th></tr></thead>
+      <tbody>${body}</tbody>${foot}</table>
+      <div class="m-list pf-m">${rows.map(p => { const isOpt = p.asset === "option", un = Number(p.unrealized) || 0, pct = Number(p.unrealized_pct) || 0;
+        return `<div class="m-card"><div class="m-card-top"><div class="m-card-id"><span class="sym">${isOpt ? '<span class="opt-badge">OPT</span>' : ""}${U.esc(p.symbol)}</span></div>
+          <div class="m-card-val"><div class="v1">${U.money(Number(p.market_value) || 0)}</div><div class="v2 ${U.pnClass(un)}">${U.signedMoney(un)} · ${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</div></div></div>
+          <div class="m-card-facts"><span><b>${U.esc(String(p.qty))}</b> ${isOpt ? "ct" : "sh"}</span><span>Avg <b>${U.num(Number(p.avg))}</b></span><span>Last <b>${U.num(Number(p.last))}</b></span></div></div>`; }).join("")}</div></div></div>`;
+  },
+  _orders(orders) {
+    if (!orders) return TB.pf._notYet("Open orders");
+    if (!orders.length) return `<div class="tbt-card tb-pf-w"><div class="tbt-empty">No open orders.</div></div>`;
+    const body = orders.map(o => {
+      const side = String(o.side || o.action || "").toUpperCase();
+      const limit = parseFloat(o.limit_price ?? o.price) || 0, stop = parseFloat(o.stop_price) || 0;
+      const price = limit > 0 ? U.money(limit) : stop > 0 ? U.money(stop) + " stp" : "MKT";
+      return `<tr><td class="sym">${U.esc(o.symbol || o.ticker || "—")}</td>
+        <td class="side ${side === "SELL" ? "neg" : "pos"}">${U.esc(side || "—")}</td>
+        <td class="r">${U.esc(String(o.qty ?? "—"))}</td><td class="r">${U.esc(String(o.filled ?? 0))}</td><td class="r">${price}</td>
+        <td>${U.esc(String(o.order_type || "—").toUpperCase())}</td><td class="mut">${U.esc(o.tif || "—")}</td>
+        <td class="warn">${U.esc(String(o.status || "—").replace(/_/g, " "))}</td><td class="mut">${TB.pf._d(o.placed_at)}</td></tr>`;
+    }).join("");
+    return `<div class="tbt-card tb-pf-w"><div class="tb-fit"><table class="tbt">
+      <thead><tr><th>Symbol</th><th>Action</th><th class="r">Qty</th><th class="r">Filled</th><th class="r">Price</th><th>Type</th><th>TIF</th><th>Status</th><th>Placed</th></tr></thead>
+      <tbody>${body}</tbody></table></div></div>`;
+  },
+  _history(history) {
+    if (!history) return TB.pf._notYet("Your order history");
+    if (!history.length) return `<div class="tbt-card tb-pf-w"><div class="tbt-empty">No orders in the last 30 days.</div></div>`;
+    const body = history.map(h => {
+      const side = String(h.side || h.action || "").toUpperCase(), qty = Number(h.qty) || 0, price = Number(h.avg_price ?? h.price) || 0;
+      const total = Number(h.total) || qty * price, st = String(h.status || "").toUpperCase();
+      return `<tr><td class="mut">${TB.pf._d(h.filled_at || h.placed_at)}</td><td class="sym">${U.esc(h.symbol || "—")}</td>
+        <td class="side ${side === "BUY" ? "pos" : "neg"}">${U.esc(side || "—")}</td><td class="r">${qty || "—"}</td>
+        <td class="r">${price ? U.money(price) : "—"}</td><td class="r strong">${total ? U.money(total) : "—"}</td>
+        <td class="r mut">${h.fee != null && h.fee !== "" ? U.money(Number(h.fee)) : "—"}</td>
+        <td class="${st.includes("FILL") ? "pos" : "mut"}">${U.esc(String(h.status || "—").replace(/_/g, " "))}</td></tr>`;
+    }).join("");
+    return `<div class="tbt-card tb-pf-w"><div class="tb-fit"><table class="tbt">
+      <thead><tr><th>Date</th><th>Symbol</th><th>Action</th><th class="r">Qty</th><th class="r">Avg Price</th><th class="r">Total</th><th class="r">Fees</th><th>Status</th></tr></thead>
+      <tbody>${body}</tbody></table></div></div>`;
+  },
+  _d(v) { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? U.esc(String(v)) : d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }); },
+  // FIFO realized P&L over the order history (Webull's balance has no realized figure).
+  _realizedFromHistory(history) {
+    if (!history || !history.length) return 0;
+    const fills = history.filter(h => /FILL/i.test(h.status || "FILLED") && Number(h.qty) > 0)
+      .map(h => ({ sym: h.symbol, side: String(h.side || "").toUpperCase(), qty: Number(h.qty), px: Number(h.avg_price ?? h.price) || 0, fee: Number(h.fee) || 0, t: h.filled_at || h.placed_at || "" }))
+      .sort((a, b) => String(a.t).localeCompare(String(b.t)));
+    const lots = {}; let realized = 0, matched = false;
+    fills.forEach(f => {
+      if (f.side === "BUY") { (lots[f.sym] = lots[f.sym] || []).push({ qty: f.qty, px: f.px }); realized -= f.fee; return; }
+      let rem = f.qty; const L = lots[f.sym] || [];
+      while (rem > 1e-9 && L.length) { const lot = L[0], m = Math.min(rem, lot.qty); realized += m * (f.px - lot.px); matched = true; lot.qty -= m; rem -= m; if (lot.qty <= 1e-9) L.shift(); }
+      realized -= f.fee;
+    });
+    return matched ? realized : 0;
+  },
+
+  // ── Activity: Webull cash activity (dividends, transfers, interest, fees & tax) ──
+  _ACT_GROUPS: [["all", "All"], ["div", "Dividends", ["DIVIDENDS"]], ["xfer", "Transfers", ["DEPOSIT", "WITHDRAW", "TRANSFER", "JOURNAL"]], ["int", "Interest", ["INTERESTS"]], ["fee", "Fees & tax", ["FEES", "TAX"]], ["other", "Other"]],
+  _ACT_TYPE: { DIVIDENDS: "Dividend", DEPOSIT: "Deposit", WITHDRAW: "Withdrawal", TRANSFER: "Transfer", JOURNAL: "Journal", INTERESTS: "Interest", FEES: "Fee", TAX: "Tax", CORPORATE_ACTION: "Corporate action", OPTION_EA: "Option exercise/assignment" },
+  _ACT_RANGES: [["30", "30D", 30], ["90", "90D", 90], ["ytd", "YTD"], ["365", "1Y", 365]],
+  _actGroup(t) { const g = TB.pf._ACT_GROUPS.find(x => x[2] && x[2].includes(t)); return g ? g[0] : "other"; },
+  _actFrom(id) {
+    if (id === "ytd") return new Date().getFullYear() + "-01-01";
+    const r = TB.pf._ACT_RANGES.find(x => x[0] === id) || TB.pf._ACT_RANGES[3];
+    const d = new Date(); d.setDate(d.getDate() - r[2]);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  },
+  setActRange(r) { TB.pf.actRange = r; TB.pf.render(); },
+  setActGroup(g) { TB.pf.actGroup = TB.pf.actGroup === g && g !== "all" ? "all" : g; TB.pf.render(); },
+  _activity(items) {
+    if (!items) return TB.pf._notYet("Dividends, transfers, interest and fees");
+    const P = TB.pf, from = P._actFrom(P.actRange);
+    const inRange = items.filter(a => (a.date || "") >= from).sort((x, y) => String(y.at || y.date).localeCompare(String(x.at || x.date)));
+    const shown = P.actGroup === "all" ? inRange : inRange.filter(a => P._actGroup(a.type) === P.actGroup);
+    const sum = g => inRange.filter(a => P._actGroup(a.type) === g).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+    const counts = {}; inRange.forEach(a => { const g = P._actGroup(a.type); counts[g] = (counts[g] || 0) + 1; });
+    const pc = v => v > 0 ? "pos" : v < 0 ? "neg" : "mut";
+    const fmt = v => (v > 0 ? "+" : "") + U.money(v);
+    const title = s => String(s || "").toLowerCase().replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
+    const detail = a => [P._ACT_TYPE[a.type] ? title(a.sub) : "", a.type === "DIVIDENDS" && a.currency && a.currency !== "USD" ? a.currency : ""].filter(Boolean).join(" · ");
+    const tiles = [["div", "Dividends"], ["xfer", "Net deposits"], ["int", "Interest"], ["fee", "Fees &amp; tax"]].map(([k, l]) => { const v = sum(k);
+      return `<button type="button" class="tb-act-tile${P.actGroup === k ? " on" : ""}" aria-pressed="${P.actGroup === k}" onclick="TB.pf.setActGroup('${k}')"><span>${l}</span><b class="${v ? pc(v) : "mut"}">${v ? fmt(v) : "—"}</b></button>`; }).join("");
+    const chips = P._ACT_GROUPS.map(([id, l]) => { const n = id === "all" ? inRange.length : (counts[id] || 0);
+      return `<button type="button" class="tb-chip${P.actGroup === id ? " on" : ""}${n === 0 && P.actGroup !== id ? " dim" : ""}" onclick="TB.pf.setActGroup('${id}')">${U.esc(l)}${n > 0 ? `<span class="n">${n}</span>` : ""}</button>`; }).join("");
+    const rows = !shown.length ? `<div class="tbt-empty">${inRange.length ? "Nothing of this kind in the range." : "No account activity in this range."}</div>`
+      : `<div class="tb-fit"><table class="tbt tb-act-table"><thead><tr><th>Date</th><th>Type</th><th>Symbol</th><th>Details</th><th class="r">Amount</th></tr></thead><tbody>${shown.map(a => `<tr>
+          <td class="mut">${TB.pf._d(a.date)}</td><td>${U.esc(P._ACT_TYPE[a.type] || title(a.type))}</td><td class="sym">${U.esc(a.symbol || "—")}</td>
+          <td class="mut">${U.esc(detail(a) || "—")}</td><td class="r ${pc(Number(a.amount))}">${fmt(Number(a.amount) || 0)}</td></tr>`).join("")}</tbody></table>
+        <div class="m-list">${shown.map(a => `<div class="tb-act-row"><div class="m"><div class="t">${U.esc(P._ACT_TYPE[a.type] || title(a.type))}${a.symbol ? `<span class="s">${U.esc(a.symbol)}</span>` : ""}</div>
+          <div class="sub">${TB.pf._d(a.date)}${detail(a) ? " · " + U.esc(detail(a)) : ""}</div></div><b class="${pc(Number(a.amount))}">${fmt(Number(a.amount) || 0)}</b></div>`).join("")}</div></div>`;
+    return `<div class="tb-act tb-pf-w">
+      <div class="tb-act-bar"><div class="tbx-seg" role="group" aria-label="Range">${P._ACT_RANGES.map(([id, l]) => `<button type="button" class="${P.actRange === id ? "on" : ""}" onclick="TB.pf.setActRange('${id}')">${l}</button>`).join("")}</div></div>
+      <div class="tb-act-tiles">${tiles}</div>
+      <div class="tb-act-chips">${chips}</div>
+      <div class="tbt-card">${rows}</div></div>`;
+  },
+
+  // A table box whose bottom stops at the bottom of the window: it scrolls
+  // inside itself (sticky header) instead of making the page endlessly long.
+  fit() {
+    requestAnimationFrame(() => document.querySelectorAll("#view-portfolio .tb-fit, #view-journal .tb-fit").forEach(el => {
+      if (!el.offsetParent) return;
+      const sc = el.closest(".section-view") || document.scrollingElement;
+      const r = el.getBoundingClientRect(), sr = sc.getBoundingClientRect ? sc.getBoundingClientRect() : { top: 0 };
+      const top = r.top - sr.top + (sc.scrollTop || 0);
+      el.style.maxHeight = Math.max(240, Math.floor((sc.clientHeight || innerHeight) - top - 16)) + "px";
+    }));
   },
 
   _emptyCallout() {
@@ -2600,19 +2928,34 @@ TB.pf = {
     return { key: "closed", label: "Market closed" };
   },
   tickClock() {
-    const now = new Date();
-    const st = TB.pf.marketStatus(now);
-    const pill = document.getElementById("mkt-status");
-    if (pill) {
-      pill.className = "mkt-status mkt-" + st.key;
-      const dotColors = { open: "var(--green)", closed: "var(--muted)", pre: "var(--amber)", after: "var(--amber)" };
-      pill.querySelector(".m-dot").style.background = dotColors[st.key];
-      document.getElementById("mkt-text").textContent = st.label;
+    // The market clock card (TradeHub's TBMarketStatus, 2026-11-06): phase,
+    // today's hours in her time zone, a live countdown, the next holidays.
+    const host = document.getElementById("pf-mkt");
+    if (!host || !host.offsetParent) return;
+    const now = new Date(), st = tbMktState(now);
+    const PH = { regular: ["OPEN", "Regular Hours", "var(--green)"], pre: ["PRE-MARKET", "Extended Hours", "var(--blue)"],
+      after: ["AFTER HOURS", "Extended Hours", "var(--blue)"], closed: ["CLOSED", st.holiday || (st.tradable ? "Market Closed" : "Weekend"), "var(--muted)"] }[st.phase];
+    let cdLabel, cdTs;
+    if (st.phase === "regular") { cdLabel = "Closes in"; cdTs = st.regCloseTs; }
+    else if (st.phase === "pre") { cdLabel = "Opens in"; cdTs = st.regOpenTs; }
+    else if (st.phase === "after") { cdLabel = "Extended closes in"; cdTs = st.postEndTs; }
+    else { cdLabel = "Opens in"; cdTs = st.nextOpenTs; }
+    const hours = st.tradable ? `Today · ${tbLocalTime(st.regOpenTs)} – ${tbLocalTimeTz(st.regCloseTs)}${st.half ? " (early close)" : ""}`
+      : `Opens ${tbMktDayLabel(st.nextOpenDate)} · ${tbLocalTimeTz(st.nextOpenTs)}`;
+    const key = st.phase + "|" + hours;
+    if (host.dataset.k !== key) {
+      const y = +st.dateStr.slice(0, 4);
+      const up = [y, y + 1].flatMap(Y => { const h = tbMktHolYear(Y); return Object.entries(h.H).map(([d, n]) => ({ d, n, half: false })).concat(Object.entries(h.HD).map(([d, n]) => ({ d, n, half: true }))); })
+        .filter(x => x.d >= st.dateStr).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 3);
+      host.innerHTML = `<div class="tbmk-top">
+          <div class="tbmk-st"><span class="tbmk-dot${st.phase === "regular" ? " live" : ""}" style="background:${PH[2]}"></span><span class="tbmk-lbl" style="color:${PH[2]}">${PH[0]}</span><span class="tbmk-sub">US markets · ${U.esc(PH[1])}</span></div>
+          <span class="tbmk-hrs">${U.esc(hours)}</span>
+          <div class="tbmk-cd"><small>${cdLabel}</small><b id="pf-mkt-cd"></b></div></div>
+        ${up.length ? `<div class="tbmk-hol"><span>Upcoming</span>${up.map(u => `<span><em>${tbMktDayLabel(u.d)}</em>${U.esc(u.n)}<span class="tag${u.half ? " half" : ""}">${u.half ? "½ day" : "closed"}</span></span>`).join("")}</div>` : ""}`;
+      host.dataset.k = key;
     }
-    const p = TB.pf.etParts(now);
-    const pad = n => String(n).padStart(2, "0");
-    const clk = document.getElementById("mkt-clock");
-    if (clk) clk.textContent = `${p.wd} ${pad(p.h)}:${pad(p.mi)}:${pad(p.s)} ET`;
+    const cd = document.getElementById("pf-mkt-cd");
+    if (cd) cd.textContent = tbCountdown(cdTs - now.getTime());
   },
 };
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2762,6 +3105,20 @@ TB.jr = {
         <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(run).toFixed(1)}" r="3.5" fill="${color}"/>
       </svg>`;
     meta.innerHTML = `<span class="${U.pnClass(run)}">${U.signedMoney(run)}</span> over ${closed.length} closed`;
+    // Every point is also a table row (TradeHub's equity table, 2026-11-04).
+    let eq = 0;
+    const eqPts = closed.map(t => { const v = TB.jr.pnl(t) || 0; eq += v; return { d: t.date, s: t.symbol, v, eq }; });
+    let best = null, worst = null;
+    eqPts.forEach(q => { if (!best || q.v > best.v) best = q; if (!worst || q.v < worst.v) worst = q; });
+    const sg = v => (v >= 0 ? "+" : "−") + U.money(Math.abs(v));
+    const on = !!TB.jr.eqTable;
+    host.insertAdjacentHTML("beforeend", `<button type="button" class="tb-eq-tog${on ? " on" : ""}" aria-expanded="${on}" onclick="TB.jr.eqTable=!TB.jr.eqTable;TB.jr.renderCurve(TB.jr.stats().curve)">
+        <svg class="tbi" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>${on ? "Hide table" : "View as table"}
+        <svg class="tbi chev" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>` +
+      (on ? `<div class="tb-eq-tbl"><div class="tb-eq-scroll"><table><thead><tr><th>Date</th><th>Symbol</th><th class="r">Trade</th><th class="r">Equity</th></tr></thead><tbody>${eqPts.slice().reverse().map(q => `<tr>
+          <td>${U.esc(TB.jr._dayLabel(q.d))}</td><td>${U.esc(q.s || "")}</td><td class="r"><span class="tb-eq-chip ${q.v >= 0 ? "up" : "dn"}">${sg(q.v)}</span></td>
+          <td class="r" style="color:${q.eq >= 0 ? "var(--text)" : "var(--red)"}">${sg(q.eq)}</td></tr>`).join("")}</tbody></table></div>
+        <div class="tb-eq-foot"><span>${eqPts.length} trade${eqPts.length === 1 ? "" : "s"}</span>${best ? `<span>Best <b class="up">${sg(best.v)}</b> ${U.esc(best.s || "")}</span>` : ""}${worst && worst.v < 0 ? `<span>Worst <b class="dn">${sg(worst.v)}</b> ${U.esc(worst.s || "")}</span>` : ""}</div></div>` : ""));
   },
 
   // ── filters + sort ───────────────────────────────────────────────────────────
@@ -2872,6 +3229,7 @@ TB.jr = {
       TB.jr.trades.length + (TB.jr.trades.length === 1 ? " trade" : " trades");
     TB.jr.renderStats(s);
     TB.jr.renderCurve(s.curve);
+    TB.jr._renderSeg();
     TB.jr._refreshTagFilter();
     TB.jr._renderTable();
     TB.jr._syncSelBar();
@@ -2882,9 +3240,37 @@ TB.jr = {
       if (arrow) { const s2 = document.createElement("span"); s2.className = "arrow"; s2.innerHTML = arrow; th.appendChild(s2); }
     });
   },
+  // All / Wins / Losses / Open, as TradeHub's Journal shows them (drives jr-f-result).
+  _renderSeg() {
+    const host = document.getElementById("jr-seg"), sel = document.getElementById("jr-f-result");
+    if (!host || !sel) return;
+    host.innerHTML = [["all", "All"], ["win", "Wins"], ["loss", "Losses"], ["open", "Open"]]
+      .map(([k, l]) => `<button type="button" class="${sel.value === k ? "on" : ""}" aria-pressed="${sel.value === k}" onclick="TB.jr.setResult('${k}')">${l}</button>`).join("");
+  },
+  setResult(k) { document.getElementById("jr-f-result").value = k; TB.jr.render(); },
+  // Sorted by date, the list is split by day: a quiet header per day with its
+  // trade count and net P&L (TradeHub's Journal, 2026-11-04).
+  _dayGroups(rows) {
+    const out = []; let cur = null;
+    rows.forEach(t => {
+      const k = t.date || "";
+      if (!cur || cur.key !== k) { cur = { key: k, items: [], net: 0, closed: 0 }; out.push(cur); }
+      cur.items.push(t);
+      if (!TB.jr.isOpen(t)) { cur.net += TB.jr.pnl(t) || 0; cur.closed++; }
+    });
+    return out;
+  },
+  _dayLabel(k) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(k || ""); if (!m) return "No date";
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
+  },
+  _dayNet(g) { return g.closed ? `<b class="${U.pnClass(g.net)}">${U.signedMoney(g.net)}</b>` : "<b>—</b>"; },
   _renderTable() {
     const body = document.getElementById("jr-body");
     const rows = TB.jr.filtered();
+    const shownEl = document.getElementById("jr-shown");
+    if (shownEl) shownEl.textContent = rows.length + " trade" + (rows.length === 1 ? "" : "s");
     document.getElementById("jr-select-all").checked = rows.length > 0 && rows.every(t => TB.jr.selected.has(t.id));
     // Phone card list is rendered alongside the table; CSS shows one or the other.
     TB.jr._renderCards(rows);
@@ -2894,15 +3280,20 @@ TB.jr = {
           : "No trades match the current filters."}</td></tr>`;
       return;
     }
+    const byDay = TB.jr.sortKey === "date";
+    const dayHead = {};
+    if (byDay) TB.jr._dayGroups(rows).forEach(g => { dayHead[g.items[0].id] = g; });
     body.innerHTML = rows.map(t => {
       const open = TB.jr.isOpen(t), p = TB.jr.pnl(t), pct = TB.jr.pct(t);
       const sel = TB.jr.selected.has(t.id);
+      const g = dayHead[t.id];
+      const head = g ? `<tr class="jr-day"><td colspan="12">${TB.jr._dayLabel(g.key)}<span class="jr-day-n">${g.items.length} trade${g.items.length === 1 ? "" : "s"} · net</span>${TB.jr._dayNet(g)}</td></tr>` : "";
       const sideBadge = t.side === "short" ? '<span class="badge badge-short">Short</span>' : '<span class="badge badge-long">Long</span>';
       const pnlCell = open ? '<span style="color:var(--muted)">—</span>' : `<span class="${U.pnClass(p)}">${U.signedMoney(p)}</span>`;
       const pctCell = open ? '<span class="badge badge-open">Open</span>' : `<span class="${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span>`;
       const tags = (t.tags || []).map(x => `<span class="tag">${U.esc(x)}</span>`).join("") || '<span style="color:var(--border)">—</span>';
       const notes = t.notes ? U.esc(t.notes) : "";
-      return `<tr data-id="${t.id}" class="${sel ? "sel" : ""}">
+      return head + `<tr data-id="${t.id}" class="${sel ? "sel" : ""}">
         <td><input type="checkbox" class="checkbox" ${sel ? "checked" : ""} onclick="TB.jr.toggleRow('${t.id}', this.checked)"></td>
         <td class="mono">${U.esc(t.date || "")}</td>
         <td class="sym">${U.esc(t.symbol)}</td>
@@ -2932,9 +3323,13 @@ TB.jr = {
           : "No trades match the current filters."}</div>`;
       return;
     }
+    const dayHead = {};
+    if (TB.jr.sortKey === "date") TB.jr._dayGroups(rows).forEach(g => { dayHead[g.items[0].id] = g; });
     host.innerHTML = rows.map(t => {
       const open = TB.jr.isOpen(t), p = TB.jr.pnl(t), pct = TB.jr.pct(t);
       const sel = TB.jr.selected.has(t.id);
+      const g = dayHead[t.id];
+      const head = g ? `<div class="m-day"><span>${TB.jr._dayLabel(g.key)} · ${g.items.length} trade${g.items.length === 1 ? "" : "s"}</span>${TB.jr._dayNet(g)}</div>` : "";
       const sideBadge = t.side === "short"
         ? '<span class="badge badge-short">Short</span>'
         : '<span class="badge badge-long">Long</span>';
@@ -2943,7 +3338,7 @@ TB.jr = {
         : `<div class="v1 ${U.pnClass(p)}">${U.signedMoney(p)}</div>
            <div class="v2 ${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</div>`;
       const tags = (t.tags || []).map(x => `<span class="tag">${U.esc(x)}</span>`).join("");
-      return `<div class="m-card ${sel ? "sel" : ""}" data-id="${t.id}">
+      return head + `<div class="m-card ${sel ? "sel" : ""}" data-id="${t.id}">
         <div class="m-card-top">
           <div class="m-card-id">
             <input type="checkbox" class="checkbox" ${sel ? "checked" : ""}
@@ -5075,6 +5470,40 @@ TB.news = {
       const j = await r.json();
       if (j && j.quotes) { TB.news.quotes = j.quotes; TB.news.quotesAt = j.asOf || Date.now(); TB.news.renderIfActive(); }
     } catch (e) {}
+    TB.news._fetchMarket();
+  },
+  /* ── the market strip (TradeHub's News, 2026-11-03): S&P and Nasdaq futures,
+     semiconductors, the 10-year, WTI and Brent, VIX and the dollar, each with
+     its move and a sparkline. Her own worker's /market (Yahoo spark, cached
+     2 min there), fetched with the quotes while News is on screen. ── */
+  async _fetchMarket() {
+    try {
+      const r = await fetch(TBN_WORKER + "/market");
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j && j.ok !== false && Array.isArray(j.context) && j.context.length) { TB.news.market = j.context; TB.news.renderIfActive(); }
+    } catch (e) {}
+  },
+  _spark(points, up) {
+    if (!Array.isArray(points) || points.length < 2) return "";
+    const w = 56, h = 18, lo = Math.min(...points), hi = Math.max(...points), span = (hi - lo) || 1;
+    const d = points.map((v, i) => (i / (points.length - 1) * w).toFixed(1) + "," + (h - 1.5 - (v - lo) / span * (h - 3)).toFixed(1)).join(" ");
+    return `<svg class="nh-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${d}" fill="none" stroke="${up ? "var(--green)" : "var(--red)"}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  },
+  _mktHtml() {
+    const ctx = TB.news.market; if (!ctx || !ctx.length) return "";
+    const fmt = c => { if (c.price == null || !isFinite(c.price)) return "—"; if (c.unit === "%") return c.price.toFixed(2) + "%";
+      if (c.key === "cl" || c.key === "bz") return "$" + c.price.toFixed(2);
+      return c.price >= 1000 ? c.price.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 }) : c.price.toFixed(2); };
+    return `<div class="nh-mkt" role="list" aria-label="Market">${ctx.map(c => { const up = (c.dp || 0) >= 0;
+      return `<div class="nh-mkt-t" role="listitem" title="${U.esc(c.sym || "")}"><span class="l">${U.esc(c.label || "")}</span>
+        <span class="d" style="color:${c.dp == null ? "var(--muted)" : tbnMoveColor(c.dp)}">${c.dp == null ? "" : tbnPct(c.dp)}</span>
+        <b>${fmt(c)}</b>${TB.news._spark(c.points, up)}</div>`; }).join("")}</div>`;
+  },
+  // Tickers she holds (her Webull positions from the PC sync): their stories get a Held badge.
+  _held() {
+    const d = TB.pf && TB.pf.data ? TB.pf.data() : null;
+    return new Set(((d && d.positions) || []).filter(p => Number(p.qty)).map(p => String(p.symbol || "").split(" ")[0].toUpperCase()).filter(Boolean));
   },
   async _fetchRate() {
     try {
@@ -5247,6 +5676,7 @@ TB.news = {
     if (N.building) h += `<div class="tbx-note warn">${spin(TBICON.refresh)}<div><b>AI pipeline running in the background</b> · fetching news for your ${wl.length} tickers and scoring every story. Takes 30–90s; this page fills in by itself, even if you switch tabs.</div></div>`;
     if (!N.building && N.degraded && N.events.length) h += `<div class="tbx-note warn">${TBICON.alert}<div><b>AI analysis missing</b> · this build came back as raw headlines, with no sentiment or impact scoring. Force retries the AI.</div></div>`;
 
+    h += N._mktHtml();
     if (N.events.length) {
       const pulse = (n, label, color, act, on, title) => `<button type="button" data-act="${act}"${on ? ` class="on"` : ""} aria-pressed="${!!on}"${title ? ` title="${title}"` : ""}><b style="color:${color}">${n}</b><span>${label}</span></button>`;
       h += `<div class="nh-pulse">
@@ -5349,6 +5779,7 @@ TB.news = {
       <div class="nh-ev-top">
         ${breaking ? `<span class="nh-breaking"><i></i>Breaking</span>` : ""}
         <span class="nh-tk">${U.esc(e.primaryTicker || "")}</span>
+        ${N._held().has(String(e.primaryTicker || "").toUpperCase()) ? `<span class="nh-held" title="You hold this">Held</span>` : ""}
         ${hasPct ? `<span class="nh-move" style="color:${tbnMoveColor(q.dp)}" title="Today's move">${q.dp > 0 ? "▲" : "▼"} ${tbnPct(q.dp)}</span>` : ""}
         ${(e.additionalTickers || []).length ? `<span class="nh-alt">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
         <span class="nh-ago">${tbnAgo(e.ts)}</span>
@@ -5512,6 +5943,7 @@ TB.news = {
 
   // market clock ticks every second; portfolio refreshes it
   setInterval(() => TB.pf.tickClock(), 1000);
+  window.addEventListener("resize", () => TB.pf.fit());
   TB.pf.tickClock();
 
   // auto-sync loop when served by wb_server.py

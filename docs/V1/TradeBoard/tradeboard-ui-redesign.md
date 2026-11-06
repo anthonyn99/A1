@@ -67,3 +67,50 @@ an error. Her phone bottom sheet stays. Reopening starts at the top.
 news worker (never forces a build); Control, News, the summary, desktop and
 390px. `TB_PAGE_FILE=<copy>` serves a work-in-progress copy (auto-commit ships
 every save of the real file). `tradeboard-notebook.live.js` covers Strats.
+
+# Portfolio, Journal and the News market strip (2026-11-06)
+
+Tony asked for TradeHub's rebuilt Portfolio and Journal (2026-11-04), Portfolio ▸
+Activity and News' market strip (2026-11-03) on Veda's TradeBoard, in her theme.
+Same rule as above: TradeHub's layout, her tokens only.
+
+## Portfolio
+
+Header (title, broker · Synced, Refresh), the **market clock card** (phase,
+today's hours in her zone, a live countdown, the next three NYSE holidays; the
+clock functions are TradeHub's, verbatim), six **account figures** (Total Value
+first, Cash, Buying Power, Day P&L, Unrealized, Realized: FIFO over the order
+history when Webull sends no realized figure), **Account details** (only the
+figures the sync sent), then **Positions / Open Orders / History / Activity**.
+Each table scrolls inside a window-height box with a sticky header
+(`TB.pf.fit`). Positions: a weight bar and share of total, day %, a totals row;
+her phone keeps its cards. Activity: 30D / 90D / YTD / 1Y, four totals that
+double as filters, kind chips, a table (a list on a phone).
+
+**Data:** `V1/TradeBoard/wb_sync.py` (her PC, every 2 min) now also sends the
+balance figures (`account`), open orders, the last 30 days of orders
+(`history`), Webull cash activity (`activity`, re-read at most every 10 min,
+cached in `broker_activity.json`) and a position's day % when Webull gives one.
+Field names follow Tony's `workers/tradeboard-api`. A piece the sync could not
+read is left out, and its tab says it appears after the PC sync runs. The PC
+sync must be restarted once to load the new code.
+
+## Journal
+
+Header with Manual trade and a tool group (Re-merge, Export CSV, Export JSON),
+the equity curve beside the stats (curve capped at 900px and shorter), the
+equity table (pill toggle, newest first, P&L chips, best/worst footer), a search
+field, All / Wins / Losses / Open, her side / source / tag filters, and, sorted by
+date, rows grouped by day with each day's trade count and net P&L.
+
+## News
+
+The market strip (S&P and Nasdaq futures, semis, the 10-year, WTI, Brent, VIX,
+the dollar; four by two) from her own worker's new `/market` route (ported from
+newshub-api, Yahoo spark, cached 2 min), fetched with the quotes. Stories about
+a ticker in her Webull positions carry a **Held** badge.
+
+## Tests
+
+`node tests/live/tradeboard-portfolio.live.js` (Portfolio, Journal, the strip,
+390px) and `py -3 tests/wb-portfolio.test.py` (the sync's new reads, offline).

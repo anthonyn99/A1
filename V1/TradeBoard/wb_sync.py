@@ -44,6 +44,7 @@
 
 import json
 import os
+import re
 import sys
 import time
 from collections import defaultdict, deque
@@ -61,6 +62,7 @@ CONFIG_PATH = os.path.join(HERE, "webull_config.json")
 TRADES_OUT = os.path.join(HERE, "broker_import.json")
 POSITIONS_OUT = os.path.join(HERE, "broker_positions.json")
 RAW_SAMPLE_OUT = os.path.join(HERE, "webull_raw_sample.json")
+ACTIVITY_CACHE = os.path.join(HERE, "broker_activity.json")   # cash activity, re-read every 10 min
 
 BROKER_TAG = "webull"
 
@@ -573,8 +575,12 @@ def fetch_positions(trade, account_id):
             "unrealized": round(mkt_val - cost, 2),
             "unrealized_pct": round(((last - avg) / avg * 100) if avg else 0, 2),
         })
+        dp = _num(_pick(p, ["day_change_ratio", "change_ratio", "day_profit_loss_rate"]))
+        if dp is not None:
+            out[-1]["day_pct"] = round(dp * 100 if abs(dp) < 1.5 else dp, 2)
 
     equity = None
+    account = {}
     try:
         bal = _payload(_api_call(trade.account_v2.get_account_balance, account_id))
         b = bal[0] if isinstance(bal, list) and bal else bal
@@ -583,6 +589,7 @@ def fetch_positions(trade, account_id):
         equity = _f(_pick(b, ["total_net_liquidation_value", "net_liquidation_value",
                               "netLiquidationValue", "total_asset", "total_assets",
                               "account_value", "net_liquidation", "equity"]), None)
+        account = account_figures(b if isinstance(b, dict) else {})
     except Exception as e:  # noqa: BLE001
         print(f"  (couldn't fetch balance: {e})")
 
@@ -591,8 +598,204 @@ def fetch_positions(trade, account_id):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "broker": "Webull",
         "equity": round(equity, 2) if equity else None,
+        "account": account,
         "positions": out,
     }, raw_sample
+
+
+# ── Portfolio extras (2026-11-06): what TradeHub's Portfolio shows ───────────
+# The page's Portfolio (TradeHub's layout) also shows the account figures, open
+# orders, the last 30 days of orders and the account's cash activity. Each read
+# fails soft: a missing piece shows "appears after the sync" on the page, never
+# breaks the sync. Field names follow workers/tradeboard-api (Tony's, which
+# reads the same Webull OpenAPI).
+def _num(v):
+    try:
+        f = float(v)
+        return f if f == f else None
+    except (TypeError, ValueError):
+        return None
+
+
+def account_figures(b):
+    """Webull's balance payload → the page's account fields (None = not sent)."""
+    d = b or {}
+    assets = d.get("account_currency_assets") or []
+    acct = assets[0] if isinstance(assets, list) and assets and isinstance(assets[0], dict) else {}
+
+    def pick(*names):
+        for src in (acct, d):
+            for n in names:
+                v = _num(src.get(n)) if isinstance(src, dict) else None
+                if v is not None:
+                    return v
+        return None
+
+    def pick_re(rx, avoid=None):
+        for src in (acct, d):
+            for k, v in (src or {}).items():
+                norm = k.replace("_", "").replace("-", "").lower()
+                if re.search(rx, norm) and not (avoid and re.search(avoid, norm)) and _num(v):
+                    return _num(v)
+        return None
+
+    net = pick("total_net_liquidation_value", "net_liquidation_value")
+    cash = pick("total_cash_balance", "cash_balance")
+    settled = pick("settled_cash")
+    bp = pick("available_buying_power", "buying_power", "settled_cash", "cash_buying_power")
+    if (bp is None or bp <= 0) and (settled or cash):
+        bp = settled or cash
+    if net and bp and bp > net + 0.01:
+        bp = settled or cash
+    out = {
+        "net_liquidation": net, "cash": cash, "buying_power": bp,
+        "market_value": pick("total_market_value"),
+        "day_pnl": pick("total_day_profit_loss"),
+        "settled_cash": settled, "unsettled_cash": pick("unsettled_cash"),
+        "intraday_bp": pick("day_trading_buying_power", "intraday_buying_power", "day_buying_power") or pick_re(r"(day|intraday)(trading)?buyingpower", r"(overnight|night)"),
+        "overnight_bp": pick("overnight_buying_power", "night_trading_buying_power") or pick_re(r"(overnight|nighttrading)buyingpower"),
+        "options_bp": pick("option_buying_power", "options_buying_power") or pick_re(r"options?(trading)?buyingpower"),
+        "initial_margin": pick("initial_margin"), "maintenance_margin": pick("maintenance_margin"),
+        "excess_liquidity": pick("excess_liquidity"),
+        "account_type": d.get("account_type") or acct.get("account_type") or None,
+        "currency": d.get("total_asset_currency") or "USD",
+    }
+    if out["day_pnl"] and net:
+        out["day_pnl_pct"] = round(out["day_pnl"] / (net - out["day_pnl"]) * 100, 2) if net != out["day_pnl"] else None
+    return {k: (round(v, 2) if isinstance(v, float) else v) for k, v in out.items() if v is not None}
+
+
+def _order_row(o):
+    sym = str(_pick(o, ["symbol", "ticker"], "") or (o.get("instrument") or {}).get("symbol", "")).upper()
+    return {
+        "symbol": sym,
+        "side": str(_pick(o, ["side", "action", "order_side"], "")).upper(),
+        "qty": _f(_pick(o, ["total_quantity", "quantity", "qty"])),
+        "filled": _f(_pick(o, ["filled_quantity", "filled_qty"])),
+        "limit_price": _f(_pick(o, ["limit_price"])) or None,
+        "stop_price": _f(_pick(o, ["stop_price", "aux_price"])) or None,
+        "avg_price": _f(_pick(o, ["filled_price", "avg_filled_price"])) or None,
+        "order_type": str(_pick(o, ["order_type", "type"], "")).upper(),
+        "tif": _pick(o, ["time_in_force", "tif"], "DAY"),
+        "status": str(_pick(o, ["status", "order_status"], "")).upper(),
+        "placed_at": _pick(o, ["place_time_at", "create_time", "place_time"]),
+        "filled_at": _pick(o, ["filled_time_at", "filled_time"]),
+        "fee": _f(_pick(o, ["total_commission", "commission", "fee"])) if _pick(o, ["total_commission", "commission", "fee"]) is not None else None,
+    }
+
+
+def _flatten(rows):
+    out = []
+    for r in rows or []:
+        if isinstance(r, dict) and isinstance(r.get("orders"), list) and r["orders"]:
+            out.extend(x for x in r["orders"] if isinstance(x, dict))
+        elif isinstance(r, dict):
+            out.append(r)
+    return out
+
+
+def fetch_open_orders(trade, account_id):
+    try:
+        op = getattr(trade.order_v3, "list_order_open", None)
+        resp = _api_call(op, account_id) if op else _api_call(trade.order_v3.get_order_open, account_id, page_size=100)
+        rows = _flatten(_rows(_payload(resp)))
+        out = [_order_row(o) for o in rows]
+        return [o for o in out if o["symbol"]]
+    except Exception as e:  # noqa: BLE001
+        print(f"  (couldn't fetch open orders: {e})")
+        return None
+
+
+def recent_history(raw_orders, days=30):
+    """The last `days` of orders (any status), newest first, from the history read above."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = [_order_row(o) for o in _flatten(raw_orders)]
+    rows = [r for r in rows if r["symbol"] and str(r.get("filled_at") or r.get("placed_at") or "") >= cutoff[:10]]
+    rows.sort(key=lambda r: str(r.get("filled_at") or r.get("placed_at") or ""), reverse=True)
+    return rows[:200]
+
+
+CASH_TYPES = "DEPOSIT,WITHDRAW,FEES,TRANSFER,DIVIDENDS,TAX,INTERESTS,CORPORATE_ACTION,OPTION_EA,JOURNAL"
+
+
+def cash_activity_row(r):
+    return {
+        "id": r.get("id"),
+        "type": str(r.get("activity_type") or "").upper(),
+        "sub": str(r.get("activity_sub_type") or "").upper(),
+        "symbol": r.get("symbol") or "",
+        "date": r.get("trade_date") or (str(r.get("biz_time"))[:10] if r.get("biz_time") else ""),
+        "at": r.get("biz_time"),
+        "amount": round(_f(r.get("net_amount")), 2),
+        "currency": r.get("currency") or "USD",
+    }
+
+
+def fetch_cash_activity(trade, account_id, days=400):
+    """Webull cash activity (v3), split by calendar year (Webull refuses a range
+    across a year end) and paged; trades are left out (they are in History)."""
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+    iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    out, with_types = [], True
+    try:
+        for y in range(start.year, end.year + 1):
+            a = start if y == start.year else datetime(y, 1, 1, tzinfo=timezone.utc)
+            b = end if y == end.year else datetime(y, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+            key, page = None, 0
+            while page < 8:
+                try:
+                    payload = _payload(_api_call(trade.activity.list_activities, account_id,
+                                                 activity_types=CASH_TYPES if with_types else None,
+                                                 start_time=iso(a), end_time=iso(b), pagination_key=key))
+                except Exception as e:  # noqa: BLE001
+                    if with_types and not _is_rate_limit(e):
+                        with_types = False   # a type list it won't take: ask for all, drop trades here
+                        continue
+                    raise
+                rows = payload if isinstance(payload, list) else (payload or {}).get("data") or []
+                for r in rows:
+                    m = cash_activity_row(r)
+                    if m["type"] not in ("TRADE", "EC_SETTLEMENT"):
+                        out.append(m)
+                key = payload.get("pagination_key") if isinstance(payload, dict) else None
+                page += 1
+                if not key or not rows:
+                    break
+                time.sleep(0.6)
+    except Exception as e:  # noqa: BLE001
+        print(f"  (couldn't fetch cash activity: {e})")
+        return None
+    seen, uniq = set(), []
+    for x in out:
+        k = x["id"] or f'{x["type"]}{x["sub"]}{x["date"]}{x["amount"]}{x["symbol"]}'
+        if k not in seen:
+            seen.add(k)
+            uniq.append(x)
+    uniq.sort(key=lambda x: str(x.get("at") or x.get("date")), reverse=True)
+    return uniq
+
+
+def cached_cash_activity(trade, account_id, max_age_s=600):
+    """Cash activity at most every 10 minutes (the sync runs every 2): the last
+    read is kept in broker_activity.json and reused until it is stale."""
+    c = None
+    try:
+        with open(ACTIVITY_CACHE, encoding="utf-8") as fh:
+            c = json.load(fh)
+        if time.time() - float(c.get("at", 0)) < max_age_s and isinstance(c.get("items"), list):
+            return c["items"]
+    except Exception:  # noqa: BLE001
+        pass
+    items = fetch_cash_activity(trade, account_id)
+    if items is None:
+        return c.get("items") if isinstance(c, dict) and isinstance(c.get("items"), list) else None
+    try:
+        with open(ACTIVITY_CACHE, "w", encoding="utf-8") as fh:
+            json.dump({"at": time.time(), "items": items}, fh)
+    except Exception:  # noqa: BLE001
+        pass
+    return items
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -605,6 +808,15 @@ def sync(trade=None, cfg=None):
     fills, raw_orders = fetch_filled_fills(trade, account_id, cfg["history_start"])
     trades = pair_fifo(fills)
     positions, raw_pos = fetch_positions(trade, account_id)
+    # Portfolio extras (open orders, 30 days of orders, cash activity); a piece
+    # that can't be read is left out and the page says when it will appear.
+    orders = fetch_open_orders(trade, account_id)
+    if orders is not None:
+        positions["orders"] = orders
+    positions["history"] = recent_history(raw_orders)
+    activity = cached_cash_activity(trade, account_id)
+    if activity is not None:
+        positions["activity"] = activity
 
     with open(TRADES_OUT, "w", encoding="utf-8") as fh:
         json.dump(trades, fh, indent=2)

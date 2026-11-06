@@ -73,3 +73,4 @@ tradehub.html
 insight.html
 tradeboard.applock-ref.html
 *.reference.html
+**/broker_activity.json
