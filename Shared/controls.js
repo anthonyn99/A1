@@ -443,6 +443,9 @@
     doc.addEventListener('pointerdown', state.outside, true);
     doc.addEventListener('scroll', state.scroll, true);
     window.addEventListener('resize', state.reposition);
+    // The keyboard opening or the browser's bars sliding change only the
+    // visual viewport; follow it so the list stays on screen.
+    if (window.visualViewport) { visualViewport.addEventListener('resize', state.reposition); visualViewport.addEventListener('scroll', state.reposition); }
     anchor.setAttribute('aria-expanded', 'true');
     openPop = state;
     return state;
@@ -453,6 +456,7 @@
     doc.removeEventListener('pointerdown', s.outside, true);
     doc.removeEventListener('scroll', s.scroll, true);
     window.removeEventListener('resize', s.reposition);
+    if (window.visualViewport) { visualViewport.removeEventListener('resize', s.reposition); visualViewport.removeEventListener('scroll', s.reposition); }
     s.anchor.setAttribute('aria-expanded', 'false');
     s.pop.classList.remove('on');
     var p = s.pop;
