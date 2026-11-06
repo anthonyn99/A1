@@ -138,7 +138,10 @@
       top = up ? r.top - gap - h : r.bottom + gap;
     } else top = r.top + r.height / 2 - h / 2;
     top = Math.min(Math.max(T, top), B - h);
-    p.style.maxHeight = h + 'px';
+    // max-height counts the content box only (no border-box here).
+    var cs = getComputedStyle(p), chrome = cs.boxSizing === 'border-box' ? 0
+      : (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    p.style.maxHeight = Math.max(0, h - chrome) + 'px';
     p.style.top = top + 'px';
     p.classList.toggle('up', up);
   }
