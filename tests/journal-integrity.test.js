@@ -411,9 +411,9 @@ function gateContext(loader) {
     vm.runInContext(slice('function tbUuid(){', '/* ── Trade stats computer ── */'), ctx);
     vm.runInContext(slice('function tbCsvSig(entry){', '\n}\n') + '\n}\n', ctx);
     // tbCsvSig asks tbTradeSides which legs opened the trade (shorts open on
-    // the sale, 2026-11-05); both live further down, after the stats computer.
+    // the sale, 2026-11-05). tbIsShort is the one-liner straight above it, so
+    // this one slice lifts both.
     vm.runInContext(slice('function tbIsShort(t){', '\n}\n') + '\n}\n', ctx);
-    vm.runInContext(slice('function tbTradeSides(t){', '\n}\n') + '\n}\n', ctx);
     return ctx;
   })();
 
