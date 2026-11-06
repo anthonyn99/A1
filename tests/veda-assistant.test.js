@@ -222,6 +222,32 @@ section('worker: state shaping');
     }
     const day = (k, items) => ({ [k]: items });
 
+    // spotlight: preview() names what each action touches, and changes nothing
+    {
+      const lb = liveBridge({ data: day('2026-11-05', [{ id: 'a', type: 'task', title: 'Buy milk', category: 'personal' }, { id: 'b', type: 'task', title: 'Gym', category: 'health' }]) });
+      const { THV } = engineWith(lb);
+      const before = JSON.stringify(lb.b.getState().data);
+      const pv = THV.preview([
+        { type: 'add_task', box: 'calendar', date: '2026-11-20', title: 'Essay draft', category: 'study' },
+        { type: 'remove_task', match: { title: 'buy milk' } },
+        { type: 'edit_task', match: { title: 'gym' }, set: { title: 'Gym, legs' } },
+        { type: 'open_app', target: 'gita' },
+      ]);
+      t('preview: an add points at its date', pv[0].ok && pv[0].ref && pv[0].ref.date === '2026-11-20' && !pv[0].from, JSON.stringify(pv[0]));
+      t('preview: a remove names the row it takes away', pv[1].ok && pv[1].from && pv[1].from.id === 'a' && pv[1].from.date === '2026-11-05', JSON.stringify(pv[1]));
+      t('preview: an edit names its row', pv[2].ok && pv[2].from.id === 'b' && pv[2].ref.id === 'b');
+      t('preview: non-task actions are left out', pv.length === 3);
+      t('preview: nothing in state changes', JSON.stringify(lb.b.getState().data) === before);
+    }
+    {
+      const order = [];
+      const lb = liveBridge({ data: {} });
+      const e = makeEngine('veda', Object.assign(lb.b, { mutateData: fn => { order.push('commit'); lb.b.getState().data = fn(lb.b.getState().data); } }),
+        { ok: true, actions: [{ type: 'add_task', box: 'calendar', date: '2026-11-06', title: 'Milk', category: 'personal' }], say: 'Done' });
+      await e.THV.sendAudio('AAAA', { silent: true, before: async acts => { await new Promise(r => setTimeout(r, 5)); order.push('before:' + acts.length); } });
+      t('send(): `before` runs, and is awaited, before the change is applied', order.join() === 'before:1,commit', order.join());
+    }
+
     // not found / missing bridge / partial success
     {
       const lb = liveBridge({ data: day('2026-11-05', [{ id: 'a', type: 'task', title: 'Buy milk', category: 'personal' }]) });
@@ -533,6 +559,28 @@ section('worker: state shaping');
     t('fallback: Microsoft Ryan first', T.pickVoiceFrom([V('Microsoft Aria Online', 'en-US'), V('Microsoft Ryan Online (Natural)', 'en-GB')]).name.startsWith('Microsoft Ryan'));
     t('fallback: Google UK English Male next', T.pickVoiceFrom([V('Google US English', 'en-US'), V('Google UK English Female', 'en-GB'), V('Google UK English Male', 'en-GB')]).name === 'Google UK English Male');
     t('fallback: any en-GB, then any English', T.pickVoiceFrom([V('X', 'en-US'), V('Y', 'en-GB')]).name === 'Y' && T.pickVoiceFrom([V('X', 'en-US')]).name === 'X');
+  }
+  section('veda-assistant.js: spotlight stops');
+  {
+    const s = T.spotStops([
+      { box: 'calendar', date: '2026-11-20', id: 'x' }, { box: 'calendar', date: '2026-11-20', id: 'y' },
+      { box: 'shortTermGoals', id: 'g' }, { box: 'calendar', date: '2026-11-05', id: 'a', gone: true },
+      { box: 'calendar', date: '2026-11-07', id: 'b' }, { box: 'dailyHabits', id: 'h' }, { box: 'calendar', date: null, id: 'z' },
+    ]);
+    t('grouped by day or list, in order, at most 4', s.length === 4 && s.map(x => x.key).join() === 'd:2026-11-20,b:shortTermGoals,d:2026-11-05,d:2026-11-07', s.map(x => x.key).join());
+    t('ids gathered per stop; leaving rows kept apart', s[0].ids.join() === 'x,y' && s[2].gone.join() === 'a' && !s[2].ids.length);
+    const b = T.spotBefore([
+      { ok: true, action: { type: 'add_task' }, ref: { box: 'calendar', date: '2026-11-20', id: 'tmp' } },
+      { ok: true, action: { type: 'remove_task' }, from: { box: 'calendar', date: '2026-11-20', id: 'a' } },
+      { ok: false, action: { type: 'edit_task' }, from: { box: 'calendar', date: '2026-11-09', id: 'q' } },
+    ]);
+    t('before: an add goes to its day with nothing to ring yet; a remove rings red', b.length === 1 && !b[0].ids.length && b[0].gone.join() === 'a');
+    const a = T.spotAfter([
+      { ok: true, action: { type: 'add_task' }, ref: { box: 'calendar', date: '2026-11-20', id: 'n1' } },
+      { ok: true, action: { type: 'remove_task' } },
+      { ok: false, action: { type: 'edit_task' }, ref: { box: 'calendar', date: '2026-11-09', id: 'q' } },
+    ]);
+    t('after: rings what landed, skips failures', a.length === 1 && a[0].ids.join() === 'n1');
   }
   section('veda-assistant.js: live captions snap to her words');
   {

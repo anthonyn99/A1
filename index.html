@@ -16896,7 +16896,7 @@ function App(){
     getState:()=>{const base={data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:"dark",edit:edit,rules:(rules||[]).map(r=>r.text),rulesDailyGate:!!(rulesDaily&&rulesDaily.enabled),timerOpen:!!showPomo,
       // Neo opens PC apps by name: the names her PC's bridge published (dashboards/veda_pc_apps), and whether this device IS a PC.
       pcApps:(window._vdPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:!!(window._vdNeoOps?window._vdNeoOps.onPc():/Windows/i.test(navigator.userAgent||"")),
-      weekCollapsed:!!weekCollapsed,goalTab:goalTab};
+      weekCollapsed:!!weekCollapsed,goalTab:goalTab,mobDay:vrMobDayIdx};
       // What else Neo can be asked about (plans, links, earnings, classes, prep kits, the timer, open apps): veda-assistant.js.
       return window._vdNeoOps?Object.assign(base,window._vdNeoOps.state(base,{marketCal:marketCal})):base;},
     launchPc:(app,url)=>window._vdNeoLaunch?window._vdNeoLaunch(app,url):false,
@@ -16936,6 +16936,7 @@ function App(){
       if(!gitaModal){openGitaLesson(GITA_LESSONS[(bannerIdx+(cmd==="prev"?-1:1)+L)%L]);return true;}
       if(cmd==="prev")gitaPrev();else gitaNext();return true;},
     weekView:(collapsed)=>{setWeekCollapsed(!!collapsed);return true;},
+    mobDay:(i)=>{setVrMobDayIdx(Math.max(0,Math.min(6,i|0)));return true;},
     goalsTab:(t)=>{setGoalTab(/long/i.test(String(t||""))?"long":"short");return true;},
     monthShift:(by)=>{const d=new Date(vy,vm+(by||0),1);setVm(d.getMonth());setVy(d.getFullYear());return true;},
     lockApp:(t)=>window._vdNeoOps?window._vdNeoOps.lockApp(t):false,
@@ -19910,6 +19911,8 @@ async function send(extra,opts){
       // own voice, or a repeat of what it just did). Nothing runs, nothing is said.
       if(held&&held.drop)return {ok:true,n:0,results:[],later:Promise.resolve([]),say:'',actions:[],transcript:j.transcript||'',dropped:held.drop};
       if(held)return {ok:true,n:0,results:[],held:Object.assign({actions:j.actions},held),later:Promise.resolve([]),say:j.say||'',actions:j.actions,transcript:j.transcript||''};
+      // Neo shows the change on screen before it lands (veda-assistant.js, SPOTLIGHT). Only Neo passes it.
+      if(opts&&typeof opts.before==='function'){try{await opts.before(j.actions);}catch(e){}}
       var d=dispatch(j.actions,j.say,silent);
       return {ok:true,n:d.n,results:d.results,later:d.later,say:j.say||'',truncated:!!j.truncated,actions:j.actions,transcript:j.transcript||''};
     }
@@ -20641,7 +20644,19 @@ window._THV={
   sendAudio:function(b64,opts){return send(Object.assign({audio:b64,mimeType:'audio/wav'},(opts&&opts.extra)||{}),opts);},
   // Run actions already in hand (Neo, after she says "yes" to a held one). Same
   // executor, same results.
-  runActions:function(actions,opts){var d=dispatch(actions||[],'',!(opts&&opts.loud));return {ok:true,n:d.n,results:d.results,later:d.later};}
+  runActions:function(actions,opts){var d=dispatch(actions||[],'',!(opts&&opts.loud));return {ok:true,n:d.n,results:d.results,later:d.later};},
+  // Which item and date each task action would touch, without changing anything:
+  // the same matching as dispatch() on a throwaway copy (Neo's spotlight).
+  preview:function(actions){var b=bridge();if(!b)return [];var s=b.getState();
+    var W={data:clone(s.data)||{},habits:clone(s.habits)||[],shortGoals:clone(s.shortGoals)||[],longGoals:clone(s.longGoals)||[],hc:clone(s.hc)||{},selectedDate:s.selectedDate};
+    var fx={schedule:[],cancel:[],after:[]},out=[],noop=function(){};
+    (actions||[]).forEach(function(a){if(!a||!TASK_TYPES[a.type])return;why='';lastRef=null;var ok=false,f0=null;
+      // `from`: the existing item it starts on (what a remove or a move takes away).
+      try{f0=a.match?locate(W,a.match):null;}catch(e){f0=null;}
+      var from=f0&&f0.item&&f0.item.id?{id:f0.item.id,box:f0.box,date:f0.key||null}:null;
+      try{ok=applyTask(b,W,a,noop,fx);}catch(e){ok=false;}
+      out.push({action:a,ok:!!ok,ref:lastRef,from:from});});
+    why='';lastRef=null;return out;}
 };
 })();
 </script>

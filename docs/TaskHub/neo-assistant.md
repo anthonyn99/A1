@@ -152,6 +152,34 @@ earlier turn did, by id), ask ONE clarifying question when a request is genuinel
 take her next turn as the answer, and just talk. After every reply it keeps listening without
 the wake word for 10 s, or 16 s when the reply ended in a question.
 
+### Spotlight: watching the change happen (2026-11-06)
+
+When Neo adds, edits, ticks, moves or removes something, it shows the change on screen,
+then goes back to the view she had.
+
+```
+reply ─► spotlightBefore(actions)        veda-assistant.js, via send()'s `before` hook
+           · _THV.preview(actions): the same matching as dispatch(), on a copy
+           · save the view (week, goals tab, phone day, scroll)
+           · go to the first place (week fades out/in; goals tab; phone day)
+           · ring rows about to change (red for a remove), ~450 ms
+      ─► dispatch(actions)               index.html, unchanged
+      ─► spotlightAfter(results)         alongside the spoken reply
+           · ring what landed; up to 4 places, ~1.2 s each, the last 1.4 s
+           · fade the rings, go back to the saved view
+```
+
+- The rings are fixed elements drawn over the rows (`[data-dkey=<id>]`) and follow
+  them each frame, so React re-renders can't disturb them and nothing in the layout
+  moves. A ring whose row has gone fades where it was.
+- A tap, scroll, wheel or key ends it at once and leaves her where she is. Turning Neo
+  off goes back to the saved view.
+- It only runs while her TaskHub is the screen in front of her, and only for task,
+  habit and goal changes (apps, the timer, questions show nothing). With reduced
+  motion turned on, nothing scales; the rings just appear.
+- Tony's side: `send()`'s `before` and `_THV.preview` are only used by Neo; his mic and
+  text paths never pass them. `mobDay` is on Veda's bridge only.
+
 ### The list
 
 - **Tasks and events:** add, edit, remove, tick off, move, swap, reorder, clear, shift a
@@ -311,6 +339,11 @@ downloads it once more.
 - every Neo action has a card, an executor and a prompt line
 - what Neo says (`compose`, `failLine`), when it asks first (`needsConfirm`), and the
   timer queue
+- the spotlight: `_THV.preview` names each action's row and date without changing
+  state, `before` is awaited ahead of the change, and the stops are grouped and capped
+
+`node tests/live/neo-spotlight.live.js` drives it in a real browser (fake Firestore):
+an add two weeks out, a remove, a goal on the other tab, and a tap that stops it.
 
 `py -3.11 V1/tools/sos-browser/test_launcher.py` and `test_prep_bridge.py` cover
 `/api/close` and `/api/running`: the matching, graceful vs force, "asking to save", the

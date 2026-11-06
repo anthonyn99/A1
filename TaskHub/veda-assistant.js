@@ -543,6 +543,14 @@
       '#vd-neo-hud.vn-dock .vn-x{width:18px;height:18px;font-size:9px;border-color:rgba(141,118,154,.3);color:#76777C;}',
       '#vd-neo-hud.vn-dock .vn-x:hover{border-color:' + C.accent + ';color:#AFB0B5;box-shadow:none;}',
       '@keyframes vnIn{from{opacity:0}to{opacity:1}}',
+      // spotlight: the ring Neo draws around the row it is changing
+      '.vn-spot{position:fixed;pointer-events:none;z-index:99990;box-sizing:border-box;border:1.5px solid ' + C.ring + ';background:rgba(201,179,217,.06);',
+      ' box-shadow:0 0 0 3px rgba(201,179,217,.10),0 0 16px rgba(141,118,154,.35);opacity:0;transform:scale(1.035);',
+      ' transition:opacity .18s ease-out,transform .18s ease-out;will-change:opacity,transform;}',
+      '.vn-spot.on{opacity:1;transform:none;}',
+      '.vn-spot.out{opacity:0;transform:scale(.97);transition:opacity .22s ease-in,transform .22s ease-in;}',
+      '.vn-spot-gone{border-color:' + C.red + ';background:rgba(210,122,138,.07);box-shadow:0 0 0 3px rgba(210,122,138,.10),0 0 16px rgba(210,122,138,.3);}',
+      '@media (prefers-reduced-motion:reduce){.vn-spot,.vn-spot.out{transform:none!important;transition:opacity .01s!important}}',
       // header button: a mini reactor
       '.vd-neo-btn .vnb{width:15px;height:15px;display:block;overflow:visible;}',
       '.vd-neo-btn .vnb .r1{transform-origin:12px 12px;}',
@@ -1013,6 +1021,7 @@
 
   function teardown() {
     S.running = false;
+    if (SP.saved) spotEnd(true);
     try { S.proc && (S.proc.onaudioprocess = null); S.proc && S.proc.disconnect(); S.src && S.src.disconnect(); } catch (e) {}
     try { S.stream && S.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
     stopVoice();
@@ -1099,7 +1108,7 @@
       // The whole conversation, so she can clarify, change her mind or keep talking.
       var hist = recentHistory();
       if (hist.length) extra.history = hist;
-      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn });
+      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn, before: spotlightBefore });
     } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
     // What Neo actually understood replaces the live guess.
     if (res && res.transcript && H) { H.you.textContent = tidyText(res.transcript); H.you.classList.add('vn-heard'); }
@@ -1154,6 +1163,7 @@
     var gated = results.some(function (r) { return r.gated; });
     var early = await Promise.race([laterP.then(function (l) { return { done: true, l: l }; }, function () { return { done: true, l: [] }; }), timeoutP(SETTLE_MS, { done: false })]);
     if (early.done) results = mergeLater(results, early.l);
+    spotlightAfter(results);   // runs alongside the reply; never waited on
     cardsFor(results, res.say);
     if (results.some(function (r) { return r.ok; })) sfx('done');
     rememberTurn(transcript, res.say, results);
@@ -1182,8 +1192,9 @@
     speak(say, true);
   }
   // She said yes (or tapped it): run what was held, and report it like any other.
-  function runHeld(pend) {
+  async function runHeld(pend) {
     setMode('thinking');
+    try { await spotlightBefore(pend.actions); } catch (e) {}
     var r = window._THV && window._THV.runActions ? window._THV.runActions(pend.actions) : { ok: false, results: [], later: Promise.resolve([]) };
     return report({ ok: true, results: r.results, later: r.later, say: pend.say }, pend.transcript);
   }
@@ -1199,6 +1210,197 @@
     var p = S.pending; if (!p) return; S.pending = null;
     stopVoice();
     if (yes) runHeld(p); else { hudCards([]); speak('Very well. I\'ve left everything as it was.', true); }
+  }
+
+  // ══ spotlight: show each change on screen, then go back ════════════════════
+  // Before a change lands Neo goes to it (its week, its day on a phone, its goals
+  // tab) and rings the item it is about to change; after, it rings what changed,
+  // visits up to four places, then returns to the view she had. A tap, scroll or
+  // key ends it on the spot and leaves her where she is. Rings are their own
+  // fixed elements drawn over the rows, so React re-renders can't disturb them
+  // and nothing in the layout moves.
+  var SPOT_MAX = 4, SPOT_PRE_MS = 450, SPOT_STEP_MS = 1200, SPOT_HOLD_MS = 1400, SPOT_FADE_MS = 160;
+  var SP = { run: 0, saved: null, rings: [], raf: 0, armed: false };
+  var GOAL_TAB = { shortTermGoals: 'short', longTermGoals: 'long' };
+
+  // Pure: where to go, in order — a day for calendar items, the list for habits
+  // and goals — and which ids to ring there. `gone` rings are for items about to
+  // leave (a remove, the old place of a move).
+  function spotStops(targets) {
+    var stops = [], at = {};
+    (targets || []).forEach(function (t) {
+      if (!t || !t.box || (t.box === 'calendar' && !t.date)) return;
+      var k = t.box === 'calendar' ? 'd:' + t.date : 'b:' + t.box;
+      if (!(k in at)) { if (stops.length >= SPOT_MAX) return; at[k] = stops.length; stops.push({ key: k, box: t.box, date: t.box === 'calendar' ? t.date : null, ids: [], gone: [] }); }
+      var s = stops[at[k]], list = t.gone ? s.gone : s.ids;
+      if (t.id && list.indexOf(t.id) < 0) list.push(t.id);
+    });
+    return stops;
+  }
+  // Pure: the places a command will touch, from _THV.preview() — the item it
+  // starts on when there is one, else where the new item will go.
+  function spotBefore(pv) {
+    return spotStops((pv || []).filter(function (p) { return p && p.ok; }).map(function (p) {
+      var t = p.action && p.action.type, gone = t === 'remove_task' || t === 'move_task' || t === 'clear' || t === 'clear_completed';
+      if (p.from) return { box: p.from.box, date: p.from.date, id: p.from.id, gone: gone };
+      return p.ref ? { box: p.ref.box, date: p.ref.date, id: null } : null;
+    }));
+  }
+  // Pure: what changed, from dispatch() results (a removed item has no ref).
+  function spotAfter(results) {
+    return spotStops((results || []).filter(function (r) { return r && r.ok && r.ref && r.action && r.action.type !== 'remove_task'; })
+      .map(function (r) { return { box: r.ref.box, date: r.ref.date || null, id: r.ref.id }; }));
+  }
+
+  function spotBridge() { return isVeda() && window._vdVoice && window._vdVoice.goToDate ? window._vdVoice : null; }
+  // Only while her TaskHub is the screen in front of her (not a journal, not Gita).
+  function spotVisible() { var tv = document.getElementById('task-view'); return !!(tv && getComputedStyle(tv).display !== 'none'); }
+  function frames(n) { return new Promise(function (res) { var k = 0; (function f() { if (++k > n) return res(); requestAnimationFrame(f); })(); }); }
+  function wait(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+  function isMobStrip() { var s = document.querySelector('.vd-mob-day-strip'); return !!(s && s.offsetParent !== null); }
+
+  function spotSave(b) {
+    var st = b.getState() || {};
+    return { date: st.selectedDate, week: (st.week || []).map(function (w) { return w.date; }), goalTab: st.goalTab, mobDay: st.mobDay, scrollY: window.scrollY, changed: false };
+  }
+  // Fades the TaskHub view around a switch so the new week doesn't snap in.
+  async function spotSwitch(fn) {
+    var tv = document.getElementById('task-view');
+    if (reduced || !tv) { fn(); await frames(2); return; }
+    tv.style.transition = 'opacity ' + SPOT_FADE_MS + 'ms ease'; tv.style.opacity = '0.25';
+    await wait(SPOT_FADE_MS);
+    fn(); await frames(2);
+    tv.style.opacity = '1';
+    await wait(SPOT_FADE_MS);
+    tv.style.transition = ''; tv.style.opacity = '';
+  }
+  // Brings one stop on screen. Returns false when it was cut short.
+  async function spotGo(b, stop, run) {
+    var st = b.getState() || {}, sw = null;
+    if (stop.box === 'calendar' && stop.date) {
+      var dates = (st.week || []).map(function (w) { return w.date; }), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(stop.date);
+      var idx = dates.indexOf(stop.date);
+      if (idx < 0 && m) sw = function () { b.goToDate(+m[1], +m[2] - 1, +m[3]); };
+      // On a phone only one day shows: pick it (its place in the new week).
+      if (isMobStrip() && b.mobDay) {
+        var wantIdx = idx >= 0 ? idx : (new Date(+m[1], +m[2] - 1, +m[3]).getDay() + 6) % 7;
+        if (wantIdx !== st.mobDay) { var prev = sw; sw = function () { if (prev) prev(); b.mobDay(wantIdx); }; }
+      }
+    } else if (GOAL_TAB[stop.box] && st.goalTab !== GOAL_TAB[stop.box] && b.goalsTab) {
+      sw = function () { b.goalsTab(GOAL_TAB[stop.box]); };
+    }
+    if (sw) { SP.saved.changed = true; await spotSwitch(sw); }
+    return run === SP.run;
+  }
+
+  // ── rings ──
+  function spotFind(id) {
+    var els = document.querySelectorAll('[data-dkey="' + String(id).replace(/["\\]/g, '') + '"]');
+    for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); if (r.width > 0 && r.height > 0) return els[i]; }
+    return null;
+  }
+  function spotRing(id, kind) {
+    var el = spotFind(id); if (!el) return null;
+    var d = document.createElement('div');
+    d.className = 'vn-spot' + (kind === 'gone' ? ' vn-spot-gone' : '');
+    d.style.borderRadius = getComputedStyle(el).borderRadius || '6px';
+    document.body.appendChild(d);
+    var ring = { id: id, el: d, out: false };
+    spotPlace(ring, el.getBoundingClientRect());
+    SP.rings.push(ring);
+    requestAnimationFrame(function () { d.classList.add('on'); });
+    spotTrack();
+    return ring;
+  }
+  function spotPlace(ring, r) {
+    var p = 3, s = ring.el.style;
+    s.left = (r.left - p) + 'px'; s.top = (r.top - p) + 'px'; s.width = (r.width + p * 2) + 'px'; s.height = (r.height + p * 2) + 'px';
+  }
+  // Follows each row as it moves (scrolling, re-sorting); a row that has gone
+  // keeps its last place and fades out there.
+  function spotTrack() {
+    if (SP.raf) return;
+    var f = function () {
+      SP.raf = 0;
+      SP.rings.forEach(function (ring) {
+        if (ring.out) return;
+        var el = spotFind(ring.id);
+        if (el) spotPlace(ring, el.getBoundingClientRect()); else spotDrop(ring);
+      });
+      if (SP.rings.length) SP.raf = requestAnimationFrame(f);
+    };
+    SP.raf = requestAnimationFrame(f);
+  }
+  function spotDrop(ring) {
+    if (ring.out) return; ring.out = true;
+    ring.el.classList.remove('on'); ring.el.classList.add('out');
+    setTimeout(function () { try { ring.el.remove(); } catch (e) {} SP.rings = SP.rings.filter(function (r) { return r !== ring; }); }, 260);
+  }
+  function spotClear() { SP.rings.slice().forEach(spotDrop); }
+
+  // A tap, wheel, touch or key from her: stop now, stay where she is.
+  function spotInterrupt(e) {
+    if (e && e.target && e.target.closest && e.target.closest('#vd-neo-hud')) return;
+    spotEnd(false);
+  }
+  function spotArm(on) {
+    if (on === SP.armed) return; SP.armed = on;
+    ['pointerdown', 'wheel', 'touchstart', 'keydown'].forEach(function (t) {
+      if (on) window.addEventListener(t, spotInterrupt, { capture: true, passive: true });
+      else window.removeEventListener(t, spotInterrupt, { capture: true, passive: true });
+    });
+  }
+  async function spotEnd(restore) {
+    SP.run++; spotArm(false); spotClear();
+    var sv = SP.saved, b = spotBridge(); SP.saved = null;
+    if (!restore || !sv || !b || !sv.changed) return;
+    var st = b.getState() || {}, cur = (st.week || []).map(function (w) { return w.date; }).join();
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(sv.date || '');
+    await spotSwitch(function () {
+      if (m && cur !== sv.week.join()) b.goToDate(+m[1], +m[2] - 1, +m[3]);
+      if (sv.goalTab && st.goalTab !== sv.goalTab && b.goalsTab) b.goalsTab(sv.goalTab);
+      if (typeof sv.mobDay === 'number' && b.mobDay && st.mobDay !== sv.mobDay) b.mobDay(sv.mobDay);
+    });
+    try { window.scrollTo({ top: sv.scrollY, behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
+  }
+
+  // Runs just before the actions are applied (send()'s `before` hook).
+  async function spotlightBefore(actions) {
+    var b = spotBridge();
+    if (!b || !window._THV || !window._THV.preview || !spotVisible()) return;
+    var stops = spotBefore(window._THV.preview(actions));
+    if (!stops.length) return;
+    var run = ++SP.run;
+    spotClear();
+    if (!SP.saved) SP.saved = spotSave(b);
+    spotArm(true);
+    if (!(await spotGo(b, stops[0], run))) return;
+    var rang = stops[0].ids.concat(stops[0].gone).map(function (id) { return spotRing(id, stops[0].gone.indexOf(id) >= 0 ? 'gone' : 'work'); }).filter(Boolean);
+    if (rang.length) {
+      var el = spotFind(rang[0].id); if (el) try { el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
+      await wait(SPOT_PRE_MS);
+    }
+  }
+  // Runs once the change has landed: ring what changed, visit each place, go back.
+  async function spotlightAfter(results) {
+    var b = spotBridge();
+    if (!b || !SP.saved) return;
+    var run = SP.run, stops = spotAfter(results);
+    for (var i = 0; i < stops.length; i++) {
+      if (run !== SP.run) return;
+      if (i > 0) { spotClear(); if (!(await spotGo(b, stops[i], run))) return; }
+      await frames(2);
+      var first = null;
+      stops[i].ids.forEach(function (id) {
+        if (!SP.rings.some(function (r) { return r.id === id && !r.out; })) spotRing(id, 'done');
+        if (!first) first = spotFind(id);
+      });
+      if (first) try { first.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
+      await wait(i === stops.length - 1 ? SPOT_HOLD_MS : SPOT_STEP_MS);
+    }
+    if (!stops.length) await wait(SPOT_HOLD_MS * 0.6);   // removals: let the ring fade where the row was
+    if (run !== SP.run) return;
+    await spotEnd(true);
   }
 
   // ══ voice: Ryan through Orca, the device's voice as fallback ═══════════════
@@ -1648,7 +1850,7 @@
     toggle: function () { setOn(!S.on); },
     mode: function () { return S.mode; },
     cancel: cancel,
-    _test: { fixCaption: fixCaption, tidyText: tidyText, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
+    _test: { fixCaption: fixCaption, tidyText: tidyText, spotStops: spotStops, spotBefore: spotBefore, spotAfter: spotAfter, spotlightBefore: spotlightBefore, spotlightAfter: spotlightAfter, spot: SP, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
       cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
       greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
