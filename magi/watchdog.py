@@ -169,6 +169,15 @@ def main(port: int | None = None) -> int:
                 _say(f"update: {note}")
         except Exception as e:  # noqa: BLE001 — the watchdog must never die of this
             _say(f"update check failed: {e}")
+        # TradeBoard's Webull sync (Veda's PC) onto the code just pulled, so a
+        # wb_sync.py change never needs a restart by hand (tbsync.py).
+        try:
+            from . import tbsync
+            note = tbsync.tick()
+            if note:
+                _say(note)
+        except Exception as e:  # noqa: BLE001
+            _say(f"tradeboard sync check failed: {e}")
         # The daily disk sweep (sweep.py), here in the watchdog's own process so
         # it never runs on the engine's. At most once a day; a no-op otherwise.
         try:
