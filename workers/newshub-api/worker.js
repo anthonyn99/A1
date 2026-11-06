@@ -3206,10 +3206,15 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
   let rawCount = 0;
   for (let bi=0; bi<batches.length; bi++){
     for (const ev of batches[bi]){
-      if (enrichedIds.has(ev.id)) continue;     // already AI-enriched
+      if (enrichedIds.has(ev.id)) continue;     // already AI-enriched (or raw-filled)
       if (aiRejectedIds.has(ev.id)) continue;    // AI said off-watchlist → drop
       const primary = ev.candidateTickers?.[0] || '';
       if (!primary || !wlSet.has(primary)) continue;
+      // The omission pass appends its retry batches to `batches`, so an event
+      // that never got a verdict sits in its original batch AND in every retry
+      // batch. Without this, each copy was raw-filled: the same "Raw" card
+      // showed two or three times in a row (2026-11-06, 8 events doubled).
+      enrichedIds.add(ev.id);
       const headline = ev.sources?.[0]?.headline || '';
       const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
       enriched.push({
@@ -3337,6 +3342,7 @@ function finalizeEvents(events, enrichedList, wl){
     if (enrichedIds.has(ev.id)) continue;
     const primary = ev.candidateTickers?.[0] || '';
     if (!primary || !wlSet.has(primary)) continue;
+    enrichedIds.add(ev.id);   // one card per event, whatever the input repeats
     const headline = ev.sources?.[0]?.headline || '';
     const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
     enriched.push({
