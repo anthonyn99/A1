@@ -2,7 +2,7 @@
 //
 // Real index.html on Veda's side and the real Vosk wake-word engine and model
 // (downloaded from their CDNs). The microphone is fake: Chrome plays a WAV,
-// made here with Windows' own speech synthesizer, of "Neo. Add buy milk
+// made here with Windows' own speech synthesizer, of "Hey Neo. Add buy milk
 // tomorrow." on a loop. Firestore is the fake one; the Gemini route
 // (personal-ai /taskhub/parse) and Orca's speech route are answered here, so
 // nothing touches her real data, key or quota. Expect:
@@ -24,13 +24,13 @@ const path = require('path');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 
-const WAV = path.join(os.tmpdir(), 'neo-live-test.wav');
+const WAV = path.join(os.tmpdir(), 'neo-live-test-hey.wav');
 if (!fs.existsSync(WAV)) {
   execFileSync('powershell', ['-NoProfile', '-Command',
     `Add-Type -AssemblyName System.Speech; $syn=New-Object System.Speech.Synthesis.SpeechSynthesizer;` +
     `$fmt=New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(48000,[System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,[System.Speech.AudioFormat.AudioChannel]::Mono);` +
     `$syn.SetOutputToWaveFile('${WAV}',$fmt);` +
-    `$syn.SpeakSsml('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><break time="4s"/>Neo.<break time="700ms"/>Add buy milk tomorrow.<break time="6s"/></speak>');$syn.Dispose()`]);
+    `$syn.SpeakSsml('<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><break time="4s"/>Hey Neo.<break time="700ms"/>Add buy milk tomorrow.<break time="6s"/></speak>');$syn.Dispose()`]);
 }
 process.env.CDP_PORT = process.env.CDP_PORT || '9347';
 process.env.CDP_ALLOW_FONTS = '1';   // the HUD's Orbitron / JetBrains Mono, for honest screenshots
