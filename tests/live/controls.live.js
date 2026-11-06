@@ -23,6 +23,12 @@ function ok(name, cond, extra) {
 }
 async function go(c, url, wait) {
   await c.send('Page.navigate', { url });
+  // A fixed sleep alone read half-loaded pages whenever the PC was busy
+  // (2026-11-06): wait for the new document to finish loading first.
+  for (let i = 0; i < 60; i++) {
+    await sleep(250);
+    try { if (await evalJs(c, `location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`)) break; } catch (e) {}
+  }
   await sleep(wait || 1500);
 }
 async function center(c, sel) {
