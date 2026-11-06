@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 /**
- * Neo — Veda's hands-free TaskHub assistant (TaskHub/veda-assistant.js).
+ * Neo — the hands-free TaskHub assistant (TaskHub/veda-assistant.js).
  *
  * WHY THIS FILE EXISTS
- * Neo is VEDA-ONLY, but three of its four pieces live in shared places: the
- * voice engine in index.html (both TaskHubs use it), the personal-ai worker's
- * /taskhub/parse prompt (both profiles), and the page that hosts both sides.
- * These tests pin that Tony's side is untouched:
- *   · Tony's prompt carries none of Neo's actions or rules, and his state is
- *     shaped exactly as before (no tradingRules).
- *   · Neo's new action types do nothing against a bridge without Veda's methods.
- *   · veda-assistant.js never opens the mic unless the active profile is veda.
- * …and that Veda's new reach works (rules, navigation, AI prep, timer, off).
+ * Neo was Veda's alone until 2026-11-06; now each side has its own. Its pieces
+ * live in shared places: the voice engine in index.html (both TaskHubs use
+ * it), the personal-ai worker's /taskhub/parse prompt (both profiles), and the
+ * page that hosts both sides. These tests pin:
+ *   · Tony's mic and text buttons are untouched: without mode:"neo" his prompt
+ *     carries none of Neo's actions or rules and his state, schema and item
+ *     fields are shaped exactly as before.
+ *   · Tony's Neo (mode:"neo") gets his own lines (his name, his reach) and
+ *     never Veda's (trading rules, Gita lessons, classes, reels).
+ *   · Neo's action types do nothing against a bridge without Neo's methods.
+ *   · veda-assistant.js opens the mic only for the side in front, and only if
+ *     that side switched Neo on; never on the profile picker.
+ * …and that Veda's reach works (rules, navigation, AI prep, timer, off).
  *
  * Run: node tests/veda-assistant.test.js
  */
@@ -30,7 +34,7 @@ function section(s) { console.log('\n' + s); }
 const ROOT = path.join(__dirname, '..');
 
 // ── 1. worker prompt ────────────────────────────────────────────────────────
-section('worker: Neo lines are Veda-only');
+section('worker: Neo lines per side');
 const wsrc = fs.readFileSync(path.join(ROOT, 'workers', 'personal-ai', 'worker.js'), 'utf8')
   .replace(/^export default\s*\{/m, 'const __workerDefault = {')
   .replace(/^export (?=(?:async )?function |const |let )/gm, '');
@@ -41,9 +45,17 @@ const W = wctx.__T;
 const st = { today: '2026-11-05', calendar: {} };
 const NEO_MARKERS = ['open_pc_app', 'open_site', 'pcApps', 'rules_add', 'open_app', 'prep_task', 'assistant_off', 'timer_close', 'reels_shuffle', 'Neo', 'SPOKEN ALOUD', 'QUESTIONS', 'butler', 'BRIEFINGS', 'PERSONALITY'];
 for (const audio of [true, false]) {
-  const tony = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', audio, { bulk: false, neo: true });
+  const tony = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', audio, { bulk: false });
   const hits = NEO_MARKERS.filter(m => tony.includes(m));
-  t(`Tony's prompt (${audio ? 'audio' : 'typed'}) has no Neo lines, even with neo:true`, !hits.length, hits.join(', '));
+  t(`Tony's mic/text prompt (${audio ? 'audio' : 'typed'}) has no Neo lines`, !hits.length, hits.join(', '));
+}
+{
+  const tonyNeo = W.buildTaskPrompt('tony', 'x', st, '2026-11-05', 'Thursday', true, { neo: true });
+  t('Tony\'s Neo prompt offers his Neo actions', ['open_pc_app', 'open_site', 'prep_task', 'assistant_off', 'timer_close', 'plan_add', 'journal_entry', 'lock_app'].every(m => tonyNeo.includes(m)));
+  t('Tony\'s Neo prompt is his: his name, the butler, briefings', tonyNeo.includes('TONY\'S ASSISTANT') && tonyNeo.includes('British AI butler') && tonyNeo.includes('"Tony" or "sir"') && tonyNeo.includes('BRIEFINGS') && tonyNeo.includes('wake phrase "Hey Neo"'));
+  const vedaOnly = ['rules_add', 'rules_check', 'gita_next', 'start_class', 'reels_shuffle', 'VEDA\'S ASSISTANT', 'Address her', 'tradingRules'];
+  const leak = vedaOnly.filter(m => tonyNeo.includes(m));
+  t('Tony\'s Neo prompt carries none of Veda\'s own reach', !leak.length, leak.join(', '));
 }
 const vedaPlain = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', true, {});
 const vedaNeo = W.buildTaskPrompt('veda', 'x', st, '2026-11-05', 'Thursday', true, { neo: true });
@@ -59,26 +71,32 @@ section('worker: state shaping');
   wctx.runModelChain = async (models, key, o) => { seen.prompt = o.prompt; throw new Error('stop'); };
   const env = { VEDA_GEMINI_KEY: 'v', TONY_GEMINI_KEY: 't' };
   const state = { data: {}, habits: [], rules: ['No trades after 3pm'], rulesDailyGate: true, timerOpen: false, pcApps: ['Spotify', 'Visual Studio Code'], onPc: true };
+  await W.handleTaskhub({ profile: 'tony', transcript: 'what are my rules', state, today: '2026-11-05' }, env);
+  t('Tony\'s mic/text state never carries tradingRules', !/tradingRules|No trades after 3pm|rulesDailyGate/.test(seen.prompt || ''));
+  t('Tony\'s mic/text state never carries PC apps', !/pcApps|Visual Studio Code|"onPc"/.test(seen.prompt || ''));
   await W.handleTaskhub({ profile: 'tony', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
-  t('Tony\'s state never carries tradingRules', !/tradingRules|No trades after 3pm|rulesDailyGate/.test(seen.prompt || ''));
-  t('Tony\'s state never carries her PC\'s apps', !/pcApps|Visual Studio Code|"onPc"/.test(seen.prompt || ''));
+  t('Tony\'s Neo state never carries tradingRules', !/tradingRules|No trades after 3pm|rulesDailyGate/.test(seen.prompt || ''));
+  t('Tony\'s Neo state carries his PC\'s app names and onPc', /"pcApps":\["Spotify","Visual Studio Code"\]/.test(seen.prompt || '') && /"onPc":true/.test(seen.prompt || ''));
   await W.handleTaskhub({ profile: 'veda', transcript: 'what are my rules', state, today: '2026-11-05', mode: 'neo' }, env);
   t('Veda\'s state carries her trading rules', /"tradingRules":\["No trades after 3pm"\]/.test(seen.prompt || ''));
   t('Veda\'s state carries her PC\'s app names and onPc', /"pcApps":\["Spotify","Visual Studio Code"\]/.test(seen.prompt || '') && /"onPc":true/.test(seen.prompt || ''));
   t('Veda\'s prompt offers open_pc_app / open_site', /open_pc_app/.test(seen.prompt || '') && /open_site/.test(seen.prompt || ''));
   t('Veda + mode:neo gets the wake-word note', (seen.prompt || '').includes('wake phrase "Hey Neo"'));
 
-  // Tony's call: the same schema, item fields and prompt as before Neo grew.
+  // Tony's mic/text call: the same schema, item fields and prompt as before Neo grew.
   wctx.runModelChain = async (models, key, o) => { seen.prompt = o.prompt; seen.schema = o.schema; throw new Error('stop'); };
   const flagged = { data: { '2026-11-05': [{ id: 'x', title: 'Email prof', aiPrep: true, aiSite: 'claude', aiNote: 'secret note' }] }, habits: [],
     plans: [{ title: 'Dinner', stage: 'proposed', waitingOn: 'veda' }], marketCal: [{ date: '2026-11-06', title: 'NVDA Earnings', kind: 'earnings' }] };
   const prev = { said: 'add gym tomorrow', reply: 'Done.', did: [{ type: 'add_task', ok: true, id: 'u9', title: 'Gym', date: '2026-11-06' }] };
-  await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', prev }, env);
   t('Tony\'s call keeps ACTION_SCHEMA exactly', seen.schema === W.ACTION_SCHEMA && !('aiPrep' in W.ACTION_SCHEMA.properties.actions.items.properties));
   t('Tony\'s items never show aiPrep; his state has no plans, earnings or previous turn', !/aiPrep|aiSite|"plans"|NVDA|previousTurn/.test(seen.prompt || ''));
   for (const m of ['close_pc_app', 'prep_off', 'plan_add', 'journal_entry', 'previousTurn', 'PREVIOUS TURN', 'clear_reminder']) {
-    t(`Tony's prompt has no "${m}"`, !(seen.prompt || '').includes(m));
+    t(`Tony's mic/text prompt has no "${m}"`, !(seen.prompt || '').includes(m));
   }
+  await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  t('Tony\'s Neo call uses the wider schema', seen.schema && seen.schema !== W.ACTION_SCHEMA && !!seen.schema.properties.actions.items.properties.aiPrep);
+  t('Tony\'s Neo state shows aiPrep (never the note), plans, earnings and the previous turn', /"aiPrep":true/.test(seen.prompt) && !/secret note/.test(seen.prompt) && /"waitingOn":"veda"/.test(seen.prompt) && /NVDA Earnings/.test(seen.prompt) && /"previousTurn":\{[^}]*"said":"add gym tomorrow"/.test(seen.prompt));
   await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
   t('Veda\'s call uses her own wider schema', seen.schema && seen.schema !== W.ACTION_SCHEMA && !!seen.schema.properties.actions.items.properties.aiPrep && !!seen.schema.properties.actions.items.properties.set.properties.aiPrep);
   t('Veda\'s items show aiPrep / aiSite (never the note itself)', /"aiPrep":true/.test(seen.prompt) && /"aiSite":"claude"/.test(seen.prompt) && !/secret note/.test(seen.prompt));
@@ -86,8 +104,10 @@ section('worker: state shaping');
     const history = [{ said: 'add dentist friday', reply: 'Which time, Veda?', did: [] }, { said: 'move gym to 5', reply: 'Done.', did: [{ type: 'edit_task', ok: true, id: 'g1', title: 'Gym' }] }, prev];
     await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev, history }, env);
     t('Veda\'s state carries the earlier turns as conversation (oldest first, the last stays previousTurn)', /"conversation":\[\{"said":"add dentist friday"/.test(seen.prompt) && /"id":"g1"/.test(seen.prompt) && /CONVERSATION/.test(seen.prompt) && /CLARIFYING/.test(seen.prompt));
+    await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', prev, history }, env);
+    t('Tony\'s mic/text prompt never carries a conversation', !/conversation|CONVERSATION|add dentist friday|TRANSCRIPT: transcribe what Veda/.test(seen.prompt || ''));
     await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev, history }, env);
-    t('Tony\'s prompt never carries a conversation', !/conversation|CONVERSATION|add dentist friday|TRANSCRIPT: transcribe what Veda/.test(seen.prompt || ''));
+    t('Tony\'s Neo prompt carries the conversation too', /"conversation":\[\{"said":"add dentist friday"/.test(seen.prompt) && /CONVERSATION/.test(seen.prompt));
     await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
   }
   t('Veda\'s state carries plans, earnings and the previous turn (with the id)', /"waitingOn":"veda"/.test(seen.prompt) && /NVDA Earnings/.test(seen.prompt) && /"previousTurn":\{[^}]*"said":"add gym tomorrow"/.test(seen.prompt) && /"id":"u9"/.test(seen.prompt));
@@ -165,7 +185,7 @@ section('worker: state shaping');
     t('assistant_off turns Neo off on Veda\'s side', calls.length === 1 && calls[0] === false);
   }
 
-  section('engine: Tony\'s side is untouched');
+  section('engine: a bridge without Neo\'s methods (Tony\'s mic) is untouched');
   {
     const tonyLog = [];
     const tonyBridge = {
@@ -176,8 +196,8 @@ section('worker: state shaping');
     const { THV, win } = makeEngine('tony', tonyBridge, { ok: true, actions: ACTIONS.concat([{ type: 'assistant_off' }]), say: '' });
     const calls = []; win._vdNeo = { setOn: on => calls.push(on) };
     const r = await THV.sendAudio('AAAA', { silent: true });
-    t('no Neo action applies on Tony\'s bridge', r.ok && r.n === 0, JSON.stringify(r));
-    t('assistant_off never reaches Neo from Tony\'s side', calls.length === 0);
+    t('no Neo action applies on a bridge without Neo\'s methods (assistant_off aside)', r.ok && r.n === 1 && r.results.filter(x => x.ok).every(x => x.action.type === 'assistant_off'), JSON.stringify(r.results.filter(x => x.ok)));
+    t('assistant_off turns Tony\'s Neo off on his side', calls.length === 1 && calls[0] === false);
     t('nothing was called on Tony\'s bridge', tonyLog.length === 0, tonyLog.join(','));
     // The actions added for "full functionality" (2026-11-05) are just as inert there.
     const NEW = [{ type: 'prep_task', match: { title: 'x' } }, { type: 'prep_off', match: { title: 'x' } }, { type: 'prep_open', match: { title: 'x' } },
@@ -188,7 +208,33 @@ section('worker: state shaping');
       { type: 'start_class', name: 'CS' }, { type: 'plan_add', title: 'Dinner' }, { type: 'plan_confirm', match: { title: 'Dinner' } }];
     const e2 = makeEngine('tony', tonyBridge, { ok: true, actions: NEW, say: 'Done' });
     const r2 = await e2.THV.sendAudio('AAAA', { silent: true });
-    t('the new Neo actions do nothing on Tony\'s bridge either', r2.ok && r2.n === 0 && r2.results.every(x => !x.ok) && tonyLog.length === 0, JSON.stringify(r2.results.filter(x => x.ok)));
+    t('the newer Neo actions do nothing there either', r2.ok && r2.n === 0 && r2.results.every(x => !x.ok) && tonyLog.length === 0, JSON.stringify(r2.results.filter(x => x.ok)));
+  }
+
+  section('engine: Tony\'s Neo drives his own bridge');
+  {
+    const log = [];
+    const data = { '2026-11-05': [{ id: 'e1', type: 'task', title: 'Email landlord', done: false, category: 'personal' }] };
+    const tb = {
+      profile: 'tony', uid: () => 'id' + Math.random().toString(36).slice(2, 7),
+      getState: () => ({ data, habits: [], hc: {}, longGoals: [], shortGoals: [], selectedDate: '2026-11-05' }),
+      mutateData() {}, mutateHabits() {}, mutateLongGoals() {}, mutateShortGoals() {}, mutateHc() {},
+      nav: tg => log.push(['nav', tg]), openPlans: () => log.push(['plans']), openShield: () => log.push(['shield']),
+      openTimer: () => log.push(['timer']), closeTimer: () => log.push(['closeTimer']), timer: c => { log.push(['timer', c]); return true; },
+      timerMode: () => true, timerAdd: () => true, prep: (item, dk) => { log.push(['prep', item.title, dk]); return null; },
+      launchPc: (app, url) => { log.push(['launch', app, url]); return true; }, weekView: v => { log.push(['week', v]); return true; },
+      journalEntry: tx => { log.push(['journal', tx]); return true; }, goToDate() {},
+    };
+    const acts = [{ type: 'open_app', target: 'notebook' }, { type: 'open_app', target: 'plans' }, { type: 'open_app', target: 'shield' }, { type: 'timer_close' },
+      { type: 'prep_task', match: { title: 'email landlord' } }, { type: 'open_pc_app', name: 'Spotify' }, { type: 'week_view', collapsed: true }, { type: 'journal_entry', text: 'Good day' },
+      { type: 'rules_add', title: 'x' }, { type: 'gita_next' }, { type: 'reels_shuffle' }, { type: 'start_class', name: 'CS' }];
+    const e = makeEngine('tony', tb, { ok: true, actions: acts, say: 'Done' });
+    const r = await e.THV.sendAudio('AAAA', { extra: { mode: 'neo' }, silent: true });
+    t('Tony\'s Neo actions apply on his bridge', r.results.slice(0, 8).every(x => x.ok), JSON.stringify(r.results.slice(0, 8).filter(x => !x.ok)));
+    t('Veda\'s own reach stays out of it (rules, Gita, reels, classes)', r.results.slice(8).every(x => !x.ok && x.reason === 'no_bridge'), JSON.stringify(r.results.slice(8)));
+    t('notebook → his Notebook, prep finds his task', log.some(l => l[0] === 'nav' && l[1] === 'journal') && log.some(l => l[0] === 'prep' && l[1] === 'Email landlord' && l[2] === '2026-11-05'));
+    e.THV.runActions([{ type: 'timer_set', minutes: 25, start: true }]);
+    t('"set 25 and start" sets then starts on his side too', JSON.stringify(log.filter(l => l[0] === 'timer' && l[1]).map(l => l[1])) === '["set","start"]');
   }
 
   // ── 2b. the engine tells the truth: per-action results ────────────────────
@@ -369,8 +415,12 @@ section('worker: state shaping');
   const vedaStart = html.indexOf('window._vdVoice={profile:"veda"');
   const tonyBlock = html.slice(html.indexOf('window._thVoice='), html.indexOf('window._thVoice=') + 3000);
   t('Veda\'s bridge exposes changeRules / nav / prep', vedaStart > 0 && /changeRules:/.test(html.slice(vedaStart, vedaStart + 4000)) && /prep:\(item,dk\)/.test(html.slice(vedaStart, vedaStart + 4000)));
-  t('Tony\'s bridge gained none of them', !/changeRules|closeTimer|reelsShuffle|openShield/.test(tonyBlock));
-  t('the Neo button sits only in Veda\'s header', (html.match(/key:"vx-neo"/g) || []).length === 1 && html.indexOf('key:"vx-neo"') > html.indexOf('window._vdVoice={profile:"veda"'));
+  const tonyFull = html.slice(html.indexOf('window._thVoice='), html.indexOf('canRedo:', html.indexOf('window._thVoice=')));
+  t('Tony\'s bridge has Neo\'s reach (PC, prep, timer, nav, plans, journal, locks)', ['launchPc:', 'closePc:', 'prep:', 'prepOpen:', 'prepShow:', 'timerMode:', 'timerAdd:', 'closeTimer:', 'nav:', 'openPlans:', 'openShield:', 'journalEntry:', 'lockApp:', 'plan:', 'weekView:', 'goalsTab:', 'mobDay:'].every(k => tonyFull.includes(k)));
+  t('Tony\'s bridge has none of Veda\'s own reach', !/changeRules|reelsShuffle|startClass|gita:|rulesRun/.test(tonyFull));
+  t('a Neo button in each header', (html.match(/key:"vx-neo"/g) || []).length === 2 && html.indexOf('key:"vx-neo"') < html.indexOf('window._vdVoice={profile:"veda"') && html.lastIndexOf('key:"vx-neo"') > html.indexOf('window._vdVoice={profile:"veda"'));
+  t('each side\'s button only mirrors its own side', /if\(d\.who&&d\.who!=="tony"\)return;/.test(html) && /if\(d\.who&&d\.who!=="veda"\)return;/.test(html));
+  t('Tony\'s Orca key is read from his Shruti doc (read-only)', /_fbLoadTonyOrcaKey = async[^\n]*\n[^\n]*doc\(db, 'dashboards\/shruti'\)/.test(html));
 
   // ── 3. veda-assistant.js ──────────────────────────────────────────────────
   section('veda-assistant.js: profile gate');
@@ -380,7 +430,7 @@ section('worker: state shaping');
     return { style: {}, className: '', textContent: '', setAttribute() {}, appendChild() {}, remove() {}, querySelector: () => el(), set innerHTML(v) {}, onclick: null,
       classList: { add: c => cls.add(c), remove: c => cls.delete(c), toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), contains: c => cls.has(c) } };
   }
-  const store = { vd_neo_on: '1' };
+  const store = { vd_neo_on: '1' };   // Veda switched hers on; Tony hasn't (th_neo_on unset)
   let micCalls = 0;
   const actx = {
     console, URL, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, JSON, Math, Date, Promise, Float32Array, ArrayBuffer, DataView, Uint8Array, String, Array, Object,
@@ -397,13 +447,29 @@ section('worker: state shaping');
   const N = actx._vdNeo;
   t('window._vdNeo exists', !!N);
   N._test.sync();
-  t('on Tony\'s side the mic is never opened (even with Neo switched on)', micCalls === 0, 'getUserMedia calls: ' + micCalls);
+  t('on Tony\'s side, with his Neo off, the mic is never opened (hers being on doesn\'t count)', micCalls === 0, 'getUserMedia calls: ' + micCalls);
   actx._activeProfile = null; N._test.sync();
   t('on the profile picker the mic is never opened', micCalls === 0);
   actx._activeProfile = 'veda'; N._test.sync();
   t('on Veda\'s side it starts listening', micCalls === 1);
   N.setOn(false);
   t('turning Neo off clears the saved preference', !('vd_neo_on' in store));
+  actx._activeProfile = 'tony'; N._test.sync();
+  t('switching to Tony\'s side takes up his own (off) switch', N.who() === 'tony' && N.isOn() === false && micCalls === 1);
+  N._test.state.starting = false;   // the stub mic never answers, so Veda's start is still pending
+  N.setOn(true);
+  t('switching Tony\'s on saves HIS preference only, and starts listening', store.th_neo_on === '1' && !('vd_neo_on' in store) && micCalls === 2);
+  t('his greeting uses his name', /^(Good (morning|afternoon|evening)|Working late), Tony\./.test(N._test.greeting({ data: {} })));
+  N._test.state.starting = false;
+  actx._activeProfile = 'veda'; N._test.sync();
+  t('back on Veda\'s side her (now off) switch rules: the mic is released, not reopened', N.who() === 'veda' && N.isOn() === false && micCalls === 2);
+  t('her greeting uses her name', /, Veda\./.test(N._test.greeting({ data: {} })));
+  {
+    const css = N._test.tonySheet(['#vd-neo-hud .vn-glass{background:linear-gradient(160deg,rgba(30,22,38,.78),rgba(14,11,18,.82));border:1px solid rgba(201,179,217,.28);color:#E6D9F0}', '.vn-spot-gone{border-color:#d27a8a}', '@keyframes vnSpin{to{transform:rotate(360deg)}}']);
+    t('Tony\'s HUD sheet is scoped to .p-tony, in his purple, on a solid panel', /#vd-neo-hud\.p-tony \.vn-glass\{background:rgba\(26,26,29,\.94\);border:1px solid rgba\(192,174,234,\.28\);color:#ebe4fb\}/.test(css) && !/linear-gradient/.test(css));
+    t('Tony\'s sheet never restyles Veda\'s rings or keyframes', /\.p-tony\.vn-spot-gone/.test(css) && !/^\.vn-spot-gone/m.test(css) && !/@keyframes vnSpin/.test(css));
+  }
+  actx._activeProfile = 'tony'; N._test.sync(); N.setOn(false); actx._activeProfile = 'veda'; N._test.sync();
 
   section('veda-assistant.js: wake word + end-point');
   const T = N._test;

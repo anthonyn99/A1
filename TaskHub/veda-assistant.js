@@ -1,8 +1,11 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Neo — Veda's hands-free TaskHub assistant.  Docs: docs/TaskHub/neo-assistant.md
+   Neo — the hands-free TaskHub assistant.  Docs: docs/TaskHub/neo-assistant.md
 
-   VEDA ONLY. Nothing here runs unless window._activeProfile === 'veda'; on
-   Tony's TaskHub (or the profile picker) the mic is released and Neo sleeps.
+   BOTH SIDES since 2026-11-06 (it was Veda's alone before). One script serves
+   whichever TaskHub is in front: each side has its own switch, name, voice
+   key, colours, bridge and reach (PROFILES below). On the profile picker, or
+   when the side changes, the mic is released and the other side's Neo starts
+   only if that side switched it on.
 
    Pipeline (all free):
      mic ─► Vosk (on-device, WASM; fixed word list) hears "Hey Neo"
@@ -32,14 +35,37 @@
   var VOSK_SRC = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
   var MODEL_URL = 'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-en-us-0.15.tar.gz';
   var FONTS = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap';
-  var PREF_KEY = 'vd_neo_on';
-  var ORCA_KEY_LS = 'shruti.veda.orcaKey';        // Shruti's cache of HER Orca key (read-only here)
   var VOICE = 'en-GB-RyanNeural';
   var SCRIPT_URL = (document.currentScript && document.currentScript.src) ||
     ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/veda-assistant.js');
 
-  // Mauve, as hologram.
-  var C = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a' };
+  // Mauve, as hologram (Veda). Tony's side wears MAGI's purple (PROFILES.tony.C).
+  var C_VEDA = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a',
+    g0: 'rgba(244,236,250,.95)', g1: 'rgba(201,179,217,.55)', g2: 'rgba(141,118,154,0)', hex: 'rgba(244,236,250,.75)' };
+  var C_TONY = { core: '#ebe4fb', ring: '#c0aeea', accent: '#9a86c9', glow: 'rgba(154,134,201,.55)', hot: '#f4f0fd', red: '#d68a7c',
+    g0: 'rgba(244,240,253,.95)', g1: 'rgba(192,174,234,.55)', g2: 'rgba(154,134,201,0)', hex: 'rgba(244,240,253,.75)' };
+  var C = C_VEDA;
+
+  // Each side's own everything. `w` names a window global (read live: the
+  // TaskHubs and their prep code set them after this script loads).
+  var PROFILES = {
+    veda: { id: 'veda', name: 'Veda', pref: 'vd_neo_on', orcaLs: 'shruti.veda.orcaKey', loadKey: '_fbLoadVedaOrcaKey', C: C_VEDA,
+      bridge: '_vdVoice', pcApps: '_vdPcApps', up: '_vdBridgeUp', err: '_vdBridgeErr', running: '_vdPcRunning',
+      prepReq: '_vdPrepRequest', prepBusy: '_vdPrepBusy', prepKits: '_vdPrepKits', openLocal: '_vdPrepOpenLocal',
+      nb: 'bj', lockTH: 'veda_taskhub', mobStrip: '.vd-mob-day-strip', dock: '#vr-root .thwx-band > .gita-banner',
+      locks: { taskhub: 'veda_taskhub', gita: 'veda_gita', notebook: 'veda_journal', journal: 'veda_journal', rules: 'veda_rules', shield: 'veda_shield' },
+      bridgeHint: 'Start StudyOS Bridge from the Start menu' },
+    tony: { id: 'tony', name: 'Tony', pref: 'th_neo_on', orcaLs: 'shruti.tony.orcaKey', loadKey: '_fbLoadTonyOrcaKey', C: C_TONY,
+      bridge: '_thVoice', pcApps: '_thPcApps', up: '_thBridgeUp', err: '_thBridgeErr', running: '_thPcRunning',
+      prepReq: '_thPrepRequest', prepBusy: '_thPrepBusy', prepKits: '_thPrepKits', openLocal: '_thPrepOpenLocal',
+      nb: 'tj', lockTH: 'tony_taskhub', mobStrip: '.th-mob-day-strip', dock: '#root .thwx-band > .thwx-bq',
+      locks: { taskhub: 'tony_taskhub', notebook: 'tony_myjournal', journal: 'tony_myjournal', shield: 'tony_shield' },
+      bridgeHint: 'Start the A1 Prep Bridge (it normally starts at logon)' },
+  };
+  function sideOf() { var a = window._activeProfile; return a === 'veda' || a === 'tony' ? a : null; }
+  var P = PROFILES.veda;                       // the side Neo serves now (S.who)
+  function W(k) { return window[P[k]]; }       // that side's window global
+  function NAME() { return P.name; }
 
   // Words Vosk may choose between. Only "hey neo" wakes; "neo" on its own and the
   // near-sounding decoys give similar speech somewhere else to land, so "neo",
@@ -127,7 +153,7 @@
   function greeting(st, now) {
     now = now || new Date();
     var h = now.getHours(), s = dayStats(st, now);
-    var open = h < 5 ? 'Working late, Veda.' : h < 12 ? 'Good morning, Veda.' : h < 17 ? 'Good afternoon, Veda.' : 'Good evening, Veda.';
+    var n = NAME(), open = h < 5 ? 'Working late, ' + n + '.' : h < 12 ? 'Good morning, ' + n + '.' : h < 17 ? 'Good afternoon, ' + n + '.' : 'Good evening, ' + n + '.';
     var line = open + ' Neo online.';
     if (!s.total) return line + ' Your day is clear.';
     if (!s.left) return line + ' Everything on today\'s list is done. Splendid.';
@@ -239,14 +265,14 @@
         if (ty === 'gita_open') return 'There\'s no lesson ' + (a.lesson || 'by that number') + ', I\'m afraid.';
         if (ty === 'shift_range' || ty === 'clear_completed') return 'There was nothing there to change.';
         return t ? 'I\'m afraid I couldn\'t find a task called ' + t + '.' : 'I\'m afraid I couldn\'t find that one.';
-      case 'off_pc': return /^close_/.test(ty) ? 'I can only close apps on your PC, Veda.' : 'I can only open apps from your PC, Veda.';
+      case 'off_pc': return /^close_/.test(ty) ? 'I can only close apps on your PC, ' + NAME() + '.' : 'I can only open apps from your PC, ' + NAME() + '.';
       case 'locked': return 'It stayed locked, so I\'ve left everything as it was.';
       case 'no_reminder': return (t || 'That one') + ' has no reminder to clear.';
       case 'not_flagged': return (t || 'That task') + ' has no AI prep yet. Ask me to turn it on first.';
       case 'prep_failed': return 'I couldn\'t prepare ' + (t || 'that task') + ' just now, I\'m afraid. I\'ll try again shortly.';
       case 'no_lock': return 'That has no lock set up, so there\'s nothing to lock.';
       case 'too_soon': return 'Give that rule a moment on screen first.';
-      case 'out_of_order': return 'The rules go in order, Veda. Tick the next one first.';
+      case 'out_of_order': return 'The rules go in order, ' + NAME() + '. Tick the next one first.';
       case 'one_at_a_time': return 'The checklist goes one rule at a time, I\'m afraid. Tell me each one as you read it.';
       case 'already': return /^plan_/.test(ty) ? 'You\'ve already done that for ' + (t || 'that plan') + '.' : 'That one is already ticked.';
       case 'not_open': return 'The rules checklist isn\'t open.';
@@ -393,8 +419,8 @@
   function launchIssue(res, missing, bridgeErr, names) {
     if (missing && missing.length) return 'I couldn\'t find ' + missing.join(' or ') + ' on your PC, I\'m afraid.';
     if (!res) {
-      if (/blocked/.test(bridgeErr || '')) return 'Your browser is blocking me from reaching your PC, Veda. Allow local network access for this site, then ask again.';
-      return 'Your PC\'s launcher isn\'t answering, Veda. Start StudyOS Bridge from the Start menu, and I\'ll try again.';
+      if (/blocked/.test(bridgeErr || '')) return 'Your browser is blocking me from reaching your PC, ' + NAME() + '. Allow local network access for this site, then ask again.';
+      return 'Your PC\'s launcher isn\'t answering, ' + NAME() + '. ' + P.bridgeHint + ', and I\'ll try again.';
     }
     // unknown holds the ids it never knew; failed holds the NAMES of what Windows refused.
     var bad = (res.unknown || []).map(function (id) { return names[id] || 'one of them'; }).concat(res.failed || []);
@@ -427,20 +453,33 @@
     prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
     history: [],            // the conversation so far (oldest first, ≤ HISTORY_N turns): [{at, data}]
   };
-  try { S.on = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
+  S.who = null;                                 // the side S.on belongs to ('veda' | 'tony' | null)
+  function readPref(id) { try { return localStorage.getItem(PROFILES[id].pref) === '1'; } catch (e) { return false; } }
+  // Becomes the side in front: its switch, colours and bridge. The old side's
+  // conversation is not carried over.
+  function adopt(id) {
+    if (S.who === id) return;
+    S.who = id; if (id) { P = PROFILES[id]; C = P.C; }
+    S.on = id ? readPref(id) : false;
+    S.prev = null; S.history = []; S.pending = null; S.lastSaid = '';
+    orcaKey = ''; orcaOk = null; keyP = null; lastVoice = '';
+    if (H) H.el.classList.toggle('p-tony', P.id === 'tony');
+  }
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
-  function isVeda() { return window._activeProfile === 'veda'; }
-  function emit() { try { window.dispatchEvent(new CustomEvent('vd-neo-change', { detail: { on: S.on, mode: S.mode } })); } catch (e) {} }
+  // Neo runs only for the side it belongs to, and only while that side is in front.
+  function isVeda() { return !!S.who && sideOf() === S.who; }
+  function emit() { try { window.dispatchEvent(new CustomEvent('vd-neo-change', { detail: { on: S.on, mode: S.mode, who: S.who } })); } catch (e) {} }
   function setMode(m) { S.mode = m; hudMode(m); emit(); }
-  function bridgeState() { try { return window._vdVoice && window._vdVoice.getState ? window._vdVoice.getState() : null; } catch (e) { return null; } }
+  function bridgeState() { try { var b = W('bridge'); return b && b.getState ? b.getState() : null; } catch (e) { return null; } }
 
   // ══ styles (injected at load: the header button animates from them too) ═══
   var styled = false;
   function ensureStyles() {
     if (styled || !document.head) return; styled = true;
+    var C = C_VEDA;   // her sheet is always her colours; Tony's is tonySheet()
     var st = document.createElement('style'); st.id = 'vd-neo-style';
-    st.textContent = [
+    var veda = [
       '#vd-neo-hud{--vn-core:' + C.core + ';--vn-ring:' + C.ring + ';--vn-acc:' + C.accent + ';--vn-glow:' + C.glow + ';',
       ' position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:100000;width:min(620px,calc(100vw - 32px));',
       ' transform:translate(-50%,24px) scale(.97);opacity:0;pointer-events:none;transition:opacity .28s ease,transform .38s cubic-bezier(.2,.9,.25,1.1);',
@@ -564,8 +603,46 @@
       '@keyframes vnCard{to{opacity:1;transform:none}}',
       '@keyframes vnGlitch{0%{clip-path:inset(0 0 60% 0);transform:translateX(-3px)}20%{clip-path:inset(40% 0 20% 0);transform:translateX(3px)}40%{clip-path:inset(10% 0 70% 0);transform:translateX(-2px)}60%{clip-path:inset(70% 0 0 0);transform:translateX(2px)}80%{clip-path:inset(0 0 0 0);transform:translateX(-1px)}100%{clip-path:none;transform:none}}',
       '@media (prefers-reduced-motion:reduce){#vd-neo-hud .vn-sweep{display:none}.vd-neo-btn .vnb .r1,.vd-neo-btn .vnb .c{animation:none!important}#vd-neo-hud .vn-glitch{animation:none}#vd-neo-hud .vn-card{animation-duration:.01s}}',
-    ].join('\n');
+    ];
+    st.textContent = veda.join('\n') + '\n' + tonySheet(veda);
     document.head.appendChild(st);
+  }
+  // Tony's side: the same HUD in MAGI's purple, on a solid panel (no gradient
+  // fill), docked in his quote's slot (#root's .thwx-bq) dressed as that quote.
+  // Built from Veda's rules so the two never drift: every #vd-neo-hud / .vn-spot
+  // rule is repeated under .p-tony with her colours swapped for his.
+  function tonySheet(rules) {
+    var swap = [[/#E6D9F0/gi, C_TONY.core], [/#C9B3D9/gi, C_TONY.ring], [/#8D769A/gi, C_TONY.accent], [/#F4ECFA/gi, C_TONY.hot], [/#d27a8a/gi, C_TONY.red],
+      [/rgba\(141,118,154,/g, 'rgba(154,134,201,'], [/rgba\(201,179,217,/g, 'rgba(192,174,234,'], [/rgba\(230,217,240,/g, 'rgba(219,208,245,'], [/rgba\(210,122,138,/g, 'rgba(214,138,124,'],
+      [/#76777C/gi, '#8d8d94'], [/#A9AAB0/gi, '#adadb2'], [/#D8D3DC/gi, '#f4f3f0'], [/#AFB0B5/gi, '#adadb2'],
+      [/linear-gradient\(160deg,rgba\(30,22,38,\.78\),rgba\(14,11,18,\.82\)\)/g, 'rgba(26,26,29,.94)']];
+    // Whole top-level blocks (a rule can span several of Veda's lines, and an
+    // @media wraps several rules), so every copied block keeps its braces.
+    var css = rules.join('\n'), blocks = [], depth = 0, from = 0;
+    for (var i = 0; i < css.length; i++) {
+      var ch = css.charAt(i);
+      if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) { blocks.push(css.slice(from, i + 1).trim()); from = i + 1; }
+    }
+    var out = [];
+    blocks.forEach(function (r) {
+      if (/^@keyframes/.test(r) || !/#vd-neo-hud|\.vn-spot/.test(r)) return;
+      var t = r.replace(/\.vn-spot-gone/g, '.p-tony.vn-spot-gone').replace(/#vd-neo-hud(?![\w-])/g, '#vd-neo-hud.p-tony').replace(/\.vn-spot(?![\w-])/g, '.vn-spot.p-tony');
+      swap.forEach(function (x) { t = t.replace(x[0], x[1]); });
+      out.push(t);
+    });
+    out.push(
+      'body.vn-docked #root .thwx-band > .thwx-bq{display:none;}',
+      'body.vn-undock #root .thwx-band > .thwx-bq{animation:vnIn .35s ease;}',
+      // Docked on Tony's side: his quote's slot, his type (Inter), a hairline, no accent edge.
+      "#vd-neo-hud.p-tony.vn-dock{font-family:'Inter',system-ui,-apple-system,sans-serif;}",
+      '#vd-neo-hud.p-tony.vn-dock{overflow:hidden;box-sizing:border-box;}',
+      '#vd-neo-hud.p-tony.vn-dock .vn-glass{background:transparent;border:1px solid rgba(255,255,255,.06);border-left:1px solid rgba(255,255,255,.06);border-radius:8px;padding:3px 10px;overflow:hidden;}',
+      '#vd-neo-hud.p-tony.vn-dock .vn-top{flex-direction:row;align-items:center;gap:8px;}',
+      '#vd-neo-hud.p-tony.vn-dock .vn-say{font-family:inherit;color:#adadb2;font-size:12px;line-height:1.35;}',
+      '#vd-neo-hud.p-tony.vn-dock .vn-card{border-color:#45454c;}'
+    );
+    return out.join('\n');
   }
   var fontsLoaded = false;
   function loadFonts() {
@@ -589,6 +666,7 @@
       '<div class="vn-main"><div class="vn-orb"><canvas></canvas></div>' +
       '<div class="vn-text"><div class="vn-you"></div><div class="vn-say"></div><div class="vn-tick"></div><div class="vn-cards"></div></div></div>' +
       '<div class="vn-tele"></div></div>';
+    if (P.id === 'tony') el.classList.add('p-tony');
     document.body.appendChild(el);
     H = { el: el, canvas: el.querySelector('canvas'), state: el.querySelector('.vn-state'), clock: el.querySelector('.vn-clock'),
       you: el.querySelector('.vn-you'), say: el.querySelector('.vn-say'), tick: el.querySelector('.vn-tick'),
@@ -598,12 +676,17 @@
   }
   var hideTimer = null, boot = 0;
   var LABEL = { loading: 'INITIALISING', boot: 'ONLINE', capture: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING', follow: 'STANDING BY', error: 'FAULT', note: 'NOTICE' };
-  // Where the HUD sits: in place of the Gita quote banner when that's on screen
-  // (Veda's TaskHub), else the floating panel at the bottom. The banner is
-  // React's, so it's hidden by a body class and the HUD goes in beside it.
+  // Where the HUD sits: in place of the quote when that's on screen (Veda's Gita
+  // banner; Tony's quote between weather and Tesla), else the floating panel at
+  // the bottom. The quote is React's, so it's hidden by a body class and the HUD
+  // goes in beside it.
   function placeHud(h) {
-    var b = document.querySelector('#vr-root .thwx-band > .gita-banner'), dock = false;
-    if (b) { var r = b.getBoundingClientRect(); dock = r.width > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0); }
+    var b = document.querySelector(P.dock), dock = false;
+    var r = b ? b.getBoundingClientRect() : null;
+    if (r) dock = r.width > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0);
+    // Tony's TaskHub never shifts a pixel (docs: taskhub-no-pixel-shift): his
+    // docked HUD keeps exactly the quote's height, so the week below stays put.
+    h.el.style.height = dock && P.id === 'tony' ? Math.round(r.height) + 'px' : '';
     if (dock) { if (h.el.previousElementSibling !== b) b.parentNode.insertBefore(h.el, b.nextSibling); }
     else if (h.el.parentNode !== document.body) document.body.appendChild(h.el);
     h.el.classList.toggle('vn-dock', dock);
@@ -768,11 +851,11 @@
     // core
     var cr = (20 + lvl * 9 + Math.sin(t * 2.2) * 1.2) * s * (0.4 + 0.6 * bootP);
     var grd = g.createRadialGradient(c, c, 0, c, c, cr * 1.9);
-    grd.addColorStop(0, 'rgba(244,236,250,.95)'); grd.addColorStop(0.35, 'rgba(201,179,217,.55)'); grd.addColorStop(1, 'rgba(141,118,154,0)');
+    grd.addColorStop(0, C.g0); grd.addColorStop(0.35, C.g1); grd.addColorStop(1, C.g2);
     g.globalAlpha = flicker; g.shadowBlur = 0; g.fillStyle = grd;
     g.beginPath(); g.arc(c, c, cr * 1.9, 0, Math.PI * 2); g.fill();
     // a hexagon in the core
-    g.strokeStyle = 'rgba(244,236,250,.75)'; g.lineWidth = 1.1 * s; g.beginPath();
+    g.strokeStyle = C.hex; g.lineWidth = 1.1 * s; g.beginPath();
     for (var x = 0; x <= 6; x++) { var ha = x * Math.PI / 3 + t * speed * 0.3; var hr = cr * 0.62; if (x) g.lineTo(c + Math.cos(ha) * hr, c + Math.sin(ha) * hr); else g.moveTo(c + Math.cos(ha) * hr, c + Math.sin(ha) * hr); }
     g.stroke();
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
@@ -897,7 +980,7 @@
       var st = bridgeState() || {}, data = st.data || {}, now = new Date();
       for (var d = -3; d <= 10; d++) { var t = new Date(now); t.setDate(now.getDate() + d); (data[dkey(t)] || []).forEach(function (x) { if (x && x.title) out.push(x.title); }); }
       (st.habits || []).concat(st.shortGoals || [], st.longGoals || []).forEach(function (x) { var n = x && (x.title || x.text || x.name); if (n) out.push(n); });
-      (window._vdPcApps || []).forEach(function (a) { if (a && a.name) out.push(String(a.name).replace(/\.exe$/i, '')); });
+      (W('pcApps') || []).forEach(function (a) { if (a && a.name) out.push(String(a.name).replace(/\.exe$/i, '')); });
     } catch (e) {}
     var seen = {}, vocab = [];
     out.forEach(function (p) {
@@ -979,7 +1062,7 @@
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('This browser gives me no microphone, I\'m afraid.');
       var stream;
-      try { stream = await openMic(); } catch (e) { throw new Error('I need the microphone, Veda. Allow it for this site, then switch me on again.'); }
+      try { stream = await openMic(); } catch (e) { throw new Error('I need the microphone, ' + NAME() + '. Allow it for this site, then switch me on again.'); }
       if (!S.on || !isVeda()) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
       var AC = window.AudioContext || window.webkitAudioContext;
       var ctx = new AC();
@@ -1116,7 +1199,7 @@
     if (!S.running) { if (res && res.say) speak(res.say, false); return; }   // turned off mid-request ("stop listening")
     if (!res || !res.ok) {
       sfx('error'); hudMode('error');
-      speak(res && /network/i.test(res.error || '') ? 'My apologies, Veda. The connection seems to be down.' : 'My apologies. I couldn\'t manage that one. Do try again.', true);
+      speak(res && /network/i.test(res.error || '') ? 'My apologies, ' + NAME() + '. The connection seems to be down.' : 'My apologies. I couldn\'t manage that one. Do try again.', true);
       return;
     }
     if (res.held) {   // a bulk delete, a shift, "close everything": ask first
@@ -1169,7 +1252,7 @@
     rememberTurn(transcript, res.say, results);
     refreshTele();
     var say;
-    if (gated && !early.done) say = 'Unlock it, Veda, and I\'ll make the change.';
+    if (gated && !early.done) say = 'Unlock it, ' + NAME() + ', and I\'ll make the change.';
     else {
       say = compose(res.say, results);
       var notes = results.map(function (r) { return r.ok && r.note; }).filter(Boolean).join(' ');
@@ -1252,12 +1335,12 @@
       .map(function (r) { return { box: r.ref.box, date: r.ref.date || null, id: r.ref.id }; }));
   }
 
-  function spotBridge() { return isVeda() && window._vdVoice && window._vdVoice.goToDate ? window._vdVoice : null; }
+  function spotBridge() { var b = W('bridge'); return isVeda() && b && b.goToDate ? b : null; }
   // Only while her TaskHub is the screen in front of her (not a journal, not Gita).
   function spotVisible() { var tv = document.getElementById('task-view'); return !!(tv && getComputedStyle(tv).display !== 'none'); }
   function frames(n) { return new Promise(function (res) { var k = 0; (function f() { if (++k > n) return res(); requestAnimationFrame(f); })(); }); }
   function wait(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
-  function isMobStrip() { var s = document.querySelector('.vd-mob-day-strip'); return !!(s && s.offsetParent !== null); }
+  function isMobStrip() { var s = document.querySelector(P.mobStrip); return !!(s && s.offsetParent !== null); }
 
   function spotSave(b) {
     var st = b.getState() || {};
@@ -1302,7 +1385,7 @@
   function spotRing(id, kind) {
     var el = spotFind(id); if (!el) return null;
     var d = document.createElement('div');
-    d.className = 'vn-spot' + (kind === 'gone' ? ' vn-spot-gone' : '');
+    d.className = 'vn-spot' + (P.id === 'tony' ? ' p-tony' : '') + (kind === 'gone' ? ' vn-spot-gone' : '');
     d.style.borderRadius = getComputedStyle(el).borderRadius || '6px';
     document.body.appendChild(d);
     var ring = { id: id, el: d, out: false };
@@ -1407,8 +1490,9 @@
   var orcaKey = '', orcaOk = null, orcaMod = null, keyP = null, lastVoice = '';
   function prefetchKey() {
     if (orcaKey || keyP) return keyP;
-    try { var k = localStorage.getItem(ORCA_KEY_LS) || ''; if (/^orca_sk_[\w-]{8,}$/.test(k)) { orcaKey = k; return Promise.resolve(k); } } catch (e) {}
-    keyP = Promise.resolve(window._fbLoadVedaOrcaKey ? window._fbLoadVedaOrcaKey() : '').then(function (k) { if (k) orcaKey = k; else orcaOk = false; keyP = null; return k; }).catch(function () { keyP = null; orcaOk = false; return ''; });
+    try { var k = localStorage.getItem(P.orcaLs) || ''; if (/^orca_sk_[\w-]{8,}$/.test(k)) { orcaKey = k; return Promise.resolve(k); } } catch (e) {}
+    var load = window[P.loadKey];
+    keyP = Promise.resolve(load ? load() : '').then(function (k) { if (k) orcaKey = k; else orcaOk = false; keyP = null; return k; }).catch(function () { keyP = null; orcaOk = false; return ''; });
     return keyP;
   }
   function orca() {
@@ -1506,7 +1590,7 @@
   // bridge has answered, so Neo reports each one truthfully.
   // "Her PC": the bridge answering is proof; a Windows browser is the fallback.
   function onPc() {
-    if (window._vdBridgeUp === true) return true;
+    if (W('up') === true) return true;
     return /Windows/i.test((navigator && navigator.userAgent) || '');
   }
   var BROWSERS = /^(brave|google chrome|chrome|microsoft edge|edge|firefox|mozilla firefox|opera|vivaldi)\b/i;
@@ -1517,10 +1601,10 @@
       // A website needs no bridge: on her phone it opens in a new tab.
       var w = webUrl(url); if (!w) return { ok: false, reason: 'invalid' };
       var tab = null; try { tab = window.open(w, '_blank'); if (tab) tab.opener = null; } catch (e) { tab = null; }
-      return tab ? true : { ok: false, reason: 'blocked', say: 'Your browser blocked the new tab, Veda. Allow pop-ups for this site and ask again.' };
+      return tab ? true : { ok: false, reason: 'blocked', say: 'Your browser blocked the new tab, ' + NAME() + '. Allow pop-ups for this site and ask again.' };
     }
     var hit = null, u = '';
-    if (app) { hit = matchApp(app, window._vdPcApps); if (!hit) return { ok: false, reason: 'not_found' }; }
+    if (app) { hit = matchApp(app, W('pcApps')); if (!hit) return { ok: false, reason: 'not_found' }; }
     else { u = webUrl(url); if (!u) return { ok: false, reason: 'invalid' }; }
     if (!LQ) { LQ = { items: [] }; setTimeout(flushLaunch, 0); }
     return new Promise(function (res) { LQ.items.push({ app: hit, url: u, done: res }); });
@@ -1532,9 +1616,9 @@
       if (it.app) { if (ids.indexOf(it.app.id) < 0) ids.push(it.app.id); names[it.app.id] = it.app.name; }
       else if (urls.indexOf(it.url) < 0) urls.push(it.url);
     });
-    var go = window._sosBridgeLaunch;
+    var go = bridgeLaunch();
     Promise.resolve(go ? go(ids, urls) : null).catch(function () { return null; }).then(function (res) {
-      var down = res ? '' : launchIssue(null, [], window._vdBridgeErr, {});
+      var down = res ? '' : launchIssue(null, [], W('err'), {});
       q.items.forEach(function (it) {
         if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
         var key = it.app ? it.app.id : it.url, label = it.app ? it.app.name : it.url;
@@ -1543,10 +1627,28 @@
       });
     });
   }
+  // The side's launcher: Veda's StudyOS hand-off (_sosBridgeLaunch), or the same
+  // batching (3 apps / 5 sites a request, launcher.py's caps) over Tony's prep bridge.
+  function bridgeLaunch() {
+    if (P.id === 'veda') return window._sosBridgeLaunch || null;
+    var open = W('openLocal'); if (typeof open !== 'function') return null;
+    return function (appIds, urls) {
+      var a = (appIds || []).slice(), u = (urls || []).slice(), all = { ok: true, opened: [], unknown: [], failed: [] };
+      function step() {
+        if (!a.length && !u.length) return Promise.resolve(all);
+        return Promise.resolve(open(a.splice(0, 3), u.splice(0, 5))).then(function (j) {
+          if (!j || !j.ok) return null;
+          ['opened', 'unknown', 'failed'].forEach(function (k) { all[k] = all[k].concat(j[k] || []); });
+          return step();
+        });
+      }
+      return step();
+    };
+  }
   var CQ = null;
   function queueClose(app, force) {
     if (!onPc()) return { ok: false, reason: 'off_pc' };
-    var hit = matchApp(app, window._vdPcApps); if (!hit) return { ok: false, reason: 'not_found' };
+    var hit = matchApp(app, W('pcApps')); if (!hit) return { ok: false, reason: 'not_found' };
     if (!CQ) { CQ = { items: [] }; setTimeout(flushClose, 0); }
     return new Promise(function (res) { CQ.items.push({ app: hit, force: !!force, done: res }); });
   }
@@ -1568,7 +1670,7 @@
       mine.forEach(function (it) { if (ids.indexOf(it.app.id) < 0) ids.push(it.app.id); if (BROWSERS.test(it.app.name)) browser = true; });
       var go = window._sosBridgeClose;
       Promise.resolve(go ? go(ids, force, browser) : null).catch(function () { return null; }).then(function (res) {
-        var down = res ? '' : launchIssue(null, [], window._vdBridgeErr, {});
+        var down = res ? '' : launchIssue(null, [], W('err'), {});
         mine.forEach(function (it) {
           if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
           var n = closeNote(it.app.name, res);
@@ -1581,32 +1683,32 @@
   // less any browser (TaskHub runs in one), closed gracefully.
   function closeAll(except, force) {
     if (!onPc()) return { ok: false, reason: 'off_pc' };
-    var keep = (except || []).map(function (n) { return matchApp(n, window._vdPcApps); }).filter(Boolean).map(function (a) { return a.id; });
+    var keep = (except || []).map(function (n) { return matchApp(n, W('pcApps')); }).filter(Boolean).map(function (a) { return a.id; });
     var run = window._sosBridgeRunning, go = window._sosBridgeClose;
     if (!run || !go) return { ok: false, reason: 'no_bridge' };
     return Promise.resolve(run()).then(function (list) {
-      if (!list) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) };
+      if (!list) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) };
       var todo = list.filter(function (a) { return keep.indexOf(a.id) < 0 && !BROWSERS.test(a.name); });
       if (!todo.length) return { ok: true, say: 'There was nothing else open to close.' };
       return Promise.resolve(go(todo.map(function (a) { return a.id; }), !!force, false)).then(function (res) {
-        if (!res) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) };
+        if (!res) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) };
         var left = (res.stillOpen || []), bad = (res.failed || []);
         var line = (res.closed || []).length ? 'Closed ' + listWords(res.closed) + '.' : '';
         if (left.length) line += ' ' + listWords(left) + (left.length > 1 ? ' are' : ' is') + ' asking to save, so I\'ve left ' + (left.length > 1 ? 'them' : 'it') + ' open.';
         if (bad.length) line += ' ' + listWords(bad) + ' wouldn\'t close.';
         return (left.length || bad.length) ? { ok: false, reason: 'still_open', say: line.trim() } : { ok: true, say: line.trim() };
       });
-    }).catch(function () { return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], window._vdBridgeErr, {}) }; });
+    }).catch(function () { return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) }; });
   }
   function listWords(a) { a = (a || []).slice(0, 6); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   // Which of her apps are open: refreshed when she wakes Neo, read into state
   // (pcRunning) for "what's open?".
   function refreshRunning() {
     if (!onPc() || !window._sosBridgeRunning) return;
-    var r = window._vdPcRunning;
+    var r = W('running'), key = P.running;
     if (r && Date.now() - r.at < 20000) return;
     Promise.resolve(window._sosBridgeRunning()).then(function (list) {
-      if (Array.isArray(list)) window._vdPcRunning = { at: Date.now(), names: list.map(function (a) { return a.name; }) };
+      if (Array.isArray(list)) window[key] = { at: Date.now(), names: list.map(function (a) { return a.name; }) };
     }).catch(function () {});
   }
   // Say something after the current reply (or now, if Neo is quiet).
@@ -1628,8 +1730,8 @@
     var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' };
     if (ac) opts.signal = ac.signal;
     return fetch('http://127.0.0.1:8781' + path, opts).then(function(r){ return r.json(); })
-      .then(function(j){ if (t) clearTimeout(t); window._vdBridgeUp = !!(j && j.ok); return (j && j.ok) ? j : null; },
-            function(){ if (t) clearTimeout(t); window._vdBridgeUp = false; return null; });
+      .then(function(j){ if (t) clearTimeout(t); window[P.up] = !!(j && j.ok); return (j && j.ok) ? j : null; },
+            function(){ if (t) clearTimeout(t); window[P.up] = false; return null; });
   };
   window._sosBridgeClose = function(appIds, force, browser){
     return window._sosBridgeCall('/api/close', { apps: (appIds || []).slice(0, 12), force: force === true, browser: browser === true }, 30000);
@@ -1641,11 +1743,10 @@
   window._vdNeoClose = queueClose;
   window._vdNeoCloseAll = closeAll;
 
-  // ══ the rest of her TaskHub, for Veda's bridge (_vdVoice) ══════════════════
+  // ══ the rest of the TaskHub, for the side's bridge (_vdVoice / _thVoice) ════
   // Kept here, not in the App: none of it needs React state, and the App
   // re-binds its bridge on every render. Every entry answers true, a promise of
-  // its outcome, or {ok:false, reason}. Veda-only by construction: Tony's bridge
-  // never calls _vdNeoOps.
+  // its outcome, or {ok:false, reason}. Each acts as the side in front (P).
   function timeoutP(ms, v) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms); }); }
   function escH(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   // Timer commands, one at a time: each waits for the panel to mount, runs, then
@@ -1670,7 +1771,6 @@
       setTimeout(wait, 50);
     })();
   }
-  var LOCKS = { taskhub: 'veda_taskhub', gita: 'veda_gita', notebook: 'veda_journal', journal: 'veda_journal', rules: 'veda_rules', shield: 'veda_shield' };
   function normWords(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
   function findByName(list, q, key) {
     q = normWords(q); if (!q) return null;
@@ -1688,8 +1788,9 @@
   function planGated(fn) {
     // Plans live in her TaskHub, so they keep its lock.
     var G = window.Guardian;
-    if (!window.alGate || !G || !G.mustBlock || !G.mustBlock('veda_taskhub')) return fn();
-    var p = new Promise(function (res) { window.alGate('veda_taskhub', function () { res(fn()); }, function () { res({ ok: false, reason: 'locked' }); }); setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000); });
+    var lk = P.lockTH;
+    if (!window.alGate || !G || !G.mustBlock || !G.mustBlock(lk)) return fn();
+    var p = new Promise(function (res) { window.alGate(lk, function () { res(fn()); }, function () { res({ ok: false, reason: 'locked' }); }); setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000); });
     p.gated = true; return p;
   }
   var NEO_OPS = {
@@ -1697,55 +1798,62 @@
     timer: timerRun,
     // A kit, or null. A task whose kit is already being built waits for that one.
     prep: function (item, dk) {
-      if (!window._vdPrepRequest) return Promise.resolve(null);
-      if (!(window._vdPrepBusy || {})[item.id]) return window._vdPrepRequest(item, dk);
+      var req = W('prepReq');
+      if (!req) return Promise.resolve(null);
+      if (!(W('prepBusy') || {})[item.id]) return req(item, dk);
       var t0 = Date.now();
       return new Promise(function (res) {
         (function wait() {
-          if (!(window._vdPrepBusy || {})[item.id]) return res((window._vdPrepKits || {})[item.id] || null);
+          if (!(W('prepBusy') || {})[item.id]) return res((W('prepKits') || {})[item.id] || null);
           if (Date.now() - t0 > 90000) return res(null);
           setTimeout(wait, 500);
         })();
       });
     },
     lockApp: function (t) {
-      var id = LOCKS[t], G = window.Guardian;
+      var id = P.locks[t], G = window.Guardian;
       if (!id || !G || !G.lockNow) return { ok: false, reason: 'invalid' };
       var st = null; try { st = G.status(id); } catch (e) {}
       if (!st || !st.hasLock) return { ok: false, reason: 'no_lock' };
       G.lockNow(id); return true;
     },
     openLink: function (label) {
-      var links = (window._navGetLinks ? window._navGetLinks('veda') : []) || [];
+      var links = (window._navGetLinks ? window._navGetLinks(P.id) : []) || [];
       var hit = findByName(links, label, 'label');
-      if (hit && window._navOpenLink) { window._navOpenLink('veda', hit.id); return true; }
+      if (hit && window._navOpenLink) { window._navOpenLink(P.id, hit.id); return true; }
+      // Tony's header programs that open in their own tab (TradeHub, WarRoom, Keychain).
+      if (P.id === 'tony') {
+        var prog = { tradehub: 'tradeboard', tradeboard: 'tradeboard', warroom: 'warroom', 'war room': 'warroom', keychain: 'keychain', vault: 'keychain' }[normWords(label)];
+        if (prog && window._tonyNav) { window._tonyNav(prog); return true; }
+      }
       // Warden is her links page: it replaces this page, so Neo finishes speaking first.
-      if (/^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
+      if (P.id === 'veda' && /^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
       return { ok: false, reason: 'not_found' };
     },
-    // A new page in V's Notebook, through Notebook's public API only.
+    // A new page in the side's Notebook (V's: bj, T's: tj), through Notebook's public API only.
     journalEntry: function (text, title) {
       if (!text) return { ok: false, reason: 'invalid' };
       var NB = window.Notebook; if (!NB || !NB.putPage) return { ok: false, reason: 'no_bridge' };
       var d = new Date();
       var page = { id: 'neo' + d.getTime().toString(36), title: String(title || '').trim() || ('Note · ' + d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })),
         data: { html: String(text).split(/\n+/).map(function (p) { return '<p>' + escH(p) + '</p>'; }).join('') }, tags: [], folder: null };
-      return Promise.race([NB.putPage('bj', page).then(function (p) { return p ? true : { ok: false, reason: 'failed' }; }), timeoutP(10000, { ok: false, reason: 'journal_not_ready' })])
+      return Promise.race([NB.putPage(P.nb, page).then(function (p) { return p ? true : { ok: false, reason: 'failed' }; }), timeoutP(10000, { ok: false, reason: 'journal_not_ready' })])
         .catch(function () { return { ok: false, reason: 'journal_not_ready' }; });
     },
     // StudyOS classes on her calendar → the class ▶ path (apps and sites via the bridge).
     startClass: function (name, data) {
+      if (P.id !== 'veda') return { ok: false, reason: 'no_bridge' };
       var seen = {}, list = [];
       Object.keys(data || {}).forEach(function (k) { (data[k] || []).forEach(function (t) { if (t && t._sosClassId && t._sosClassName && !seen[t._sosClassId]) { seen[t._sosClassId] = 1; list.push({ id: t._sosClassId, name: t._sosClassName }); } }); });
       var hit = findByName(list, name, 'name'); if (!hit) return { ok: false, reason: 'not_found' };
       if (!window._sosLaunchClassClick) return { ok: false, reason: 'no_bridge' };
       window._sosLaunchClassClick(hit.id, hit.name); return true;
     },
-    // Plans shared with Tony: only through PlansCore, only as Veda (PlansCore acts
-    // as the active profile), and inside the TaskHub lock.
+    // Plans shared between them: only through PlansCore, only as the side in front
+    // (PlansCore acts as the active profile), and inside that side's TaskHub lock.
     plan: function (op, a) {
       var PC = window.PlansCore;
-      if (!PC || window._activeProfile !== 'veda') return { ok: false, reason: 'no_bridge' };
+      if (!PC || window._activeProfile !== P.id) return { ok: false, reason: 'no_bridge' };
       if (op === 'add') {
         var title = String(a.title || '').trim(); if (!title) return { ok: false, reason: 'invalid' };
         var dt = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : null, tm = /^\d{2}:\d{2}$/.test(a.time || '') ? a.time : null;
@@ -1758,7 +1866,7 @@
         if (op === 'propose') { if (q.stage === 'proposed' || q.stage === 'confirmed') return { ok: false, reason: 'already' }; return PC.promote(q.id); }
         if (op === 'confirm') {
           if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' };
-          if (q.confirms && q.confirms.veda) return { ok: false, reason: 'already' };
+          if (q.confirms && q.confirms[P.id]) return { ok: false, reason: 'already' };
           return Promise.resolve(PC.confirmPlan(q.id)).then(function (v) { return v === 'ok' ? (q.date ? true : { ok: true, say: 'Do note it has no date yet.' }) : v; });
         }
         if (op === 'decline') { if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' }; PC.declinePlan(q.id, String(a.reason || '')); return true; }
@@ -1779,7 +1887,8 @@
           return o;
         });
       } catch (e) {}
-      try { out.links = ((window._navGetLinks ? window._navGetLinks('veda') : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
+      try { out.links = ((window._navGetLinks ? window._navGetLinks(P.id) : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
+      if (P.id === 'tony') out.links = ['TradeHub', 'WarRoom', 'Keychain'].concat(out.links || []);
       try {
         out.marketCal = ((extra && extra.marketCal) || []).filter(function (e) { return e && e.date >= today && e.date <= soon; }).slice(0, 40)
           .map(function (e) { var o = { date: e.date, title: e.title, kind: e.kind }; if (e.when) o.when = e.when; return o; });
@@ -1789,7 +1898,7 @@
         out.classes = Object.keys(cls).slice(0, 20);
       } catch (e) {}
       try {
-        var kits = window._vdPrepKits || {}, tm = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        var kits = W('prepKits') || {}, tm = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
         out.prepKits = [];
         [today, tm].forEach(function (k) {
           ((base.data || {})[k] || []).forEach(function (t) {
@@ -1803,7 +1912,7 @@
       } catch (e) {}
       var ts = window._vdTimerState;
       if (ts && base.timerOpen) out.timer = { secondsLeft: Math.round(ts.left), running: !!ts.running, mode: ['work', 'short break', 'long break'][ts.mode] || 'work' };
-      var pr = window._vdPcRunning;
+      var pr = W('running');
       if (pr && Date.now() - pr.at < 120000) out.pcRunning = pr.names.slice(0, 60);
       return out;
     },
@@ -1823,7 +1932,8 @@
     on = !!on;
     var was = S.on;
     S.on = on;
-    try { on ? localStorage.setItem(PREF_KEY, '1') : localStorage.removeItem(PREF_KEY); } catch (e) {}
+    if (!S.who) { var sd = sideOf(); if (!sd) return; adopt(sd); }
+    try { on ? localStorage.setItem(P.pref, '1') : localStorage.removeItem(P.pref); } catch (e) {}
     if (on) {
       // A user tap primes speech on iOS/Android, which refuse to speak otherwise.
       try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
@@ -1837,6 +1947,10 @@
   }
   function shouldRun() { return S.on && isVeda() && !document.hidden; }
   function sync() {
+    // The side in front changed (Veda ⇄ Tony ⇄ picker): release the old side's
+    // mic, then take up the new side's own switch.
+    var sd = sideOf();
+    if (sd && sd !== S.who) { if (S.running || S.starting) teardown(); hudShow(false); adopt(sd); emit(); }
     if (shouldRun()) { if (!S.running) start(); }
     else if (S.running || S.starting) teardown();
   }
@@ -1844,8 +1958,11 @@
   setInterval(sync, 1000);   // profile switches (Veda ⇄ Tony ⇄ picker) have no event
   try { ensureStyles(); } catch (e) {}
 
+  adopt(sideOf() || 'veda');
+
   window._vdNeo = {
     isOn: function () { return S.on; },
+    who: function () { return S.who; },
     setOn: setOn,
     toggle: function () { setOn(!S.on); },
     mode: function () { return S.mode; },
@@ -1853,6 +1970,6 @@
     _test: { fixCaption: fixCaption, tidyText: tidyText, spotStops: spotStops, spotBefore: spotBefore, spotAfter: spotAfter, spotlightBefore: spotlightBefore, spotlightAfter: spotlightAfter, spot: SP, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
       cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
-      greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
+      greeting: greeting, matchApp: matchApp, adopt: adopt, profiles: PROFILES, tonySheet: tonySheet, bridgeLaunch: bridgeLaunch, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
   };
 })();

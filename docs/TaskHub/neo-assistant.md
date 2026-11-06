@@ -1,8 +1,40 @@
-# Neo — Veda's hands-free TaskHub assistant
+# Neo — the hands-free TaskHub assistant
 
-**Veda's side only.** Say **"Hey Neo"**, then say what you want. Neo
-does it in TaskHub and answers out loud. Tony's TaskHub never loads it into use:
-the mic is released whenever the active profile isn't `veda`.
+**Both sides since 2026-11-06** (it was Veda's alone before). Say **"Hey Neo"**,
+then say what you want. Neo does it in TaskHub and answers out loud. One script
+(`TaskHub/veda-assistant.js`) serves whichever TaskHub is in front; each side has
+its own switch, name, voice key, colours, bridge and reach. Most of this page was
+written for Veda's Neo and still describes it; **Tony's Neo** (below) lists what
+differs on his side.
+
+## Tony's Neo (2026-11-06)
+
+The same assistant, wired to Tony's TaskHub and contents:
+
+- **His switch:** the NEO button in his header (beside the input-device button).
+  Remembered per device as `localStorage th_neo_on`; Veda's is `vd_neo_on`. One
+  side being on never turns the other on, and switching sides releases the mic.
+- **His look:** the same HUD, orb and spotlight in MAGI's purple on a solid panel
+  (`#vd-neo-hud.p-tony`, generated from Veda's rules by `tonySheet()` so the two
+  never drift). Docked, it takes his quote's slot between weather and Tesla at
+  exactly the quote's height, so nothing below moves (`placeHud`).
+- **His voice:** Ryan through Orca with HIS key (`shruti.tony.orcaKey`, else
+  `dashboards/shruti` via `window._fbLoadTonyOrcaKey`, read-only); the device's
+  British voice when there is no key. He is greeted by name, and called "Tony" or
+  "sir" now and then.
+- **His reach** (`window._thVoice` in index.html): tasks, habits and goals with
+  the spotlight; reminders, repeats and scopes; AI prep (`_thPrepRequest`,
+  `_thPrepLaunch`, his Prep panel); the timer; week collapse, goals tab, month;
+  Notebook, Plans, Shield and his header programs (TradeHub, WarRoom, Keychain);
+  locks (`tony_taskhub`, `tony_myjournal`, `tony_shield`); journal entries into
+  T's Notebook (`tj`); plans with Veda as Tony; earnings and releases from his
+  market calendar; and apps on his PC through his A1 Prep Bridge
+  (`V1/tools/sos-browser/prep_bridge.py`, port 8781, his app list `_thPcApps`).
+- **Not on his side:** Veda's trading rules, Gita lessons, StudyOS classes and
+  reels. The worker never offers them to him and his bridge has no method for them.
+- **His mic and text buttons are unchanged.** The worker gives Tony the Neo prompt
+  (`tonyNeoActionLines` / `tonyNeoRuleLines`), the wider schema and the extra
+  state ONLY for requests marked `mode:"neo"`, which only Neo sends.
 
 ## Using it
 
@@ -321,6 +353,12 @@ downloads it once more.
   and ask first.
 
 ## Tests
+
+`node tests/live/neo-tony.live.js` drives Tony's side in a real browser (fake
+Firestore): his button and switch, a Neo-mode request as Tony landing on his
+TaskHub with the spotlight in his purple, timer/week/goals through his bridge, the
+HUD docked in his quote's slot with zero pixel shift, and Veda's switch staying hers.
+
 
 `node tests/veda-assistant.test.js` covers:
 

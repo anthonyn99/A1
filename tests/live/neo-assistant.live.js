@@ -13,7 +13,8 @@
 //   · Ryan is asked for through Orca with her key; when Orca refuses, the
 //     device's voice still speaks
 //   · the HUD takes the Gita quote banner's place (desktop and phone)
-//   · switching to Tony's TaskHub releases the mic, and his header has no Neo
+//   · switching to Tony's TaskHub releases the mic; his header has his own Neo,
+//     off until he switches it on (each side has its own switch)
 // Screenshots of each state land in %TEMP%/magi-live-shots/neo-*.png.
 //
 // KNOWN (2026-11-06): with this synthesized voice the small Vosk model hears
@@ -202,7 +203,7 @@ function toneWav(sec) {
   ok('switching to Tony puts Neo to sleep (mic released)', await until(`window._vdNeo.mode() === 'off'`, 4000), await mode());
   ok('the HUD is gone', !(await js(`return document.getElementById('vd-neo-hud').classList.contains('show');`)));
   ok('…and the quote banner is back', !(await js(`return document.body.classList.contains('vn-docked');`)));
-  ok('Tony\'s header has no Neo button', !(await js(`return !!document.querySelector('#root .vd-neo-btn');`)));
+  ok('Tony\'s header has his own Neo button, off (his switch is his own)', await js(`var b=document.querySelector('#root .vd-neo-btn'); return !!b && !b.classList.contains('on');`));
   const before = parsed.length; await sleep(14000);   // the fake mic loops "Neo…" every ~13 s
   ok('Neo hears nothing while Tony\'s TaskHub is open', parsed.length === before, parsed.length - before);
 
