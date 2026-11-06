@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 APP = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
 
 

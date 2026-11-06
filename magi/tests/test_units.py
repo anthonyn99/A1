@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 SITES = yaml.safe_load(
     (REPO / "magi" / "config" / "selectors.yaml").read_text(encoding="utf-8")
 )["sites"]

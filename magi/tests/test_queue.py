@@ -21,7 +21,7 @@ import re
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 
 
 def _fn(name: str) -> str:
@@ -449,7 +449,7 @@ def test_a_verdict_says_which_question_it_answers():
 
 # ── failed prompts can be run again ─────────────────────────────────────────
 def test_a_failed_row_offers_retry_and_many_offer_retry_all():
-    page = (Path(__file__).resolve().parents[2] / "magi" / "magi.html").read_text(encoding="utf-8")
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert "function queueRetry(L, ids)" in page
     assert '`q-act${it.status === "failed" ? " retry" : ""}`' in page
     assert 'id="queueRetryBtn"' in page and "failed.length > 1" in page
@@ -514,7 +514,7 @@ def test_a_queue_that_stops_by_itself_rings():
 
 
 def test_unit_colours_do_not_wait_for_the_engine():
-    page = (Path(__file__).resolve().parents[2] / "magi" / "magi.html").read_text(encoding="utf-8")
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert "const UNIT_FALLBACK" in page
     # A council row's dot comes from unitAccent (which has the fallback); a
     # Code row's from the agent it names.

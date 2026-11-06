@@ -67,7 +67,7 @@ def test_the_restarter_waits_for_the_port_before_starting():
 
 
 def test_the_console_only_offers_it_where_it_can_work():
-    page = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
+    page = (REPO / "magi.html").read_text(encoding="utf-8")
     assert 'show(restart, link.where === "local")' in page, \
         "offered on a phone, the button would 404 by design"
     assert "/api/restart" in page

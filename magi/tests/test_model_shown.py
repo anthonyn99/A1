@@ -321,7 +321,7 @@ def test_site_error_says_whose_problem_it_is():
     d = site_error_detail("Gemini", "Something went wrong (1099)")
     assert "Something went wrong (1099)" in d and "Gemini's side" in d
     # The console recognises it from the live frame's message.
-    page = (Path(__file__).resolve().parents[2] / "magi" / "magi.html").read_text(encoding="utf-8")
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert 'site_error: "Site error"' in page and "servers refused the message" in page
 
 

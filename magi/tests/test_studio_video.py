@@ -22,7 +22,7 @@ from magi.engine.studio import (
 from magi.settings import load_settings
 
 REPO = Path(__file__).resolve().parents[2]
-PAGE = (REPO / "magi" / "magi.html").read_text(encoding="utf-8")
+PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 
 
 def _s():
