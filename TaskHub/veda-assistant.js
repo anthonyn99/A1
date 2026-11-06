@@ -51,6 +51,7 @@
   var NO_SPEECH_MS = 6000;   // woke but nothing followed
   var MAX_CAPTURE_MS = 30000;
   var FOLLOW_MS = 6000;      // after a reply: listen without the wake word
+  var DEAF_MS = 700;         // …starting this long after Neo stops talking
 
   // ══ pure helpers (tested in tests/veda-assistant.test.js) ══════════════════
   // The wake phrase is "Hey Neo" (Veda's call, 2026-11-05): "hey" right before
@@ -319,6 +320,33 @@
     if (removes > 3) q.unshift('remove ' + spokenNum(removes) + ' items');
     return q.length ? { question: 'Shall I ' + q.join(', and ') + '?' } : null;
   }
+  // Before anything runs: is this really a new request from her?
+  //  · Neo hearing itself: the transcript is mostly the line Neo just said
+  //    (the device voice isn't removed by the mic's echo cancellation).
+  //  · a replay: every action re-adds what the previous turn just added, and she
+  //    didn't say "again" / "another". The model, shown the previous turn and
+  //    given silence or noise, re-emits it; that is the "Call Ashton" loop.
+  // → {drop: reason} | the ask-first question | null.
+  function overlap(a, b) {
+    var wa = normWords(a).split(' ').filter(function (w) { return w.length > 2; });
+    var wb = normWords(b).split(' ').filter(function (w) { return w.length > 2; });
+    if (wa.length < 3 || !wb.length) return 0;
+    return wa.filter(function (w) { return wb.indexOf(w) >= 0; }).length / wa.length;
+  }
+  function isReplay(acts, prev, transcript) {
+    if (!prev || !acts || !acts.length) return false;
+    if (/\b(again|another|one more|second|twice|duplicate|copy)\b/i.test(String(transcript || ''))) return false;
+    var added = (prev.did || []).filter(function (d) { return d.type === 'add_task' && d.ok && d.title; }).map(function (d) { return normWords(d.title); });
+    if (!added.length) return false;
+    return acts.every(function (a) { return a && a.type === 'add_task' && added.indexOf(normWords(a.title || (a.altSeqTitles || [])[0] || '')) >= 0; });
+  }
+  function guardTurn(acts, st, reply) {
+    var tr = (reply && reply.transcript) || '';
+    if (S.lastSaid && overlap(tr, S.lastSaid) >= 0.6) return { drop: 'echo' };
+    var prev = S.prev && Date.now() - S.prev.at < PREV_MS ? S.prev.data : null;
+    if (isReplay(acts, prev, tr)) return { drop: 'replay' };
+    return needsConfirm(acts, st);
+  }
   function isYes(t) { return /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|do it|go ahead|confirm(ed)?|please( do)?|affirmative|correct|right)\b/i.test(String(t || '')); }
   function isNo(t) { return /^\s*(no|nope|nah|don'?t|do not|cancel|stop|never ?mind|leave it|wait)\b/i.test(String(t || '')); }
 
@@ -392,6 +420,9 @@
     floor: 0.006, greet: false, level: 0, afterSay: '',
     capText: '',            // what the caption recognizer heard this capture (for a spoken yes / no)
     pending: null,          // actions held for a yes / no: {actions, say, transcript, at}
+    lastSaid: '',           // Neo's last spoken line, so it never acts on hearing itself
+    deafUntil: 0,           // follow mode ignores the mic until then (its own voice's tail)
+    capFollow: false,       // this capture began in follow mode (no wake phrase)
     prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
   };
   try { S.on = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
@@ -842,6 +873,7 @@
       if (r === 'end') finishCapture();
       else if (r === 'none') { stopCaptions(); setMode('wake'); newRecognizer(); }
     } else if (S.mode === 'follow') {
+      if (Date.now() < S.deafUntil) return;   // the tail of Neo's own voice
       if (level > threshold(S.floor) * 1.3) beginCapture(0.6, true);
       else if (Date.now() > S.followUntil) { setMode('wake'); newRecognizer(); }
     }
@@ -859,6 +891,7 @@
     for (var i = S.ring.length - 1; i >= 0 && n < keep; i--) { pre.unshift(S.ring[i]); n += S.ring[i].length; }
     S.chunks = pre;
     S.vad = { speech: !!alreadySpeaking, silentMs: 0, elapsedMs: 0 };
+    S.capFollow = !!alreadySpeaking;   // no wake phrase: words must be heard (finishCapture)
     setMode('capture');
     startCaptions();
     if (S.cap) pre.forEach(function (c) { try { S.cap.acceptWaveformFloat(c, S.sr); } catch (e) {} });
@@ -867,7 +900,13 @@
   async function finishCapture() {
     var buffers = S.chunks; S.chunks = []; S.vad = null;
     var heard = S.capText || ''; S.capText = '';
+    var hadCaptions = !!S.cap, wasFollow = S.capFollow; S.capFollow = false;
     stopCaptions();
+    // A follow-up has no wake phrase to prove she spoke to Neo. If the caption
+    // recognizer heard no words at all (a cough, a chair, the TV, Neo's own
+    // voice fading), nothing is sent: that empty audio is what the model used
+    // to "hear" the last task again and add it a second time.
+    if (wasFollow && !S.pending && hadCaptions && !heard.trim()) { setMode('wake'); newRecognizer(); return; }
     // A yes / no to a question Neo just asked is decided here, on the device.
     if (S.pending) {
       var pend = S.pending; S.pending = null;
@@ -885,9 +924,10 @@
       var extra = { mode: 'neo' };
       // The last turn, so "…and remind me at 4" / "actually make it 5" find their item.
       if (S.prev && Date.now() - S.prev.at < PREV_MS) extra.prev = S.prev.data;
-      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: needsConfirm });
+      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn });
     } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
     if (res && res.transcript && H) H.you.textContent = res.transcript;
+    if (res && res.dropped) { console.info('[neo] ignored:', res.dropped, res.transcript || ''); setMode('wake'); newRecognizer(); return; }
     if (!S.running) { if (res && res.say) speak(res.say, false); return; }   // turned off mid-request ("stop listening")
     if (!res || !res.ok) {
       sfx('error'); hudMode('error');
@@ -1004,6 +1044,7 @@
 
   async function speak(text, thenFollow) {
     stopVoice();
+    S.lastSaid = String(text || '');
     var seq = speakSeq;
     // The greeting keeps the boot look ("ONLINE"); an error keeps its fault look.
     var look = S.mode === 'boot' ? 'boot' : S.mode === 'error' ? null : 'speaking';
@@ -1015,7 +1056,7 @@
       speakingViaAudio = false; lightTo(spans, spans.length);
       if (S.afterSay && S.running) { var more = S.afterSay; S.afterSay = ''; speak(more, thenFollow); return; }
       if (!S.running) { setTimeout(function () { if (!S.running) hudShow(false); }, 1600); return; }
-      if (thenFollow) { S.followUntil = Date.now() + FOLLOW_MS; setMode('follow'); }
+      if (thenFollow) { S.deafUntil = Date.now() + DEAF_MS; S.followUntil = S.deafUntil + FOLLOW_MS; setMode('follow'); }
       else { setMode('wake'); newRecognizer(); }
     }
     // 1) Ryan, via Orca with her own key
@@ -1426,7 +1467,7 @@
     mode: function () { return S.mode; },
     cancel: cancel,
     _test: { isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
-      cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, isYes: isYes, isNo: isNo,
+      cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
       greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
   };

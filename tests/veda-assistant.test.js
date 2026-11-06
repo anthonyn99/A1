@@ -468,7 +468,27 @@ section('worker: state shaping');
     t('one removal does not ask', T.needsConfirm([gym], sat) === null && T.needsConfirm([milk], sat) === null);
     t('shift_range / clear_completed / close_all ask', ['shift_range', 'clear_completed', 'close_all_pc_apps'].every(ty => T.needsConfirm([{ type: ty, days: 1, from: '2026-11-09', to: '2026-11-15' }], sat)));
     t('confirming a plan with no date asks first', /no date yet/.test((T.needsConfirm([{ type: 'plan_confirm', match: { title: 'dinner' } }], { plans: [{ title: 'Dinner at Nobu', stage: 'proposed' }] }) || {}).question || ''));
-    t('yes / no', T.isYes('yes') && T.isYes('yeah go ahead') && T.isYes('do it') && T.isNo('no') && T.isNo('never mind') && !T.isYes('no') && !T.isNo('yes please'));
+    // The "Call Ashton" loop (2026-11-05): with nothing said, Neo re-added the task it
+    // had just added, over and over: its own voice / silence + the previous turn.
+    {
+      const said = 'I\'ve added the call to Ashton at East Park to your calendar for today, Veda.';
+      const addA = [{ type: 'add_task', box: 'calendar', title: 'Call Ashton at East Park regarding the lease', date: '2026-11-05' }];
+      T.state.lastSaid = said;
+      t('Neo hearing its own reply is dropped', (T.guardTurn(addA, {}, { transcript: 'added the call to Ashton at East Park to your calendar for today Veda' }) || {}).drop === 'echo');
+      T.state.lastSaid = '';
+      T.state.prev = { at: Date.now(), data: { did: [{ type: 'add_task', ok: true, title: 'Call Ashton at East Park regarding the lease' }] } };
+      t('a re-add of what the last turn just added is dropped', (T.guardTurn(addA, {}, { transcript: '' }) || {}).drop === 'replay');
+      t('…unless she says "again" / "another"', T.guardTurn(addA, {}, { transcript: 'add another call to Ashton' }) === null);
+      t('a different task still goes through', T.guardTurn([{ type: 'add_task', title: 'Buy milk' }], {}, { transcript: 'add buy milk' }) === null);
+      t('an edit of that task (a real follow-up) still goes through', T.guardTurn([{ type: 'edit_task', match: { title: 'Call Ashton' }, set: { time: '16:00' } }], {}, { transcript: 'make it 4 pm' }) === null);
+      T.state.prev = null;
+      const lb = { profile: 'veda', uid: () => 'z', getState: () => ({ data: {}, habits: [], hc: {}, longGoals: [], shortGoals: [], selectedDate: '2026-11-05' }), mutateData: () => { throw new Error('must not write'); }, mutateHabits() {}, mutateLongGoals() {}, mutateShortGoals() {}, mutateHc() {} };
+      const eng = makeEngine('veda', lb, { ok: true, actions: addA, say: said, transcript: 'x' });
+      const rd = await eng.THV.sendAudio('AAAA', { silent: true, hold: () => ({ drop: 'replay' }) });
+      t('a dropped reply changes nothing and says nothing', rd.ok && rd.dropped === 'replay' && rd.n === 0 && rd.say === '');
+    }
+    t('the worker prompt says the previous turn is never to be repeated', vedaPlain.includes('NEVER repeat its actions'));
+    t('yes / no',T.isYes('yes') && T.isYes('yeah go ahead') && T.isYes('do it') && T.isNo('no') && T.isNo('never mind') && !T.isYes('no') && !T.isNo('yes please'));
 
     section('veda-assistant.js: closing apps, websites on the phone, the timer queue');
     t('close: closed → nothing to say', T.closeNote('Spotify', { closed: ['Spotify'] }) === '');

@@ -19814,7 +19814,10 @@ async function send(extra,opts){
     var r=await fetch(WORKER+'/taskhub/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var j=await r.json();
     if(j.ok&&Array.isArray(j.actions)){
-      var held=(opts&&typeof opts.hold==='function')?opts.hold(j.actions,b.getState()):null;
+      var held=(opts&&typeof opts.hold==='function')?opts.hold(j.actions,b.getState(),j):null;
+      // {drop:reason}: the caller judged this wasn't a real request (Neo hearing its
+      // own voice, or a repeat of what it just did). Nothing runs, nothing is said.
+      if(held&&held.drop)return {ok:true,n:0,results:[],later:Promise.resolve([]),say:'',actions:[],transcript:j.transcript||'',dropped:held.drop};
       if(held)return {ok:true,n:0,results:[],held:Object.assign({actions:j.actions},held),later:Promise.resolve([]),say:j.say||'',actions:j.actions,transcript:j.transcript||''};
       var d=dispatch(j.actions,j.say,silent);
       return {ok:true,n:d.n,results:d.results,later:d.later,say:j.say||'',truncated:!!j.truncated,actions:j.actions,transcript:j.transcript||''};
