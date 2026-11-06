@@ -7355,19 +7355,32 @@ function PlanPanel({P,startDateKey,onExit}){
     if(finished)badges.push(badge('done',OK));
 
     // The date is the single most consequential field on a plan, so it leads
-    // the card in the accent colour instead of sitting in a muted run-on line.
-    const when=React.createElement("span",{style:{fontFamily:P.MONO,fontSize:11,fontWeight:700,
-      color:p.date?P.AC:P.TXF,letterSpacing:.2,display:"inline-flex",alignItems:"baseline",
-      gap:7,background:p.date?AC_SOFT:P.S2,borderRadius:5,padding:"3px 8px"}},
-      p.date?PC.fmtDate(p.date):"No date",
-      p.date&&p.time?React.createElement("span",{style:{color:P.TXD,fontWeight:600}},
-        PC.fmtTime(p.time,p.date,p.tz)):null);
+    // the card as a calendar tile (month, day, weekday) — legible at a glance
+    // down a list, the way a phone's calendar shows a day.
+    const over=ctx==='overdue';
+    const dt=p.date?new Date(+p.date.slice(0,4),+p.date.slice(5,7)-1,+p.date.slice(8,10)):null;
+    const tileC=over?PLAN_OVERDUE_RED:(finished?P.TXM:P.AC);
+    const tile=React.createElement("div",{className:"plp-tile","aria-hidden":"true",style:{flexShrink:0,
+        width:48,borderRadius:10,textAlign:"center",padding:"6px 0 7px",boxSizing:"border-box",
+        background:dt?(over?OVER.bg:(finished?P.S2:AC_SOFT)):"transparent",
+        border:"1px "+(dt?"solid ":"dashed ")+(dt?(over?OVER.line:(finished?P.BD:AC_LINE)):P.BD),
+        color:dt?tileC:P.TXF,fontFamily:P.FONT,lineHeight:1}},
+      dt?React.createElement(React.Fragment,null,
+        React.createElement("div",{style:{fontSize:9.5,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},
+          dt.toLocaleDateString(undefined,{month:"short"})),
+        React.createElement("div",{style:{fontSize:19,fontWeight:600,margin:"4px 0 3px",color:over?PLAN_OVERDUE_RED:(finished?P.TXM:P.TX),
+          fontVariantNumeric:"tabular-nums"}},dt.getDate()),
+        React.createElement("div",{style:{fontSize:9.5,fontWeight:600,opacity:.8}},
+          dt.toLocaleDateString(undefined,{weekday:"short"})))
+        :React.createElement("div",{style:{fontSize:10,fontWeight:600,padding:"8px 0",lineHeight:1.3}},"No",React.createElement("br"),"date"));
 
-    const meta=React.createElement("div",{style:{fontSize:11.5,color:P.TXM,marginTop:9,
-      display:"flex",flexWrap:"wrap",gap:"7px 10px",alignItems:"center"}},
-      when,
-      React.createElement("span",{style:{fontSize:9.5,fontWeight:700,textTransform:"uppercase",
-        letterSpacing:.7,color:P.TXF,fontFamily:P.MONO}},"from "+(NAMES[p.author]||p.author||'?')),
+    const meta=React.createElement("div",{style:{fontSize:12,color:P.TXM,marginTop:5,
+      display:"flex",flexWrap:"wrap",gap:"6px 8px",alignItems:"center"}},
+      React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}},
+        p.date&&p.time?React.createElement("span",{style:{color:over?PLAN_OVERDUE_RED:P.TXD,fontWeight:600,
+          fontVariantNumeric:"tabular-nums"}},PC.fmtTime(p.time,p.date,p.tz)):null,
+        p.date&&p.time?React.createElement("span",{style:{color:P.TXF}},"·"):null,
+        React.createElement("span",null,"from "+(NAMES[p.author]||p.author||'?'))),
       badges);
 
     // Marking done is two-sided, so the button says which half of it you are on:
