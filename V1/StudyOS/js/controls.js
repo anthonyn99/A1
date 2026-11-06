@@ -111,26 +111,36 @@
     place(p, trigger, minW);
     return p;
   }
+  // The whole popover stays on screen: placed against the VISUAL viewport
+  // (innerHeight also counts what is under a phone's keyboard and browser
+  // bars), on whichever side of the trigger has room, else over the trigger,
+  // never taller than what is visible. The old 160px floor pushed a list past
+  // the bottom edge where it could not be scrolled to (2026-11-06).
   function place(p, trigger, minW) {
     var r = trigger.getBoundingClientRect();
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var w = Math.max(r.width, minW || 0);
-    w = Math.min(w, vw - 16);
-    p.style.width = w + 'px';
-    var left = Math.min(Math.max(8, r.left), vw - w - 8);
-    p.style.left = left + 'px';
-    var h = p.offsetHeight;
-    var below = vh - r.bottom - 8, above = r.top - 8;
-    if (h <= below || below >= above) {
-      p.style.top = (r.bottom + 6) + 'px';
-      p.style.maxHeight = Math.max(160, below - 6) + 'px';
-      p.classList.remove('up');
-    } else {
-      p.style.maxHeight = Math.max(160, above - 6) + 'px';
-      h = Math.min(h, above - 6);
-      p.style.top = (r.top - 6 - h) + 'px';
-      p.classList.add('up');
+    var W = window.innerWidth, H = window.innerHeight, v = window.visualViewport;
+    var x0 = 0, y0 = 0, x1 = W, y1 = H;
+    if (v && v.width && v.height) {
+      x0 = Math.max(0, v.offsetLeft); y0 = Math.max(0, v.offsetTop);
+      x1 = Math.min(W, v.offsetLeft + v.width); y1 = Math.min(H, v.offsetTop + v.height);
     }
+    var L = x0 + 8, R = x1 - 8, T = y0 + 8, B = y1 - 8, gap = 6;
+    var w = Math.min(Math.max(r.width, minW || 0), R - L);
+    p.style.width = w + 'px';
+    p.style.left = Math.min(Math.max(L, r.left), R - w) + 'px';
+    p.style.maxHeight = 'none';
+    var h = Math.min(p.offsetHeight, B - T);
+    var below = B - (r.bottom + gap), above = (r.top - gap) - T, top, up = false;
+    if (below >= h) top = r.bottom + gap;
+    else if (above >= h) { up = true; top = r.top - gap - h; }
+    else if (Math.max(below, above) >= Math.min(h, 200)) {
+      up = above > below; h = up ? above : below;
+      top = up ? r.top - gap - h : r.bottom + gap;
+    } else top = r.top + r.height / 2 - h / 2;
+    top = Math.min(Math.max(T, top), B - h);
+    p.style.maxHeight = h + 'px';
+    p.style.top = top + 'px';
+    p.classList.toggle('up', up);
   }
   document.addEventListener('pointerdown', function (e) {
     if (!pop) return;
