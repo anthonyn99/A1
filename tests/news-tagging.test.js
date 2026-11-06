@@ -166,9 +166,43 @@ console.log('\nThe budget holds at every watchlist length');
     'floor ' + W.AI_SUBREQUEST_FLOOR);
 }
 
+console.log('\nEvery event is ONE card, even when the AI never answers it');
+{
+  // 2026-11-06: 8 RAW cards each showed twice in a row. The omission pass
+  // appends its retry batches to `batches`, so an event no model answered was
+  // in its original batch AND the retry batch, and the raw fallback filled it
+  // once per batch. Run the real pipeline with a model that answers nothing.
+  const P = new Function(`${SRC.replace(/export default \{[\s\S]*$/, '')}
+    callModel = async () => [];
+    return { runPipeline, finalizeEvents };`)();
+  const now = Date.now();
+  const articles = ['AMD', 'NVDA', 'TSLA'].map((t, i) => ({
+    ticker: t, source: 'Yahoo', feed: 'yahoo', ts: now - i * 60000,
+    url: 'https://example.com/story-' + i,
+    headline: ['Chipmaker unveils accelerator roadmap', 'GPU supplier widens datacenter lead',
+      'Automaker trims factory output'][i] + ' ' + t,
+    summary: '',
+  }));
+  const kv = new Map();
+  const env = { NEWSHUB_CACHE: { get: async k => kv.get(k) || null, put: async (k, v) => { kv.set(k, v); } } };
+  const ctx = { waitUntil() {} };
+  P.runPipeline(env, ctx, false, ['AMD', 'NVDA', 'TSLA'], null, articles).then(r => {
+    const ids = r.events.map(e => e.id);
+    check('raw fallback emits each unanswered event once',
+      ids.length === new Set(ids).size && ids.length === 3, ids.join(','));
+    const f = P.finalizeEvents([], [{ id: 'evt_0', impact: { score: 50 }, ts: 1, aiAnalyzed: true },
+      { id: 'evt_0', impact: { score: 50 }, ts: 1, aiAnalyzed: true }], ['AMD']);
+    check('finalize keeps one verdict per id when a window ran twice', f.events.length === 1,
+      f.events.length + ' events');
+    report();
+  }).catch(e => { check('pipeline ran', false, e.message); report(); });
+}
+
 /* ── report ──────────────────────────────────────────────────────────────── */
+function report() {
 const failed = results.filter(r => !r).length;
 console.log('\n' + '─'.repeat(64));
 console.log(failed ? failed + ' of ' + results.length + ' checks FAILED'
                    : 'All ' + results.length + ' news-pipeline checks passed.');
 process.exit(failed ? 1 : 0);
+}
