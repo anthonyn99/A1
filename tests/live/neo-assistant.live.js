@@ -12,7 +12,7 @@
 //     shows it, and the reply is spoken and typed out
 //   · Ryan is asked for through Orca with her key; when Orca refuses, the
 //     device's voice still speaks
-//   · the phone layout is a bottom sheet
+//   · the HUD takes the Gita quote banner's place (desktop and phone)
 //   · switching to Tony's TaskHub releases the mic, and his header has no Neo
 // Screenshots of each state land in %TEMP%/magi-live-shots/neo-*.png.
 //
@@ -148,6 +148,9 @@ function toneWav(sec) {
   ok('…played as audio (not the device voice), typed out in time with it, labelled ONLINE', await until(`document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length > 3`, 8000)
     && (await js(`return (window.__spoken||[]).length;`)) === 0 && (await js(`return document.querySelector('#vd-neo-hud .vn-state').textContent;`)) === 'ONLINE',
     await js(`return JSON.stringify({spoken:window.__spoken, state:document.querySelector('#vd-neo-hud .vn-state').textContent, lit:document.querySelectorAll('#vd-neo-hud .vn-say .w.lit').length});`));
+  ok("the HUD takes the quote banner's place (banner hidden, HUD in its slot)", await js(`var h=document.getElementById('vd-neo-hud'), b=document.querySelector('#vr-root .thwx-band > .gita-banner');
+    return !!b && h.classList.contains('vn-dock') && h.previousElementSibling===b && getComputedStyle(b).display==='none' && h.getBoundingClientRect().height>0;`),
+    await js(`var h=document.getElementById('vd-neo-hud'); return h.className+' parent='+(h.parentNode&&h.parentNode.className);`));
   ok('telemetry reads VOICE RYAN', /VOICE RYAN/.test(await js(`return document.querySelector('#vd-neo-hud .vn-tele').textContent;`)));
 
   console.log('\n"Neo. Add buy milk tomorrow."');
@@ -181,9 +184,9 @@ function toneWav(sec) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   const again = await until(`window._vdNeo.mode() === 'speaking'`, 45000);   // the fake mic says "Neo…" again
   await sleep(900); await shot('6-phone');
-  const sheet = await js(`var r=document.getElementById('vd-neo-hud').getBoundingClientRect(); return JSON.stringify({l:Math.round(r.left), w:Math.round(r.width), b:Math.round(innerHeight-r.bottom)});`);
+  const sheet = await js(`var h=document.getElementById('vd-neo-hud'), r=h.getBoundingClientRect(); return JSON.stringify({dock:h.classList.contains('vn-dock'), w:Math.round(r.width), r:Math.round(r.right)});`);
   const sj = JSON.parse(sheet);
-  ok('the HUD is a full-width bottom sheet', again && sj.l === 0 && sj.w === 390 && Math.abs(sj.b) <= 2, sheet);
+  ok("on a phone the HUD sits in the banner's slot, inside the screen", again && sj.dock && sj.w > 200 && sj.r <= 390, sheet);
   await c.send('Emulation.clearDeviceMetricsOverride');
   ok('an app she doesn\'t have: nothing is launched, and Neo says so after its reply',
     await until(`(window.__spoken||[]).some(function(s){return s.text==="I couldn't find Photoshop on your PC, I'm afraid.";})`, 15000) && launches.length === 1,
@@ -193,6 +196,7 @@ function toneWav(sec) {
   await js(`window._profileGoTony(); 1`);
   ok('switching to Tony puts Neo to sleep (mic released)', await until(`window._vdNeo.mode() === 'off'`, 4000), await mode());
   ok('the HUD is gone', !(await js(`return document.getElementById('vd-neo-hud').classList.contains('show');`)));
+  ok('…and the quote banner is back', !(await js(`return document.body.classList.contains('vn-docked');`)));
   ok('Tony\'s header has no Neo button', !(await js(`return !!document.querySelector('#root .vd-neo-btn');`)));
   const before = parsed.length; await sleep(14000);   // the fake mic loops "Neo…" every ~13 s
   ok('Neo hears nothing while Tony\'s TaskHub is open', parsed.length === before, parsed.length - before);

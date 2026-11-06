@@ -82,6 +82,14 @@ section('worker: state shaping');
   await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
   t('Veda\'s call uses her own wider schema', seen.schema && seen.schema !== W.ACTION_SCHEMA && !!seen.schema.properties.actions.items.properties.aiPrep && !!seen.schema.properties.actions.items.properties.set.properties.aiPrep);
   t('Veda\'s items show aiPrep / aiSite (never the note itself)', /"aiPrep":true/.test(seen.prompt) && /"aiSite":"claude"/.test(seen.prompt) && !/secret note/.test(seen.prompt));
+  {
+    const history = [{ said: 'add dentist friday', reply: 'Which time, Veda?', did: [] }, { said: 'move gym to 5', reply: 'Done.', did: [{ type: 'edit_task', ok: true, id: 'g1', title: 'Gym' }] }, prev];
+    await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev, history }, env);
+    t('Veda\'s state carries the earlier turns as conversation (oldest first, the last stays previousTurn)', /"conversation":\[\{"said":"add dentist friday"/.test(seen.prompt) && /"id":"g1"/.test(seen.prompt) && /CONVERSATION/.test(seen.prompt) && /CLARIFYING/.test(seen.prompt));
+    await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev, history }, env);
+    t('Tony\'s prompt never carries a conversation', !/conversation|CONVERSATION|add dentist friday|TRANSCRIPT: transcribe what Veda/.test(seen.prompt || ''));
+    await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  }
   t('Veda\'s state carries plans, earnings and the previous turn (with the id)', /"waitingOn":"veda"/.test(seen.prompt) && /NVDA Earnings/.test(seen.prompt) && /"previousTurn":\{[^}]*"said":"add gym tomorrow"/.test(seen.prompt) && /"id":"u9"/.test(seen.prompt));
 
   // ── 2. voice engine (index.html) ──────────────────────────────────────────
@@ -525,6 +533,14 @@ section('worker: state shaping');
     t('fallback: Microsoft Ryan first', T.pickVoiceFrom([V('Microsoft Aria Online', 'en-US'), V('Microsoft Ryan Online (Natural)', 'en-GB')]).name.startsWith('Microsoft Ryan'));
     t('fallback: Google UK English Male next', T.pickVoiceFrom([V('Google US English', 'en-US'), V('Google UK English Female', 'en-GB'), V('Google UK English Male', 'en-GB')]).name === 'Google UK English Male');
     t('fallback: any en-GB, then any English', T.pickVoiceFrom([V('X', 'en-US'), V('Y', 'en-GB')]).name === 'Y' && T.pickVoiceFrom([V('X', 'en-US')]).name === 'X');
+  }
+  section('veda-assistant.js: live captions snap to her words');
+  {
+    const vocab = ['Spotify', 'Visual Studio Code', 'Calculus homework', 'Neo'].map(x => ({ text: x, n: x.split(' ').length, l: x.toLowerCase().replace(/[^a-z0-9]/g, ''), sk: T.skel(x) }));
+    t('"open spotty fi" → "open Spotify"', T.fixCaption('open spotty fi', vocab) === 'open Spotify', T.fixCaption('open spotty fi', vocab));
+    t('"finish calculous homework" → "finish Calculus homework"', T.fixCaption('finish calculous homework', vocab) === 'finish Calculus homework', T.fixCaption('finish calculous homework', vocab));
+    t('ordinary words are left alone', T.fixCaption('add buy milk tomorrow and call mom', vocab) === 'add buy milk tomorrow and call mom', T.fixCaption('add buy milk tomorrow and call mom', vocab));
+    t('an exact word is kept as she said it', T.fixCaption('open spotify', vocab) === 'open spotify');
   }
   {
     const buf = T.encodeWav([new Float32Array(48000)], 48000, 16000);

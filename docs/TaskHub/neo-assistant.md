@@ -32,8 +32,17 @@ It is Neo's own overlay and button only; the rest of her TaskHub's look is untou
 
 ### The HUD
 
-`#vd-neo-hud` is built by `veda-assistant.js`. It's a glass panel at the bottom centre; on a
-phone, a full-width bottom sheet.
+`#vd-neo-hud` is built by `veda-assistant.js`.
+
+**Docked (2026-11-06, Veda's call).** When her TaskHub's Gita quote banner is on screen, Neo
+takes its slot in the weather band instead of popping up at the bottom (`placeHud`): the HUD is
+inserted beside the banner and `body.vn-docked` hides the banner (React owns the banner, so its
+own classes are never touched). Docked, it's dressed as the quote card itself (same border,
+mauve left edge, IBM Plex Mono, the quote's font for the reply), with none of the hologram
+extras (scanlines, sweep, brackets, glitch, hex ticker, telemetry) and the orb replaced by a
+row of 11 rounded bars that follow her voice and Neo's (`drawBars`). Banner and Neo crossfade.
+When the banner isn't on screen (scrolled away, another view), the floating panel below is
+used: a glass panel at the bottom centre; on a phone, a full-width bottom sheet.
 
 - **The arc-reactor orb** (canvas):
   - a tick ring, three counter-rotating arc segments and an inner ring with a moving bright arc
@@ -44,9 +53,14 @@ phone, a full-width bottom sheet.
   - on boot the rings draw in; on an error they flicker
 - **The state label** (Orbitron) glitches in on each change: INITIALISING, ONLINE, LISTENING,
   PROCESSING, RESPONDING, STANDING BY, FAULT.
-- **Live captions** ("YOU › …") come from a second, free-form Vosk recognizer that only runs
-  during a capture. They are for display only; Gemini's cleaned-up `transcript` replaces them
-  when the answer arrives.
+- **Live captions** ("YOU › …") come from the browser's own recognizer (Web Speech: Chrome,
+  Edge) when it works, else a second, free-form Vosk recognizer that only runs during a
+  capture (Brave reports `network` and is remembered as broken for the session). Either way
+  `fixCaption` snaps runs of words that sound like her own names (task titles near today,
+  habits, goals, PC apps, Neo's views) to those names: same first letter, close spelling or
+  the same consonant skeleton, so ordinary words stay. They are for display only; Gemini's
+  `transcript` (told to prefer her own names from state and the conversation over
+  similar-sounding words) replaces them when the answer arrives.
 - **The reply** types out word by word, in time with the voice (Orca's word timings, or the
   device voice's boundary events).
 - **Action cards** (`cardFor`), one per change: `✓ TASK ADDED · Buy milk · FRI 6 NOV`,
@@ -130,6 +144,13 @@ Each turn's transcript, reply and results (with the ids of items added or change
 go with the next request for 2 minutes as `extra.prev`. The worker shows them as
 `previousTurn`, the model copies the id into `match.id` ("…and remind me at 4",
 "actually make it 5"), and `locate()` honours it.
+
+**A conversation, not one command (2026-11-06).** The last 8 turns from the past 15 minutes
+also go as `extra.history`; the worker shows the earlier ones as `conversation` (Veda only).
+The prompt's CONVERSATION rule lets Neo follow a change of mind (edit or delete what an
+earlier turn did, by id), ask ONE clarifying question when a request is genuinely ambiguous,
+take her next turn as the answer, and just talk. After every reply it keeps listening without
+the wake word for 10 s, or 16 s when the reply ended in a question.
 
 ### The list
 

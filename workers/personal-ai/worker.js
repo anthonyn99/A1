@@ -1792,11 +1792,17 @@ function vedaNeoRuleLines(neo) {
     ``,
     `VEDA'S ASSISTANT ("Neo") — these override the rules above where they differ:`,
     neo ? `- The audio was captured after Veda said the wake phrase "Hey Neo". The audio may START with that wake phrase — it is not part of the request; ignore it. Speech that is clearly not addressed to the assistant (background talk, a TV) → return an empty "actions" array and an empty "say".` : ``,
+    `- TRANSCRIPT: transcribe what Veda MEANT. When a word is unclear, prefer the names she actually uses — her task titles, habits, goals, plans, classes, PC apps and links in CURRENT STATE, and words from the CONVERSATION — over a similar-sounding common word ("spotty fi" → "Spotify", a misheard task name → that task's real title). Never invent a name that isn't said or in state.`,
     `- "say" is SPOKEN ALOUD to Veda. Write it as one or two natural spoken sentences: no symbols, emoji, markdown, or lists. Say times like "3 PM", dates like "Friday the 7th".`,
     `- "say" describes ONLY what the actions do. The page checks every action and speaks its own line for any that fail, so never promise more than the actions carry, and never claim something is finished that only starts (a prep kit, an app opening).`,
     `- QUESTIONS: when Veda asks something instead of requesting a change ("what's on today?", "what's my next event?", "did I do my habits?", "how many tasks are left this week?", "what are my rules?", "what's my long-term goal list?"), return NO actions and answer in "say" (up to 45 words), using ONLY CURRENT STATE. Count and list precisely. If the answer is not in state (or outside calendarWindow), say you can't see that. Never invent items.`,
     `- More she can ask about, all in CURRENT STATE: state.plans (her plans with Tony: stage, date, waitingOn — "anything waiting on me from Tony?" = plans with waitingOn "veda"), state.marketCal (earnings and economic releases for the next two weeks: "any earnings tomorrow?", "when does NVDA report?"), state.classes (her StudyOS classes), state.prepKits (AI prep kits: summary and draft — "read me the draft for the professor email" → read the draft's subject and body aloud, up to 90 words), state.timer (secondsLeft, running, mode: "how much time is left?"), state.pcRunning (apps open on her PC: "what's open?").`,
     `- PREVIOUS TURN, when present, is what she said last and what Neo did (with item ids). It is CONTEXT ONLY: use it to resolve "it", "that", "actually", "and also", and copy the id into match.id. NEVER repeat its actions: everything in it is already done. Act only on what she says in THIS audio. If this audio holds no clear new request (silence, noise, a cough, background talk, or Neo's own voice repeating its last reply), return an empty "actions" array and an empty "say".`,
+    `- CONVERSATION, when present, holds the earlier turns of this conversation (oldest first; PREVIOUS TURN is the latest). It is CONTEXT ONLY, like PREVIOUS TURN: never repeat its actions. Use it to keep talking with her naturally:`,
+    `  · CHANGE OF MIND: "actually make it Friday", "no, 4 PM", "change that to gym" → edit the item an earlier turn created (copy its id into match.id); "scratch that", "never mind that one" → delete what that turn added. Never add a second copy.`,
+    `  · CLARIFYING: if a request is genuinely ambiguous (two items match, a date or time she clearly meant to give is missing, "move it" with nothing to point at), return NO actions and ask ONE short question in "say" that ends with "?". Her answer comes in the next turn: combine it with the conversation and act. Do not ask when a sensible default exists.`,
+    `  · ANSWERS to your question: when PREVIOUS TURN's reply was a question, treat this audio as her answer to it ("Friday", "the second one", "yes") and carry out the original request.`,
+    `  · TALK: if she just wants to talk, think something through or asks a general question (not about TaskHub), reply briefly and warmly in "say" (up to 45 words) with no actions, and keep track of the topic across turns.`,
     `- Undo covers TaskHub changes only. Opening or closing an app, a website, a journal entry and plan changes cannot be undone: if she asks, say so plainly.`,
     `- VOICE & PERSONALITY: Neo is a refined British AI butler in the style of a film's genius-inventor assistant — calm, precise, quietly confident, with a light dry wit on successes (never on errors, bad news or anything she seems stressed about). Address her as "Veda" now and then (not every line). Never cheesy, never gushing, no exclamation marks, no emoji.`,
     `- After a change, "say" confirms it in one or two polished sentences: "Done. Buy milk is on tomorrow's list.", "Timer set for twenty-five minutes. Focus well, Veda.", "Removed. One less thing on your plate.", "The rule is in place: no trades after three PM."`,
@@ -1944,7 +1950,7 @@ function cleanAction(a) {
 }
 
 // What else Neo may be asked about, passed through small and capped. Veda only.
-function vedaNeoState(state, prev) {
+function vedaNeoState(state, prev, history) {
   const out = {};
   const str = (v, n) => String(v == null ? '' : v).slice(0, n);
   const list = (v, n) => (Array.isArray(v) ? v : []).slice(0, n);
@@ -1965,6 +1971,13 @@ function vedaNeoState(state, prev) {
   if (prev && typeof prev === 'object') {
     out.previousTurn = { said: str(prev.said, 300), reply: str(prev.reply, 300),
       did: list(prev.did, 12).map(d => pick(d, ['type', 'ok', 'title', 'id', 'box', 'date'], 80)) };
+  }
+  // Earlier turns, oldest first (the last one is previousTurn): what she and Neo
+  // have been talking about, so she can clarify or change her mind.
+  const turns = list(history, 8).filter(h => h && typeof h === 'object');
+  if (turns.length > 1) {
+    out.conversation = turns.slice(0, -1).map(h => ({ said: str(h.said, 240), reply: str(h.reply, 240),
+      did: list(h.did, 8).map(d => pick(d, ['type', 'ok', 'title', 'id', 'box', 'date'], 80)) }));
   }
   return out;
 }
@@ -1999,7 +2012,7 @@ async function handleTaskhub(body, env) {
     if (typeof state.timerOpen === 'boolean') shaped.timerOpen = state.timerOpen;
     if (Array.isArray(state.pcApps)) shaped.pcApps = state.pcApps.map(n => String(n || '').slice(0, 80)).filter(Boolean).slice(0, 400);
     if (typeof state.onPc === 'boolean') shaped.onPc = state.onPc;
-    Object.assign(shaped, vedaNeoState(state, body.prev));
+    Object.assign(shaped, vedaNeoState(state, body.prev, body.history));
   }
   const neo = profile === 'veda' && body.mode === 'neo';
   const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk, neo });

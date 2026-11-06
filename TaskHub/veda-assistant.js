@@ -50,7 +50,8 @@
   var END_SILENCE_MS = 1400; // she stopped talking
   var NO_SPEECH_MS = 6000;   // woke but nothing followed
   var MAX_CAPTURE_MS = 30000;
-  var FOLLOW_MS = 6000;      // after a reply: listen without the wake word
+  var FOLLOW_MS = 10000;     // after a reply: listen without the wake word
+  var ASK_MS = 16000;        // …longer when Neo has just asked her something
   var DEAF_MS = 700;         // …starting this long after Neo stops talking
 
   // ══ pure helpers (tested in tests/veda-assistant.test.js) ══════════════════
@@ -424,6 +425,7 @@
     deafUntil: 0,           // follow mode ignores the mic until then (its own voice's tail)
     capFollow: false,       // this capture began in follow mode (no wake phrase)
     prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
+    history: [],            // the conversation so far (oldest first, ≤ HISTORY_N turns): [{at, data}]
   };
   try { S.on = localStorage.getItem(PREF_KEY) === '1'; } catch (e) {}
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -505,6 +507,41 @@
       ' #vd-neo-hud .vn-orb{align-self:center;flex-basis:auto;width:128px;height:128px;}#vd-neo-hud canvas{width:128px;height:128px;}',
       ' #vd-neo-hud .vn-say{font-size:14px;text-align:center;}#vd-neo-hud .vn-you{text-align:center;}#vd-neo-hud .vn-tick{text-align:center;}',
       ' #vd-neo-hud .vn-cards{justify-content:center;}#vd-neo-hud .vn-tele{justify-content:center;}}',
+      // docked: in the Gita quote banner's slot (Veda's TaskHub) while Neo is up. Dressed as the
+      // banner itself (its border, left accent, type); no scanlines, brackets or glitch, just
+      // a row of voice-level bars. Banner and Neo crossfade.
+      'body.vn-docked #vr-root .thwx-band > .gita-banner{display:none;}',
+      'body.vn-undock #vr-root .thwx-band > .gita-banner{animation:vnIn .35s ease;}',
+      '#vd-neo-hud.vn-dock{position:relative;left:auto;right:auto;bottom:auto;z-index:auto;width:auto;flex:1 1 auto;min-width:0;display:none;transform:none;opacity:1;transition:none;',
+      " font-family:'IBM Plex Mono',ui-monospace,monospace;}",
+      '#vd-neo-hud.vn-dock.show{display:block;transform:none;animation:vnIn .35s ease;}',
+      '#vd-neo-hud.vn-dock .vn-glass{height:100%;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:6px 12px;border-radius:6px;',
+      ' background:linear-gradient(90deg,rgba(141,118,154,.07),rgba(141,118,154,.05) 50%,rgba(141,118,154,.07));',
+      ' border:1px solid rgba(141,118,154,.25);border-left:3px solid ' + C.accent + ';box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}',
+      '#vd-neo-hud.vn-dock .vn-scan,#vd-neo-hud.vn-dock .vn-sweep,#vd-neo-hud.vn-dock .vn-br,#vd-neo-hud.vn-dock .vn-tick,#vd-neo-hud.vn-dock .vn-tele,#vd-neo-hud.vn-dock .vn-clock{display:none;}',
+      '#vd-neo-hud.vn-dock .vn-glitch{animation:none;}',
+      '#vd-neo-hud.vn-dock .vn-main{order:1;flex:1 1 auto;min-width:0;margin-top:0;min-height:0;gap:12px;flex-direction:row;align-items:center;}',
+      '#vd-neo-hud.vn-dock .vn-orb{flex:0 0 64px;width:64px;height:26px;align-self:center;}#vd-neo-hud.vn-dock canvas{width:64px;height:26px;}',
+      '#vd-neo-hud.vn-dock .vn-text{gap:2px;}',
+      '#vd-neo-hud.vn-dock .vn-you{font-size:10.5px;min-height:0;-webkit-line-clamp:1;text-align:left;color:#76777C;}',
+      '#vd-neo-hud.vn-dock .vn-you:not(:empty)::before{content:"you  ";color:' + C.accent + ';letter-spacing:0;}',
+      '#vd-neo-hud.vn-dock .vn-you:empty{display:none;}',
+      '#vd-neo-hud.vn-dock .vn-say{font-family:var(--font-accent,inherit);font-size:12.5px;line-height:1.45;min-height:0;text-align:left;color:#D8D3DC;text-shadow:none;',
+      ' display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
+      '#vd-neo-hud.vn-dock .vn-say:empty{display:none;}',
+      '#vd-neo-hud.vn-dock .vn-say .w{opacity:.3;transition:opacity .25s ease;}#vd-neo-hud.vn-dock .vn-say .w.lit{opacity:1;}#vd-neo-hud.vn-dock .vn-say .w.now{text-shadow:none;}',
+      '#vd-neo-hud.vn-dock .vn-cards{margin-top:2px;flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;gap:6px;}#vd-neo-hud.vn-dock .vn-cards:empty{display:none;}',
+      '#vd-neo-hud.vn-dock .vn-card{padding:2px 8px;font-size:9.5px;letter-spacing:.5px;flex-shrink:0;border-radius:4px;background:transparent;border:1px solid rgba(141,118,154,.3);box-shadow:none;}',
+      '#vd-neo-hud.vn-dock .vn-card i{color:' + C.accent + ';text-shadow:none;font-size:11px;}#vd-neo-hud.vn-dock .vn-card b{color:#AFB0B5;font-weight:600;}#vd-neo-hud.vn-dock .vn-card span{color:#76777C;}',
+      '#vd-neo-hud.vn-dock .vn-card.bad{background:transparent;}#vd-neo-hud.vn-dock .vn-card.bad i,#vd-neo-hud.vn-dock .vn-card.bad b{text-shadow:none;}',
+      '#vd-neo-hud.vn-dock .vn-top{order:2;flex:0 0 auto;flex-direction:column;align-items:flex-end;gap:6px;font-size:9px;letter-spacing:1.5px;color:#76777C;}',
+      "#vd-neo-hud.vn-dock .vn-brand{font-family:inherit;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#76777C;text-shadow:none;}",
+      "#vd-neo-hud.vn-dock .vn-state{font-family:inherit;font-weight:600;color:" + C.ring + ";}",
+      '#vd-neo-hud.vn-dock .vn-state::before{width:5px;height:5px;margin-right:6px;box-shadow:none;background:' + C.accent + ';}',
+      '#vd-neo-hud.vn-dock.m-capture .vn-state::before{background:' + C.ring + ';box-shadow:none;animation:vnBreathe 1.4s ease-in-out infinite;}',
+      '#vd-neo-hud.vn-dock .vn-x{width:18px;height:18px;font-size:9px;border-color:rgba(141,118,154,.3);color:#76777C;}',
+      '#vd-neo-hud.vn-dock .vn-x:hover{border-color:' + C.accent + ';color:#AFB0B5;box-shadow:none;}',
+      '@keyframes vnIn{from{opacity:0}to{opacity:1}}',
       // header button: a mini reactor
       '.vd-neo-btn .vnb{width:15px;height:15px;display:block;overflow:visible;}',
       '.vd-neo-btn .vnb .r1{transform-origin:12px 12px;}',
@@ -552,17 +589,28 @@
   }
   var hideTimer = null, boot = 0;
   var LABEL = { loading: 'INITIALISING', boot: 'ONLINE', capture: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING', follow: 'STANDING BY', error: 'FAULT', note: 'NOTICE' };
+  // Where the HUD sits: in place of the Gita quote banner when that's on screen
+  // (Veda's TaskHub), else the floating panel at the bottom. The banner is
+  // React's, so it's hidden by a body class and the HUD goes in beside it.
+  function placeHud(h) {
+    var b = document.querySelector('#vr-root .thwx-band > .gita-banner'), dock = false;
+    if (b) { var r = b.getBoundingClientRect(); dock = r.width > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0); }
+    if (dock) { if (h.el.previousElementSibling !== b) b.parentNode.insertBefore(h.el, b.nextSibling); }
+    else if (h.el.parentNode !== document.body) document.body.appendChild(h.el);
+    h.el.classList.toggle('vn-dock', dock);
+    document.body.classList.toggle('vn-docked', dock);
+  }
   function hudShow(on) {
     var h = ensureHud(); if (!h) return;
     clearTimeout(hideTimer);
-    if (on) { if (!h.el.classList.contains('show')) { h.el.classList.add('show'); refreshTele(); startAnim(); } }
-    else { h.el.classList.remove('show'); }
+    if (on) { if (!h.el.classList.contains('show') || !h.el.isConnected) { placeHud(h); h.el.classList.add('show'); refreshTele(); startAnim(); } }
+    else if (h.el.classList.contains('show')) { h.el.classList.remove('show'); var bd = document.body.classList; if (bd.contains('vn-docked')) { bd.remove('vn-docked'); bd.add('vn-undock'); setTimeout(function () { bd.remove('vn-undock'); }, 400); } }
   }
   function hudMode(m) {
     var h = ensureHud(); if (!h) return;
     ['loading', 'boot', 'capture', 'thinking', 'speaking', 'follow', 'error', 'note'].forEach(function (k) { h.el.classList.toggle('m-' + k, k === m); });
     if (LABEL[m]) {
-      if (h.state.textContent !== LABEL[m]) { h.state.textContent = LABEL[m]; h.state.classList.remove('vn-glitch'); void h.state.offsetWidth; if (!reduced) h.state.classList.add('vn-glitch'); }
+      if (h.state.textContent !== LABEL[m]) { h.state.textContent = LABEL[m]; h.state.classList.remove('vn-glitch'); void h.state.offsetWidth; if (!reduced && !h.el.classList.contains('vn-dock')) h.state.classList.add('vn-glitch'); }
       hudShow(true);
     }
     if (m === 'capture') { h.you.textContent = ''; h.say.innerHTML = ''; h.cards.innerHTML = ''; }
@@ -627,6 +675,28 @@
     for (var i = 0; i < spans.length; i++) { spans[i].classList.toggle('lit', i < n); spans[i].classList.toggle('now', i === n - 1); }
   }
 
+  // Docked: a quiet row of rounded bars, tall where her voice (or Neo's) is loud.
+  // Mirrored from the middle out; no glow. Idle is a low, slow breath.
+  function drawBars(cv, dpr, t, m) {
+    var w = cv.clientWidth || 64, ht = cv.clientHeight || 26;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(ht * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(ht * dpr); }
+    var g = cv.getContext('2d'); if (!g) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, ht);
+    g.globalCompositeOperation = 'source-over'; g.shadowBlur = 0;
+    var n = 11, gap = (w - 2) / (n - 1), mid = (n - 1) / 2, live = m === 'capture' || m === 'follow' || m === 'speaking';
+    g.lineCap = 'round'; g.lineWidth = 2;
+    for (var i = 0; i < n; i++) {
+      var d = Math.abs(i - mid), v = smooth[Math.min(63, 4 + Math.round(d * 5))];
+      var idle = reduced ? 0.12 : 0.1 + 0.06 * Math.sin(t * 1.6 - d * 0.6);
+      if (m === 'thinking' && !reduced) idle = 0.12 + 0.25 * Math.max(0, Math.sin(t * 4 - i * 0.55));
+      var a = live ? Math.max(idle, Math.min(1, v * 1.6)) * (1 - d / (mid + 3)) : idle;
+      var len = Math.max(2, a * (ht - 4));
+      g.globalAlpha = 0.45 + 0.55 * Math.min(1, a * 1.4); g.strokeStyle = C.ring;
+      var x = 1 + i * gap; g.beginPath(); g.moveTo(x, ht / 2 - len / 2); g.lineTo(x, ht / 2 + len / 2); g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+
   // ── the arc-reactor orb ─────────────────────────────────────────────────────
   var now0 = function () { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); };
   var raf = 0, bins = new Uint8Array(64), smooth = new Float32Array(64), t0 = now0();
@@ -634,8 +704,8 @@
   function frame(now) {
     raf = 0;
     var h = H; if (!h || !h.el.classList.contains('show')) return;
-    var cv = h.canvas, dpr = Math.min(2, window.devicePixelRatio || 1), size = cv.clientWidth || 150;
-    if (cv.width !== Math.round(size * dpr)) { cv.width = cv.height = Math.round(size * dpr); }
+    var cv = h.canvas, dpr = Math.min(2, window.devicePixelRatio || 1), size = cv.clientWidth || 150, docked = h.el.classList.contains('vn-dock');
+    if (!docked && (cv.width !== Math.round(size * dpr) || cv.height !== cv.width)) { cv.width = cv.height = Math.round(size * dpr); }
     var g = cv.getContext('2d'); if (!g) return;
     var t = (now - t0) / 1000, m = S.mode;
     // sound in: her voice while listening, Neo's while speaking, a synthetic
@@ -646,6 +716,7 @@
     else for (var j = 0; j < 64; j++) bins[j] = m === 'speaking' ? 90 + 70 * Math.max(0, Math.sin(t * 9 + j * 0.7) * Math.sin(t * 3.3 + j * 0.23)) : m === 'thinking' ? 40 + 40 * Math.max(0, Math.sin(t * 6 - j * 0.4)) : 18 + 10 * Math.sin(t * 2 + j * 0.5);
     for (var k = 0; k < 64; k++) { smooth[k] += (bins[k] / 255 - smooth[k]) * 0.35; lvl += smooth[k]; }
     lvl /= 64; S.level = lvl;
+    if (docked) { drawBars(cv, dpr, (now - t0) / 1000, m); raf = requestAnimationFrame(frame); return; }
     var speed = reduced ? 0.12 : ({ capture: 0.45, thinking: 2.2, speaking: 0.7, follow: 0.3, loading: 1.4, boot: 1 }[m] || 0.35);
     var bootP = Math.min(1, (now - boot) / 1100);
     var s = size / 150, c = (cv.width / dpr) / 2;
@@ -757,20 +828,103 @@
     r.on('result', function (m) { if (S.mode === 'wake' && m && m.result && isWake(m.result.text)) onWake(); });
     S.rec = r;
   }
-  // Live captions: a free-form recognizer that only lives for one capture.
+  // Live captions. The browser's own recognizer (Chrome / Edge) is far more
+  // accurate than Vosk's small model, so it leads when it works; Brave and
+  // offline fall back to Vosk. Either way the words are snapped to her own
+  // (task titles, habits, apps, plans) so "spotty fi" reads "Spotify".
+  // The final transcript (Gemini) replaces the caption when the turn lands.
+  var WS = window.SpeechRecognition || window.webkitSpeechRecognition, wsBroken = false;
+  function stripWake(s) { return String(s || '').replace(/^\s*(hey |okay )?neo\b[,.]?\s*/i, ''); }
+  function showCap(text) { S.capText = fixCaption(stripWake(text), S.capVocab); if (S.mode === 'capture' && H) H.you.textContent = S.capText; }
   function startCaptions() {
     stopCaptions();
+    S.capVocab = captionVocab();
+
+    if (WS && !wsBroken) {
+      try {
+        var w = new WS(), fin = '';
+        w.lang = 'en-US'; w.continuous = true; w.interimResults = true; w.maxAlternatives = 1;
+        w.onresult = function (e) {
+          var interim = '';
+          for (var i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) fin = (fin + ' ' + e.results[i][0].transcript).trim(); else interim += ' ' + e.results[i][0].transcript;
+          }
+          S.capWs = true; showCap((fin + ' ' + interim).trim());
+        };
+        w.onerror = function (e) { if (e && /network|not-allowed|service-not-allowed|language-not-supported/.test(e.error || '')) wsBroken = true; S.capWs = false; };
+        w.start(); S.capWsRec = w;
+      } catch (e) { wsBroken = true; }
+    }
+    S.capWs = false;
     if (!S.model) return;
     var done = '';
-    var strip = function (s) { return String(s || '').replace(/^\s*(hey |okay )?neo\b[,.]?\s*/i, ''); };
     try {
       var r = new S.model.KaldiRecognizer(S.sr);
-      r.on('partialresult', function (m) { if (S.mode === 'capture' && m.result) { S.capText = strip((done + ' ' + (m.result.partial || '')).trim()); if (H) H.you.textContent = S.capText; } });
-      r.on('result', function (m) { if (m.result && m.result.text) { done = (done + ' ' + m.result.text).trim(); S.capText = strip(done); if (S.mode === 'capture' && H) H.you.textContent = S.capText; } });
+      r.on('partialresult', function (m) { if (S.mode === 'capture' && m.result && !S.capWs) showCap((done + ' ' + (m.result.partial || '')).trim()); });
+      r.on('result', function (m) { if (m.result && m.result.text) { done = (done + ' ' + m.result.text).trim(); if (!S.capWs) showCap(done); } });
       S.cap = r;
     } catch (e) { S.cap = null; }
   }
-  function stopCaptions() { if (S.cap) { try { S.cap.remove(); } catch (e) {} S.cap = null; } }
+  function stopCaptions() {
+    if (S.cap) { try { S.cap.remove(); } catch (e) {} S.cap = null; }
+    if (S.capWsRec) { var w = S.capWsRec; S.capWsRec = null; w.onresult = w.onerror = null; try { w.abort(); } catch (e) {} }
+  }
+
+  // Her own words, for snapping misheard captions: titles near today, habits,
+  // goals, PC apps, and the names Neo itself answers to.
+  function captionVocab() {
+    var out = ['Neo', 'TaskHub', 'Gita', 'Notebook', 'Shield', 'Spotify', 'YouTube', 'Canvas', 'Gmail', 'Pomodoro'];
+    try {
+      var st = bridgeState() || {}, data = st.data || {}, now = new Date();
+      for (var d = -3; d <= 10; d++) { var t = new Date(now); t.setDate(now.getDate() + d); (data[dkey(t)] || []).forEach(function (x) { if (x && x.title) out.push(x.title); }); }
+      (st.habits || []).concat(st.shortGoals || [], st.longGoals || []).forEach(function (x) { var n = x && (x.title || x.text || x.name); if (n) out.push(n); });
+      (window._vdPcApps || []).forEach(function (a) { if (a && a.name) out.push(String(a.name).replace(/\.exe$/i, '')); });
+    } catch (e) {}
+    var seen = {}, vocab = [];
+    out.forEach(function (p) {
+      p = String(p).replace(/[^A-Za-z0-9' ]+/g, ' ').trim(); if (!p) return;
+      var ws = p.split(/\s+/);
+      var add = function (q) { var k = q.toLowerCase(); if (seen[k] || letters(q).length < 5) return; seen[k] = 1; vocab.push({ text: q, n: q.split(/\s+/).length, l: letters(q), sk: skel(q) }); };
+      if (ws.length <= 4) add(p);
+      ws.forEach(function (w) { if (w.length >= 5) add(w); });
+    });
+    return vocab.slice(0, 400);
+  }
+  function letters(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  // A rough sound key: first letter, then the consonants, alike sounds merged.
+  function skel(s) {
+    var l = letters(s).replace(/ph/g, 'f').replace(/[ckq]/g, 'k').replace(/[sz]/g, 's').replace(/[dt]/g, 't').replace(/[bp]/g, 'p');
+    return l.charAt(0) + l.slice(1).replace(/[aeiouyhw]/g, '').replace(/(.)\1+/g, '$1');
+  }
+  function lev(a, b) {
+    var m = a.length, n = b.length, row = [], i, j, prev, tmp;
+    for (j = 0; j <= n; j++) row[j] = j;
+    for (i = 1; i <= m; i++) { prev = row[0]; row[0] = i; for (j = 1; j <= n; j++) { tmp = row[j]; row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; } }
+    return row[n];
+  }
+  // Replace caption word runs that sound like one of her phrases. Strict, so
+  // ordinary words are left alone: same first letter, close spelling, and the
+  // same consonant skeleton (or very close spelling).
+  function fixCaption(text, vocab) {
+    if (!text || !vocab || !vocab.length) return text;
+    var words = text.split(/\s+/), out = [], i = 0;
+    while (i < words.length) {
+      var best = null;
+      for (var v = 0; v < vocab.length; v++) {
+        var P = vocab[v];
+        for (var k = P.n; k <= P.n + 1 && i + k <= words.length; k++) {
+          var win = words.slice(i, i + k).join(' '), wl = letters(win);
+          if (!wl || wl === P.l) { if (wl === P.l && (!best || P.l.length > best.score)) best = { k: k, text: P.text, score: P.l.length, exact: true }; continue; }
+          if (wl.charAt(0) !== P.l.charAt(0) || Math.abs(wl.length - P.l.length) > 3) continue;
+          var sim = 1 - lev(wl, P.l) / Math.max(wl.length, P.l.length);
+          if (sim >= 0.86 || (sim >= 0.6 && skel(win) === P.sk)) { if (!best || P.l.length > best.score) best = { k: k, text: P.text, score: P.l.length }; }
+        }
+      }
+      if (best && !best.exact) { out.push(best.text); i += best.k; }
+      else { out.push(words[i]); i++; }
+    }
+    return out.join(' ');
+  }
 
   // ══ mic ════════════════════════════════════════════════════════════════════
   async function openMic() {
@@ -924,6 +1078,9 @@
       var extra = { mode: 'neo' };
       // The last turn, so "…and remind me at 4" / "actually make it 5" find their item.
       if (S.prev && Date.now() - S.prev.at < PREV_MS) extra.prev = S.prev.data;
+      // The whole conversation, so she can clarify, change her mind or keep talking.
+      var hist = recentHistory();
+      if (hist.length) extra.history = hist;
       res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn });
     } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
     if (res && res.transcript && H) H.you.textContent = res.transcript;
@@ -944,7 +1101,12 @@
   }
 
   // Says and shows what the engine reports, never what the model hoped.
-  var PREV_MS = 120000, SETTLE_MS = 700;
+  var PREV_MS = 120000, SETTLE_MS = 700, HISTORY_N = 8, HISTORY_MS = 15 * 60000;
+  function recentHistory() {
+    var now = Date.now();
+    S.history = S.history.filter(function (h) { return now - h.at < HISTORY_MS; }).slice(-HISTORY_N);
+    return S.history.map(function (h) { return h.data; });
+  }
   function mergeLater(results, list) {
     return results.map(function (r) {
       if (!r.pending) return r;
@@ -965,6 +1127,7 @@
       if (r.ref) { o.id = r.ref.id; o.box = r.ref.box; if (r.ref.date) o.date = r.ref.date; if (r.ref.title) o.title = clip(r.ref.title, 80); }
       return o;
     }) } };
+    S.history.push(S.prev); recentHistory();
   }
   async function report(res, transcript) {
     var results = (res.results || []).slice();
@@ -1056,7 +1219,7 @@
       speakingViaAudio = false; lightTo(spans, spans.length);
       if (S.afterSay && S.running) { var more = S.afterSay; S.afterSay = ''; speak(more, thenFollow); return; }
       if (!S.running) { setTimeout(function () { if (!S.running) hudShow(false); }, 1600); return; }
-      if (thenFollow) { S.deafUntil = Date.now() + DEAF_MS; S.followUntil = S.deafUntil + FOLLOW_MS; setMode('follow'); }
+      if (thenFollow) { S.deafUntil = Date.now() + DEAF_MS; S.followUntil = S.deafUntil + (/\?\s*$/.test(String(text || '')) ? ASK_MS : FOLLOW_MS); setMode('follow'); }
       else { setMode('wake'); newRecognizer(); }
     }
     // 1) Ryan, via Orca with her own key
@@ -1466,7 +1629,7 @@
     toggle: function () { setOn(!S.on); },
     mode: function () { return S.mode; },
     cancel: cancel,
-    _test: { isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
+    _test: { fixCaption: fixCaption, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
       cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
       greeting: greeting, matchApp: matchApp, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
