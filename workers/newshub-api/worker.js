@@ -3335,8 +3335,10 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
 // collected across all windows. Any event the AI didn't cover falls back to raw.
 function finalizeEvents(events, enrichedList, wl){
   const wlSet = new Set(wl);
-  const enriched = [...enrichedList];
-  const enrichedIds = new Set(enriched.map(e => e.id));
+  // A re-delivered aiwin kick appends its window's results a second time, so
+  // keep the first verdict per id.
+  const enrichedIds = new Set();
+  const enriched = enrichedList.filter(e => !enrichedIds.has(e.id) && enrichedIds.add(e.id));
   let rawCount = 0;
   for (const ev of events){
     if (enrichedIds.has(ev.id)) continue;
