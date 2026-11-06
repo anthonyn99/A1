@@ -352,21 +352,56 @@
   }
   function vw() { return root.clientWidth || window.innerWidth; }
   function vh() { return window.innerHeight || root.clientHeight; }
+  // The part of the page the person can actually see, in the same coordinates
+  // as getBoundingClientRect. On a phone that is the VISUAL viewport:
+  // innerHeight also counts what sits under the on-screen keyboard and the
+  // browser's own bars, so a list placed against it ran off the bottom where
+  // it could be neither seen nor scrolled to (Tony's year list in Add task,
+  // Brave Android, 2026-11-06).
+  var COARSE = window.matchMedia ? window.matchMedia('(pointer:coarse)') : { matches: false };
+  function visible() {
+    var W = vw(), H = vh(), v = window.visualViewport;
+    var x0 = 0, y0 = 0, x1 = W, y1 = H;
+    if (v && v.width && v.height) {
+      x0 = Math.max(0, v.offsetLeft); y0 = Math.max(0, v.offsetTop);
+      x1 = Math.min(W, v.offsetLeft + v.width); y1 = Math.min(H, v.offsetTop + v.height);
+    }
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+  // Every popover goes through here, so one rule holds for every program:
+  // the WHOLE list is on screen. It opens on whichever side of its control
+  // has room; when neither side has, it sits over the control, clamped to
+  // the visible area and scrolling inside itself, the way a phone's own
+  // picker does. Never taller than what is visible, never past an edge.
   function place(pop, anchor, minWidth) {
     var r = anchor.getBoundingClientRect();
     var o = fixedOrigin(pop);
-    var W = vw(), H = vh(), gap = 6, pad = 8;
-    var width = Math.min(Math.max(r.width, minWidth || 0), W - pad * 2);
+    var V = visible(), gap = 6, pad = COARSE.matches ? 12 : 8;
+    var L = V.x0 + pad, R = V.x1 - pad, T = V.y0 + pad, B = V.y1 - pad;
+    var room = Math.max(0, R - L), tall = Math.max(0, B - T);
+    var width = Math.min(Math.max(r.width, minWidth || 0), room);
     pop.style.minWidth = width + 'px';
-    pop.style.maxWidth = (W - pad * 2) + 'px';
-    var below = H - r.bottom - gap - pad, above = r.top - gap - pad;
-    var natural = Math.min(pop.scrollHeight + 2, 360);
-    var up = below < Math.min(natural, 230) && above > below;
-    var maxH = Math.max(120, Math.min(360, up ? above : below));
+    pop.style.maxWidth = room + 'px';
+    var below = B - (r.bottom + gap), above = (r.top - gap) - T;
+    var natural = Math.min(pop.scrollHeight + 2, 360, tall);
+    var up = false, maxH, top;
+    if (below >= natural) { maxH = natural; top = r.bottom + gap; }
+    else if (above >= natural) { up = true; maxH = natural; top = r.top - gap - natural; }
+    else if (Math.max(below, above) >= Math.min(natural, 200)) {
+      // Neither side fits all of it, but one fits a comfortable scroll.
+      up = above > below; maxH = up ? above : below;
+      top = up ? r.top - gap - maxH : r.bottom + gap;
+    } else {
+      // Too little room either side (a control near an edge, or a keyboard
+      // up): over the control, centred on it.
+      maxH = natural;
+      top = r.top + r.height / 2 - maxH / 2;
+    }
+    maxH = Math.max(0, Math.min(maxH, tall));
+    top = Math.min(Math.max(T, top), B - maxH);
     pop.style.maxHeight = maxH + 'px';
-    var pw = pop.offsetWidth || width;
-    var left = Math.min(Math.max(pad, r.left), W - pad - pw);
-    var top = up ? Math.max(pad, r.top - gap - Math.min(pop.offsetHeight || natural, maxH)) : r.bottom + gap;
+    var pw = Math.min(pop.offsetWidth || width, room);
+    var left = Math.min(Math.max(L, r.left), R - pw);
     pop.style.left = (left - o.x) + 'px';
     pop.style.top = (top - o.y) + 'px';
     pop.classList.toggle('up', up);
