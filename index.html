@@ -7629,19 +7629,24 @@ function PlanPanel({P,startDateKey,onExit}){
   // Layout that inline styles cannot say: the phone breakpoints.
   const css=".plp-root .plp-pad{padding:16px 18px}"
     +".plp-root .plp-pad-b{padding-top:0;padding-left:80px}"
+    +".plp-root .plp-pad:has(+ .plp-pad-b){padding-bottom:2px}"
     +".plp-root .plp-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}"
     +".plp-root .plp-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}"
     +".plp-root .plp-card>button:focus-visible,.plp-root .plp-stat:focus-visible{outline:2px solid "+P.AC+";outline-offset:-2px}"
     +"@media (max-width:640px){"
-    +".plp-root .plp-stats{grid-template-columns:repeat(3,minmax(0,1fr))}"
+    // Phone: the counts become one wrapping row of compact chips.
+    +".plp-root .plp-stats{display:flex;flex-wrap:wrap;gap:6px}"
+    +".plp-root .plp-stat{flex-direction:row!important;align-items:baseline!important;gap:6px!important;padding:6px 11px!important;border-radius:999px!important}"
+    +".plp-root .plp-stat>span:first-child{font-size:14px!important}"
+    +".plp-root .plp-stat>span:last-child{font-size:12px!important}"
     +".plp-root .plp-pad{padding:14px}"
     +".plp-root .plp-pad-b{padding-top:0;padding-left:14px}"
     +".plp-root .plp-acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}"
     +".plp-root .plp-acts>button{width:100%;white-space:normal;height:auto;min-height:40px;padding:6px 10px;line-height:1.25}"
     +".plp-root .plp-acts>button:last-child:nth-child(odd){grid-column:1/-1}"
-    +".plp-root .plp-head .plp-new{flex:1 1 100%;justify-content:center}"
+    +".plp-root .plp-head .plp-new{flex:1 1 auto;justify-content:center}"
     +"}"
-    +"@media (max-width:380px){.plp-root .plp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}";
+    ;
 
   const chev=open=>React.createElement("span",{"aria-hidden":"true",style:{display:"inline-flex",
       transition:"transform .18s",transform:open?"rotate(90deg)":"none"}},
