@@ -35,7 +35,7 @@ GRIP = (REPO / "Shared" / "resizegrip.js").read_text(encoding="utf-8")
 
 
 def test_magi_uses_the_shared_grip():
-    assert '<script src="../Shared/resizegrip.js"></script>' in PAGE
+    assert '<script src="Shared/resizegrip.js"></script>' in PAGE
     assert "function attachGrip(" not in PAGE and ".qbar-grip {" not in PAGE, (
         "MAGI carries its own copy of the grip again"
     )
