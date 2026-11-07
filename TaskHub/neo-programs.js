@@ -45,6 +45,13 @@
     { id: 'riftiq', re: /\/riftiq\.html(?=[?#]|$)/i, aliases: ['rift iq', 'war room', 'warroom'] },
   ];
   var WARDEN = { id: 'warden', label: 'Warden', url: 'https://vedacpatel.github.io/warden/warden.html', aliases: ['my links', 'links', 'links page'], src: 'warden' };
+  // Programs inside her TaskHub itself, listed first so Neo can read and act in them too.
+  var BUILTINS = [
+    { id: 'notebook', label: 'V\'s Notebook', url: 'builtin:notebook', aliases: ['notebook', 'journal', 'my journal', 'my notebook', 'v notebook'], src: 'builtin',
+      openFn: function () { if (!window._vedaNav) return { ok: false, reason: 'no_bridge' }; window._vedaNav('journal'); return true; } },
+    { id: 'plans', label: 'Plans', url: 'builtin:plans', aliases: ['plans with tony', 'my plans'], src: 'builtin',
+      openFn: function () { if (!window._thOpenPlansVeda) return { ok: false, reason: 'no_bridge' }; window._thOpenPlansVeda(); return true; } },
+  ];
   var CONNECTORS = {};
 
   function isVeda() { return window._activeProfile === 'veda'; }
@@ -68,10 +75,12 @@
       if (kn && !out.some(function (x) { return x.id === kn.id; })) { e.id = kn.id; e.aliases = kn.aliases; }
       seen[k] = 1; out.push(e);
     }
+    BUILTINS.forEach(function (b) { put(Object.assign({}, b)); });
+    // `tab`: the named tab its own button or tile uses, so a deep link lands there too.
     var links = []; try { links = (window._navGetLinks && window._navGetLinks('veda')) || []; } catch (e) {}
-    links.forEach(function (l) { if (l && l.label) put({ id: 'link:' + l.id, label: l.label, url: l.url, aliases: [], src: 'header', ref: l.id }); });
+    links.forEach(function (l) { if (l && l.label) put({ id: 'link:' + l.id, label: l.label, url: l.url, aliases: [], src: 'header', ref: l.id, tab: 'link_veda_' + l.id }); });
     var apps = []; try { apps = (window.LifeHub && window.LifeHub.list && window.LifeHub.list('veda')) || []; } catch (e) {}
-    apps.forEach(function (a) { if (a && a.name && !a.hidden) put({ id: 'lh:' + a.id, label: a.name, url: a.url, aliases: [], src: 'lifehub', ref: a.id }); });
+    apps.forEach(function (a) { if (a && a.name && !a.hidden) put({ id: 'lh:' + a.id, label: a.name, url: a.url, aliases: [], src: 'lifehub', ref: a.id, tab: a.tab || ('lh_' + a.id) }); });
     put(Object.assign({}, WARDEN));
     return out;
   }
@@ -95,6 +104,33 @@
     try { w = window._tnOpenTab ? window._tnOpenTab(url, tab) : window.open(url, '_blank'); } catch (e) {}
     return w ? true : { ok: false, reason: 'blocked' };
   }
+  // A place inside a program: its tab, sent there even when it is already open
+  // on that page (_tnOpenTab only brings such a tab forward; the #route differs).
+  function openDeep(url, tab) {
+    var w = null;
+    try { w = window._tnOpenTab ? window._tnOpenTab(url, tab) : window.open(url, tab || '_blank'); } catch (e) {}
+    if (!w) return { ok: false, reason: 'blocked' };
+    try { if (w.location && w.location.href !== url) w.location.href = url; } catch (e) {}   // another origin: _tnOpenTab sent it
+    return true;
+  }
+
+  // ── locks ────────────────────────────────────────────────────────────────
+  // A program behind a Guardian lock: Neo neither reads nor acts in it until
+  // it is unlocked. Acting asks for the unlock (alGate), as its own button does.
+  function locked(id) {
+    var c = CONNECTORS[id], G = window.Guardian;
+    try { return !!(c && c.lock && G && G.mustBlock && G.mustBlock(c.lock)); } catch (e) { return false; }
+  }
+  function gated(id, fn) {
+    var c = CONNECTORS[id];
+    if (!locked(id)) return fn();
+    if (!window.alGate) return { ok: false, reason: 'locked' };
+    var p = new Promise(function (res) {
+      window.alGate(c.lock, function () { Promise.resolve().then(fn).then(res, function () { res({ ok: false, reason: 'failed' }); }); }, function () { res({ ok: false, reason: 'locked' }); });
+      setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000);
+    });
+    p.gated = true; return p;
+  }
 
   // Opens it the way its own button or tile does (locks, named tabs and
   // Shield's local programs included). `deep` is a connector's place inside it.
@@ -105,8 +141,9 @@
     var c = CONNECTORS[p.id];
     if (deep && c && c.deep) {
       var u = c.deep(deep, p);
-      if (u) return openUrl(u, 'neo_' + p.id);
+      if (u) return openDeep(u, p.tab || ('neo_' + p.id));
     }
+    if (p.src === 'builtin') return p.openFn();
     if (p.src === 'warden') {
       // It replaces this page, so Neo finishes speaking first.
       if (!window._gotoWarden) return { ok: false, reason: 'no_bridge' };
@@ -138,12 +175,15 @@
     if (!p) return { ok: false, reason: 'not_found' };
     var o = opsOf(p.id)[op];
     if (!o || typeof o.run !== 'function') return { ok: false, reason: 'no_op' };
-    try {
-      var r = o.run(args || {}, p);
-      if (r && typeof r.then === 'function') return r.then(function (v) { refreshSoon(p.id); return v; }, function () { return { ok: false, reason: 'failed' }; });
-      refreshSoon(p.id);
-      return r;
-    } catch (e) { return { ok: false, reason: 'failed' }; }
+    var go = function () {
+      try {
+        var r = o.run(args || {}, p);
+        if (r && typeof r.then === 'function') return r.then(function (v) { refreshSoon(p.id); return v; }, function () { return { ok: false, reason: 'failed' }; });
+        refreshSoon(p.id);
+        return r;
+      } catch (e) { return { ok: false, reason: 'failed' }; }
+    };
+    return gated(p.id, go);
   }
 
   // ── summaries (state.programs) ───────────────────────────────────────────
@@ -152,6 +192,7 @@
   var SUM = {}, SUM_AT = {}, EVERY = 5 * 60 * 1000;
   function refresh(id) {
     var c = CONNECTORS[id]; if (!c || typeof c.summary !== 'function') return Promise.resolve();
+    if (locked(id)) { delete SUM[id]; SUM_AT[id] = 0; return Promise.resolve(); }   // nothing read while it is locked
     SUM_AT[id] = Date.now();
     return Promise.resolve().then(function () { return c.summary(); })
       .then(function (s) { if (s != null) SUM[id] = s; }, function () {});
@@ -173,7 +214,8 @@
       var o = { id: p.id, label: p.label };
       var ops = opsOf(p.id), names = Object.keys(ops);
       if (names.length) o.ops = names.map(function (n) { return n + (ops[n].args ? '(' + ops[n].args + ')' : '()'); });
-      if (SUM[p.id] != null) o.summary = SUM[p.id];
+      if (locked(p.id)) o.summary = 'Locked. Neo cannot see inside until Veda unlocks it herself.';
+      else if (SUM[p.id] != null) o.summary = SUM[p.id];
       return o;
     });
   }
@@ -187,6 +229,17 @@
     state: state,
     refreshAll: refreshAll,
     register: function (id, c) { if (id && c) { CONNECTORS[id] = c; SUM_AT[id] = 0; } },
-    _test: { KNOWN: KNOWN, addrKey: addrKey, connectors: CONNECTORS, summaries: SUM },
+    norm: norm,
+    // The best match for what she said among `items` (a page title, a plan, a list):
+    // exact, then whole words either way, then every word she said.
+    pick: function (items, q, key) {
+      var n = norm(q); if (!n) return null;
+      var f = function (x) { return norm(key ? x[key] : x); };
+      return items.filter(function (x) { return f(x) === n; })[0]
+        || items.filter(function (x) { var l = ' ' + f(x) + ' '; return l.indexOf(' ' + n + ' ') >= 0 || (' ' + n + ' ').indexOf(l) >= 0; })[0]
+        || items.filter(function (x) { var l = ' ' + f(x) + ' '; return n.split(' ').every(function (w) { return l.indexOf(' ' + w) >= 0; }); })[0]
+        || null;
+    },
+    _test: { KNOWN: KNOWN, BUILTINS: BUILTINS, addrKey: addrKey, connectors: CONNECTORS, summaries: SUM, refresh: refresh },
   };
 })();

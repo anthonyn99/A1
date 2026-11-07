@@ -143,6 +143,9 @@ them, and its stand-ins are the browser's own dialogs.
 
 A host talks to its instance only through what this page documents: the mount
 options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.folder`, `Notebook.importPages`, `Notebook.putPage`, `Notebook.flushAll`,
+`Notebook.pages` / `Notebook.page` (read-only, 2026-11-06: the list, and one page's `html`
+and plain `text`; a page with its own lock, not open in this session, comes without its
+words; TaskHub's Neo reads V's Notebook through them),
 and `cfg.entries()` (Notebook adds it to the config the host passed). Everything
 else (the instance's ids and classes, its `_<key>…` functions, its `<key>_…`
 storage keys, its ready events) is Notebook's to rename, so a host that touched

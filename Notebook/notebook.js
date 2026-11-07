@@ -112,6 +112,30 @@ function load(group) {
 // ── Instances ───────────────────────────────────────────────────────────────
 function cap(k) { return k.charAt(0).toUpperCase() + k.slice(1); }
 
+// A page's words as plain text (Notebook.page), whatever its template: every
+// string in its data, markup removed. DOMParser documents are inert, so nothing
+// in a page (an <img onerror>) runs while it is read.
+function plainText(data) {
+  var out = [];
+  (function walk(v, k) {
+    if (k === 'attachments' || out.length > 400) return;
+    if (typeof v === 'string') {
+      var t = v;
+      if (/<[a-z!\/]/i.test(v) && typeof DOMParser === 'function') {
+        try {
+          var d = new DOMParser().parseFromString(v.replace(/<\/(p|div|li|h[1-6]|tr)>|<br\s*\/?>/gi, '$&\n'), 'text/html');
+          t = (d.body && d.body.textContent) || '';
+        } catch (e) { t = v.replace(/<[^>]*>/g, ' '); }
+      }
+      t = t.replace(/[ \t ]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+      if (t) out.push(t);
+    } else if (v && typeof v === 'object') {
+      Object.keys(v).forEach(function (kk) { walk(v[kk], kk); });
+    }
+  })(data, '');
+  return out.join('\n');
+}
+
 // A tj source (MyJournal's app and sheet, and the store template every instance
 // uses, Veda's side included), rewritten from tj to the instance's key. The tj
 // sources name everything by prefix: ids and classes (tj-), functions and state
@@ -591,6 +615,34 @@ window.Notebook = {
       return f(page);
     });
   },
+  // Read the pages of the instance under `key` (a host that answers questions
+  // about them: Neo). Resolves [{ id, title, template, folder, tags, created,
+  // updated, pinned, locked }], Trash left out. `locked`: the page has its own
+  // lock and is not open in this session.
+  pages: function (key) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.pages: nothing mounted as ' + key));
+    return Promise.resolve(cfg._ready).then(function () {
+      var f = window['_' + key + 'Pages'];
+      if (typeof f !== 'function') throw new Error('Notebook.pages: ' + key + ' cannot list pages');
+      return f() || [];
+    });
+  },
+  // One page: what pages() gives, plus `html` and `text` (its words, as plain
+  // text, for any template). A locked page comes without them. null: no such page.
+  page: function (key, id) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.page: nothing mounted as ' + key));
+    return Promise.resolve(cfg._ready).then(function () {
+      var f = window['_' + key + 'GetPage'];
+      if (typeof f !== 'function') throw new Error('Notebook.page: ' + key + ' cannot read pages');
+      var p = f(id);
+      if (!p) return null;
+      var data = p.data; delete p.data;
+      if (!p.locked && data) { p.html = typeof data.html === 'string' ? data.html : ''; p.text = plainText(data); }
+      return p;
+    });
+  },
   // Move a host's old pages into the instance under `key`, once: pages are
   // entries in Notebook's shape ({ id, title, created, updated, tags, folder,
   // data: { html } }, template 'page' by default). Only pages the store lacks
@@ -627,6 +679,7 @@ window.Notebook = {
     else setTimeout(fn, 0);
   },
   _rewrite: rewrite,
+  _plainText: plainText,
   _rewriteApp: rewriteApp,
   _storeSource: storeSource,
   _tjRules: tjRules,

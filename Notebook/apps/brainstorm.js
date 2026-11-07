@@ -3264,6 +3264,27 @@ window._bjPutEntry = function(p) {
     return out;
   });
 };
+// Notebook.pages / Notebook.page: the pages, read from outside (Neo answers
+// questions about them). The personal journal's, even with OurJournal on
+// screen. A page with its own lock, not opened in this session, is listed
+// with locked: true and never gives its words.
+function _bjPageMeta(e) {
+  var locked = !!(window._bjGetLock && window._bjGetLock(e.id)) && !(window._bjIsUnlocked && window._bjIsUnlocked(e.id));
+  return { id: e.id, title: e.title || '', template: e.template || 'page', folder: e.folder || null, tags: (e.tags || []).slice(),
+    created: e.created || 0, updated: e.updated || 0, pinned: _bjIsPinned(e.id), locked: locked };
+}
+window._bjPages = function() {
+  return _bjWithPersonal(function() { return state.entries.filter(function(e) { return e && !e.trashed; }).map(_bjPageMeta); });
+};
+window._bjGetPage = function(id) {
+  return _bjWithPersonal(function() {
+    var e = state.entries.find(function(x) { return x && x.id === id && !x.trashed; });
+    if (!e) return null;
+    var m = _bjPageMeta(e);
+    if (!m.locked) m.data = JSON.parse(JSON.stringify(e.data || {}));
+    return m;
+  });
+};
 let _bjOpenSeq = 0;
 window._bjOpenEntry = function(id, opts) {
   opts = opts || {};

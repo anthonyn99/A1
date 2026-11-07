@@ -689,7 +689,7 @@ section('worker: state shaping');
     vm.runInContext(psrc, pctx);
     const R = pctx._vdNeoPrograms;
     const ids = R.list().map(p => p.id);
-    t('lists every header link, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['shield', 'shruti', 'studyos', 'magi_council', 'magi', 'mylist', 'tradeboard', 'finance', 'warden', 'system', 'orca', 'reserv', 'riftiq', 'link:l4', 'wellness']), JSON.stringify(ids));
+    t('lists every header link, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['notebook', 'plans', 'shield', 'shruti', 'studyos', 'magi_council', 'magi', 'mylist', 'tradeboard', 'finance', 'warden', 'system', 'orca', 'reserv', 'riftiq', 'link:l4', 'wellness']), JSON.stringify(ids));
     t('Warden from her header is the header link (her button, its lock)', R.find('warden').id === 'warden');
     t('"MAGI" is MAGI (T), the A1 page; her council link is "council"', R.find('MAGI').id === 'magi' && R.find('MAGI (T)').id === 'magi' && R.find('council').id === 'magi_council');
     t('Everwell is left out: not listed, not found, not opened', !ids.includes('everwell') && R.find('everwell') === null && R.open('everwell').reason === 'not_found');

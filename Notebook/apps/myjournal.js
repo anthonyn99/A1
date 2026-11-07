@@ -2880,6 +2880,27 @@ window._tjPutEntry = function(p) {
     return out;
   });
 };
+// Notebook.pages / Notebook.page: the pages, read from outside (Neo answers
+// questions about them). The personal journal's, even with OurJournal on
+// screen. A page with its own lock, not opened in this session, is listed
+// with locked: true and never gives its words.
+function _tjPageMeta(e) {
+  var locked = !!(window._tjGetLock && window._tjGetLock(e.id)) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id));
+  return { id: e.id, title: e.title || '', template: e.template || 'page', folder: e.folder || null, tags: (e.tags || []).slice(),
+    created: e.created || 0, updated: e.updated || 0, pinned: _tjIsPinned(e.id), locked: locked };
+}
+window._tjPages = function() {
+  return _tjWithPersonal(function() { return state.entries.filter(function(e) { return e && !e.trashed; }).map(_tjPageMeta); });
+};
+window._tjGetPage = function(id) {
+  return _tjWithPersonal(function() {
+    var e = state.entries.find(function(x) { return x && x.id === id && !x.trashed; });
+    if (!e) return null;
+    var m = _tjPageMeta(e);
+    if (!m.locked) m.data = JSON.parse(JSON.stringify(e.data || {}));
+    return m;
+  });
+};
 let _tjOpenSeq = 0;
 window._tjOpenEntry = function(id, opts) {
   opts = opts || {};

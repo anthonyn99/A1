@@ -305,8 +305,8 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | Phase | Programs | Status |
 |---|---|---|
 | 0 | Foundation; every linked program opens | **done 2026-11-06** |
-| 1 | V's Notebook (needs a read API in `Notebook/`), Plans, Shruti, MAGI (`dashboards/magi_veda`; asking goes through the `#tb=` handoff) | next |
-| 2 | STUDY (StudyOS) | |
+| 1 | V's Notebook, Plans, Shruti, MAGI (T) (`TaskHub/neo-connectors.js`) | **done 2026-11-06** |
+| 2 | STUDY (StudyOS) | next |
 | 3 | Wellness, LIST (MyList), ORCA (ask a model with her `orca_sk` key; `/v1/*` already allows TaskHub's origin), RIFTIQ (`riftiq_lookups`; the shared parts only in a transaction) | |
 | 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
 | 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
@@ -324,7 +324,8 @@ worker sees state.programs [{id, label, ops?, summary?}]
   → a connector's ops → _fbNeoGet / _fbNeoPatch / _fbNeoTx / _fbNeoAdd (index.html)
 ```
 
-- **The list** is built from her header links (`_navGetLinks('veda')`), her LifeHub
+- **The list** starts with the programs inside her TaskHub (`BUILTINS`: V's Notebook and
+  Plans), then her header links (`_navGetLinks('veda')`), her LifeHub
   list (`LifeHub.list('veda')`, hidden tiles left out) and Warden. Each address is
   listed once, and TaskHub itself is left out. Known programs keep stable ids:
   `studyos`, `finance`, `tradeboard`, `mylist`, `wellness`, `magi_council`, `magi`, `shruti`,
@@ -344,9 +345,26 @@ worker sees state.programs [{id, label, ops?, summary?}]
   - An op with `confirm` is asked first (`needsConfirm`).
   - `summary()` is cached and refreshed every 5 minutes and after Neo's own writes, so
     reading costs no extra call.
+- **Locks:** a connector names its Guardian lock (`lock`). While it is locked, Neo reads
+  nothing (the summary says "Locked"), and an op asks for the unlock through `alGate`,
+  as the program's own button does. A lock this device has never seen fails closed.
+- **Reading aloud:** an op that reads answers `{ok:true, say}`. The engine's `settle`
+  carries the `say`, and Neo speaks it after its reply. The prompt tells the model that,
+  for these ops, `say` is only a short lead-in.
+- **Deep links** (`deep`) open in the tab the program's own button uses (`tab`), and that
+  tab is sent there even when it is already open on the page (`openDeep`).
 - **Firestore** (`_fbNeo*`): Veda's side only, and only the documents her programs keep
   (`NEO_DOCS` in index.html). Every write is a field-path patch, a transaction or a new
   entry. Neo never saves a whole document rebuilt from a stale copy.
+#### Phase 1 connectors (`TaskHub/neo-connectors.js`)
+
+| Program | Reads (summary, ops) | Acts | How it writes |
+|---|---|---|---|
+| V's Notebook (`notebook`, lock `veda_journal`) | page count and the latest titles; `read_page(title)`, `find(words)` | `open_page`, `new_page`, `append`, `tag` | Notebook's API only: `Notebook.pages` / `Notebook.page` (new, read-only, in `Notebook/` so every host has it) and `putPage`. A page with its own lock is never read or changed. Only an ordinary page takes an append or a tag. |
+| Plans (`plans`, lock `veda_taskhub`) | (already in `state.plans`) | `edit`, `reschedule`, `remove_idea` (asks first; an idea only) | `PlansCore.applyEdit` / `proposeReschedule` / `removePlan`. An agreed plan's change goes to Tony to approve, and Neo says so. |
+| Shruti (`shruti`, lock `veda_shruti`) | last opened, chapters read, in progress, next unread, bookmarks | `open_chapter(chapter, mode?)`, `continue`, `mark_read`, `mark_unread` | Field-path patches on `dashboards/shruti_veda` (`progress.gita.chN.{f,done,modes.read,at}`, `last`), as Shruti's own `setProgress` does. Deep link `shruti.html?profile=veda#/b/gita/N/mode`. |
+| MAGI (T) (`magi`, lock `veda_magi`) | her recent questions; `read_answer(question?)` (the verdict) | `ask(question)` (asks first: it uses her AI accounts) | Reads `dashboards/magi_veda` and its `runs/<id>`. Asking writes nothing: MAGI gets the question through its own `#tb=` link (`A1Debrief.openMagi`, `p:"veda"`, `run:1`) and runs it. |
+
 - **The traps each program has, which the later phases must keep to:**
   - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.
   - MyList: the doc also holds Tony's lists, so only `veda.lists` is touched.
@@ -437,9 +455,15 @@ HUD docked in his quote's slot with zero pixel shift, and Veda's switch staying 
 - the spotlight: `_THV.preview` names each action's row and date without changing
   state, `before` is awaited ahead of the change, and the stops are grouped and capped
 
+`node tests/neo-connectors.test.js` covers Phase 1: Notebook's read API, and each
+connector against fakes (what it reads, the shape it writes, what Neo says, locks, a
+page's own lock, Tony's side).
+
 `node tests/live/neo-programs.live.js` drives the program list in a real browser
 (fake Firestore): what is listed, `state.programs` reaching the worker, opening one,
-and `_fbNeo*` reaching only her programs' documents, only on her side.
+and `_fbNeo*` reaching only her programs' documents, only on her side. Phase 1: the real
+Notebook store read and appended to, Shruti's progress patched, a MAGI verdict read and
+a question handed to MAGI (T).
 
 `node tests/live/neo-spotlight.live.js` drives it in a real browser (fake Firestore):
 an add two weeks out, a remove, a goal on the other tab, and a tap that stops it.

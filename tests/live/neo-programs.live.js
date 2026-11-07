@@ -79,6 +79,26 @@ const ok = (name, cond, extra) => {
   ok('an entry is added', await js(`return _fbNeoAdd('dashboards/wellness/entries', {timestamp: 1, values: {water: 2}}).then(function(id){ return !!id; });`));
   ok('off her side, nothing is reached', await js(`var was=window._activeProfile; window._activeProfile='tony'; var none=_vdNeoPrograms.list().length === 0; return _fbNeoGet('dashboards/wellness').then(function(d){ window._activeProfile=was; return d === null && none; });`));
 
+  console.log('\nphase 1: Notebook, Shruti, MAGI (T) in the real page');
+  ok('her Notebook is mounted', await until('window.Notebook && Notebook.mounts && Notebook.mounts.bj', 20000));
+  const nb = await js(`return Notebook.putPage('bj', {id:'neolive1', title:'Trip to Goa', data:{html:'<p>Beaches and a fort.</p>'}, tags:[], folder:null})
+    .then(function(){ return Notebook.page('bj','neolive1'); }).then(function(p){ return Notebook.pages('bj').then(function(ps){ return {n: ps.some(function(x){return x.id==='neolive1';}), text: p && p.text, html: p && p.html}; }); });`);
+  ok('Notebook.pages / Notebook.page read the real store', nb && nb.n && nb.text === 'Beaches and a fort.' && /fort/.test(nb.html), JSON.stringify(nb));
+  const rp = await js(`return _vdNeoPrograms.run('notebook','read_page',{title:'goa trip'});`);
+  ok('read_page reads it out', rp && rp.say === 'Trip to Goa. Beaches and a fort.', JSON.stringify(rp));
+  ok('append lands in the page', await js(`return _vdNeoPrograms.run('notebook','append',{title:'Trip to Goa', text:'Ate fish.'}).then(function(v){ return Notebook.page('bj','neolive1').then(function(p){ return v === true && /Ate fish\\./.test(p.text); }); });`));
+  await js(`return _vdNeoPrograms.refreshAll(true);`);
+  ok('her state carries the Notebook summary', await until(`(_vdNeoPrograms.state().find(function(p){return p.id==='notebook';})||{}).summary && /Trip to Goa/.test(_vdNeoPrograms.state().find(function(p){return p.id==='notebook';}).summary)`, 5000),
+    await js(`return JSON.stringify(_vdNeoPrograms.state().find(function(p){return p.id==='notebook';}));`));
+  // Shruti and MAGI (T): their documents, in the fake store.
+  await js(`window.__fakeFs && (__fakeFs.docs['dashboards/shruti_veda'] = {last:{book:'gita',n:2,at:1}, progress:{gita:{ch1:{done:true,f:1}}}}); window.__fakeFs && (__fakeFs.docs['dashboards/magi_veda'] = {runs:[{id:'r1',question:'Best laptop for school',status:'complete',created_at:'2026-11-01T10:00:00Z'}]}); window.__fakeFs && (__fakeFs.docs['dashboards/magi_veda/runs/r1'] = {synthesis:{synthesis_ok:true, verdict:'A MacBook Air.'}}); 1`);
+  ok('the fake store took the seeds', await js(`return _fbNeoGet('dashboards/shruti_veda').then(function(d){ return !!(d && d.last); });`));
+  ok('Shruti mark_read patches her progress', await js(`return _vdNeoPrograms.run('shruti','mark_read',{chapter:'3'}).then(function(v){ return _fbNeoGet('dashboards/shruti_veda').then(function(d){ return v === true && d.progress.gita.ch3.done === true && d.progress.gita.ch1.done === true && d.last.n === 3; }); });`));
+  ok('MAGI read_answer reads her verdict', (await js(`return _vdNeoPrograms.run('magi','read_answer',{question:'laptop'}).then(function(r){ return r.say; });`)) === 'On "Best laptop for school": A MacBook Air.');
+  const mg = await js(`window.__magi=[]; A1Debrief.openMagi=function(u){ window.__magi.push(u); return true; }; return Promise.resolve(_vdNeoPrograms.run('magi','ask',{question:'Plan my week'})).then(function(v){ return {v:v, u:window.__magi[0]||''}; });`);
+  ok('MAGI ask hands the question to MAGI (T)', mg.v === true && /\/A1\/magi\.html#tb=/.test(mg.u), JSON.stringify(mg));
+  ok('…and Neo asks first', await js(`return /ask the MAGI council/.test((_vdNeo._test.needsConfirm([{type:'program',program:'magi',op:'ask',args:[{k:'question',v:'Plan my week'}]}],{})||{}).question||'');`));
+
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   try { c.ws.close(); } catch (e) {}
