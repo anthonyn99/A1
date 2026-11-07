@@ -42,6 +42,8 @@
 <script src="https://anthonyn99.github.io/A1/Notebook/notebook.js?v=69c5e02f40" data-lazy></script>
 <!-- The suite's hover layer (A1's hoverfx.js), on the notes only, so they answer
      the cursor as her journal does; nothing else here changes. -->
+<!-- MAGI's drag (A1's dragsort.js): the top bar's tabs drag to rearrange (TB.nav). -->
+<script src="https://anthonyn99.github.io/A1/Shared/dragsort.js"></script>
 <script src="https://anthonyn99.github.io/A1/Shared/hoverfx.js" data-roots="#st-host" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
@@ -2282,6 +2284,7 @@ const TBCloud = (() => {
         TB.news && TB.news.renderIfActive();
         TB.wl && TB.wl.resolveSectors();
       }
+      if (touched.has("settings")) TB.nav && TB.nav.apply();
       if (touched.has("rules") || touched.has("rulesDaily")) {
         TB.rules && TB.rules._reload && TB.rules._reload();
         // The load sweeps run long before this snapshot arrives, so they judged the
@@ -5892,6 +5895,45 @@ TB.news = {
   hide() { TB.news._stopQuotes(); },
 };
 
+/* ── Tab order: drag to rearrange the top bar's tabs (2026-11-06) ────────────
+   MAGI's drag (A1's dragsort.js), as TradeHub's tabs: a mouse takes a tab after
+   4px; a finger holds it 300ms first, so a swipe still scrolls the bar. A plain
+   click opens the tab; A1Drag swallows the click a drop fires. The order is
+   settings.navOrder, so it syncs to her other devices with the rest of
+   settings. A tab missing from a saved order keeps its place at the end. */
+TB.nav = {
+  _el() { return document.getElementById("section-nav"); },
+  order() {
+    const o = (TBStore.get(TBStore.KEYS.settings, {}) || {}).navOrder;
+    return Array.isArray(o) ? o : [];
+  },
+  apply() {
+    const nav = TB.nav._el(); if (!nav) return;
+    const btns = [...nav.querySelectorAll(":scope > button[data-section]")];
+    const by = {}; btns.forEach(b => { by[b.dataset.section] = b; });
+    const seen = new Set(), out = [];
+    TB.nav.order().forEach(id => { if (by[id] && !seen.has(id)) { out.push(by[id]); seen.add(id); } });
+    btns.forEach(b => { if (!seen.has(b.dataset.section)) out.push(b); });
+    if (out.every((b, i) => b === btns[i])) return;
+    out.forEach(b => nav.appendChild(b));
+  },
+  _init() {
+    TB.nav.apply();
+    const nav = TB.nav._el();
+    if (!nav || !window.A1Drag) return;
+    window.A1Drag.sort(nav, { row: "button[data-section]", axis: "x", hold: 300,
+      onDrop(from, to) {
+        const btns = [...nav.querySelectorAll(":scope > button[data-section]")];
+        const ids = btns.map(b => b.dataset.section);
+        if (!ids[from] || from === to) return;
+        const [x] = ids.splice(from, 1); ids.splice(to, 0, x);
+        const s = TBStore.get(TBStore.KEYS.settings, {}) || {}; s.navOrder = ids;
+        TBStore.set(TBStore.KEYS.settings, s);
+        TB.nav.apply();
+      } });
+  },
+};
+
 /* ── boot ──────────────────────────────────────────────────────────────────── */
 (function boot() {
   // Gate the app behind authentication BEFORE the first section renders.
@@ -5907,6 +5949,7 @@ TB.news = {
   TB.apps._init();
   TB.wl._init();
   TB.news._init();
+  TB.nav._init();
 
   const settings = TBStore.get(TBStore.KEYS.settings, {});
   TB.showSection(settings.lastSection || "portfolio");
