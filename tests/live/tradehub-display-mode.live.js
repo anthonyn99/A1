@@ -3,8 +3,9 @@
 //
 // The eye button sits just left of the app lock on desktop and phone. On, it
 // blurs the personal figures on Portfolio (account tiles, position qty/value/
-// P&L, history totals) and Journal (row P&L, totals, qty, the equity hero) but
-// leaves prices and percentages readable. It survives a reload, and off again
+// P&L, avg cost, percentages, history totals) and Journal (row P&L, totals,
+// qty, entry/exit, %, the stats card, the equity hero) but leaves the live
+// market price (Last) readable. It survives a reload, and off again
 // clears every blur.
 //
 // Run: node tests/live/tradehub-display-mode.live.js   (TH_PAGE_FILE=<copy>)
@@ -88,7 +89,9 @@ const worker = {
       ok('on: position market value is blurred', (await blurred('/^\\$7,404\\.00$/')) === true);
       ok('on: position qty is blurred', (await blurred('/^40$/')) === true);
       ok('on: the last price stays readable', (await blurred('/^\\$185\\.10$/')) === false);
-      ok('on: the P&L percentage stays readable', (await blurred('/^\\+23\\.40%$/')) === false);
+      ok('on: the P&L percentage is blurred', (await blurred('/^\\+23\\.40%$/')) === true);
+      ok('on: the average cost is blurred', (await blurred('/^\\$150\\.00$/')) === true);
+      ok('on: the share of total is blurred', (await blurred('/% of total$/')) === true);
     }
     ok('on: the market strip is untouched', (await blurred('/^US markets/')) === false);
     await shot(`th-display-${label}-portfolio`);
@@ -97,7 +100,13 @@ const worker = {
     ok('Journal rendered', await until(`/AMD/.test(document.querySelector('#tradeboard-root').innerText)`, 10000));
     ok('on: the trade P&L is blurred', (await blurred('/^\\$407\\.00$/')) === true, await blurred('/^\\$407\\.00$/'));
     ok('on: the equity hero is blurred', (await blurred('/^\\+\\$407\\.00$/')) === true, await blurred('/^\\+\\$407\\.00$/'));
-    ok('on: the trade % stays readable', (await blurred('/^\\+11\\.00%$/')) === false);
+    ok('on: the trade % is blurred', (await blurred('/^\\+11\\.00%$/')) === true);
+    ok('on: the win rate is blurred', (await blurred('/^100%$/')) === true);
+    ok('on: the wins count is blurred', (await blurred('/^1$/')) === true);
+    if (!mobile) {
+      ok('on: the entry price is blurred', (await blurred('/^\\$100\\.00$/')) === true);
+      ok('on: the exit price is blurred', (await blurred('/^\\$111\\.00$/')) === true);
+    }
     await shot(`th-display-${label}-journal`);
 
     await load(w, h, mobile);
