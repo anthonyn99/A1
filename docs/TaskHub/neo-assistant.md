@@ -305,10 +305,15 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | Phase | Programs | Status |
 |---|---|---|
 | 0 | Foundation; every linked program opens | **done 2026-11-06** |
-| 1 | V's Notebook (needs a read API in `Notebook/`), Plans, Shruti | next |
-| 2 | StudyOS | |
-| 3 | Wellness, MyList | |
-| 4 | TradeBoard (check App Check first), Shield, MAGI | |
+| 1 | V's Notebook (needs a read API in `Notebook/`), Plans, Shruti, MAGI (`dashboards/magi_veda`; asking goes through the `#tb=` handoff) | next |
+| 2 | STUDY (StudyOS) | |
+| 3 | Wellness, LIST (MyList), ORCA (ask a model with her `orca_sk` key; `/v1/*` already allows TaskHub's origin), RIFTIQ (`riftiq_lookups`; the shared parts only in a transaction) | |
+| 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
+| 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
+
+Open questions for Veda:
+- EVERWELL is Tony's program: it has no Veda profile, so acting in it would write his data. For now Neo only opens it.
+- The source for the MAGI council link (`magi-council-4f7a…workers.dev`) is not in A1, A1-Priv or Downloads. Neo opens it; acting inside it needs its source.
 
 ```
 worker sees state.programs [{id, label, ops?, summary?}]
@@ -321,8 +326,12 @@ worker sees state.programs [{id, label, ops?, summary?}]
 - **The list** is built from her header links (`_navGetLinks('veda')`), her LifeHub
   list (`LifeHub.list('veda')`, hidden tiles left out) and Warden. Each address is
   listed once, and TaskHub itself is left out. Known programs keep stable ids:
-  `studyos`, `tradeboard`, `mylist`, `wellness`, `magi`, `shruti`, `shield`, `warden`.
-  Anything else gets `link:<id>` or `lh:<id>`.
+  `studyos`, `finance`, `tradeboard`, `mylist`, `wellness`, `magi_council`, `magi`, `shruti`,
+  `shield`, `system`, `orca`, `reserv`, `everwell`, `riftiq`, `warden`. Anything else gets
+  `link:<id>` or `lh:<id>`, and so does a second link to the same kind of page.
+- **Names:** her own label wins. "MAGI" is the link she called MAGI (the council), and
+  "MAGI (T)" is the A1 page. After the label, the id, then an alias ("solo leveling",
+  "study"), then part of a label.
 - **Opening** works the way its own button or tile does: `_navOpenLink` for a header
   link (its lock and named tab included) and `LifeHub.launch` for a tile. Warden replaces
   the page 2.6 s later, so Neo finishes speaking first. `open_link` falls back to this

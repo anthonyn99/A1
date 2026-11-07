@@ -654,10 +654,22 @@ section('worker: state shaping');
     const pctx = { console, setTimeout: (f) => { f(); return 0; }, Promise, JSON, Object, Array, String, Date, Math };
     pctx.window = pctx;
     pctx._activeProfile = 'veda';
+    // Her real External Links (Settings, 2026-11-06), plus the two seeded ones and a stranger.
     pctx._navGetLinks = (p) => p === 'veda' ? [
       { id: 'shield', label: 'Shield', url: 'https://anthonyn99.github.io/A1/shield.html' },
       { id: 'l2', label: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
-      { id: 'l3', label: 'TradeBoard', url: 'https://anthonyn99.github.io/A1/V1/tradeboard.html' },
+      { id: 'c1', label: 'STUDY', url: 'https://tradeboard.vedapatel05.workers.dev/studyos/' },
+      { id: 'c2', label: 'MAGI', url: 'https://magi-council-4f7a.vedapatel05.workers.dev/' },
+      { id: 'c3', label: 'MAGI (T)', url: 'https://anthonyn99.github.io/A1/magi.html' },
+      { id: 'c4', label: 'LIST', url: 'https://anthonyn99.github.io/A1/mylist.html' },
+      { id: 'c5', label: 'TRADE', url: 'https://tradeboard.vedapatel05.workers.dev/' },
+      { id: 'c6', label: 'FINANCE', url: 'https://tradeboard.vedapatel05.workers.dev/finance/' },
+      { id: 'c7', label: 'WARDEN', url: 'https://vedacpatel.github.io/warden/warden.html' },
+      { id: 'c8', label: 'SYSTEM (SOLO-LEVELING)', url: 'https://solo-leveling.vedapatel05.workers.dev/' },
+      { id: 'c9', label: 'ORCA', url: 'https://orca.vedapatel05.workers.dev/' },
+      { id: 'c10', label: 'RESERV', url: 'https://reserv.vedapatel05.workers.dev/' },
+      { id: 'c11', label: 'EVERWELL', url: 'https://a1-priv.av1.workers.dev/everwell.html' },
+      { id: 'c12', label: 'RIFTIQ', url: 'https://a1-priv.av1.workers.dev/riftiq.html' },
       { id: 'l4', label: 'Canvas', url: 'https://canvas.kent.edu' }] : [];
     pctx._navOpenLink = (p, id) => opened.push([p, id]);
     pctx.LifeHub = {
@@ -677,12 +689,15 @@ section('worker: state shaping');
     vm.runInContext(psrc, pctx);
     const R = pctx._vdNeoPrograms;
     const ids = R.list().map(p => p.id);
-    t('lists header links, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['shield', 'shruti', 'tradeboard', 'link:l4', 'studyos', 'mylist', 'wellness', 'magi', 'warden']), JSON.stringify(ids));
+    t('lists every header link, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['shield', 'shruti', 'studyos', 'magi_council', 'magi', 'mylist', 'tradeboard', 'finance', 'warden', 'system', 'orca', 'reserv', 'everwell', 'riftiq', 'link:l4', 'wellness']), JSON.stringify(ids));
+    t('Warden from her header is the header link (her button, its lock)', R.find('warden').id === 'warden');
+    t('"MAGI" is the one she called MAGI; "MAGI T" is the other', R.find('MAGI').id === 'magi_council' && R.find('MAGI (T)').id === 'magi');
+    t('every program in her list is found by what she calls it', ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'orca', 'reserv', 'everwell', 'riftiq'].every(q => R.find(q)), ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'orca', 'reserv', 'everwell', 'riftiq'].filter(q => !R.find(q)).join());
     t('TaskHub itself and hidden tiles are left out', !ids.includes('lh:taskhub') && !ids.includes('lh:old'));
-    t('finds a program by id, label or alias', R.find('studyos').label === 'StudyOS' && R.find('My List').id === 'mylist' && R.find('my links').id === 'warden' && R.find('canvas').id === 'link:l4' && R.find('Netflix') === null);
+    t('finds a program by id, label or alias', R.find('studyos').label === 'STUDY' && R.find('My List').id === 'mylist' && R.find('my links').id === 'warden' && R.find('canvas').id === 'link:l4' && R.find('Netflix') === null);
     t('a header link opens through its button (locks and tabs kept)', R.open('Shruti') === true && opened[0][0] === 'veda' && opened[0][1] === 'l2');
-    t('a LifeHub app opens through LifeHub, like its tile', R.open('studyos') === true && launched[0][1] === 'studyos');
-    t('Warden replaces the page after Neo has spoken', R.open('warden') === true && warden === 1);
+    t('a LifeHub app opens through LifeHub, like its tile', R.open('wellness') === true && launched[0][1] === 'wellness');
+    t('Warden opens through her header button', R.open('warden') === true && opened[opened.length - 1][1] === 'c7' && warden === 0);
     t('an unknown program is not_found', R.open('Netflix').reason === 'not_found');
     t('a program with no ops: no_op', R.run('mylist', 'add_item', {}).reason === 'no_op');
     const got = [];
@@ -696,10 +711,10 @@ section('worker: state shaping');
     t('opInfo exposes ask-first ops', R.opInfo('mylist', 'clear_list').op.confirm({ list: 'Groceries' }) === 'clear your Groceries list');
     actx._vdNeoPrograms = R;
     t('…and Neo asks first for them', /clear your Groceries list/.test((T.needsConfirm([{ type: 'program', program: 'mylist', op: 'clear_list', args: { list: 'Groceries' } }], {}) || {}).question || ''));
-    t('cards and lines name the program, not its id', T.cardFor({ type: 'open_program', program: 'mylist' }).detail === 'MYLIST' && T.cardFor({ type: 'program', program: 'mylist', op: 'add_item' }).label === 'ADD ITEM'
+    t('cards and lines name the program, not its id', T.cardFor({ type: 'open_program', program: 'mylist' }).detail === 'LIST' && T.cardFor({ type: 'program', program: 'mylist', op: 'add_item' }).label === 'ADD ITEM'
       && /can't do that inside it yet/.test(T.failLine({ ok: false, reason: 'no_op', action: { type: 'program', program: 'mylist' } })));
     actx._activeProfile = 'veda'; actx._navGetLinks = () => [];
-    t('open_link falls back to any linked program', T.ops.openLink('Wellness') === true && launched[launched.length - 1][1] === 'wellness');
+    t('open_link falls back to any linked program', T.ops.openLink('Wellness') === true && launched.length === 2 && launched[1][1] === 'wellness');
     delete actx._vdNeoPrograms;
     pctx._activeProfile = 'tony';
     t('on Tony\'s side it lists nothing and does nothing', R.list().length === 0 && R.state().length === 0 && R.open('studyos').reason === 'no_bridge' && R.run('mylist', 'add_item', {}).reason === 'no_bridge');

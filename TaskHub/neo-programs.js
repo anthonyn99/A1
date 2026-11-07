@@ -24,14 +24,24 @@
   if (window._vdNeoPrograms) return;
 
   // Stable ids for the programs Neo knows, matched on the page's address.
+  // Two links to the same kind of page (MAGI and MAGI (T)) keep their own ids:
+  // the first takes the known id, the next its link's id.
   var KNOWN = [
-    { id: 'studyos', re: /\/studyos\/?(index\.html)?(?=[?#]|$)/i, aliases: ['study os', 'studies', 'my classes'] },
-    { id: 'tradeboard', re: /\/tradeboard\.html(?=[?#]|$)/i, aliases: ['trade board', 'trading'] },
-    { id: 'mylist', re: /\/mylist\.html(?=[?#]|$)/i, aliases: ['my list', 'my lists', 'lists'] },
+    { id: 'studyos', re: /\/studyos\/?(index\.html)?(?=[?#]|$)/i, aliases: ['study', 'study os', 'studies', 'my classes'] },
+    { id: 'finance', re: /\/finance(\/|\.html)?(index\.html)?(?=[?#]|$)/i, aliases: ['my finances', 'money', 'budget'] },
+    { id: 'tradeboard', re: /(\/\/tradeboard\.vedapatel05\.workers\.dev\/?(index\.html)?|\/tradeboard\.html)(?=[?#]|$)/i, aliases: ['trade', 'trade board', 'trading'] },
+    { id: 'mylist', re: /\/mylist\.html(?=[?#]|$)/i, aliases: ['list', 'my list', 'my lists', 'lists'] },
     { id: 'wellness', re: /\/wellness\.html(?=[?#]|$)/i, aliases: ['wellness tracker'] },
+    { id: 'magi_council', re: /\/\/magi-council[\w.-]*\.workers\.dev/i, aliases: ['council', 'magi council'] },
     { id: 'magi', re: /\/magi\.html(?=[?#]|$)/i, aliases: ['maggie', 'magic'] },
     { id: 'shruti', re: /\/shruti\.html(?=[?#]|$)/i, aliases: ['shruti app'] },
     { id: 'shield', re: /\/shield\.html(?=[?#]|$)/i, aliases: ['shield web'] },
+    { id: 'system', re: /\/\/solo-leveling\.[\w.-]+/i, aliases: ['solo leveling', 'solo-leveling', 'my system'] },
+    { id: 'orca', re: /\/\/orca\.vedapatel05\.workers\.dev/i, aliases: ['orca ai'] },
+    { id: 'reserv', re: /\/\/reserv\.vedapatel05\.workers\.dev/i, aliases: ['reserve', 'reserves', 'reservations'] },
+    { id: 'everwell', re: /\/everwell\.html(?=[?#]|$)/i, aliases: ['ever well'] },
+    { id: 'warden', re: /\/\/vedacpatel\.github\.io\/warden\//i, aliases: ['my links', 'links', 'links page'] },
+    { id: 'riftiq', re: /\/riftiq\.html(?=[?#]|$)/i, aliases: ['rift iq', 'war room', 'warroom'] },
   ];
   var WARDEN = { id: 'warden', label: 'Warden', url: 'https://vedacpatel.github.io/warden/warden.html', aliases: ['my links', 'links', 'links page'], src: 'warden' };
   var CONNECTORS = {};
@@ -53,8 +63,7 @@
       var k = addrKey(e.url);
       if (seen[k]) return;
       var kn = knownFor(e.url);
-      if (kn) { e.id = kn.id; e.aliases = kn.aliases; }
-      if (out.some(function (x) { return x.id === e.id; })) return;
+      if (kn && !out.some(function (x) { return x.id === kn.id; })) { e.id = kn.id; e.aliases = kn.aliases; }
       seen[k] = 1; out.push(e);
     }
     var links = []; try { links = (window._navGetLinks && window._navGetLinks('veda')) || []; } catch (e) {}
@@ -70,8 +79,9 @@
     var all = list(), n = norm(q);
     if (!n) return null;
     var by = function (f) { return all.filter(f)[0] || null; };
-    return by(function (p) { return p.id === q || norm(p.id) === n; })
-      || by(function (p) { return norm(p.label) === n; })
+    // Her own name for it wins: "MAGI" is the link she called MAGI, not MAGI (T).
+    return by(function (p) { return norm(p.label) === n; })
+      || by(function (p) { return p.id === q || norm(p.id) === n; })
       || by(function (p) { return (p.aliases || []).some(function (a) { return norm(a) === n; }); })
       || by(function (p) { var l = ' ' + norm(p.label) + ' '; return l.indexOf(' ' + n + ' ') >= 0 || (' ' + n + ' ').indexOf(l) >= 0; })
       || null;
