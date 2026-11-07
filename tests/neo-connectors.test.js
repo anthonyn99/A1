@@ -76,7 +76,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const log = { patch: [], put: [], opened: [], tabs: [], nav: [], magi: [], gate: [], tx: [], later: [] };
     const store = Object.assign({}, opts.docs || {});
     // The 3 s look-again after a StudyOS write is queued (log.later) so a test can run it when it likes.
-    const ctx = { console, Promise, JSON, Object, Array, String, Date, Math, crypto: require('crypto').webcrypto,
+    const ctx = { console, Promise, JSON, Object, Array, String, Date, Math, crypto: require('crypto').webcrypto, clearTimeout: () => {},
       setTimeout: (f, ms) => (ms === 3000 ? (log.later.push(f), 0) : ms > 5000 ? 0 : setTimeout(f, 0)) };
     ctx.window = ctx;
     ctx._activeProfile = 'veda';
@@ -85,11 +85,16 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
       { id: 'mt', label: 'MAGI (T)', url: 'https://anthonyn99.github.io/A1/magi.html' },
       { id: 'st', label: 'STUDY', url: 'https://tradeboard.vedapatel05.workers.dev/studyos/' },
       { id: 'li', label: 'LIST', url: 'https://anthonyn99.github.io/A1/mylist.html' },
+      { id: 'tr', label: 'TRADE', url: 'https://tradeboard.vedapatel05.workers.dev/' },
+      { id: 'fi', label: 'FINANCE', url: 'https://tradeboard.vedapatel05.workers.dev/finance/' },
     ];
     ctx._navOpenLink = (p, id) => log.opened.push(id);
     ctx._tnOpenTab = (u, k) => { log.tabs.push([u, k]); return { location: { href: u } }; };
     ctx._vedaNav = (v) => log.nav.push(v);
-    ctx.fetch = async (u) => ({ json: async () => JSON.parse(read(u)) });
+    ctx.fetch = async (u, o) => {
+      if (/^https:/.test(u)) { const b = JSON.parse((o && o.body) || '{}'); log.auth.push([u, b]); return { json: async () => (opts.authReply ? opts.authReply(u, b) : { ok: false }) }; }
+      return { json: async () => JSON.parse(read(u)) };
+    };
     ctx._fbNeoGet = async (p) => (p in store ? JSON.parse(JSON.stringify(store[p])) : null);
     ctx._fbNeoPatch = async (p, flat) => { log.patch.push([p, flat]); return p in store; };
     // A transaction as Firestore runs it: fn sees the server copy, its fields are merged in (set when new).
@@ -107,7 +112,14 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
       store[p] = out; return true;
     };
     const locks = opts.locks || {};
-    ctx.Guardian = { mustBlock: (id) => !!locks[id] };
+    log.defs = {};
+    ctx.Guardian = { mustBlock: (id) => !!locks[id], define: (id, o) => { log.defs[id] = o; return id; }, refresh: () => Promise.resolve() };
+    // tradeboard-6b2ea, a store of its own (index.html _fbTb*).
+    const tb = Object.assign({}, opts.tb || {});
+    log.tb = tb; log.tbtx = []; log.auth = [];
+    ctx._fbTbGet = async (p) => (p in tb ? JSON.parse(JSON.stringify(tb[p])) : null);
+    ctx._fbTbList = async (col, field, n) => Object.keys(tb).filter((k) => k.startsWith(col + '/') && k.split('/').length === col.split('/').length + 1).map((k) => JSON.parse(JSON.stringify(tb[k])));
+    ctx._fbTbTx = async (p, fn) => { const d = p in tb ? JSON.parse(JSON.stringify(tb[p])) : null; const u = fn(d); if (!u) return false; log.tbtx.push([p, Object.keys(u)]); tb[p] = Object.assign(d || {}, JSON.parse(JSON.stringify(u))); return true; };
     ctx.alGate = (id, ok, no) => { log.gate.push(id); (opts.unlock ? ok : no)(); };
     const pages = opts.pages || [];
     ctx.Notebook = {
@@ -336,6 +348,100 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   {
     const { R } = page({ docs: { 'dashboards/mylist': { veda: { lists: [] } } }, locks: { 'mylist:profile_veda': true } });
     t('her MyList locked: nothing written', (await R.run('mylist', 'new_list', { name: 'X' })).reason === 'locked');
+  }
+
+  section('each program\'s own lock');
+  {
+    const TBD = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';
+    const { R, log } = page({ docs: { 'dashboards/studyos_lock': { locks: { studyos: { locked: true, v: 77 } } } },
+      tb: { [TBD]: { _applock: JSON.stringify({ tradeboard_sec_journal: { locked: true, v: 5 } }) } },
+      authReply: (u, b) => /hint/.test(u) ? (b.entryId === 'finance' ? { ok: true, hint: 'h' } : { noLock: true }) : { ok: b.password === 'pw' } });
+    const d = log.defs;
+    t('MyList\'s lock is declared on MyList\'s own record (mylist / profile_veda)', d['mylist:profile_veda'] && d['mylist:profile_veda'].journal === 'mylist' && d['mylist:profile_veda'].entryId === 'profile_veda' && d['mylist:profile_veda'].owner === 'veda');
+    t('Shruti and MAGI: Guardian\'s default record, as their pages declare them', d.veda_shruti && !d.veda_shruti.journal && d.veda_magi && !d.veda_magi.backend);
+    t('StudyOS: its own record and backend', d.veda_studyos.journal === 'studyos_applock' && d.veda_studyos.entryId === 'studyos' && !!d.veda_studyos.backend);
+    t('…its lock state comes from its Firestore doc', JSON.stringify(await d.veda_studyos.backend.status()) === '{"hasLock":true,"ver":"77"}');
+    t('…its password is checked by studyos-api, on its record', (await d.veda_studyos.backend.verify({}, 'pw')).ok === true
+      && log.auth[0][0] === 'https://studyos-api.vedapatel05.workers.dev/auth/journal/verify' && log.auth[0][1].journal === 'studyos_applock' && log.auth[0][1].entryId === 'studyos');
+    t('…and from TaskHub it is never set, removed or reset', ['set', 'remove', 'resetRequest', 'resetConfirm'].every((k) => typeof d.veda_studyos.backend[k] === 'function'));
+    const nope = await d.veda_studyos.backend.set({}, 'x');
+    t('…(each refuses)', nope.ok === false && !log.auth.some((a) => /set-lock|remove-lock|reset/.test(a[0])));
+    t('TradeBoard: app lock and each section on the suite\'s lock worker', ['veda_tradeboard', 'veda_tradeboard_portfolio', 'veda_tradeboard_journal', 'veda_tradeboard_control'].every((k) => d[k].journal === 'applock')
+      && d.veda_tradeboard.entryId === 'tradeboard_app' && d.veda_tradeboard_control.entryId === 'tradeboard_sec_control');
+    t('…which are on comes from TradeBoard\'s _applock, versioned', JSON.stringify(await d.veda_tradeboard_journal.backend.status()) === '{"hasLock":true,"ver":"5"}' && JSON.stringify(await d.veda_tradeboard.backend.status()) === '{"hasLock":false}');
+    t('Finance: its own record; "is there a password" from the worker', d.veda_finance.entryId === 'finance' && JSON.stringify(await d.veda_finance.backend.status()) === '{"hasLock":true,"ver":null}');
+    t('…its password checked there', (await d.veda_finance.backend.verify({}, 'nope')).ok === false && log.auth.some((a) => /tradeboard-auth.*verify/.test(a[0]) && a[1].entryId === 'finance'));
+    t('connectors name these locks', R._test.connectors.studyos.lock === 'veda_studyos' && R._test.connectors.mylist.lock === 'mylist:profile_veda' && R._test.connectors.finance.lock === 'veda_finance' && R._test.connectors.tradeboard.lock === 'veda_tradeboard');
+  }
+
+  section('TRADE (TradeBoard)');
+  {
+    const TBD = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';
+    const tbDoc = {
+      positions: JSON.stringify({ broker: 'webull', generated_at: '2026-11-06T20:00:00Z', account: { net_liquidation: 52000, cash: 4000, day_pnl: 312.5, day_pnl_pct: 0.6 },
+        positions: [{ symbol: 'NVDA', qty: 10, avg: 120, last: 140, market_value: 1400, unrealized: 200, unrealized_pct: 16.7 }] }),
+      trades: JSON.stringify([{ id: 'a', date: '2026-11-05', symbol: 'AAPL', side: 'long', qty: 10, entry: 100, exit: 110, fees: 2 }, { id: 'b', date: '2026-11-06', symbol: 'TSLA', side: 'short', qty: 5, entry: 250, exit: null, fees: 0 }]),
+      watchlist: JSON.stringify(['NVDA', 'AAPL']), watchlistTrash: JSON.stringify([{ t: 'AMD', trashed: 1 }]), account: '{"x":1}', _applock: '{}',
+    };
+    const { R, log } = page({ tb: { [TBD]: tbDoc } });
+    t('"trade" is TradeBoard', R.find('trade').id === 'tradeboard');
+    await R._test.refresh('tradeboard');
+    const s = R._test.summaries.tradeboard || '';
+    t('summary: portfolio, journal with P&L and open trades, watchlist', /total \$52,000/.test(s) && /NVDA 10 @ 120, last 140, \$200 \(16\.7%\)/.test(s) && /2 trades, 1 open \(TSLA\)/.test(s) && /long AAPL x10 \$98/.test(s) && /Watchlist: NVDA, AAPL\./.test(s), s);
+    t('watch_add adds, taking it out of the trash, in one transaction', (await R.run('tradeboard', 'watch_add', { tickers: 'amd, $msft' })) === true
+      && JSON.parse(log.tb[TBD].watchlist).join() === 'NVDA,AAPL,AMD,MSFT' && JSON.parse(log.tb[TBD].watchlistTrash).length === 0 && JSON.stringify(log.tbtx[0][1]) === '["watchlist","watchlistTrash","_updated"]', JSON.stringify(log.tbtx));
+    t('…never touching trades, positions or the account', log.tb[TBD].trades === tbDoc.trades && log.tb[TBD].positions === tbDoc.positions && log.tb[TBD].account === tbDoc.account);
+    t('…one already there is said', (await R.run('tradeboard', 'watch_add', { tickers: 'nvda' })).reason === 'already');
+    t('watch_remove moves it to the 30-day trash', (await R.run('tradeboard', 'watch_remove', { ticker: 'AAPL' })) === true
+      && JSON.parse(log.tb[TBD].watchlist).indexOf('AAPL') < 0 && JSON.parse(log.tb[TBD].watchlistTrash)[0].t === 'AAPL' && typeof JSON.parse(log.tb[TBD].watchlistTrash)[0].trashed === 'number');
+    t('…a ticker not on it is said', (await R.run('tradeboard', 'watch_remove', { ticker: 'XYZ' })).reason === 'not_found');
+    t('no order op exists, nor any write to trades or positions', !Object.keys(R._test.connectors.tradeboard.ops).some((k) => /order|buy|sell|trade|position/.test(k)));
+  }
+  {
+    const TBD = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';
+    const { R, log } = page({ tb: { [TBD]: { watchlist: null, trades: '[]', positions: 'null' } } });
+    t('a watchlist never saved: Neo won\'t replace TradeBoard\'s default', /never been saved/.test((await R.run('tradeboard', 'watch_add', { tickers: 'AMD' })).say) && !log.tbtx.length);
+  }
+  {
+    const TBD = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';
+    const { R, log } = page({ tb: { [TBD]: { watchlist: '["NVDA"]', trades: '[{"date":"2026-11-01","symbol":"X","side":"long","qty":1,"entry":1,"exit":2}]', positions: '{"account":{"net_liquidation":1}}' } },
+      locks: { veda_tradeboard_portfolio: true, veda_tradeboard_control: true } });
+    await R._test.refresh('tradeboard');
+    const s = R._test.summaries.tradeboard || '';
+    t('a locked section is not read; the others are', /Portfolio: locked\./.test(s) && /Watchlist: locked\./.test(s) && /Journal: 1 trades/.test(s) && !/NVDA/.test(s), s);
+    t('…and its op asks for that section\'s lock', (await R.run('tradeboard', 'watch_add', { tickers: 'AMD' })).reason === 'locked' && log.gate.join() === 'veda_tradeboard_control' && !log.tbtx.length);
+  }
+
+  section('FINANCE');
+  {
+    const mk = new Date().toISOString().slice(0, 7);
+    const tbs = {
+      ['finance/meta/plaid_transactions/p1']: { id: 'p1', date: mk + '-02', name: 'TRADER JOES', merchant: 'Trader Joe\'s', amount: 54.2, category: 'Groceries', pending: false },
+      ['finance/meta/plaid_transactions/p2']: { id: 'p2', date: mk + '-03', name: 'PAYROLL', amount: -1500, category: 'Paycheck', pending: false },
+      ['finance/meta/plaid_transactions/p3']: { id: 'p3', date: mk + '-04', name: 'CC PAYMENT', amount: 400, category: 'Credit Card Payment', pending: false },
+      ['finance/meta/accounts/a1']: { institution: 'Chase', type: 'depository', balance_current: 3000 },
+      ['finance/meta/accounts/a2']: { institution: 'Chase', type: 'credit', balance_current: 500 },
+      ['finance/meta/sub/ledger']: { budgets: [{ category: 'Groceries', limit: 300 }], cash: 40 },
+    };
+    const { R, log } = page({ tb: tbs });
+    t('"finance" is Finance', R.find('finance').id === 'finance');
+    await R._test.refresh('finance');
+    const s = R._test.summaries.finance || '';
+    t('summary: net worth, cash, this month (card payments and transfers left out), budgets, recent', /Net worth \$2,500 \(assets \$3,000, debts \$500\)/.test(s) && /Cash on hand \$40/.test(s)
+      && /spent \$54\.20, income \$1,500/.test(s) && /Groceries \$54\.20 of \$300/.test(s) && /Trader Joe's \$54\.20 \(Groceries\)/.test(s), s);
+    t('add_expense writes Finance\'s own manual record, as a new document', (await R.run('finance', 'add_expense', { amount: '$12.50', name: 'Lunch', category: 'food' })) === true);
+    const k = Object.keys(log.tb).find((x) => /manual_transactions\/m_/.test(x)), rec = log.tb[k];
+    t('…an expense is positive, with every field the form writes', rec && rec.amount === 12.5 && rec.category === 'Food & Drink' && rec.source === 'manual' && rec.institution === 'Manual' && rec.merchant === 'Lunch'
+      && rec.currency === 'USD' && rec.pending === false && /^\d{4}-\d{2}-\d{2}$/.test(rec.date) && rec.id === k.split('/').pop() && rec.account_id === null, JSON.stringify(rec));
+    t('add_income is negative (Plaid\'s sign)', (await R.run('finance', 'add_income', { amount: 200, name: 'Tutoring', category: 'side gig' })) === true
+      && Object.values(log.tb).some((r) => r && r.name === 'Tutoring' && r.amount === -200 && r.category === 'Side Gig'));
+    t('…an unknown category is Other; a bad amount is refused', (await R.run('finance', 'add_expense', { amount: 'lots', name: 'x' })).reason === 'invalid');
+    t('Plaid\'s transactions and accounts are never written', !log.tbtx.some((x) => /plaid|accounts|ledger/.test(x[0])));
+  }
+  {
+    const { R, log } = page({ tb: { 'finance/meta/sub/ledger': { cash: 1 } }, locks: { veda_finance: true } });
+    await R._test.refresh('finance');
+    t('Finance locked: nothing read, nothing written, its own password asked for', !R._test.summaries.finance && (await R.run('finance', 'add_expense', { amount: 5, name: 'x' })).reason === 'locked' && log.gate[0] === 'veda_finance' && !log.tbtx.length);
   }
 
   section('Tony\'s side');

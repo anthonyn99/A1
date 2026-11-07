@@ -8,7 +8,7 @@
    that reads something aloud answers {ok:true, say}, which Neo speaks after
    its reply. VEDA'S SIDE ONLY: the registry refuses every call off her side.
 
-   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS. Phase 3: MyList.
+   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS. Phase 3: MyList. Phase 4: TradeBoard, Finance.
    Each writes the way its own program does:
      · Notebook  only through Notebook's API (pages, page, putPage, open)
      · Plans     only through PlansCore, as Veda
@@ -30,6 +30,71 @@
   function str(v) { return String(v == null ? '' : v).trim(); }
   var bad = function (reason, say) { var o = { ok: false, reason: reason }; if (say) o.say = say; return o; };
   var spoken = function (say) { return { ok: true, say: say }; };
+
+  /* ── Each program's OWN lock, declared to Guardian here as that program does ──
+     Neo reads or acts in a program only when its lock is open on this device,
+     and asks for it (Guardian's card, in TaskHub) when it isn't. A lock this
+     page didn't declare would be looked up under the wrong record and could
+     read as "no lock", so every lock Neo leans on is declared with the record
+     (journal, entryId) and the backend its own program uses. From TaskHub a
+     password is only ever CHECKED: setting, changing, resetting it and hint
+     emails stay in the program (its own screen and recovery). */
+  var G = window.Guardian;
+  var TB_AUTH = 'https://tradeboard-auth.vedapatel05.workers.dev', SOS_API = 'https://studyos-api.vedapatel05.workers.dev';
+  var TB_DOC = 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12';
+  function authPost(base, path, body) {
+    return fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }); });
+  }
+  function checkOnly(base, journal, entryId, status) {
+    var no = function () { return Promise.resolve({ ok: false, error: 'elsewhere' }); };
+    return {
+      status: status,
+      verify: function (d, pw) { return authPost(base, '/auth/journal/verify', { journal: journal, entryId: entryId, password: pw }); },
+      hint: no, set: no, remove: no, resetRequest: no, resetConfirm: no,
+    };
+  }
+  // TradeBoard keeps which of its locks are on, and at what version, in its own doc (_applock).
+  var tbLocksP = null;
+  function tbLocks() {
+    if (!tbLocksP) {
+      tbLocksP = (window._fbTbGet ? window._fbTbGet(TB_DOC) : Promise.resolve(null)).then(function (d) {
+        if (!d) return null;
+        try { return JSON.parse(d._applock || '{}') || {}; } catch (e) { return null; }
+      });
+      setTimeout(function () { tbLocksP = null; }, 60000);
+    }
+    return tbLocksP;
+  }
+  function tbStatus(entryId) {
+    return function () { return tbLocks().then(function (m) { if (!m) return null; var e = m[entryId]; return e && e.locked ? { hasLock: true, ver: String(e.v || 0) } : { hasLock: false }; }); };
+  }
+  var LOCKDEFS = {
+    // Declared exactly as their programs declare them (Guardian's own worker).
+    'mylist:profile_veda': { journal: 'mylist', entryId: 'profile_veda', kind: 'profile', label: 'Veda\'s lists', appName: 'MyList' },
+    veda_shruti: { label: 'Shruti', appName: 'Shruti' },
+    veda_magi: { label: 'MAGI', appName: 'MAGI' },
+    // StudyOS: its own worker checks the password; its Firestore doc says whether the lock is on.
+    veda_studyos: { journal: 'studyos_applock', entryId: 'studyos', label: 'StudyOS', appName: 'StudyOS',
+      backend: checkOnly(SOS_API, 'studyos_applock', 'studyos', function () {
+        return (window._fbNeoGet ? window._fbNeoGet('dashboards/studyos_lock') : Promise.resolve(null)).then(function (d) {
+          if (!d) return null; var e = (d.locks || {}).studyos; return e && e.locked ? { hasLock: true, ver: String(e.v || 0) } : { hasLock: false };
+        });
+      }) },
+    // TradeBoard and Finance: the suite's lock worker (tradeboard-auth), journal applock.
+    veda_tradeboard: { journal: 'applock', entryId: 'tradeboard_app', label: 'TradeBoard', appName: 'TradeBoard', backend: checkOnly(TB_AUTH, 'applock', 'tradeboard_app', tbStatus('tradeboard_app')) },
+    veda_tradeboard_portfolio: { journal: 'applock', entryId: 'tradeboard_sec_portfolio', label: 'TradeBoard Portfolio', appName: 'TradeBoard', backend: checkOnly(TB_AUTH, 'applock', 'tradeboard_sec_portfolio', tbStatus('tradeboard_sec_portfolio')) },
+    veda_tradeboard_journal: { journal: 'applock', entryId: 'tradeboard_sec_journal', label: 'TradeBoard Journal', appName: 'TradeBoard', backend: checkOnly(TB_AUTH, 'applock', 'tradeboard_sec_journal', tbStatus('tradeboard_sec_journal')) },
+    veda_tradeboard_control: { journal: 'applock', entryId: 'tradeboard_sec_control', label: 'TradeBoard Control', appName: 'TradeBoard', backend: checkOnly(TB_AUTH, 'applock', 'tradeboard_sec_control', tbStatus('tradeboard_sec_control')) },
+    // Finance: no versioned record anywhere but the worker, which says only whether a password is set.
+    veda_finance: { journal: 'applock', entryId: 'finance', label: 'Finance', appName: 'Finance',
+      backend: checkOnly(TB_AUTH, 'applock', 'finance', function () {
+        return authPost(TB_AUTH, '/auth/journal/hint', { journal: 'applock', entryId: 'finance' }).then(function (r) {
+          return r && r.noLock ? { hasLock: false } : (r && r.ok ? { hasLock: true, ver: null } : null);
+        }, function () { return null; });
+      }) },
+  };
+  if (G && G.define) Object.keys(LOCKDEFS).forEach(function (id) { try { G.define(id, Object.assign({ owner: 'veda', theme: 'veda' }, LOCKDEFS[id])); } catch (e) {} });
 
   /* ── V's Notebook ─────────────────────────────────────────────────────── */
   var NB = 'bj';
@@ -628,5 +693,149 @@
     }, function (lists) { return lists.some(function (l) { return (l.items || []).some(function (x) { return x && x.id === id && !!x.done === done; }); }); });
   }
 
-  window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook, fnv: fnv };
+  /* ── TRADE (TradeBoard) and FINANCE (tradeboard-6b2ea; index.html _fbTb*) ──
+     Phase 4 (2026-11-06). TradeBoard: reads her portfolio, journal and
+     watchlist; changes only the watchlist. It never places, changes or
+     cancels an order, and never writes trades or positions (the Webull sync
+     owns them). Each field is a JSON string, written whole, so a change is a
+     transaction on the server copy (re-parse, change one ticker, write back,
+     _updated), looked for again 3 s later. Each part honours TradeBoard's
+     own section lock as well as its app lock. Finance: reads net worth,
+     this month's spending and income, budgets and recent transactions; adds
+     a manual entry as a NEW document (Plaid's sign: an expense is positive).
+     Behind Finance's own password. */
+  var TB_MAX = 40;
+  var CAT_EXP = ['Food & Drink', 'Groceries', 'Transportation', 'Travel', 'Shopping', 'Entertainment', 'Bills & Utilities', 'Subscriptions', 'Rent', 'Health', 'Personal Care', 'Loan Payments', 'Credit Card Payment', 'Transfer Out', 'Other'];
+  var CAT_INC = ['Paycheck', 'Side Gig', 'Freelance', 'Refund', 'Reimbursement', 'Gift', 'Interest', 'Investment Income', 'Cashback & Rewards', 'Sold Item', 'Transfer In', 'Other'];
+  var NOT_SPEND = ['Transfer Out', 'Transfer In', 'Credit Card Payment'];
+  function money(n) { n = Number(n) || 0; return (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: Math.abs(n) % 1 ? 2 : 0 }); }
+  function tbGet() { return window._fbTbGet ? race(window._fbTbGet(TB_DOC), 12000, null) : Promise.resolve(null); }
+  function field(d, k) { try { return d && d[k] != null ? JSON.parse(d[k]) : null; } catch (e) { return null; } }
+  function tickers(v) { return String(v || '').toUpperCase().split(/[\s,;]+/).map(function (t) { return t.replace(/^\$/, ''); }).filter(function (t) { return /^[A-Z][A-Z0-9.\-]{0,9}$/.test(t); }); }
+  function tbWrite(mutate, present) {
+    if (!window._fbTbTx) return Promise.resolve(bad('no_bridge'));
+    var why = null;
+    var tx = function (d) {
+      if (!d) { why = bad('no_bridge'); return null; }
+      var r = mutate(d);
+      if (r && r.ok === false) { why = r; return null; }
+      if (!r) return null;
+      r._updated = Date.now(); return r;
+    };
+    return window._fbTbTx(TB_DOC, tx).then(function (ok) {
+      if (!ok) return why || bad('failed');
+      setTimeout(function () { tbGet().then(function (d) { if (d && !present(d)) window._fbTbTx(TB_DOC, function (d2) { return d2 && !present(d2) ? tx(d2) : null; }); }); }, 3000);
+      return true;
+    });
+  }
+  var WL_LOCK = 'veda_tradeboard_control';
+  R.register('tradeboard', {
+    lock: 'veda_tradeboard',
+    summary: function () {
+      return tbGet().then(function (d) {
+        if (!d) return null;
+        var out = [];
+        if (R.isLocked('veda_tradeboard_portfolio')) out.push('Portfolio: locked.');
+        else {
+          var pf = field(d, 'positions');
+          if (pf && !pf._demo) {
+            var a = pf.account || {}, ps = (pf.positions || []).slice().sort(function (x, y) { return Math.abs(y.market_value || 0) - Math.abs(x.market_value || 0); });
+            out.push('Portfolio (' + (pf.broker || 'broker') + (pf.generated_at ? ', as of ' + day(pf.generated_at) : '') + '): total ' + money(a.net_liquidation) + ', cash ' + money(a.cash) + ', day P&L ' + money(a.day_pnl) +
+              (a.day_pnl_pct != null ? ' (' + a.day_pnl_pct + '%)' : '') + '. Positions: ' + (ps.length ? ps.slice(0, 12).map(function (x) { return x.symbol + ' ' + x.qty + ' @ ' + x.avg + ', last ' + x.last + ', ' + money(x.unrealized) + ' (' + x.unrealized_pct + '%)'; }).join('; ') : 'none') + '.');
+          } else out.push('Portfolio: no broker data synced yet.');
+        }
+        if (R.isLocked('veda_tradeboard_journal')) out.push('Journal: locked.');
+        else {
+          var tr = (field(d, 'trades') || []).filter(Boolean).sort(function (x, y) { return String(y.date).localeCompare(String(x.date)); });
+          var pnl = function (t) { if (t.exit == null) return null; var g = (Number(t.exit) - Number(t.entry)) * Number(t.qty) * (t.side === 'short' ? -1 : 1); return g - (Number(t.fees) || 0); };
+          var open = tr.filter(function (t) { return t.exit == null; });
+          out.push('Journal: ' + tr.length + ' trades' + (open.length ? ', ' + open.length + ' open (' + open.slice(0, 6).map(function (t) { return t.symbol; }).join(', ') + ')' : '') + '. Latest: ' +
+            (tr.length ? tr.slice(0, 8).map(function (t) { var p = pnl(t); return t.date + ' ' + t.side + ' ' + t.symbol + ' x' + t.qty + (p == null ? ' (open)' : ' ' + money(p)); }).join('; ') : 'none') + '.');
+        }
+        if (R.isLocked(WL_LOCK)) out.push('Watchlist: locked.');
+        else { var wl = field(d, 'watchlist'); out.push('Watchlist: ' + (Array.isArray(wl) ? (wl.length ? wl.join(', ') : 'empty') : 'TradeBoard\'s default list (never saved)') + '.'); }
+        return out.join(' ');
+      });
+    },
+    ops: {
+      watch_add: { args: 'tickers (one or more, e.g. "NVDA AMD")', lock: WL_LOCK, run: function (a) {
+        var add = tickers(a.tickers || a.ticker || a.symbol); if (!add.length) return bad('invalid');
+        var added = [];
+        return tbWrite(function (d) {
+          var wl = field(d, 'watchlist');
+          if (!Array.isArray(wl)) return bad('invalid', 'Your watchlist has never been saved in TradeBoard, so I\'d replace its default list. Add one ticker there first.');
+          var next = wl.slice(); added = [];
+          add.forEach(function (t) { if (next.indexOf(t) < 0 && next.length < TB_MAX) { next.push(t); added.push(t); } });
+          if (!added.length) return bad('already', next.length >= TB_MAX ? 'Your watchlist is full: it holds up to ' + TB_MAX + ' tickers.' : 'Already on your watchlist.');
+          var trash = (field(d, 'watchlistTrash') || []).filter(function (x) { return x && x.t && next.indexOf(x.t) < 0; });
+          return { watchlist: JSON.stringify(next), watchlistTrash: JSON.stringify(trash) };
+        }, function (d) { var wl = field(d, 'watchlist') || []; return added.every(function (t) { return wl.indexOf(t) >= 0; }); });
+      } },
+      watch_remove: { args: 'ticker', lock: WL_LOCK, run: function (a) {
+        var t = tickers(a.ticker || a.tickers || a.symbol)[0]; if (!t) return bad('invalid');
+        return tbWrite(function (d) {
+          var wl = field(d, 'watchlist');
+          if (!Array.isArray(wl) || wl.indexOf(t) < 0) return bad('not_found', t + ' isn\'t on your watchlist.');
+          // Soft delete into TradeBoard's 30-day trash, as its own Remove does.
+          var trash = [{ t: t, trashed: Date.now() }].concat((field(d, 'watchlistTrash') || []).filter(function (x) { return x && x.t !== t; }));
+          return { watchlist: JSON.stringify(wl.filter(function (x) { return x !== t; })), watchlistTrash: JSON.stringify(trash) };
+        }, function (d) { return (field(d, 'watchlist') || []).indexOf(t) < 0; });
+      } },
+    },
+  });
+
+  function finTx(n) { return window._fbTbList ? race(window._fbTbList('finance/meta/' + n, 'date', 400), 12000, null) : Promise.resolve(null); }
+  R.register('finance', {
+    lock: 'veda_finance',
+    summary: function () {
+      if (!window._fbTbGet) return Promise.resolve(null);
+      return Promise.all([finTx('plaid_transactions'), finTx('manual_transactions'), race(window._fbTbList('finance/meta/accounts', null, 100), 12000, null), race(window._fbTbGet('finance/meta/sub/ledger'), 12000, null)]).then(function (r) {
+        var txs = (r[0] || []).concat(r[1] || []), accts = r[2] || [], led = r[3] || {};
+        if (!r[0] && !r[1] && !r[2]) return null;
+        var now = new Date(), mk = ymd(now).slice(0, 7);
+        var month = txs.filter(function (t) { return t && String(t.date || '').slice(0, 7) === mk && !t.pending; });
+        var spend = month.filter(function (t) { return t.amount > 0 && NOT_SPEND.indexOf(t.category) < 0; });
+        var inc = month.filter(function (t) { return t.amount < 0 && NOT_SPEND.indexOf(t.category) < 0; });
+        var sum = function (l) { return l.reduce(function (s, t) { return s + Math.abs(Number(t.amount) || 0); }, 0); };
+        var byCat = {}; spend.forEach(function (t) { var c = t.category || 'Other'; byCat[c] = (byCat[c] || 0) + Number(t.amount); });
+        var cats = Object.keys(byCat).sort(function (x, y) { return byCat[y] - byCat[x]; });
+        var debt = function (a) { return a.type === 'credit' || a.type === 'loan'; };
+        var assets = 0, debts = 0; accts.forEach(function (a) { var b = Number(a.balance_current) || 0; if (debt(a)) debts += b; else assets += b; });
+        var budgets = (led.budgets || []).filter(function (b) { return b && b.category; }).map(function (b) { return b.category + ' ' + money(byCat[b.category] || 0) + ' of ' + money(b.limit); });
+        var recent = txs.filter(Boolean).sort(function (x, y) { return String(y.date).localeCompare(String(x.date)); }).slice(0, 10)
+          .map(function (t) { return t.date + ' ' + clip(t.merchant || t.name, 40) + ' ' + (t.amount < 0 ? '+' + money(-t.amount) : money(t.amount)) + (t.category ? ' (' + t.category + ')' : ''); });
+        return (accts.length ? 'Net worth ' + money(assets - debts) + ' (assets ' + money(assets) + ', debts ' + money(debts) + '). ' : '') +
+          (typeof led.cash === 'number' ? 'Cash on hand ' + money(led.cash) + '. ' : '') +
+          'This month: spent ' + money(sum(spend)) + ', income ' + money(sum(inc)) + (cats.length ? '; by category: ' + cats.slice(0, 8).map(function (c) { return c + ' ' + money(byCat[c]); }).join(', ') : '') + '. ' +
+          (budgets.length ? 'Budgets this month: ' + budgets.join('; ') + '. ' : '') +
+          'Recent: ' + (recent.length ? recent.join('; ') : 'none') + '. Expense categories: ' + CAT_EXP.join(', ') + '. Income categories: ' + CAT_INC.join(', ') + '.';
+      });
+    },
+    ops: {
+      add_expense: { args: 'amount, name, category?, date? (YYYY-MM-DD), note?', run: function (a) { return finAdd(a, 'expense'); } },
+      add_income: { args: 'amount, name, category?, date? (YYYY-MM-DD), note?', run: function (a) { return finAdd(a, 'income'); } },
+    },
+  });
+  function finAdd(a, kind) {
+    var amt = parseFloat(String(a.amount || '').replace(/[$,\s]/g, '')), name = str(a.name || a.title);
+    if (!(amt > 0) || !name) return bad('invalid');
+    if (!window._fbTbTx) return bad('no_bridge');
+    var cats = kind === 'income' ? CAT_INC : CAT_EXP;
+    var cat = R.pick(cats, a.category) || 'Other';
+    var id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), now = Date.now();
+    // Exactly the record Finance's own "Add entry" saves.
+    var rec = { id: id, source: 'manual', institution: 'Manual', account_id: null, date: DATE.test(str(a.date)) ? a.date : ymd(new Date()), name: name, merchant: name,
+      amount: kind === 'income' ? -amt : amt, currency: 'USD', category: cat, category_detailed: null, note: str(a.note) || null, pending: false, logo_url: null,
+      csv_txn_id: null, createdAt: now, updatedAt: now };
+    return window._fbTbTx('finance/meta/manual_transactions/' + id, function (d) { return d ? null : rec; })
+      .then(function (ok) { return ok ? true : bad('failed'); });
+  }
+
+  // Know every lock's status (and have the summaries) before Neo's first request on her side.
+  (function warm(n) {
+    if (window._activeProfile === 'veda') { R.refreshAll(true); return; }
+    if (n < 120) setTimeout(function () { warm(n + 1); }, 5000);
+  })(0);
+
+  window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook, fnv: fnv, LOCKDEFS: LOCKDEFS };
 })();

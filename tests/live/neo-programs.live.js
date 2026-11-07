@@ -23,10 +23,14 @@ const ok = (name, cond, extra) => {
 
 (async () => {
   let reply = null, lastBody = null;
+  const lockCalls = [];
   const c = await connect({ mock: firebaseMock({
-    patterns: ['https://personal-ai.av1.workers.dev/taskhub/parse*', 'https://orca.vedapatel05.workers.dev/*'],
+    patterns: ['https://personal-ai.av1.workers.dev/taskhub/parse*', 'https://orca.vedapatel05.workers.dev/*',
+      'https://tradeboard-auth.vedapatel05.workers.dev/*', 'https://studyos-api.vedapatel05.workers.dev/*'],
     handle(req) {
       if (req.method === 'OPTIONS') return { status: 204, text: '' };
+      // The programs' own lock workers: never the real ones. Here no password is set anywhere.
+      if (/tradeboard-auth|studyos-api/.test(req.url)) { lockCalls.push(req.url); return { json: /hint/.test(req.url) ? { noLock: true } : { ok: false, noLock: true } }; }
       if (/orca\.vedapatel05/.test(req.url)) return { status: 400, json: { error: { message: 'no voice in this test' } } };
       if (!/taskhub\/parse/.test(req.url)) return null;
       try { lastBody = JSON.parse(req.postData || '{}'); } catch (e) { lastBody = null; }
@@ -45,7 +49,7 @@ const ok = (name, cond, extra) => {
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'local_storage,session_storage' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   const dash = { data: {}, habits: [], hc: {}, goals: [], monthlyGoals: [], rules: [], rulesDaily: {}, savedAt: Date.now(), rev: 1 };
-  const docs = { 'dashboards/vedasdash': dash, 'dashboards/mylist': { veda: { lists: [{ id: 'g', name: 'Groceries' }] }, tony: { lists: [] } }, 'dashboards/main': { secret: 1 } };
+  const docs = { 'dashboards/vedasdash': dash, 'dashboards/studyos_lock': { locks: {} }, 'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12': { _applock: '{}' }, 'dashboards/mylist': { veda: { lists: [{ id: 'g', name: 'Groceries' }] }, tony: { lists: [] } }, 'dashboards/main': { secret: 1 } };
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); localStorage.setItem('a1b_disabled','1');
     sessionStorage.setItem('__fakefs_docs', JSON.stringify(${JSON.stringify(docs)})); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
@@ -116,6 +120,20 @@ const ok = (name, cond, extra) => {
   ok('add_item lands on her list, Tony\'s untouched', await js(`return _vdNeoPrograms.run('mylist','add_item',{list:'groceries', item:'Bread'}).then(function(v){ return _fbNeoGet('dashboards/mylist').then(function(d){ return v === true && d.veda.lists[0].items.length === 2 && d.tony.lists[0].items[0].name === 'Steak'; }); });`));
   ok('check_item ticks it', await js(`return _vdNeoPrograms.run('mylist','check_item',{item:'milk'}).then(function(v){ return _fbNeoGet('dashboards/mylist').then(function(d){ return v === true && d.veda.lists[0].items[0].done === true; }); });`));
   ok('read_list reads what is left', (await js(`return _vdNeoPrograms.run('mylist','read_list',{}).then(function(r){ return r.say; });`)) === 'Groceries: Bread.');
+
+  console.log('\nphase 4: TRADE, FINANCE and the programs\' own locks, in the real page');
+  ok('every lock Neo leans on is declared to Guardian, on its own record', await js(`var ids=['mylist:profile_veda','veda_shruti','veda_magi','veda_studyos','veda_finance','veda_tradeboard','veda_tradeboard_portfolio','veda_tradeboard_journal','veda_tradeboard_control'];
+    var L=_vdNeoConnectors.LOCKDEFS; return ids.every(function(i){ return !!L[i]; }) && L['mylist:profile_veda'].entryId==='profile_veda' && L.veda_studyos.journal==='studyos_applock';`));
+  await js(`__fakeFs.docs['tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12'] = {watchlist:'["NVDA"]', watchlistTrash:'[]', trades:'[]', positions:'{"account":{"net_liquidation":100}}', _applock:'{}'};
+    __fakeFs.docs['finance/meta/sub/ledger'] = {budgets:[], cash:5}; __fakeFs.docs['dashboards/studyos_lock'] = {locks:{}}; 1`);
+  // Her header has TRADE and FINANCE links (Settings); this fake profile has none, so add them as her links.
+  await js(`var g=window._navGetLinks; window._navGetLinks=function(p){ var l=g(p)||[]; return p==='veda' ? l.concat([{id:'tr',label:'TRADE',url:'https://tradeboard.vedapatel05.workers.dev/'},{id:'fi',label:'FINANCE',url:'https://tradeboard.vedapatel05.workers.dev/finance/'}]) : l; }; 1`);
+  await js(`return Guardian.refresh(['veda_tradeboard','veda_tradeboard_control','veda_finance','veda_studyos'], true);`);
+  ok('…asked of their own lock workers (mocked here)', lockCalls.some(u => /tradeboard-auth/.test(u)), JSON.stringify(lockCalls));
+  const wa = await js(`return Promise.resolve(_vdNeoPrograms.run('tradeboard','watch_add',{tickers:'AMD'})).then(function(v){ return _fbTbGet('tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12').then(function(d){ return { v: v, wl: d && d.watchlist, trades: d && d.trades }; }); });`);
+  ok('TRADE: watch_add lands in TradeBoard\'s doc through the second app', wa.v === true && JSON.parse(wa.wl).join() === 'NVDA,AMD' && wa.trades === '[]', JSON.stringify(wa));
+  ok('FINANCE: add_expense makes a manual entry', await js(`return Promise.resolve(_vdNeoPrograms.run('finance','add_expense',{amount:'9.99', name:'Coffee'})).then(function(v){ return _fbTbList('finance/meta/manual_transactions','date',10).then(function(l){ return v === true && l.length === 1 && l[0].amount === 9.99 && l[0].source === 'manual'; }); });`));
+  ok('…the second app never reaches a document outside its list', await js(`return _fbTbGet('tradeboard/someone_else').then(function(d){ return d === null; });`));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);

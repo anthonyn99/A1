@@ -120,19 +120,48 @@
   // ── locks ────────────────────────────────────────────────────────────────
   // A program behind a Guardian lock: Neo neither reads nor acts in it until
   // it is unlocked. Acting asks for the unlock (alGate), as its own button does.
-  function locked(id) {
-    var c = CONNECTORS[id], G = window.Guardian;
-    try { return !!(c && c.lock && G && G.mustBlock && G.mustBlock(c.lock)); } catch (e) { return false; }
+  // A connector's `lock` (a Guardian id, or several) covers all of it; an op's
+  // own `lock` adds more (a TradeBoard section). Unknown status fails closed.
+  function lockList(x) { return x ? [].concat(x).filter(Boolean) : []; }
+  function blocked(ids) {
+    var G = window.Guardian;
+    return lockList(ids).filter(function (lk) { try { return !!(G && G.mustBlock && G.mustBlock(lk)); } catch (e) { return true; } });
   }
-  function gated(id, fn) {
-    var c = CONNECTORS[id];
-    if (!locked(id)) return fn();
+  function locked(id) { var c = CONNECTORS[id]; return !!(c && blocked(c.lock).length); }
+  function gated(ids, fn) {
+    var need = blocked(ids), G = window.Guardian;
+    if (!need.length) return fn();
     if (!window.alGate) return { ok: false, reason: 'locked' };
-    var p = new Promise(function (res) {
-      window.alGate(c.lock, function () { Promise.resolve().then(fn).then(res, function () { res({ ok: false, reason: 'failed' }); }); }, function () { res({ ok: false, reason: 'locked' }); });
-      setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000);
+    // Ask each lock's backend first: a status not known yet fails closed, and
+    // must never bring up a password card for a lock that isn't set.
+    var fresh = (G && G.refresh) ? Promise.resolve(G.refresh(need, true)).catch(function () {}) : Promise.resolve();
+    return fresh.then(function () {
+      need = blocked(ids);
+      if (!need.length) return fn();
+      return ask(need, fn);
     });
-    p.gated = true; return p;
+  }
+  // One card at a time, each lock in turn; any cancel leaves everything as it was.
+  function ask(need, fn) {
+    var p = new Promise(function (res) {
+      var timer = setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000);
+      (function next(i) {
+        if (i >= need.length) { clearTimeout(timer); Promise.resolve().then(fn).then(res, function () { res({ ok: false, reason: 'failed' }); }); return; }
+        window.alGate(need[i], function () { next(i + 1); }, function () { clearTimeout(timer); res({ ok: false, reason: 'locked' }); });
+      })(0);
+    });
+    return p;
+  }
+  // Guardian asks each lock's backend whether it is set: on load, and with the summaries.
+  function refreshLocks() {
+    var G = window.Guardian, ids = [];
+    Object.keys(CONNECTORS).forEach(function (id) {
+      var c = CONNECTORS[id]; ids = ids.concat(lockList(c.lock));
+      Object.keys(c.ops || {}).forEach(function (o) { ids = ids.concat(lockList(c.ops[o].lock)); });
+    });
+    ids = ids.filter(function (x, i) { return ids.indexOf(x) === i; });
+    if (ids.length && G && G.refresh) { try { return Promise.resolve(G.refresh(ids, true)).catch(function () {}); } catch (e) {} }
+    return Promise.resolve();
   }
 
   // Opens it the way its own button or tile does (locks, named tabs and
@@ -186,7 +215,7 @@
         return r;
       } catch (e) { return { ok: false, reason: 'failed' }; }
     };
-    return gated(p.id, go);
+    return gated(lockList((CONNECTORS[p.id] || {}).lock).concat(lockList(o.lock)), go);
   }
 
   // ── summaries (state.programs) ───────────────────────────────────────────
@@ -201,12 +230,15 @@
       .then(function (s) { if (s != null) SUM[id] = s; }, function () {});
   }
   function refreshSoon(id) { setTimeout(function () { refresh(id); }, 1500); }
+  var LOCKS_AT = 0;
   function refreshAll(force) {
     if (!isVeda()) return Promise.resolve();
-    return Promise.all(Object.keys(CONNECTORS).map(function (id) {
+    var first = Promise.resolve();
+    if (force || Date.now() - LOCKS_AT > EVERY) { LOCKS_AT = Date.now(); first = refreshLocks(); }
+    return first.then(function () { return Promise.all(Object.keys(CONNECTORS).map(function (id) {
       if (!force && SUM_AT[id] && Date.now() - SUM_AT[id] < EVERY) return null;
       return refresh(id);
-    }));
+    })); });
   }
 
   // What the worker sees: every linked program, with what Neo may do in it.
@@ -233,6 +265,8 @@
     refreshAll: refreshAll,
     register: function (id, c) { if (id && c) { CONNECTORS[id] = c; SUM_AT[id] = 0; } },
     norm: norm,
+    // Must this Guardian lock (or any of these) stop Neo right now? For a summary's parts.
+    isLocked: function (ids) { return blocked(ids).length > 0; },
     // The best match for what she said among `items` (a page title, a plan, a list):
     // exact, then whole words either way, then every word she said.
     pick: function (items, q, key) {

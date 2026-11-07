@@ -308,8 +308,8 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 1 | V's Notebook, Plans, Shruti, MAGI (T) (`TaskHub/neo-connectors.js`) | **done 2026-11-06** |
 | 2 | STUDY (StudyOS) | **done 2026-11-06** |
 | 3 | LIST (MyList) | **done 2026-11-06** |
-| 4 (next) | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
-| 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
+| 4 | TRADE (TradeBoard) and FINANCE (Shield left out: Veda's call) | **done 2026-11-07** |
+| 5 (next) | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
 
 Veda's calls (2026-11-06):
 - **EVERWELL is out**, and so are **Wellness, RIFTIQ and ORCA** (her call, later the same day). Neo never
@@ -346,9 +346,25 @@ worker sees state.programs [{id, label, ops?, summary?}]
   - An op with `confirm` is asked first (`needsConfirm`).
   - `summary()` is cached and refreshed every 5 minutes and after Neo's own writes, so
     reading costs no extra call.
-- **Locks:** a connector names its Guardian lock (`lock`). While it is locked, Neo reads
-  nothing (the summary says "Locked"), and an op asks for the unlock through `alGate`,
-  as the program's own button does. A lock this device has never seen fails closed.
+- **Locks:** a connector names its Guardian lock (`lock`, one id or several), and an op may
+  add its own (a TradeBoard section). While a lock is on, Neo reads nothing behind it (the
+  summary says "Locked"), and an op asks for the unlock through `alGate`, Guardian's card.
+  - **Each program's own lock, on its own record** (`LOCKDEFS` in `neo-connectors.js`,
+    2026-11-07). A lock this page didn't declare would be looked up under the wrong record
+    and could read as "no lock": MyList's (`mylist` / `profile_veda`) was, in phases 0 to 3.
+    So every lock Neo leans on is declared with the record and backend its own program
+    uses:
+    - MyList, Shruti and MAGI on Guardian's worker;
+    - StudyOS: its Firestore `dashboards/studyos_lock` for whether the lock is on, and
+      `studyos-api` for the password;
+    - TradeBoard's app lock and its Portfolio, Journal and Control section locks: their
+      versions from TradeBoard's own `_applock`, the password checked on `tradeboard-auth`;
+    - Finance on `tradeboard-auth`.
+  - From TaskHub a password is only checked. Setting, changing, resetting it and hint
+    emails stay in the program.
+  - Before a card comes up, the lock's status is asked again (`gated` → `Guardian.refresh`),
+    so a lock that isn't set never asks for a password. Every status is fetched once when
+    TaskHub opens on her side, and with the summaries.
 - **Reading aloud:** an op that reads answers `{ok:true, say}`. The engine's `settle`
   carries the `say`, and Neo speaks it after its reply. The prompt tells the model that,
   for these ops, `say` is only a short lead-in.
@@ -400,6 +416,44 @@ How each write stays safe:
 - If her lists can't be read, nothing is written.
 - An open MyList tab ignores snapshots for 8 s after its own save. Neo therefore looks again at 3 s and 12 s and puts its change back (by id, once).
 - With two or more lists and none named, Neo asks which.
+
+#### Phase 4: TRADE and FINANCE (`tradeboard`, `finance`)
+
+Both live in another Firebase project, `tradeboard-6b2ea`. TaskHub reaches it through a
+second, named app (`neo-tradeboard`), signed in anonymously as those programs are, with
+`_fbTbGet` / `_fbTbList` / `_fbTbTx` in index.html. They work on Veda's side only and on the
+documents in `NEO_TB_DOCS` only. Checked 2026-11-06:
+- **That project has no App Check.** Its App Check API is off ("has not been used in project
+  … or it is disabled"), so nothing is attached and nothing can be refused for it.
+- **Its API key accepts anthonyn99.github.io.** An invalid sign-in lookup from there was
+  refused for the token, not the site.
+
+**TRADE** (lock `veda_tradeboard`):
+- **Reads:**
+  - portfolio: total, cash, day P&L, positions (needs the Portfolio section lock)
+  - journal: trade count, open trades, the latest eight with P&L (needs the Journal lock)
+  - watchlist (needs the Control lock)
+- **Acts:** `watch_add` and `watch_remove`, with Control's lock:
+  - a removed ticker goes to TradeBoard's 30-day trash, as its own Remove does
+  - at most 40 tickers
+  - a watchlist never saved is left alone (Neo would otherwise replace TradeBoard's default)
+- **Writes:**
+  - each field is TradeBoard's JSON string, written in a transaction with `_updated`, and
+    looked for again 3 s later
+  - it never writes trades, positions or the account (the Webull sync owns them)
+  - **it never places, changes or cancels an order:** there is no such op
+
+**FINANCE** (lock `veda_finance`, Finance's own password):
+- **Reads:**
+  - net worth: assets and debts from `finance/meta/accounts`
+  - cash on hand
+  - this month's spending and income: card payments and transfers left out, by category
+  - budgets against what was spent
+  - the ten latest transactions (Plaid's and manual)
+- **Acts:** `add_expense` and `add_income`. Each makes Finance's own manual record as a new
+  document in `manual_transactions` (an `m_<time>_<rand>` id, Plaid's sign: an expense is
+  positive, a category from Finance's lists). Plaid's transactions, accounts and the ledger
+  are never written.
 
 - **The traps each program has, which the later phases must keep to:**
   - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.
