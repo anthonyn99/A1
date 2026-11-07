@@ -39,7 +39,8 @@
     { id: 'system', re: /\/\/solo-leveling\.[\w.-]+/i, aliases: ['solo leveling', 'solo-leveling', 'my system'] },
     { id: 'orca', re: /\/\/orca\.vedapatel05\.workers\.dev/i, aliases: ['orca ai'] },
     { id: 'reserv', re: /\/\/reserv\.vedapatel05\.workers\.dev/i, aliases: ['reserve', 'reserves', 'reservations'] },
-    { id: 'everwell', re: /\/everwell\.html(?=[?#]|$)/i, aliases: ['ever well'] },
+    // Tony's program, with no Veda profile: Neo never lists, opens or touches it (Veda, 2026-11-06).
+    { id: 'everwell', re: /\/everwell\.html(?=[?#]|$)/i, aliases: [], off: true },
     { id: 'warden', re: /\/\/vedacpatel\.github\.io\/warden\//i, aliases: ['my links', 'links', 'links page'] },
     { id: 'riftiq', re: /\/riftiq\.html(?=[?#]|$)/i, aliases: ['rift iq', 'war room', 'warroom'] },
   ];
@@ -60,6 +61,7 @@
     var out = [], seen = {};
     function put(e) {
       if (!e.url || isTaskHub(e.url)) return;      // TaskHub itself: open_app taskhub
+      if ((knownFor(e.url) || {}).off) return;     // a program Neo stays out of
       var k = addrKey(e.url);
       if (seen[k]) return;
       var kn = knownFor(e.url);
@@ -79,9 +81,10 @@
     var all = list(), n = norm(q);
     if (!n) return null;
     var by = function (f) { return all.filter(f)[0] || null; };
-    // Her own name for it wins: "MAGI" is the link she called MAGI, not MAGI (T).
-    return by(function (p) { return norm(p.label) === n; })
-      || by(function (p) { return p.id === q || norm(p.id) === n; })
+    // A known program's id wins, so "MAGI" is MAGI (T), the A1 page (Veda, 2026-11-06);
+    // her council link is "council". Then her own label, an alias, part of a label.
+    return by(function (p) { return p.id === q || norm(p.id) === n; })
+      || by(function (p) { return norm(p.label) === n; })
       || by(function (p) { return (p.aliases || []).some(function (a) { return norm(a) === n; }); })
       || by(function (p) { var l = ' ' + norm(p.label) + ' '; return l.indexOf(' ' + n + ' ') >= 0 || (' ' + n + ' ').indexOf(l) >= 0; })
       || null;

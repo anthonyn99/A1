@@ -311,9 +311,10 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
 | 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
 
-Open questions for Veda:
-- EVERWELL is Tony's program: it has no Veda profile, so acting in it would write his data. For now Neo only opens it.
-- The source for the MAGI council link (`magi-council-4f7a…workers.dev`) is not in A1, A1-Priv or Downloads. Neo opens it; acting inside it needs its source.
+Veda's calls (2026-11-06):
+- **EVERWELL is out.** Neo never lists, opens or touches it (`off` in `KNOWN`).
+- **MAGI means MAGI (T)**, the A1 page (`magi.html`, her `dashboards/magi_veda`). Her council
+  link (`magi-council-4f7a…`, source not in A1, A1-Priv or Downloads) is only opened, as "council".
 
 ```
 worker sees state.programs [{id, label, ops?, summary?}]
@@ -327,11 +328,10 @@ worker sees state.programs [{id, label, ops?, summary?}]
   list (`LifeHub.list('veda')`, hidden tiles left out) and Warden. Each address is
   listed once, and TaskHub itself is left out. Known programs keep stable ids:
   `studyos`, `finance`, `tradeboard`, `mylist`, `wellness`, `magi_council`, `magi`, `shruti`,
-  `shield`, `system`, `orca`, `reserv`, `everwell`, `riftiq`, `warden`. Anything else gets
+  `shield`, `system`, `orca`, `reserv`, `riftiq`, `warden` (`everwell` is known only to be left out). Anything else gets
   `link:<id>` or `lh:<id>`, and so does a second link to the same kind of page.
-- **Names:** her own label wins. "MAGI" is the link she called MAGI (the council), and
-  "MAGI (T)" is the A1 page. After the label, the id, then an alias ("solo leveling",
-  "study"), then part of a label.
+- **Names:** a known program's id wins, so "MAGI" is MAGI (T). Then her own label, an
+  alias ("solo leveling", "study", "council"), then part of a label.
 - **Opening** works the way its own button or tile does: `_navOpenLink` for a header
   link (its lock and named tab included) and `LifeHub.launch` for a tile. Warden replaces
   the page 2.6 s later, so Neo finishes speaking first. `open_link` falls back to this
