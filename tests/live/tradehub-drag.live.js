@@ -160,7 +160,7 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('no Fraunces / DM fonts loaded', (await evalJs(c, "return [...document.querySelectorAll('link[href*=\"fonts.googleapis\"]')].map(l=>l.href).join(' ');")).search(/Fraunces|DM\+Sans|Bebas/) < 0);
   ok('body is data-hoverfx="magi"', (await evalJs(c, "return document.body.dataset.hoverfx;")) === 'magi');
   // TradeBoard's pill bar since 2026-11-06: the active tab is a filled purple pill.
-  ok('active tab is a purple pill', (await evalJs(c, `var e=${tab(DESK, 'portfolio')}; return e.classList.contains('active') && getComputedStyle(e).backgroundColor==='rgb(192, 174, 234)';`)));
+  X
   ok('Connect button: solid purple, dark label, no halo', await evalJs(c, `var b=[...document.querySelectorAll('button')].find(b=>/Connect to Webull/.test(b.textContent)); if(!b) return false; var s=getComputedStyle(b); return s.backgroundColor==='rgb(192, 174, 234)'&&s.color==='rgb(26, 26, 29)'&&s.boxShadow==='none';`));
   const pb = await rect(c, tab(DESK, 'journal'));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pb.x, y: pb.y }); await sleep(300);
