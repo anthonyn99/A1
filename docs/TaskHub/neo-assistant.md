@@ -309,7 +309,7 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 2 | STUDY (StudyOS) | **done 2026-11-06** |
 | 3 | LIST (MyList) | **done 2026-11-06** |
 | 4 | TRADE (TradeBoard) and FINANCE (Shield left out: Veda's call) | **done 2026-11-07** |
-| 5 (next) | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
+| 5 | SYSTEM (Solo-Leveling), RESERV, WARDEN | **built 2026-11-07**; SYSTEM's and RESERV's worker changes committed in their repos, deployed once Veda approves |
 
 Veda's calls (2026-11-06):
 - **EVERWELL is out**, and so are **Wellness, RIFTIQ and ORCA** (her call, later the same day). Neo never
@@ -454,6 +454,58 @@ documents in `NEO_TB_DOCS` only. Checked 2026-11-06:
   document in `manual_transactions` (an `m_<time>_<rand>` id, Plaid's sign: an expense is
   positive, a category from Finance's lists). Plaid's transactions, accounts and the ledger
   are never written.
+
+#### Phase 5: SYSTEM, RESERV, WARDEN
+
+**SYSTEM and RESERV: signing in from TaskHub.** Both are cookie-only workers on Veda's
+account. Their cookie is SameSite=Lax and `*.workers.dev` is a public suffix, so a page on
+anthonyn99.github.io never sends it. Each worker therefore got the same small change in its
+own repo:
+- CORS on `/api/*` for `https://anthonyn99.github.io` only.
+- A login from there that asks for `token: true` also gets its 30-day session token in the
+  body.
+- That token is accepted as `Authorization: Bearer`: same token, same check, cookie path
+  unchanged.
+- RESERV's relay drops `Authorization`, so the token never reaches the PC.
+
+The commits:
+- `SOLO-LEVELING` (branch `fix/audit-p0`, which is what is live): `f1b40eb`. Deploy with
+  `cd worker && npm run deploy`.
+- `RESERV` (`main`): `68018be`. Deploy with `deploy-worker.bat`.
+
+In TaskHub:
+- The token is Neo's "lock": `veda_system` / `veda_reserv`, a Guardian backend
+  (`sessionLock`).
+- Her password is asked once per device on Guardian's card, checked by the program's own
+  `/api/login`, and the token is kept as `localStorage neo.tok.<id>`.
+- A token the program no longer takes is dropped, and the card asks again.
+
+**SYSTEM** (`system`):
+- **Reads (summary):** today's focus and why, the lesson and its XP, done today, XP today,
+  lessons this week, streak, every stat's level. `read_review` asks SYSTEM's own AI for its
+  weekly review (slow).
+- **Acts:** `log_activity(stat, xp?, description?)` (says a level-up), `notebook_lesson(prompt,
+  stat?)`, `reminder(on, time?)`.
+
+**RESERV** (`reserv`):
+- **Reads (summary):** whether the PC is online, the shopping list (as last saved when the PC
+  is off), unread notifications. `read_notifications` reads them out.
+- **Acts:**
+  - `add_item(name, when?, qty?, brand?, size?, target_price?)` (needs the PC on)
+  - `mark_notifications_read`
+  - nothing touches RESERV's store accounts
+
+**WARDEN** (`warden`, Warden's own lock `veda_warden_standalone`):
+- **How it is reached:** through its links worker (`warden-links`, the `X-Warden-Key` Warden's
+  config calls not a secret), as Warden's extension reaches it. Warden's own Firestore has App
+  Check on its Pages domain.
+- **Reads (summary):** connection and link names only. Emails, phones and usernames never go
+  to the model. `read_connection` reads them aloud.
+- **Acts:** `open_link`, and `add_link(connection, name, url)`:
+  - that worker REPLACES the document on every save, so Neo saves only a list it has just
+    read whole, with one link added and the layout kept
+  - an empty or failed read is never written back
+- The vault (passwords) is never touched.
 
 - **The traps each program has, which the later phases must keep to:**
   - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.

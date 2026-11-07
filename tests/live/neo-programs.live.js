@@ -23,13 +23,30 @@ const ok = (name, cond, extra) => {
 
 (async () => {
   let reply = null, lastBody = null;
-  const lockCalls = [];
+  const lockCalls = [], slLogged = [];
+  const slToken = String(Math.floor(Date.now() / 1000) + 3600) + '.abc';
+  let wardenDoc = { connections: [{ name: 'School', items: [{ type: 'link', name: 'Canvas', url: 'https://canvas.example' }] }], colmap: [[0]] };
   const c = await connect({ mock: firebaseMock({
     patterns: ['https://personal-ai.av1.workers.dev/taskhub/parse*', 'https://orca.vedapatel05.workers.dev/*',
-      'https://tradeboard-auth.vedapatel05.workers.dev/*', 'https://studyos-api.vedapatel05.workers.dev/*'],
+      'https://tradeboard-auth.vedapatel05.workers.dev/*', 'https://studyos-api.vedapatel05.workers.dev/*',
+      'https://solo-leveling.vedapatel05.workers.dev/*', 'https://warden-links.vedapatel05.workers.dev/*'],
     handle(req) {
       if (req.method === 'OPTIONS') return { status: 204, text: '' };
       // The programs' own lock workers: never the real ones. Here no password is set anywhere.
+      // SYSTEM (Solo-Leveling) and Warden's links: never the real ones.
+      if (/solo-leveling/.test(req.url)) {
+        let b = {}; try { b = JSON.parse(req.postData || '{}'); } catch (e) {}
+        if (/\/api\/login$/.test(req.url)) return b.password === 'pw' ? { json: { ok: true, token: slToken } } : { status: 401, json: { error: 'wrong password' } };
+        if ((req.headers.Authorization || req.headers.authorization) !== 'Bearer ' + slToken) return { status: 401, json: { error: 'not signed in' } };
+        if (/\/api\/session$/.test(req.url)) return { json: { authenticated: true } };
+        if (/\/api\/stats$/.test(req.url)) return { json: { stats: [{ id: 5, name: 'Fitness', level: 2 }] } };
+        if (/\/api\/stats\/5\/log$/.test(req.url)) { slLogged.push(b); return { json: { result: { xp_gained: b.xp || 10, leveled_up: false } } }; }
+        return { status: 404, json: { error: 'not found' } };
+      }
+      if (/warden-links/.test(req.url)) {
+        if (req.method === 'PUT') { wardenDoc = JSON.parse(req.postData || '{}'); return { json: { ok: true } }; }
+        return { json: wardenDoc };
+      }
       if (/tradeboard-auth|studyos-api/.test(req.url)) { lockCalls.push(req.url); return { json: /hint/.test(req.url) ? { noLock: true } : { ok: false, noLock: true } }; }
       if (/orca\.vedapatel05/.test(req.url)) return { status: 400, json: { error: { message: 'no voice in this test' } } };
       if (!/taskhub\/parse/.test(req.url)) return null;
@@ -134,6 +151,15 @@ const ok = (name, cond, extra) => {
   ok('TRADE: watch_add lands in TradeBoard\'s doc through the second app', wa.v === true && JSON.parse(wa.wl).join() === 'NVDA,AMD' && wa.trades === '[]', JSON.stringify(wa));
   ok('FINANCE: add_expense makes a manual entry', await js(`return Promise.resolve(_vdNeoPrograms.run('finance','add_expense',{amount:'9.99', name:'Coffee'})).then(function(v){ return _fbTbList('finance/meta/manual_transactions','date',10).then(function(l){ return v === true && l.length === 1 && l[0].amount === 9.99 && l[0].source === 'manual'; }); });`));
   ok('…the second app never reaches a document outside its list', await js(`return _fbTbGet('tradeboard/someone_else').then(function(d){ return d === null; });`));
+
+  console.log('\nphase 5: SYSTEM, WARDEN in the real page');
+  await js(`var g=window._navGetLinks; window._navGetLinks=function(p){ var l=g(p)||[]; return p==='veda' ? l.concat([{id:'sy',label:'SYSTEM (SOLO-LEVELING)',url:'https://solo-leveling.vedapatel05.workers.dev/'},{id:'wd2',label:'WARDEN',url:'https://vedacpatel.github.io/warden/warden.html'}]) : l; }; 1`);
+  ok('SYSTEM: its own password gives Neo a token, kept on this device', await js(`return _vdNeoConnectors.LOCKDEFS.veda_system.backend.verify({}, 'pw').then(function(r){ return r.ok === true && localStorage.getItem('neo.tok.system') === ${JSON.stringify(slToken)}; });`));
+  const sl = await js(`return Guardian.refresh(['veda_system'], true).then(function(){ return Promise.resolve(_vdNeoPrograms.run('system','log_activity',{stat:'fitness', xp:'15'})); }).then(function(r){ return r; });`);
+  ok('SYSTEM: log_activity reaches it with that token', sl && sl.ok === true && slLogged.length === 1 && slLogged[0].xp === 15, JSON.stringify(sl));
+  ok('WARDEN: add_link writes her whole list back with the link added', await js(`return Promise.resolve(_vdNeoPrograms.run('warden','add_link',{connection:'school', name:'Library', url:'library.example'})).then(function(v){ return v === true; });`)
+    && wardenDoc.connections[0].items.length === 2 && wardenDoc.connections[0].items[1].url === 'https://library.example' && JSON.stringify(wardenDoc.colmap) === '[[0]]', JSON.stringify(wardenDoc));
+  await js(`try{ localStorage.removeItem('neo.tok.system'); }catch(e){} 1`);
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);

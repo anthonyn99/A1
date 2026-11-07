@@ -73,7 +73,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const csrc = read('TaskHub/neo-connectors.js');
   function page(opts) {
     opts = opts || {};
-    const log = { patch: [], put: [], opened: [], tabs: [], nav: [], magi: [], gate: [], tx: [], later: [] };
+    const log = { patch: [], put: [], opened: [], tabs: [], nav: [], magi: [], gate: [], tx: [], later: [], http: [], win: [] };
     const store = Object.assign({}, opts.docs || {});
     // The 3 s look-again after a StudyOS write is queued (log.later) so a test can run it when it likes.
     const ctx = { console, Promise, JSON, Object, Array, String, Date, Math, crypto: require('crypto').webcrypto, clearTimeout: () => {},
@@ -87,11 +87,20 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
       { id: 'li', label: 'LIST', url: 'https://anthonyn99.github.io/A1/mylist.html' },
       { id: 'tr', label: 'TRADE', url: 'https://tradeboard.vedapatel05.workers.dev/' },
       { id: 'fi', label: 'FINANCE', url: 'https://tradeboard.vedapatel05.workers.dev/finance/' },
+      { id: 'sy', label: 'SYSTEM (SOLO-LEVELING)', url: 'https://solo-leveling.vedapatel05.workers.dev/' },
+      { id: 'rv', label: 'RESERV', url: 'https://reserv.vedapatel05.workers.dev/' },
+      { id: 'wd', label: 'WARDEN', url: 'https://vedacpatel.github.io/warden/warden.html' },
     ];
     ctx._navOpenLink = (p, id) => log.opened.push(id);
     ctx._tnOpenTab = (u, k) => { log.tabs.push([u, k]); return { location: { href: u } }; };
     ctx._vedaNav = (v) => log.nav.push(v);
     ctx.fetch = async (u, o) => {
+      if (/^https:/.test(u) && opts.http) {
+        const b = o && o.body ? JSON.parse(o.body) : null; log.http.push([(o && o.method) || 'GET', u, b, (o && o.headers) || {}]);
+        const r = await opts.http((o && o.method) || 'GET', u, b, (o && o.headers) || {});
+        if (r === 'down') throw new TypeError('Failed to fetch');
+        return { ok: (r.status || 200) < 400, status: r.status || 200, headers: { get: (k) => (r.headers || {})[k] || null }, json: async () => r.json };
+      }
       if (/^https:/.test(u)) { const b = JSON.parse((o && o.body) || '{}'); log.auth.push([u, b]); return { json: async () => (opts.authReply ? opts.authReply(u, b) : { ok: false }) }; }
       return { json: async () => JSON.parse(read(u)) };
     };
@@ -138,6 +147,10 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
         removePlan: (id) => { log.plan = ['remove', id]; },
       };
     }
+    const ls = Object.assign({}, opts.ls || {});
+    ctx.localStorage = { getItem: (k) => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); }, removeItem: (k) => { delete ls[k]; } };
+    log.ls = ls;
+    ctx.open = (u) => { log.win.push(u); return opts.blockPopups ? null : {}; };
     ctx.A1Debrief = { b64u: (s) => Buffer.from(s, 'utf8').toString('base64url'), openMagi: (u) => { log.magi.push(u); return true; } };
     vm.createContext(ctx);
     vm.runInContext(psrc, ctx);
@@ -442,6 +455,106 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const { R, log } = page({ tb: { 'finance/meta/sub/ledger': { cash: 1 } }, locks: { veda_finance: true } });
     await R._test.refresh('finance');
     t('Finance locked: nothing read, nothing written, its own password asked for', !R._test.summaries.finance && (await R.run('finance', 'add_expense', { amount: 5, name: 'x' })).reason === 'locked' && log.gate[0] === 'veda_finance' && !log.tbtx.length);
+  }
+
+  section('SYSTEM and RESERV: their own password, a session token');
+  {
+    const SL = 'https://solo-leveling.vedapatel05.workers.dev', live = String(Math.floor(Date.now() / 1000) + 3600) + '.abc';
+    const { R, log } = page({ http: (m, u, b) => (u === SL + '/api/login' ? (b.password === 'pw' ? { json: { ok: true, token: live } } : { status: 401, json: { error: 'wrong password' } }) : { status: 404, json: {} }) });
+    const be = log.defs.veda_system.backend;
+    t('no token yet: SYSTEM reads as locked', JSON.stringify(await be.status()) === '{"hasLock":true,"ver":"s","unlocked":false}');
+    t('the right password asks for a token and keeps it on this device', (await be.verify({}, 'pw')).ok === true && log.http[0][2].token === true && log.ls['neo.tok.system'] === live);
+    t('…a wrong one keeps nothing', (await be.verify({}, 'no')).ok === false);
+    t('passwords are only ever checked from TaskHub', ['set', 'remove', 'resetRequest', 'resetConfirm', 'hint'].every((k) => typeof be[k] === 'function') && (await be.set({}, 'x')).ok === false);
+  }
+  {
+    const SL = 'https://solo-leveling.vedapatel05.workers.dev', live = String(Math.floor(Date.now() / 1000) + 3600) + '.abc';
+    const stats = [{ id: 3, name: 'Programming', level: 4 }, { id: 5, name: 'Fitness', level: 2 }];
+    const { R, log } = page({ ls: { 'neo.tok.system': live }, http: (m, u, b, h) => {
+      if (h.Authorization !== 'Bearer ' + live) return { status: 401, json: { error: 'not signed in' } };
+      if (u.startsWith(SL + '/api/today')) return { json: { today: { focus: { name: 'Programming', level: 4, reason: 'lowest recent XP' }, lesson: { title: 'Loops', est_minutes: 8 }, lesson_xp_now: 30, completed_today: 1, xp_today: 45, lessons_this_week: 3, streak_days: 6, stats } } };
+      if (u === SL + '/api/session') return { json: { authenticated: true } };
+      if (u === SL + '/api/stats') return { json: { stats } };
+      if (u === SL + '/api/stats/5/log') return { json: { result: { xp_gained: 20, leveled_up: true, level_after: 3 } } };
+      if (u === SL + '/api/reminder') return { json: { reminder: b } };
+      if (u === SL + '/api/notebook') return { json: { item: { id: 1 } } };
+      return { status: 404, json: { error: 'not found' } };
+    } });
+    t('a live token: unlocked', JSON.stringify(await log.defs.veda_system.backend.status()) === '{"hasLock":true,"ver":"s","unlocked":true}');
+    t('"system" and "solo leveling" are SYSTEM', R.find('system').id === 'system' && R.find('solo leveling').id === 'system');
+    await R._test.refresh('system');
+    const s = R._test.summaries.system || '';
+    t('summary: today\'s focus, lesson, XP, streak, stats', /focus Programming \(level 4, lowest recent XP\)/.test(s) && /lesson "Loops" \(8 min, 30 XP\)/.test(s) && /streak 6 days/.test(s) && /Fitness L2/.test(s), s);
+    const r1 = await R.run('system', 'log_activity', { stat: 'fitness', xp: '20', description: 'ran 5k' });
+    t('log_activity logs to that stat, with the Bearer token, and says a level-up', r1.ok && r1.say === 'Logged 20 XP to Fitness. That\'s level 3.' && log.http.some((x) => x[1] === SL + '/api/stats/5/log' && x[2].xp === 20 && x[2].description === 'ran 5k'));
+    t('…an unknown stat is said', (await R.run('system', 'log_activity', { stat: 'cooking' })).reason === 'not_found');
+    t('reminder sets the time and her time zone', (await R.run('system', 'reminder', { on: 'true', time: '20:30' })) === true && log.http.some((x) => x[1] === SL + '/api/reminder' && x[2].enabled === true && x[2].hour === 20 && x[2].minute === 30 && typeof x[2].tz_offset === 'number'));
+    t('notebook_lesson asks SYSTEM to write one, for a stat', /writing that lesson/.test((await R.run('system', 'notebook_lesson', { prompt: 'recursion basics', stat: 'programming' })).say) && log.http.some((x) => x[1] === SL + '/api/notebook' && x[2].stat_id === 3));
+  }
+  {
+    const live = String(Math.floor(Date.now() / 1000) + 3600) + '.abc';
+    const { R, log } = page({ ls: { 'neo.tok.system': live }, http: () => ({ status: 401, json: { error: 'not signed in' } }) });
+    const r = await R.run('system', 'log_activity', { stat: 'x' });
+    t('a token SYSTEM no longer takes is dropped, and Neo says the sign-in ran out', r.reason === 'locked' && /sign-in has run out/.test(r.say) && !log.ls['neo.tok.system']);
+  }
+  {
+    const { R } = page({ ls: { 'neo.tok.system': String(Math.floor(Date.now() / 1000) + 3600) + '.abc' }, http: () => 'down' });
+    t('SYSTEM unreachable (its worker not deployed yet): said, not claimed', /can't reach SYSTEM/.test((await R.run('system', 'log_activity', { stat: 'x' })).say));
+  }
+  {
+    const RV = 'https://reserv.vedapatel05.workers.dev', live = String(Math.floor(Date.now() / 1000) + 3600) + '.abc';
+    let pcOn = true;
+    const { R, log } = page({ ls: { 'neo.tok.reserv': live }, http: (m, u, b) => {
+      if (u === RV + '/api/cloud/engine') return { json: { online: pcOn } };
+      if (u === RV + '/api/list' && m === 'GET') return { json: [{ id: 1, name: 'AirPods Pro', when: 'now', qty: 1 }, { id: 2, name: 'Shampoo', when: 'soon', qty: 2 }], headers: pcOn ? {} : { 'X-Reserv-Offline': '1', 'X-Reserv-Saved-At': '123' } };
+      if (u === RV + '/api/list' && m === 'POST') return pcOn ? { json: { id: 9 } } : { status: 503, json: { detail: 'offline', offline: true } };
+      if (u.startsWith(RV + '/api/notifications?')) return { json: { unread: 2, items: [{ title: 'Price drop: AirPods', body: '$179 at Target', read: false }, { title: 'Old', read: true }] } };
+      if (u === RV + '/api/notifications/read-all') return { json: { ok: true } };
+      return { status: 404, json: {} };
+    } });
+    await R._test.refresh('reserv');
+    const s = R._test.summaries.reserv || '';
+    t('RESERV summary: PC status, the list, unread notifications', /PC online/.test(s) && /AirPods Pro \(now\), Shampoo x2/.test(s) && /2 unread; latest: Price drop: AirPods/.test(s), s);
+    t('add_item adds to the list as RESERV\'s own form does', /Added Dyson Airwrap/.test((await R.run('reserv', 'add_item', { name: 'Dyson Airwrap', when: 'anytime', target_price: '$399' })).say)
+      && log.http.some((x) => x[0] === 'POST' && x[1] === RV + '/api/list' && x[2].name === 'Dyson Airwrap' && x[2].when === 'anytime' && x[2].target_price === 399));
+    t('read_notifications reads the unread ones', (await R.run('reserv', 'read_notifications', {})).say === 'Price drop: AirPods: $179 at Target.');
+    t('mark_notifications_read', (await R.run('reserv', 'mark_notifications_read', {})) === true);
+    pcOn = false;
+    t('PC off: adding is refused plainly', /PC is off/.test((await R.run('reserv', 'add_item', { name: 'Socks' })).say));
+    await R._test.refresh('reserv');
+    t('…and the summary says the list is as last saved', /PC offline, list as last saved/.test(R._test.summaries.reserv || ''));
+  }
+
+  section('WARDEN');
+  {
+    const WL = 'https://warden-links.vedapatel05.workers.dev/links';
+    let doc = { connections: [{ name: 'Chase Bank', color: '#123', items: [{ type: 'link', name: 'Online banking', url: 'https://chase.com' }, { type: 'email', value: 'v@example.com' }, { type: 'username', label: 'User', value: 'veda05' }] },
+      { name: 'School', items: [{ type: 'link', name: 'Canvas', url: 'https://canvas.kent.edu' }, { type: 'link', name: 'Email', url: 'https://outlook.com' }] }], colmap: [[0], [1]], savedAt: 1 };
+    const { R, log } = page({ http: (m, u, b, h) => {
+      if (h['X-Warden-Key'] !== 'wd-xn50F95KAByggSLQ5-aNcYZb1-zGsv') return { status: 401, json: {} };
+      if (u === WL && m === 'GET') return { json: JSON.parse(JSON.stringify(doc)) };
+      if (u === WL && m === 'PUT') { doc = Object.assign({}, b, { savedAt: 2 }); return { json: { ok: true } }; }
+      return { status: 404, json: {} };
+    } });
+    t('"warden" is Warden, behind Warden\'s own lock', R.find('warden').id === 'warden' && R._test.connectors.warden.lock === 'veda_warden_standalone' && log.defs.veda_warden_standalone && !log.defs.veda_warden_standalone.journal);
+    await R._test.refresh('warden');
+    const s = R._test.summaries.warden || '';
+    t('summary: connection and link names, never emails, phones or usernames', /Chase Bank \(links: Online banking\)/.test(s) && /School \(links: Canvas, Email\)/.test(s) && !/example\.com|veda05/.test(s), s);
+    t('read_connection reads it out (spoken, never sent to the model)', (await R.run('warden', 'read_connection', { connection: 'chase' })).say === 'Chase Bank: Online banking, email v@example.com and User veda05.');
+    t('open_link opens the link', (await R.run('warden', 'open_link', { link: 'canvas' })) === true && log.win[0] === 'https://canvas.kent.edu');
+    t('…a connection with one link opens it', (await R.run('warden', 'open_link', { link: 'chase bank' })) === true && log.win[1] === 'https://chase.com');
+    t('add_link adds to that connection, keeping everything else and the layout', (await R.run('warden', 'add_link', { connection: 'school', name: 'Library', url: 'library.kent.edu' })) === true
+      && doc.connections[1].items.length === 3 && doc.connections[1].items[2].url === 'https://library.kent.edu' && doc.connections[0].items.length === 3 && JSON.stringify(doc.colmap) === '[[0],[1]]' && doc.connections[0].color === '#123');
+    t('…the same link twice is not added', (await R.run('warden', 'add_link', { connection: 'school', name: 'x', url: 'https://library.kent.edu/' })).reason === 'already');
+  }
+  {
+    const { R, log } = page({ blockPopups: true, http: (m, u) => ({ json: { connections: [{ name: 'S', items: [{ type: 'link', name: 'Canvas', url: 'https://c.example' }] }] } }) });
+    t('a blocked pop-up is said, not claimed', (await R.run('warden', 'open_link', { link: 'canvas' })).reason === 'blocked');
+  }
+  {
+    const { R, log } = page({ http: (m, u) => (m === 'GET' ? { json: { connections: [], colmap: null, savedAt: 0 } } : { json: { ok: true } }) });
+    const r = await R.run('warden', 'add_link', { connection: 'school', name: 'x', url: 'https://x.example' });
+    t('an empty or failed read is never written back over her links', r.ok === false && /changed nothing/.test(r.say) && !log.http.some((x) => x[0] === 'PUT'));
   }
 
   section('Tony\'s side');

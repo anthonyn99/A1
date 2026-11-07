@@ -8,7 +8,7 @@
    that reads something aloud answers {ok:true, say}, which Neo speaks after
    its reply. VEDA'S SIDE ONLY: the registry refuses every call off her side.
 
-   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS. Phase 3: MyList. Phase 4: TradeBoard, Finance.
+   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS. Phase 3: MyList. Phase 4: TradeBoard, Finance. Phase 5: SYSTEM, RESERV, Warden.
    Each writes the way its own program does:
      · Notebook  only through Notebook's API (pages, page, putPage, open)
      · Plans     only through PlansCore, as Veda
@@ -94,6 +94,42 @@
         }, function () { return null; });
       }) },
   };
+  // SYSTEM and RESERV have no lock records: they sign in with their own password
+  // and a 30-day session. Their workers hand TaskHub that session as a token
+  // (CORS for anthonyn99.github.io only; 2026-11-07), kept on this device and
+  // sent as a Bearer header. "Unlocked" = a token the program still accepts.
+  function sessionLock(id, base, checkPath, okField) {
+    var no = function () { return Promise.resolve({ ok: false, error: 'elsewhere' }); };
+    return {
+      status: function () {
+        var t = neoToken(id);
+        if (!t) return Promise.resolve({ hasLock: true, ver: 's', unlocked: false });
+        return fetch(base + checkPath, { headers: { Authorization: 'Bearer ' + t } }).then(function (r) { return r.json(); })
+          .then(function (j) { var ok = !!(j && j[okField]); if (!ok) neoToken(id, null); return { hasLock: true, ver: 's', unlocked: ok }; }, function () { return null; });
+      },
+      verify: function (d, pw) {
+        return fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, token: true }) })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) { if (j && j.token) { neoToken(id, j.token); return { ok: true }; } return { ok: false }; }, function () { return { ok: false, error: 'network' }; });
+      },
+      hint: no, set: no, remove: no, resetRequest: no, resetConfirm: no,
+    };
+  }
+  // A program's session token on this device: read, or set (null clears it). Only live ones count.
+  function neoToken(id, v) {
+    var KEY = 'neo.tok.' + id;
+    try {
+      if (v === null) { localStorage.removeItem(KEY); return ''; }
+      if (v) { localStorage.setItem(KEY, v); return v; }
+      var t = localStorage.getItem(KEY) || '';
+      return t && parseInt(t.split('.')[0], 10) * 1000 > Date.now() ? t : '';
+    } catch (e) { return ''; }
+  }
+  var SL_API = 'https://solo-leveling.vedapatel05.workers.dev', RV_API = 'https://reserv.vedapatel05.workers.dev';
+  LOCKDEFS.veda_system = { journal: 'neo_session', entryId: 'system', label: 'SYSTEM', appName: 'SYSTEM', backend: sessionLock('system', SL_API, '/api/session', 'authenticated') };
+  LOCKDEFS.veda_reserv = { journal: 'neo_session', entryId: 'reserv', label: 'RESERV', appName: 'RESERV', backend: sessionLock('reserv', RV_API, '/api/auth/status', 'signed_in') };
+  // Warden's own lock, as warden.html declares it (Guardian's worker, applock / veda_warden_standalone).
+  LOCKDEFS.veda_warden_standalone = { label: 'Warden', appName: 'Warden' };
   if (G && G.define) Object.keys(LOCKDEFS).forEach(function (id) { try { G.define(id, Object.assign({ owner: 'veda', theme: 'veda' }, LOCKDEFS[id])); } catch (e) {} });
 
   /* ── V's Notebook ─────────────────────────────────────────────────────── */
@@ -836,6 +872,198 @@
     if (window._activeProfile === 'veda') { R.refreshAll(true); return; }
     if (n < 120) setTimeout(function () { warm(n + 1); }, 5000);
   })(0);
+
+  /* ── SYSTEM (Solo-Leveling), RESERV and WARDEN: Phase 5 (2026-11-07) ────────
+     SYSTEM and RESERV are their own workers on Veda's account, reached with
+     the session token from their own password (sessionLock above). Every call
+     says so plainly when the program can't be reached. WARDEN's links go
+     through its links worker (warden-links), the way Warden's own extension
+     reaches them: that worker REPLACES the whole document on every save, so
+     Neo only ever saves a list it has just read whole, with one link added. */
+  function call(base, id, path, opts) {
+    var t = neoToken(id);
+    if (!t) return Promise.resolve({ _locked: true });
+    opts = opts || {};
+    var h = { Authorization: 'Bearer ' + t }; if (opts.body) h['Content-Type'] = 'application/json';
+    return race(fetch(base + path, { method: opts.method || 'GET', headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined })
+      .then(function (r) {
+        if (r.status === 401) { neoToken(id, null); return { _locked: true }; }
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) j = Object.assign({ _status: r.status }, j); if (r.headers.get('X-Reserv-Offline')) j._offline = r.headers.get('X-Reserv-Saved-At') || true; return j; });
+      }, function () { return { _down: true }; }), opts.ms || 20000, { _down: true });
+  }
+  function callBad(j, name) {
+    if (j._locked) return bad('locked', 'Your ' + name + ' sign-in has run out. Ask me again and I\'ll ask for its password.');
+    if (j._down) return bad('failed', 'I can\'t reach ' + name + ' just now.');
+    if (j._status) return bad('failed', name + ' said: ' + clip(j.error || j.detail || ('error ' + j._status), 120));
+    return null;
+  }
+  var tzMin = function () { return -new Date().getTimezoneOffset(); };
+
+  R.register('system', {
+    lock: 'veda_system',
+    summary: function () {
+      return call(SL_API, 'system', '/api/today?tz=' + tzMin()).then(function (j) {
+        var t = j && j.today; if (!t) return null;
+        var stats = (t.stats || []).map(function (x) { return x.name + ' L' + x.level; });
+        return 'Today: focus ' + (t.focus ? t.focus.name + ' (level ' + t.focus.level + (t.focus.reason ? ', ' + clip(t.focus.reason, 80) : '') + ')' : 'none') +
+          (t.lesson ? '; lesson "' + clip(t.lesson.title, 80) + '" (' + (t.lesson.est_minutes || '?') + ' min' + (t.lesson_xp_now ? ', ' + t.lesson_xp_now + ' XP' : '') + ')' : '') +
+          '; done today ' + (t.completed_today || 0) + ', XP today ' + (t.xp_today || 0) + ', lessons this week ' + (t.lessons_this_week || 0) + ', streak ' + (t.streak_days || 0) + ' days. ' +
+          'Stats: ' + (stats.length ? stats.join(', ') : 'none') + '.';
+      });
+    },
+    ops: {
+      log_activity: { args: 'stat, xp?, description?', run: function (a) {
+        return call(SL_API, 'system', '/api/stats').then(function (j) {
+          var b = callBad(j, 'SYSTEM'); if (b) return b;
+          var st = R.pick(j.stats || [], a.stat, 'name');
+          if (!st) return bad('not_found', 'You have no stat called ' + (str(a.stat) || 'that') + ' in SYSTEM.');
+          var body = {}; var xp = parseInt(a.xp, 10); if (xp > 0) body.xp = xp; if (str(a.description)) body.description = str(a.description);
+          return call(SL_API, 'system', '/api/stats/' + st.id + '/log', { method: 'POST', body: body }).then(function (r) {
+            var b2 = callBad(r, 'SYSTEM'); if (b2) return b2;
+            var res = r.result || {};
+            return spoken('Logged ' + (res.xp_gained || xp || '') + ' XP to ' + st.name + '.' + (res.leveled_up ? ' That\'s level ' + res.level_after + '.' : ''));
+          });
+        });
+      } },
+      notebook_lesson: { args: 'prompt, stat?', run: function (a) {
+        var prompt = str(a.prompt || a.text); if (!prompt) return bad('invalid');
+        var go = function (sid) { var body = { prompt: prompt }; if (sid) body.stat_id = sid;
+          return call(SL_API, 'system', '/api/notebook', { method: 'POST', body: body }).then(function (r) { return callBad(r, 'SYSTEM') || spoken('SYSTEM is writing that lesson now.'); }); };
+        if (!str(a.stat)) return go(null);
+        return call(SL_API, 'system', '/api/stats').then(function (j) {
+          var b = callBad(j, 'SYSTEM'); if (b) return b;
+          var st = R.pick(j.stats || [], a.stat, 'name'); if (!st) return bad('not_found', 'You have no stat called ' + str(a.stat) + ' in SYSTEM.');
+          return go(st.id);
+        });
+      } },
+      reminder: { args: 'on (true|false), time? (HH:MM)', run: function (a) {
+        var on = !/^(false|off|no|0)$/i.test(str(a.on)), body = { enabled: on, tz_offset: tzMin() };
+        if (TIME.test(str(a.time))) { body.hour = parseInt(a.time.slice(0, 2), 10); body.minute = parseInt(a.time.slice(3), 10); }
+        return call(SL_API, 'system', '/api/reminder', { method: 'POST', body: body }).then(function (r) { return callBad(r, 'SYSTEM') || true; });
+      } },
+      read_review: { args: '', run: function () {
+        return call(SL_API, 'system', '/api/review', { ms: 45000 }).then(function (j) {
+          var b = callBad(j, 'SYSTEM'); if (b) return b;
+          var rv = (j.review || {});
+          return spoken(clip(rv.review || 'There\'s no review yet.', 700) + (rv.suggested_focus ? ' Suggested focus: ' + rv.suggested_focus + '.' : ''));
+        });
+      } },
+    },
+  });
+
+  R.register('reserv', {
+    lock: 'veda_reserv',
+    summary: function () {
+      return Promise.all([call(RV_API, 'reserv', '/api/cloud/engine'), call(RV_API, 'reserv', '/api/list'), call(RV_API, 'reserv', '/api/notifications?limit=6')]).then(function (r) {
+        var eng = r[0], list = r[1], nt = r[2];
+        if (eng._locked || eng._down) return null;
+        var items = Array.isArray(list) ? list : [];
+        return 'RESERV (shopping: lowest real prices, coupons, a list it price-checks daily). PC ' + (eng.online ? 'online' : 'offline' + (list && list._offline ? ', list as last saved' : '')) + '. ' +
+          'List: ' + (items.length ? items.slice(0, 15).map(function (x) { return x.name + (x.qty > 1 ? ' x' + x.qty : '') + (x.when && x.when !== 'soon' ? ' (' + x.when + ')' : ''); }).join(', ') : 'empty') + '. ' +
+          (nt && Array.isArray(nt.items) ? 'Notifications: ' + (nt.unread || 0) + ' unread' + (nt.items.length ? '; latest: ' + nt.items.slice(0, 4).map(function (n) { return clip(n.title, 70); }).join('; ') : '') + '.' : '');
+      });
+    },
+    ops: {
+      add_item: { args: 'name, when? (now|soon|anytime), qty?, brand?, size?, target_price?', run: function (a) {
+        var name = str(a.name || a.item || a.title).slice(0, 120); if (!name) return bad('invalid');
+        var body = { name: name, when: ['now', 'soon', 'anytime'].indexOf(str(a.when)) >= 0 ? a.when : 'soon' };
+        var q = parseInt(a.qty, 10); if (q >= 1 && q <= 99) body.qty = q;
+        if (str(a.brand)) body.brand = str(a.brand); if (str(a.size)) body.size = str(a.size);
+        var tp = parseFloat(String(a.target_price || '').replace(/[$,]/g, '')); if (tp > 0) body.target_price = tp;
+        return call(RV_API, 'reserv', '/api/list', { method: 'POST', body: body }).then(function (r) {
+          if (r._status === 503) return bad('failed', 'Your PC is off, so RESERV can\'t add to the list right now.');
+          return callBad(r, 'RESERV') || spoken('Added ' + name + ' to your RESERV list; it will find the best price.');
+        });
+      } },
+      read_notifications: { args: '', run: function () {
+        return call(RV_API, 'reserv', '/api/notifications?limit=8').then(function (j) {
+          var b = callBad(j, 'RESERV'); if (b) return b;
+          var it = (j.items || []).filter(function (n) { return !n.read; });
+          return spoken(it.length ? list3(it.slice(0, 6).map(function (n) { return clip(n.title + (n.body ? ': ' + n.body : ''), 140); })) + '.' : 'No unread RESERV notifications.');
+        });
+      } },
+      mark_notifications_read: { args: '', run: function () {
+        return call(RV_API, 'reserv', '/api/notifications/read-all', { method: 'POST', body: {} }).then(function (r) { return callBad(r, 'RESERV') || true; });
+      } },
+    },
+  });
+
+  // Warden's links worker key: Warden's own config says it is not a secret (warden-config.js).
+  var WD_LINKS = 'https://warden-links.vedapatel05.workers.dev/links', WD_KEY = 'wd-xn50F95KAByggSLQ5-aNcYZb1-zGsv';
+  function wdGet() {
+    return race(fetch(WD_LINKS, { headers: { 'X-Warden-Key': WD_KEY } }).then(function (r) { return r.ok ? r.json() : null; }, function () { return null; }), 15000, null);
+  }
+  function wdItems(c) { return (c && Array.isArray(c.items)) ? c.items : []; }
+  function wdLinkOf(conns, q, inConn) {
+    var pool = conns;
+    if (str(inConn)) { var c = R.pick(conns, inConn, 'name'); if (!c) return null; pool = [c]; }
+    for (var i = 0; i < pool.length; i++) {
+      var hit = R.pick(wdItems(pool[i]).filter(function (x) { return x && x.type === 'link'; }), q, 'name');
+      if (hit) return { c: pool[i], it: hit };
+    }
+    var cc = R.pick(conns, q, 'name');   // "open my bank" → that connection's only link
+    if (cc) { var ls = wdItems(cc).filter(function (x) { return x && x.type === 'link'; }); if (ls.length === 1) return { c: cc, it: ls[0] }; }
+    return null;
+  }
+  R.register('warden', {
+    lock: 'veda_warden_standalone',
+    summary: function () {
+      return wdGet().then(function (d) {
+        if (!d || !Array.isArray(d.connections)) return null;
+        // Names only: emails, phones and usernames never go to the model.
+        return 'Connections: ' + (d.connections.length ? d.connections.slice(0, 40).map(function (c) {
+          var ls = wdItems(c).filter(function (x) { return x && x.type === 'link'; }).map(function (x) { return x.name; });
+          return c.name + (ls.length ? ' (links: ' + ls.slice(0, 6).join(', ') + ')' : '');
+        }).join('; ') : 'none') + '.';
+      });
+    },
+    ops: {
+      read_connection: { args: 'connection', run: function (a) {
+        return wdGet().then(function (d) {
+          if (!d) return bad('failed', 'I can\'t reach Warden just now.');
+          var c = R.pick(d.connections || [], a.connection || a.name, 'name');
+          if (!c) return bad('not_found', 'You have no connection called ' + (str(a.connection) || 'that') + ' in Warden.');
+          var parts = wdItems(c).map(function (x) {
+            if (!x) return '';
+            if (x.type === 'link') return x.name || 'a link';
+            if (x.type === 'email') return 'email ' + x.value;
+            if (x.type === 'phone') return 'phone ' + x.value;
+            if (x.type === 'username') return (x.label || 'username') + ' ' + x.value;
+            if (x.type === 'info') return clip(x.text, 120);
+            return '';
+          }).filter(Boolean);
+          return spoken(c.name + ': ' + (parts.length ? list3(parts.slice(0, 12)) : 'nothing in it yet') + '.');
+        });
+      } },
+      open_link: { args: 'link, connection?', run: function (a) {
+        return wdGet().then(function (d) {
+          if (!d) return bad('failed', 'I can\'t reach Warden just now.');
+          var h = wdLinkOf(d.connections || [], a.link || a.name, a.connection);
+          if (!h || !/^https?:\/\//i.test(h.it.url || '')) return bad('not_found', 'I can\'t find that link in Warden.');
+          var w = null; try { w = window.open(h.it.url, '_blank'); } catch (e) {}
+          if (!w) return bad('blocked');
+          try { w.opener = null; } catch (e) {}
+          return true;
+        });
+      } },
+      add_link: { args: 'connection, name, url', run: function (a) {
+        var url = str(a.url); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+        var name = str(a.name); if (!name || !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(url)) return bad('invalid');
+        return wdGet().then(function (d) {
+          // Only a list just read whole is ever written back; an empty or failed read never is.
+          if (!d || !Array.isArray(d.connections) || !d.connections.length) return bad('failed', 'I couldn\'t read your Warden links, so I\'ve changed nothing.');
+          var c = R.pick(d.connections, a.connection, 'name');
+          if (!c) return bad('not_found', 'You have no connection called ' + (str(a.connection) || 'that') + ' in Warden.');
+          if (wdItems(c).some(function (x) { return x && x.type === 'link' && String(x.url).replace(/\/+$/, '') === url.replace(/\/+$/, ''); })) return bad('already', 'That link is already in ' + c.name + '.');
+          c.items = wdItems(c).concat([{ type: 'link', name: name, url: url }]);
+          var body = { connections: d.connections }; if (d.colmap) body.colmap = d.colmap;
+          return race(fetch(WD_LINKS, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Warden-Key': WD_KEY }, body: JSON.stringify(body) })
+            .then(function (r) { return r.ok; }, function () { return false; }), 15000, false)
+            .then(function (ok) { return ok ? true : bad('failed', 'Warden didn\'t take the change, so nothing was saved.'); });
+        });
+      } },
+    },
+  });
 
   window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook, fnv: fnv, LOCKDEFS: LOCKDEFS };
 })();
