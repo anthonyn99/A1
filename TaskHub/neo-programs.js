@@ -31,18 +31,19 @@
     { id: 'finance', re: /\/finance(\/|\.html)?(index\.html)?(?=[?#]|$)/i, aliases: ['my finances', 'money', 'budget'] },
     { id: 'tradeboard', re: /(\/\/tradeboard\.vedapatel05\.workers\.dev\/?(index\.html)?|\/tradeboard\.html)(?=[?#]|$)/i, aliases: ['trade', 'trade board', 'trading'] },
     { id: 'mylist', re: /\/mylist\.html(?=[?#]|$)/i, aliases: ['list', 'my list', 'my lists', 'lists'] },
-    { id: 'wellness', re: /\/wellness\.html(?=[?#]|$)/i, aliases: ['wellness tracker'] },
+    // Programs Neo never lists, opens or touches (Veda, 2026-11-06): `off`.
+    { id: 'wellness', re: /\/wellness\.html(?=[?#]|$)/i, aliases: [], off: true },
     { id: 'magi_council', re: /\/\/magi-council[\w.-]*\.workers\.dev/i, aliases: ['council', 'magi council'] },
     { id: 'magi', re: /\/magi\.html(?=[?#]|$)/i, aliases: ['maggie', 'magic'] },
     { id: 'shruti', re: /\/shruti\.html(?=[?#]|$)/i, aliases: ['shruti app'] },
     { id: 'shield', re: /\/shield\.html(?=[?#]|$)/i, aliases: ['shield web'] },
     { id: 'system', re: /\/\/solo-leveling\.[\w.-]+/i, aliases: ['solo leveling', 'solo-leveling', 'my system'] },
-    { id: 'orca', re: /\/\/orca\.vedapatel05\.workers\.dev/i, aliases: ['orca ai'] },
+    { id: 'orca', re: /\/\/orca\.vedapatel05\.workers\.dev/i, aliases: [], off: true },
     { id: 'reserv', re: /\/\/reserv\.vedapatel05\.workers\.dev/i, aliases: ['reserve', 'reserves', 'reservations'] },
     // Tony's program, with no Veda profile: Neo never lists, opens or touches it (Veda, 2026-11-06).
     { id: 'everwell', re: /\/everwell\.html(?=[?#]|$)/i, aliases: [], off: true },
     { id: 'warden', re: /\/\/vedacpatel\.github\.io\/warden\//i, aliases: ['my links', 'links', 'links page'] },
-    { id: 'riftiq', re: /\/riftiq\.html(?=[?#]|$)/i, aliases: ['rift iq', 'war room', 'warroom'] },
+    { id: 'riftiq', re: /\/riftiq\.html(?=[?#]|$)/i, aliases: [], off: true },
   ];
   var WARDEN = { id: 'warden', label: 'Warden', url: 'https://vedacpatel.github.io/warden/warden.html', aliases: ['my links', 'links', 'links page'], src: 'warden' };
   // Programs inside her TaskHub itself, listed first so Neo can read and act in them too.

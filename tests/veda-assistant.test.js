@@ -679,6 +679,7 @@ section('worker: state shaping');
         { id: 'mylist', name: 'MyList', url: 'https://anthonyn99.github.io/A1/mylist.html' },
         { id: 'shruti', name: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
         { id: 'wellness', name: 'Wellness', url: 'https://anthonyn99.github.io/A1/V1/wellness.html' },
+        { id: 'recipes', name: 'Recipes', url: 'https://recipes.example/' },
         { id: 'magi', name: 'MAGI', url: 'https://anthonyn99.github.io/A1/magi.html' },
         { id: 'old', name: 'Old thing', url: 'https://x.example', hidden: true }] : [],
       launch: (p, id) => { launched.push([p, id]); return true; },
@@ -689,15 +690,15 @@ section('worker: state shaping');
     vm.runInContext(psrc, pctx);
     const R = pctx._vdNeoPrograms;
     const ids = R.list().map(p => p.id);
-    t('lists every header link, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['notebook', 'plans', 'shield', 'shruti', 'studyos', 'magi_council', 'magi', 'mylist', 'tradeboard', 'finance', 'warden', 'system', 'orca', 'reserv', 'riftiq', 'link:l4', 'wellness']), JSON.stringify(ids));
+    t('lists every header link, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['notebook', 'plans', 'shield', 'shruti', 'studyos', 'magi_council', 'magi', 'mylist', 'tradeboard', 'finance', 'warden', 'system', 'reserv', 'link:l4', 'lh:recipes']), JSON.stringify(ids));
     t('Warden from her header is the header link (her button, its lock)', R.find('warden').id === 'warden');
     t('"MAGI" is MAGI (T), the A1 page; her council link is "council"', R.find('MAGI').id === 'magi' && R.find('MAGI (T)').id === 'magi' && R.find('council').id === 'magi_council');
-    t('Everwell is left out: not listed, not found, not opened', !ids.includes('everwell') && R.find('everwell') === null && R.open('everwell').reason === 'not_found');
-    t('every program in her list is found by what she calls it', ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'orca', 'reserv', 'riftiq'].every(q => R.find(q)), ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'orca', 'reserv', 'riftiq'].filter(q => !R.find(q)).join());
+    t('Everwell, Wellness, RiftIQ and ORCA are left out: not listed, not found, not opened', ['everwell', 'wellness', 'riftiq', 'orca'].every(q => !ids.includes(q) && R.find(q) === null && R.open(q).reason === 'not_found'));
+    t('every program in her list is found by what she calls it', ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'reserv'].every(q => R.find(q)), ['study', 'list', 'trade', 'finance', 'system', 'solo leveling', 'reserv'].filter(q => !R.find(q)).join());
     t('TaskHub itself and hidden tiles are left out', !ids.includes('lh:taskhub') && !ids.includes('lh:old'));
     t('finds a program by id, label or alias', R.find('studyos').label === 'STUDY' && R.find('My List').id === 'mylist' && R.find('my links').id === 'warden' && R.find('canvas').id === 'link:l4' && R.find('Netflix') === null);
     t('a header link opens through its button (locks and tabs kept)', R.open('Shruti') === true && opened[0][0] === 'veda' && opened[0][1] === 'l2');
-    t('a LifeHub app opens through LifeHub, like its tile', R.open('wellness') === true && launched[0][1] === 'wellness');
+    t('a LifeHub app opens through LifeHub, like its tile', R.open('recipes') === true && launched[0][1] === 'recipes');
     t('Warden opens through her header button', R.open('warden') === true && opened[opened.length - 1][1] === 'c7' && warden === 0);
     t('an unknown program is not_found', R.open('Netflix').reason === 'not_found');
     t('a program with no ops: no_op', R.run('mylist', 'add_item', {}).reason === 'no_op');
@@ -715,7 +716,7 @@ section('worker: state shaping');
     t('cards and lines name the program, not its id', T.cardFor({ type: 'open_program', program: 'mylist' }).detail === 'LIST' && T.cardFor({ type: 'program', program: 'mylist', op: 'add_item' }).label === 'ADD ITEM'
       && /can't do that inside it yet/.test(T.failLine({ ok: false, reason: 'no_op', action: { type: 'program', program: 'mylist' } })));
     actx._activeProfile = 'veda'; actx._navGetLinks = () => [];
-    t('open_link falls back to any linked program', T.ops.openLink('Wellness') === true && launched.length === 2 && launched[1][1] === 'wellness');
+    t('open_link falls back to any linked program', T.ops.openLink('Recipes') === true && launched.length === 2 && launched[1][1] === 'recipes');
     delete actx._vdNeoPrograms;
     pctx._activeProfile = 'tony';
     t('on Tony\'s side it lists nothing and does nothing', R.list().length === 0 && R.state().length === 0 && R.open('studyos').reason === 'no_bridge' && R.run('mylist', 'add_item', {}).reason === 'no_bridge');

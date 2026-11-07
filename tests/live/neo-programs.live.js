@@ -45,7 +45,7 @@ const ok = (name, cond, extra) => {
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'local_storage,session_storage' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   const dash = { data: {}, habits: [], hc: {}, goals: [], monthlyGoals: [], rules: [], rulesDaily: {}, savedAt: Date.now(), rev: 1 };
-  const docs = { 'dashboards/vedasdash': dash, 'dashboards/wellness': { categories: [{ id: 'water', name: 'Water' }] }, 'dashboards/main': { secret: 1 } };
+  const docs = { 'dashboards/vedasdash': dash, 'dashboards/mylist': { veda: { lists: [{ id: 'g', name: 'Groceries' }] }, tony: { lists: [] } }, 'dashboards/main': { secret: 1 } };
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); localStorage.setItem('a1b_disabled','1');
     sessionStorage.setItem('__fakefs_docs', JSON.stringify(${JSON.stringify(docs)})); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
@@ -56,28 +56,29 @@ const ok = (name, cond, extra) => {
 
   console.log('\nthe list');
   const ids = await js(`return _vdNeoPrograms.list().map(p=>p.id);`);
-  for (const id of ['studyos', 'mylist', 'wellness', 'magi', 'shruti', 'warden']) ok(`lists ${id}`, ids.includes(id), JSON.stringify(ids));
+  for (const id of ['studyos', 'mylist', 'magi', 'shruti', 'notebook', 'plans']) ok(`lists ${id}`, ids.includes(id), JSON.stringify(ids));
+  ok('Wellness is left out', !ids.includes('wellness') && !ids.some(i => /wellness/i.test(i)), JSON.stringify(ids));
   ok('each page once, TaskHub itself left out', ids.length === new Set(ids).size && !ids.some(i => /taskhub/i.test(i)), JSON.stringify(ids));
 
   console.log('\na request carries them');
-  reply = { ok: true, say: 'Opening Wellness.', transcript: 'Open Wellness', actions: [{ type: 'open_program', program: 'wellness' }, { type: 'open_program', program: 'netflix' }] };
+  reply = { ok: true, say: 'Opening MyList.', transcript: 'Open MyList', actions: [{ type: 'open_program', program: 'mylist' }, { type: 'open_program', program: 'netflix' }] };
   // Capture what opening does instead of opening real tabs.
   await js(`window.__opened=[]; window.open=function(u,n){ window.__opened.push([String(u),String(n||'')]); return {focus:function(){}, closed:false}; }; 1`);
   const res = await js(`return _THV.sendAudio('AAAA',{silent:true,extra:{mode:'neo'}}).then(function(r){ return r.results.map(function(x){ return {ok:x.ok, reason:x.reason||''}; }); });`);
   const sent = lastBody && lastBody.state && lastBody.state.programs;
-  ok('state.programs went to the worker', Array.isArray(sent) && sent.some(p => p.id === 'wellness' && p.label === 'Wellness'), JSON.stringify(sent));
-  ok('open_program opened Wellness', res && res[0] && res[0].ok === true, JSON.stringify(res));
+  ok('state.programs went to the worker', Array.isArray(sent) && sent.some(p => p.id === 'mylist' && p.label === 'MyList') && !sent.some(p => /wellness/i.test(p.id)), JSON.stringify(sent));
+  ok('open_program opened MyList', res && res[0] && res[0].ok === true, JSON.stringify(res));
   // LifeHub opens its named tab first, then sends that tab to the address.
-  ok('…in its own named tab, as its tile does', await until(`window.__opened.some(function(o){ return /wellness/.test(o[1]); })`, 3000), await js(`return JSON.stringify(window.__opened);`));
+  ok('…in its own named tab, as its tile does', await until(`window.__opened.some(function(o){ return /mylist/.test(o[1]); })`, 3000), await js(`return JSON.stringify(window.__opened);`));
   ok('an unknown program is not_found', res && res[1] && res[1].ok === false && res[1].reason === 'not_found', JSON.stringify(res));
 
   console.log('\nNeo\'s Firestore helpers');
-  ok('read one of her programs\' documents', await js(`return _fbNeoGet('dashboards/wellness').then(function(d){ return !!(d && d.categories && d.categories[0].id==='water'); });`));
+  ok('read one of her programs\' documents', await js(`return _fbNeoGet('dashboards/mylist').then(function(d){ return !!(d && d.veda && d.veda.lists[0].id==='g'); });`));
   ok('…never a document outside the list', await js(`return _fbNeoGet('dashboards/main').then(function(d){ return d === null; });`));
-  ok('a field-path patch lands', await js(`return _fbNeoPatch('dashboards/wellness', {'settings.neo': true}).then(function(){ return _fbNeoGet('dashboards/wellness'); }).then(function(d){ return d.settings.neo === true && d.categories.length === 1; });`));
-  ok('a transaction lands', await js(`return _fbNeoTx('dashboards/wellness', function(d){ return {'settings.n': (d.settings.n||0)+1}; }).then(function(v){ return _fbNeoGet('dashboards/wellness').then(function(d){ return v === true && d.settings.n === 1; }); });`));
-  ok('an entry is added', await js(`return _fbNeoAdd('dashboards/wellness/entries', {timestamp: 1, values: {water: 2}}).then(function(id){ return !!id; });`));
-  ok('off her side, nothing is reached', await js(`var was=window._activeProfile; window._activeProfile='tony'; var none=_vdNeoPrograms.list().length === 0; return _fbNeoGet('dashboards/wellness').then(function(d){ window._activeProfile=was; return d === null && none; });`));
+  ok('a field-path patch lands', await js(`return _fbNeoPatch('dashboards/mylist', {'veda.neo': true}).then(function(){ return _fbNeoGet('dashboards/mylist'); }).then(function(d){ return d.veda.neo === true && d.veda.lists.length === 1; });`));
+  ok('a transaction lands', await js(`return _fbNeoTx('dashboards/mylist', function(d){ return {'veda.n': (d.veda.n||0)+1}; }).then(function(v){ return _fbNeoGet('dashboards/mylist').then(function(d){ return v === true && d.veda.n === 1 && Array.isArray(d.tony.lists); }); });`));
+  ok('Wellness is out of reach', await js(`return _fbNeoGet('dashboards/wellness').then(function(d){ return d === null; });`));
+  ok('off her side, nothing is reached', await js(`var was=window._activeProfile; window._activeProfile='tony'; var none=_vdNeoPrograms.list().length === 0; return _fbNeoGet('dashboards/mylist').then(function(d){ window._activeProfile=was; return d === null && none; });`));
 
   console.log('\nphase 1: Notebook, Shruti, MAGI (T) in the real page');
   ok('her Notebook is mounted', await until('window.Notebook && Notebook.mounts && Notebook.mounts.bj', 20000));

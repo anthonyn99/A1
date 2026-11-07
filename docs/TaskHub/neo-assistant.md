@@ -307,12 +307,13 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 0 | Foundation; every linked program opens | **done 2026-11-06** |
 | 1 | V's Notebook, Plans, Shruti, MAGI (T) (`TaskHub/neo-connectors.js`) | **done 2026-11-06** |
 | 2 | STUDY (StudyOS) | **done 2026-11-06** |
-| 3 (next) | Wellness, LIST (MyList), ORCA (ask a model with her `orca_sk` key; `/v1/*` already allows TaskHub's origin), RIFTIQ (`riftiq_lookups`; the shared parts only in a transaction) | |
+| 3 (next) | LIST (MyList) | |
 | 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
 | 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
 
 Veda's calls (2026-11-06):
-- **EVERWELL is out.** Neo never lists, opens or touches it (`off` in `KNOWN`).
+- **EVERWELL is out**, and so are **Wellness, RIFTIQ and ORCA** (her call, later the same day). Neo never
+  lists, opens or touches them (`off` in `KNOWN`), and `NEO_DOCS` has none of their documents.
 - **MAGI means MAGI (T)**, the A1 page (`magi.html`, her `dashboards/magi_veda`). Her council
   link (`magi-council-4f7a…`, source not in A1, A1-Priv or Downloads) is only opened, as "council".
 
@@ -321,15 +322,15 @@ worker sees state.programs [{id, label, ops?, summary?}]
   → {type:"open_program", program}  |  {type:"program", program, op, args:[{k,v}]}
   → index.html applyControl → _vdVoice.openProgram / .program
   → TaskHub/neo-programs.js  window._vdNeoPrograms  (open · run · state · register)
-  → a connector's ops → _fbNeoGet / _fbNeoPatch / _fbNeoTx / _fbNeoAdd (index.html)
+  → a connector's ops → _fbNeoGet / _fbNeoPatch / _fbNeoTx (index.html)
 ```
 
 - **The list** starts with the programs inside her TaskHub (`BUILTINS`: V's Notebook and
   Plans), then her header links (`_navGetLinks('veda')`), her LifeHub
   list (`LifeHub.list('veda')`, hidden tiles left out) and Warden. Each address is
   listed once, and TaskHub itself is left out. Known programs keep stable ids:
-  `studyos`, `finance`, `tradeboard`, `mylist`, `wellness`, `magi_council`, `magi`, `shruti`,
-  `shield`, `system`, `orca`, `reserv`, `riftiq`, `warden` (`everwell` is known only to be left out). Anything else gets
+  `studyos`, `finance`, `tradeboard`, `mylist`, `magi_council`, `magi`, `shruti`,
+  `shield`, `system`, `reserv`, `warden` (`everwell`, `wellness`, `orca` and `riftiq` are known only to be left out). Anything else gets
   `link:<id>` or `lh:<id>`, and so does a second link to the same kind of page.
 - **Names:** a known program's id wins, so "MAGI" is MAGI (T). Then her own label, an
   alias ("solo leveling", "study", "council"), then part of a label.
@@ -354,8 +355,7 @@ worker sees state.programs [{id, label, ops?, summary?}]
 - **Deep links** (`deep`) open in the tab the program's own button uses (`tab`), and that
   tab is sent there even when it is already open on the page (`openDeep`).
 - **Firestore** (`_fbNeo*`): Veda's side only, and only the documents her programs keep
-  (`NEO_DOCS` in index.html). Every write is a field-path patch, a transaction or a new
-  entry. Neo never saves a whole document rebuilt from a stale copy.
+  (`NEO_DOCS` in index.html). Every write is a field-path patch or a transaction. Neo never saves a whole document rebuilt from a stale copy.
 #### Phase 1 connectors (`TaskHub/neo-connectors.js`)
 
 | Program | Reads (summary, ops) | Acts | How it writes |
