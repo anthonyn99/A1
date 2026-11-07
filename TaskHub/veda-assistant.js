@@ -214,6 +214,8 @@
       case 'rules_check': return { icon: '☑', label: 'RULE TICKED', detail: t };
       case 'rules_move': return { icon: '☐', label: 'RULE MOVED', detail: t };
       case 'open_link': return { icon: '◎', label: 'OPENING', detail: String(a.label || t).toUpperCase() };
+      case 'open_program': return { icon: '◎', label: 'OPENING', detail: progLabel(a.program || a.label).toUpperCase() };
+      case 'program': return { icon: '◇', label: String(a.op || 'DONE').replace(/_/g, ' ').toUpperCase(), detail: progLabel(a.program).toUpperCase() };
       case 'gita_next': return { icon: '❝', label: 'NEXT LESSON', detail: '' };
       case 'gita_prev': return { icon: '❝', label: 'PREVIOUS LESSON', detail: '' };
       case 'gita_open': return { icon: '❝', label: 'LESSON', detail: String(a.lesson || '') };
@@ -233,6 +235,12 @@
     return null;
   }
 
+  // A program's own name (neo-programs.js), not the id the model copied.
+  function progLabel(q) {
+    var R = window._vdNeoPrograms, p = R && R.find ? R.find(q) : null;
+    return String((p && p.label) || q || '');
+  }
+
   // ══ saying only what actually happened ═════════════════════════════════════
   // The engine reports every action as {action, ok, reason}. A failed one never
   // gets a ✓ card or the model's "Done": it gets a red card and its own line.
@@ -243,7 +251,7 @@
   var BAD_CARD = {
     not_found: 'COULDN\'T FIND', no_bridge: 'OUT OF REACH', off_pc: 'PC ONLY', locked: 'LOCKED', no_reminder: 'NO REMINDER',
     not_flagged: 'NO AI PREP', prep_failed: 'PREP FAILED', not_running: 'NOT RUNNING', still_open: 'LEFT OPEN', bridge_down: 'BRIDGE DOWN',
-    blocked: 'BLOCKED', too_soon: 'TOO SOON', out_of_order: 'OUT OF ORDER', one_at_a_time: 'ONE AT A TIME', bioFailed: 'NOT VERIFIED',
+    blocked: 'BLOCKED', no_op: 'NOT YET', too_soon: 'TOO SOON', out_of_order: 'OUT OF ORDER', one_at_a_time: 'ONE AT A TIME', bioFailed: 'NOT VERIFIED',
   };
   function failCard(r) {
     var a = (r && r.action) || {};
@@ -261,6 +269,7 @@
         if (/^plan_/.test(ty)) return 'I can\'t find a plan called ' + (t || 'that') + '.';
         if (ty === 'open_pc_app' || ty === 'close_pc_app') return 'I couldn\'t find ' + (t || 'that app') + ' on your PC, I\'m afraid.';
         if (ty === 'open_link') return 'There\'s no link called ' + (t || 'that') + ' in your header.';
+        if (ty === 'open_program' || ty === 'program') return 'I can\'t see a program called ' + (a.program || t || 'that') + ' linked from your TaskHub.';
         if (ty === 'start_class') return 'I can\'t find a class called ' + (t || 'that') + '.';
         if (ty === 'gita_open') return 'There\'s no lesson ' + (a.lesson || 'by that number') + ', I\'m afraid.';
         if (ty === 'shift_range' || ty === 'clear_completed') return 'There was nothing there to change.';
@@ -270,6 +279,7 @@
       case 'no_reminder': return (t || 'That one') + ' has no reminder to clear.';
       case 'not_flagged': return (t || 'That task') + ' has no AI prep yet. Ask me to turn it on first.';
       case 'prep_failed': return 'I couldn\'t prepare ' + (t || 'that task') + ' just now, I\'m afraid. I\'ll try again shortly.';
+      case 'no_op': return 'I can open ' + progLabel(a.program) + ', but I can\'t do that inside it yet.';
       case 'no_lock': return 'That has no lock set up, so there\'s nothing to lock.';
       case 'too_soon': return 'Give that rule a moment on screen first.';
       case 'out_of_order': return 'The rules go in order, ' + NAME() + '. Tick the next one first.';
@@ -337,6 +347,10 @@
       } else if (a.type === 'shift_range') {
         var d = parseInt(a.days, 10) || 0;
         q.push('move everything ' + (a.from ? 'from ' + spokenDate(a.from) + ' ' : '') + (a.to && a.to !== a.from ? 'to ' + spokenDate(a.to) + ' ' : '') + spokenNum(Math.abs(d)) + ' day' + (Math.abs(d) === 1 ? '' : 's') + (d < 0 ? ' earlier' : ' later'));
+      } else if (a.type === 'program') {
+        // An operation its connector marks as ask-first (neo-programs.js).
+        var R = window._vdNeoPrograms, oi = R && R.opInfo ? R.opInfo(a.program, a.op) : null;
+        if (oi && oi.op.confirm) q.push(typeof oi.op.confirm === 'function' ? oi.op.confirm(a.args || {}, oi.program) : (String(a.op).replace(/_/g, ' ') + ' in ' + oi.program.label));
       } else if (a.type === 'close_all_pc_apps') {
         q.push('close all your apps' + (a.except && a.except.length ? ' except ' + a.except.join(' and ') : ''));
       } else if (a.type === 'plan_confirm') {
@@ -1828,6 +1842,8 @@
       }
       // Warden is her links page: it replaces this page, so Neo finishes speaking first.
       if (P.id === 'veda' && /^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
+      // Any other program linked from her TaskHub (her LifeHub list included).
+      if (P.id === 'veda' && window._vdNeoPrograms && window._vdNeoPrograms.find(label)) return window._vdNeoPrograms.open(label);
       return { ok: false, reason: 'not_found' };
     },
     // A new page in the side's Notebook (V's: bj, T's: tj), through Notebook's public API only.
@@ -1889,6 +1905,8 @@
       } catch (e) {}
       try { out.links = ((window._navGetLinks ? window._navGetLinks(P.id) : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
       if (P.id === 'tony') out.links = ['TradeHub', 'WarRoom', 'Keychain'].concat(out.links || []);
+      // Every program linked from her TaskHub: id, label, what Neo may do there, a summary.
+      if (P.id === 'veda' && window._vdNeoPrograms) { try { out.programs = window._vdNeoPrograms.state(); } catch (e) {} }
       try {
         out.marketCal = ((extra && extra.marketCal) || []).filter(function (e) { return e && e.date >= today && e.date <= soon; }).slice(0, 40)
           .map(function (e) { var o = { date: e.date, title: e.title, kind: e.kind }; if (e.when) o.when = e.when; return o; });

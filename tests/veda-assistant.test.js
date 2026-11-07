@@ -110,6 +110,17 @@ section('worker: state shaping');
     t('Tony\'s Neo prompt carries the conversation too', /"conversation":\[\{"said":"add dentist friday"/.test(seen.prompt) && /CONVERSATION/.test(seen.prompt));
     await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
   }
+  {
+    const progs = [{ id: 'studyos', label: 'StudyOS', ops: ['add_task(title, date?)'], summary: '4 classes; next: Bio quiz Mon' }, { id: 'warden', label: 'Warden' }];
+    await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: Object.assign({}, flagged, { programs: progs }), today: '2026-11-05', mode: 'neo' }, env);
+    t('Veda\'s state carries her programs (id, label, ops, summary)', /"programs":\[\{"id":"studyos","label":"StudyOS","ops":\["add_task\(title, date\?\)"\],"summary":"4 classes; next: Bio quiz Mon"\}/.test(seen.prompt) && /open_program/.test(seen.prompt) && /\{type:"program", program, op/.test(seen.prompt));
+    t('…and her schema carries program / op / args as [{k, v}]', !!seen.schema.properties.actions.items.properties.program && seen.schema.properties.actions.items.properties.args.items.properties.k.type === 'STRING');
+    await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: Object.assign({}, flagged, { programs: progs }), today: '2026-11-05', mode: 'neo' }, env);
+    t('Tony\'s Neo prompt offers no program actions', !/open_program|type:"program"|Her other programs/.test(seen.prompt));
+    await W.handleTaskhub({ profile: 'tony', transcript: 'x', state: Object.assign({}, flagged, { programs: progs }), today: '2026-11-05' }, env);
+    t('Tony\'s mic/text prompt never carries programs', !/"programs"|Bio quiz/.test(seen.prompt));
+    await W.handleTaskhub({ profile: 'veda', transcript: 'x', state: flagged, today: '2026-11-05', mode: 'neo', prev }, env);
+  }
   t('Veda\'s state carries plans, earnings and the previous turn (with the id)', /"waitingOn":"veda"/.test(seen.prompt) && /NVDA Earnings/.test(seen.prompt) && /"previousTurn":\{[^}]*"said":"add gym tomorrow"/.test(seen.prompt) && /"id":"u9"/.test(seen.prompt));
 
   // ── 2. voice engine (index.html) ──────────────────────────────────────────
@@ -183,6 +194,12 @@ section('worker: state shaping');
     const calls = []; e3.win._vdNeo = { setOn: on => calls.push(on) };
     await e3.THV.sendAudio('AAAA', { silent: true });
     t('assistant_off turns Neo off on Veda\'s side', calls.length === 1 && calls[0] === false);
+    const pl = [];
+    const vb = Object.assign(vedaBridge([]), { openProgram: (q, deep) => { pl.push(['open', q, deep]); return true; }, program: (q, op, args) => { pl.push(['run', q, op, args]); return { ok: false, reason: 'no_op' }; } });
+    const e5 = makeEngine('veda', vb, { ok: true, actions: [{ type: 'open_program', program: 'studyos' }, { type: 'program', program: 'mylist', op: 'add_item', args: [{ k: 'text', v: 'milk' }] }], say: 'Done' });
+    const r5 = await e5.THV.sendAudio('AAAA', { extra: { mode: 'neo' }, silent: true });
+    t('open_program reaches her bridge', r5.results[0].ok && pl[0][0] === 'open' && pl[0][1] === 'studyos');
+    t('program passes op and args, and its {ok:false, reason} is reported', !r5.results[1].ok && r5.results[1].reason === 'no_op' && pl[1][2] === 'add_item' && pl[1][3][0].v === 'milk', JSON.stringify(r5.results[1]));
   }
 
   section('engine: a bridge without Neo\'s methods (Tony\'s mic) is untouched');
@@ -208,6 +225,9 @@ section('worker: state shaping');
       { type: 'start_class', name: 'CS' }, { type: 'plan_add', title: 'Dinner' }, { type: 'plan_confirm', match: { title: 'Dinner' } }];
     const e2 = makeEngine('tony', tonyBridge, { ok: true, actions: NEW, say: 'Done' });
     const r2 = await e2.THV.sendAudio('AAAA', { silent: true });
+    const e4 = makeEngine('tony', tonyBridge, { ok: true, actions: [{ type: 'open_program', program: 'studyos' }, { type: 'program', program: 'studyos', op: 'add_task', args: [{ k: 'title', v: 'x' }] }], say: 'Done' });
+    const r4 = await e4.THV.sendAudio('AAAA', { silent: true });
+    t('open_program / program do nothing on Tony\'s side', r4.n === 0 && r4.results.every(x => !x.ok && x.reason === 'no_bridge'), JSON.stringify(r4.results));
     t('the newer Neo actions do nothing there either', r2.ok && r2.n === 0 && r2.results.every(x => !x.ok) && tonyLog.length === 0, JSON.stringify(r2.results.filter(x => x.ok)));
   }
 
@@ -551,7 +571,7 @@ section('worker: state shaping');
       && T.cardFor({ type: 'prep_off', match: { title: 'x' } }).label === 'AI PREP OFF' && T.cardFor({ type: 'plan_confirm', match: { title: 'x' } }).label === 'PLAN CONFIRMED');
     const NEO_TYPES = ['prep_task', 'prep_off', 'prep_open', 'prep_show', 'close_pc_app', 'close_all_pc_apps', 'clear_reminder', 'timer_mode', 'timer_add', 'rules_run', 'rules_check', 'rules_move',
       'open_link', 'gita_next', 'gita_prev', 'gita_open', 'week_view', 'goals_tab', 'month_shift', 'lock_app', 'journal_entry', 'start_class',
-      'plan_add', 'plan_propose', 'plan_confirm', 'plan_decline', 'plan_cancel_request', 'plan_done'];
+      'plan_add', 'plan_propose', 'plan_confirm', 'plan_decline', 'plan_cancel_request', 'plan_done', 'open_program', 'program'];
     t('every Neo action in the prompt has a card', NEO_TYPES.every(ty => T.cardFor({ type: ty, text: 'x' })), NEO_TYPES.filter(ty => !T.cardFor({ type: ty, text: 'x' })).join(','));
     t('…and an executor in the engine', NEO_TYPES.every(ty => html.includes("case '" + ty + "'")), NEO_TYPES.filter(ty => !html.includes("case '" + ty + "'")).join(','));
     t('…and a line in Veda\'s prompt', NEO_TYPES.every(ty => vedaPlain.includes('"' + ty + '"')), NEO_TYPES.filter(ty => !vedaPlain.includes('"' + ty + '"')).join(','));
@@ -625,6 +645,64 @@ section('worker: state shaping');
     t('fallback: Microsoft Ryan first', T.pickVoiceFrom([V('Microsoft Aria Online', 'en-US'), V('Microsoft Ryan Online (Natural)', 'en-GB')]).name.startsWith('Microsoft Ryan'));
     t('fallback: Google UK English Male next', T.pickVoiceFrom([V('Google US English', 'en-US'), V('Google UK English Female', 'en-GB'), V('Google UK English Male', 'en-GB')]).name === 'Google UK English Male');
     t('fallback: any en-GB, then any English', T.pickVoiceFrom([V('X', 'en-US'), V('Y', 'en-GB')]).name === 'Y' && T.pickVoiceFrom([V('X', 'en-US')]).name === 'X');
+  }
+  section('neo-programs.js: every program linked from her TaskHub');
+  {
+    const psrc = fs.readFileSync(path.join(ROOT, 'TaskHub', 'neo-programs.js'), 'utf8');
+    const opened = [], tabs = [], launched = [];
+    let warden = 0;
+    const pctx = { console, setTimeout: (f) => { f(); return 0; }, Promise, JSON, Object, Array, String, Date, Math };
+    pctx.window = pctx;
+    pctx._activeProfile = 'veda';
+    pctx._navGetLinks = (p) => p === 'veda' ? [
+      { id: 'shield', label: 'Shield', url: 'https://anthonyn99.github.io/A1/shield.html' },
+      { id: 'l2', label: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
+      { id: 'l3', label: 'TradeBoard', url: 'https://anthonyn99.github.io/A1/V1/tradeboard.html' },
+      { id: 'l4', label: 'Canvas', url: 'https://canvas.kent.edu' }] : [];
+    pctx._navOpenLink = (p, id) => opened.push([p, id]);
+    pctx.LifeHub = {
+      list: (p) => p === 'veda' ? [
+        { id: 'taskhub', name: 'TaskHub', url: 'https://anthonyn99.github.io/A1/index.html' },
+        { id: 'studyos', name: 'StudyOS', url: 'https://tradeboard.vedapatel05.workers.dev/studyos/' },
+        { id: 'mylist', name: 'MyList', url: 'https://anthonyn99.github.io/A1/mylist.html' },
+        { id: 'shruti', name: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
+        { id: 'wellness', name: 'Wellness', url: 'https://anthonyn99.github.io/A1/V1/wellness.html' },
+        { id: 'magi', name: 'MAGI', url: 'https://anthonyn99.github.io/A1/magi.html' },
+        { id: 'old', name: 'Old thing', url: 'https://x.example', hidden: true }] : [],
+      launch: (p, id) => { launched.push([p, id]); return true; },
+    };
+    pctx._tnOpenTab = (u, k) => { tabs.push([u, k]); return {}; };
+    pctx._gotoWarden = () => { warden++; };
+    vm.createContext(pctx);
+    vm.runInContext(psrc, pctx);
+    const R = pctx._vdNeoPrograms;
+    const ids = R.list().map(p => p.id);
+    t('lists header links, her LifeHub list and Warden, each page once', JSON.stringify(ids) === JSON.stringify(['shield', 'shruti', 'tradeboard', 'link:l4', 'studyos', 'mylist', 'wellness', 'magi', 'warden']), JSON.stringify(ids));
+    t('TaskHub itself and hidden tiles are left out', !ids.includes('lh:taskhub') && !ids.includes('lh:old'));
+    t('finds a program by id, label or alias', R.find('studyos').label === 'StudyOS' && R.find('My List').id === 'mylist' && R.find('my links').id === 'warden' && R.find('canvas').id === 'link:l4' && R.find('Netflix') === null);
+    t('a header link opens through its button (locks and tabs kept)', R.open('Shruti') === true && opened[0][0] === 'veda' && opened[0][1] === 'l2');
+    t('a LifeHub app opens through LifeHub, like its tile', R.open('studyos') === true && launched[0][1] === 'studyos');
+    t('Warden replaces the page after Neo has spoken', R.open('warden') === true && warden === 1);
+    t('an unknown program is not_found', R.open('Netflix').reason === 'not_found');
+    t('a program with no ops: no_op', R.run('mylist', 'add_item', {}).reason === 'no_op');
+    const got = [];
+    R.register('mylist', { summary: () => 'Groceries: 3 items', ops: { add_item: { args: 'list, text', run: (a) => { got.push(a); return true; } }, clear_list: { args: 'list', confirm: (a) => 'clear your ' + a.list + ' list', run: () => true } },
+      deep: (d) => 'https://anthonyn99.github.io/A1/mylist.html#' + d });
+    t('an op runs with its args, [{k, v}] turned into an object', R.run('My List', 'add_item', [{ k: 'list', v: 'Groceries' }, { k: 'text', v: 'milk' }]) === true && got[0].list === 'Groceries' && got[0].text === 'milk');
+    await new Promise(r => setImmediate(r));
+    const sm = R.state().filter(p => p.id === 'mylist')[0];
+    t('state lists each program, its ops and its summary', sm && sm.ops.join() === 'add_item(list, text),clear_list(list)' && sm.summary === 'Groceries: 3 items', JSON.stringify(sm));
+    t('a connector\'s deep link opens in its own tab', R.open('mylist', 'groceries') === true && tabs[tabs.length - 1][0].endsWith('#groceries'));
+    t('opInfo exposes ask-first ops', R.opInfo('mylist', 'clear_list').op.confirm({ list: 'Groceries' }) === 'clear your Groceries list');
+    actx._vdNeoPrograms = R;
+    t('…and Neo asks first for them', /clear your Groceries list/.test((T.needsConfirm([{ type: 'program', program: 'mylist', op: 'clear_list', args: { list: 'Groceries' } }], {}) || {}).question || ''));
+    t('cards and lines name the program, not its id', T.cardFor({ type: 'open_program', program: 'mylist' }).detail === 'MYLIST' && T.cardFor({ type: 'program', program: 'mylist', op: 'add_item' }).label === 'ADD ITEM'
+      && /can't do that inside it yet/.test(T.failLine({ ok: false, reason: 'no_op', action: { type: 'program', program: 'mylist' } })));
+    actx._activeProfile = 'veda'; actx._navGetLinks = () => [];
+    t('open_link falls back to any linked program', T.ops.openLink('Wellness') === true && launched[launched.length - 1][1] === 'wellness');
+    delete actx._vdNeoPrograms;
+    pctx._activeProfile = 'tony';
+    t('on Tony\'s side it lists nothing and does nothing', R.list().length === 0 && R.state().length === 0 && R.open('studyos').reason === 'no_bridge' && R.run('mylist', 'add_item', {}).reason === 'no_bridge');
   }
   section('veda-assistant.js: spotlight stops');
   {

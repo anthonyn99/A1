@@ -297,6 +297,54 @@ reply ─► spotlightBefore(actions)        veda-assistant.js, via send()'s `be
     `_sosBridgeRunning`) live in `veda-assistant.js`. In index.html, AI prep stays the
     only caller of the local bridge (`tests/reels-widget.test.js`).
 
+### Programs: every program linked from her TaskHub (Veda only, 2026-11-06)
+
+Goal (Veda's call): Neo can **open, read and act inside** every program linked
+from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per session:
+
+| Phase | Programs | Status |
+|---|---|---|
+| 0 | Foundation; every linked program opens | **done 2026-11-06** |
+| 1 | V's Notebook (needs a read API in `Notebook/`), Plans, Shruti | next |
+| 2 | StudyOS | |
+| 3 | Wellness, MyList | |
+| 4 | TradeBoard (check App Check first), Shield, MAGI | |
+
+```
+worker sees state.programs [{id, label, ops?, summary?}]
+  → {type:"open_program", program}  |  {type:"program", program, op, args:[{k,v}]}
+  → index.html applyControl → _vdVoice.openProgram / .program
+  → TaskHub/neo-programs.js  window._vdNeoPrograms  (open · run · state · register)
+  → a connector's ops → _fbNeoGet / _fbNeoPatch / _fbNeoTx / _fbNeoAdd (index.html)
+```
+
+- **The list** is built from her header links (`_navGetLinks('veda')`), her LifeHub
+  list (`LifeHub.list('veda')`, hidden tiles left out) and Warden. Each address is
+  listed once, and TaskHub itself is left out. Known programs keep stable ids:
+  `studyos`, `tradeboard`, `mylist`, `wellness`, `magi`, `shruti`, `shield`, `warden`.
+  Anything else gets `link:<id>` or `lh:<id>`.
+- **Opening** works the way its own button or tile does: `_navOpenLink` for a header
+  link (its lock and named tab included) and `LifeHub.launch` for a tile. Warden replaces
+  the page 2.6 s later, so Neo finishes speaking first. `open_link` falls back to this
+  list, so "open StudyOS" works either way.
+- **Acting inside** a program: a connector,
+  `_vdNeoPrograms.register(id, {summary(), ops:{name:{args, confirm?, run(args)}}, deep?(x)})`.
+  - Each op answers like every Neo action: `true`, `{ok:false, reason}`, or a promise.
+  - With no such op, the answer is `no_op`, and Neo says "I can open X, but I can't do
+    that inside it yet."
+  - An op with `confirm` is asked first (`needsConfirm`).
+  - `summary()` is cached and refreshed every 5 minutes and after Neo's own writes, so
+    reading costs no extra call.
+- **Firestore** (`_fbNeo*`): Veda's side only, and only the documents her programs keep
+  (`NEO_DOCS` in index.html). Every write is a field-path patch, a transaction or a new
+  entry. Neo never saves a whole document rebuilt from a stale copy.
+- **The traps each program has, which the later phases must keep to:**
+  - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.
+  - MyList: the doc also holds Tony's lists, so only `veda.lists` is touched.
+  - V's Notebook: never republish `_order`.
+  - Shield: a lockdown also needs its Worker signal.
+  - TradeBoard: another Firebase project. It never places, changes or cancels an order.
+
 ### Closing apps (the bridge, `V1/tools/sos-browser/launcher.py`)
 
 `POST /api/close {apps:[id], force?, browser?}` and `GET /api/running` sit behind the
@@ -379,6 +427,10 @@ HUD docked in his quote's slot with zero pixel shift, and Veda's switch staying 
   timer queue
 - the spotlight: `_THV.preview` names each action's row and date without changing
   state, `before` is awaited ahead of the change, and the stops are grouped and capped
+
+`node tests/live/neo-programs.live.js` drives the program list in a real browser
+(fake Firestore): what is listed, `state.programs` reaching the worker, opening one,
+and `_fbNeo*` reaching only her programs' documents, only on her side.
 
 `node tests/live/neo-spotlight.live.js` drives it in a real browser (fake Firestore):
 an add two weeks out, a remove, a goal on the other tab, and a tap that stops it.

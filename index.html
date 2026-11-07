@@ -12046,6 +12046,39 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       try { const s = await _freshGet(doc(db, 'dashboards/shruti')); const k = (s && s.exists()) ? String(s.data().orcaKey || '') : ''; return /^orca_sk_[\w-]{8,}$/.test(k) ? k : ''; }
       catch(e){ return ''; }
     };
+    // Neo inside Veda's other programs (TaskHub/neo-programs.js). Veda's side only,
+    // and only the documents those programs keep for her (NEO_DOCS). Writes are
+    // field-path patches, transactions or new entries — never a whole document
+    // rebuilt from a stale copy (each program's rules: docs/TaskHub/neo-assistant.md).
+    const NEO_DOCS = /^(dashboards\/(shruti_veda|studyos|studyos_sessions|wellness|wellness\/entries|mylist|journal|shield_veda)|studyos_cards\/[\w-]{1,80})$/;
+    const _neoOk = (path) => window._activeProfile === 'veda' && NEO_DOCS.test(String(path || ''));
+    window._fbNeoGet = async (path) => {
+      if (!_neoOk(path)) return null;
+      try { const s = await _freshGet(doc(db, path)); return (s && s.exists()) ? s.data() : null; } catch(e){ return null; }
+    };
+    window._fbNeoPatch = async (path, flat) => {
+      if (!_neoOk(path) || !flat || typeof flat !== 'object') return false;
+      const f = {}; Object.keys(flat).forEach(k => { f[k] = (flat[k] && flat[k].__delete === true) ? deleteField() : flat[k]; });
+      try { await updateDoc(doc(db, path), f); return true; } catch(e){ console.warn('Neo patch failed:', path, e); return false; }
+    };
+    // fn(data|null) → the fields to merge, or null to change nothing.
+    window._fbNeoTx = async (path, fn) => {
+      if (!_neoOk(path) || typeof fn !== 'function') return false;
+      try {
+        return await runTransaction(db, async (tx) => {
+          const ref = doc(db, path), s = await tx.get(ref);
+          const upd = fn(s.exists() ? s.data() : null);
+          if (!upd) return false;
+          if (s.exists()) tx.update(ref, upd); else tx.set(ref, upd);
+          return true;
+        });
+      } catch(e){ console.warn('Neo transaction failed:', path, e); return false; }
+    };
+    window._fbNeoAdd = async (colPath, data) => {
+      if (!_neoOk(colPath) || !data) return null;
+      try { const { addDoc } = await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js'); const r = await addDoc(collection(db, colPath), data); return r.id; }
+      catch(e){ console.warn('Neo add failed:', colPath, e); return null; }
+    };
     if (_mcCalUnsub) { _mcCalUnsub(); _mcCalUnsub = null; }
     _mcCalUnsub = onSnapshot(mcCalDocRef, (snap) => {
       if (snap.exists() && Array.isArray(snap.data().events)) {
@@ -16989,6 +17022,8 @@ function App(){
     monthShift:(by)=>{const d=new Date(vy,vm+(by||0),1);setVm(d.getMonth());setVy(d.getFullYear());return true;},
     lockApp:(t)=>window._vdNeoOps?window._vdNeoOps.lockApp(t):false,
     openLink:(label)=>window._vdNeoOps?window._vdNeoOps.openLink(label):false,
+    openProgram:(q,deep)=>window._vdNeoPrograms?window._vdNeoPrograms.open(q,deep):{ok:false,reason:"no_bridge"},
+    program:(q,op,args)=>window._vdNeoPrograms?window._vdNeoPrograms.run(q,op,args):{ok:false,reason:"no_bridge"},
     journalEntry:(text,title)=>window._vdNeoOps?window._vdNeoOps.journalEntry(text,title):false,
     startClass:(name)=>window._vdNeoOps?window._vdNeoOps.startClass(name,data):false,
     plan:(op,a)=>window._vdNeoOps?window._vdNeoOps.plan(op,a):false,
@@ -20421,6 +20456,10 @@ function applyControl(b,a,W,fx){
       return b.nav?(b.nav(nv),true):fail('no_bridge');
     }
     case 'open_link':return call('openLink',a.label||a.name||a.title||'');
+    // Every program linked from Veda's TaskHub, and what Neo may do inside it
+    // (TaskHub/neo-programs.js). Only her bridge has these methods.
+    case 'open_program':return call('openProgram',a.program||a.label||a.name||'',a.deep||null);
+    case 'program':return call('program',a.program||'',String(a.op||''),a.args||{});
     case 'gita_next':return call('gita','next');
     case 'gita_prev':return call('gita','prev');
     case 'gita_open':return call('gita','open',a.lesson);
@@ -24987,6 +25026,7 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 <script src="Shared/tabsync.js"></script>
 <!-- Neo: Veda's hands-free assistant (wake phrase "Hey Neo"). Veda-only; sleeps on Tony's side. docs/TaskHub/neo-assistant.md -->
 <script src="TaskHub/veda-assistant.js" defer></script>
+<script src="TaskHub/neo-programs.js" defer></script>
 <!-- LifeHub, headless: Tony's External Links are its list (the nav module's
      TONY'S EXTERNAL LINKS). No launcher element here; the header buttons are the display. -->
 <script src="LifeHub/lifehub.js" defer data-lock="guardian"></script>

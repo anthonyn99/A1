@@ -1766,6 +1766,8 @@ function vedaNeoActionLines() {
     `- {type:"rules_gate", on:true|false}   (turn the daily rules checklist pop-up on or off) | {type:"rules_run"} ("run my rules check now") | {type:"rules_check", match?:{index}}   ("next rule", "rule three done" → match.index 3. The checklist goes ONE rule at a time, in order, each after a short wait: never emit several rules_check for "all done")`,
     `- {type:"open_app", target}   (target: "gita" | "notebook" | "taskhub" | "plans" | "rules" | "timer" | "shield" | "lessons". "open my journal/notebook" → notebook; "go back to TaskHub" → taskhub; "the lessons list" → lessons)`,
     `- {type:"open_link", label}   (a button in her header — state.links lists their labels, e.g. Shruti; "Warden"/"my links" opens her links page)`,
+    `- {type:"open_program", program}   (open ANY program linked from her TaskHub: state.programs lists them — copy its "id" into program, e.g. "studyos", "mylist", "wellness", "magi", "warden". Prefer this over open_link for anything in state.programs)`,
+    `- {type:"program", program, op, args:[{k, v}]}   (do something INSIDE one of those programs: op is one of that program's "ops" in state.programs, exactly as written; args are the arguments named there, one {k, v} each, v always a string. A program with no "ops" can only be opened. Each program's "summary" is what you can tell her about it)`,
     `- {type:"gita_next"} | {type:"gita_prev"} | {type:"gita_open", lesson:<number>}   (Gita lessons: "next lesson", "open lesson 12")`,
     `- {type:"week_view", collapsed:true|false} | {type:"goals_tab", target:"short"|"long"} | {type:"month_shift", by:1|-1}   (collapse/expand the week, switch the goals tab, next/previous month. "go to today" → go_to_date with TODAY)`,
     `- {type:"lock_app", target:"taskhub"|"gita"|"notebook"|"rules"|"shield"}   (lock it now. Unlocking is never by voice: she does that herself)`,
@@ -1797,6 +1799,7 @@ function vedaNeoRuleLines(neo) {
     `- "say" is SPOKEN ALOUD to Veda. Write it as one or two natural spoken sentences: no symbols, emoji, markdown, or lists. Say times like "3 PM", dates like "Friday the 7th".`,
     `- "say" describes ONLY what the actions do. The page checks every action and speaks its own line for any that fail, so never promise more than the actions carry, and never claim something is finished that only starts (a prep kit, an app opening).`,
     `- QUESTIONS: when Veda asks something instead of requesting a change ("what's on today?", "what's my next event?", "did I do my habits?", "how many tasks are left this week?", "what are my rules?", "what's my long-term goal list?"), return NO actions and answer in "say" (up to 45 words), using ONLY CURRENT STATE. Count and list precisely. If the answer is not in state (or outside calendarWindow), say you can't see that. Never invent items.`,
+    `- Her other programs: state.programs[].summary is what Neo can see inside each (answer questions about them from it, and only from it). If she asks to do something inside a program and its "ops" has nothing for it, emit NO action and say you can open it for her but can't do that inside it yet.`,
     `- More she can ask about, all in CURRENT STATE: state.plans (her plans with Tony: stage, date, waitingOn — "anything waiting on me from Tony?" = plans with waitingOn "veda"), state.marketCal (earnings and economic releases for the next two weeks: "any earnings tomorrow?", "when does NVDA report?"), state.classes (her StudyOS classes), state.prepKits (AI prep kits: summary and draft — "read me the draft for the professor email" → read the draft's subject and body aloud, up to 90 words), state.timer (secondsLeft, running, mode: "how much time is left?"), state.pcRunning (apps open on her PC: "what's open?").`,
     `- PREVIOUS TURN, when present, is what she said last and what Neo did (with item ids). It is CONTEXT ONLY: use it to resolve "it", "that", "actually", "and also", and copy the id into match.id. NEVER repeat its actions: everything in it is already done. Act only on what she says in THIS audio. If this audio holds no clear new request (silence, noise, a cough, background talk, or Neo's own voice repeating its last reply), return an empty "actions" array and an empty "say".`,
     `- CONVERSATION, when present, holds the earlier turns of this conversation (oldest first; PREVIOUS TURN is the latest). It is CONTEXT ONLY, like PREVIOUS TURN: never repeat its actions. Use it to keep talking with her naturally:`,
@@ -1961,6 +1964,9 @@ const VEDA_ACTION_SCHEMA = (() => {
     scope: { type: 'STRING' }, force: { type: 'BOOLEAN' }, except: { type: 'ARRAY', items: { type: 'STRING' } },
     start: { type: 'BOOLEAN' }, mode: { type: 'STRING' }, label: { type: 'STRING' }, lesson: { type: 'INTEGER' },
     collapsed: { type: 'BOOLEAN' }, by: { type: 'INTEGER' }, text: { type: 'STRING' }, reason: { type: 'STRING' },
+    // Neo inside her other programs (open_program / program).
+    program: { type: 'STRING' }, op: { type: 'STRING' }, deep: { type: 'STRING' },
+    args: { type: 'ARRAY', items: { type: 'OBJECT', properties: { k: { type: 'STRING' }, v: { type: 'STRING' } } } },
   });
   Object.assign(it.set.properties, {
     notify: NOTIFY,
@@ -2016,6 +2022,12 @@ function vedaNeoState(state, prev, history) {
   const pick = (o, keys, n) => { const r = {}; for (const k of keys) if (o && o[k] != null && o[k] !== '') r[k] = typeof o[k] === 'string' ? str(o[k], n || 200) : o[k]; return r; };
   if (Array.isArray(state.plans)) out.plans = list(state.plans, 30).map(p => pick(p, ['title', 'stage', 'date', 'time', 'waitingOn', 'cancelRequestedBy']));
   if (Array.isArray(state.links)) out.links = list(state.links, 30).map(l => str(l, 60)).filter(Boolean);
+  if (Array.isArray(state.programs)) out.programs = list(state.programs, 40).filter(p => p && p.id).map(p => {
+    const o = { id: str(p.id, 60), label: str(p.label, 60) };
+    if (Array.isArray(p.ops) && p.ops.length) o.ops = list(p.ops, 20).map(x => str(x, 160));
+    if (p.summary != null) o.summary = typeof p.summary === 'string' ? str(p.summary, 1500) : str(JSON.stringify(p.summary), 1500);
+    return o;
+  });
   if (Array.isArray(state.marketCal)) out.marketCal = list(state.marketCal, 40).map(e => pick(e, ['date', 'title', 'kind', 'when'], 120));
   if (Array.isArray(state.classes)) out.classes = list(state.classes, 20).map(c => str(c, 80)).filter(Boolean);
   if (Array.isArray(state.prepKits)) out.prepKits = list(state.prepKits, 8).map(k => {
