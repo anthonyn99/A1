@@ -185,6 +185,11 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   const n = await rect(c, tab(DESK, 'news'));
   await click(c, n.x, n.y);
   ok('a plain click navigates', (await evalJs(c, `var e=${tab(DESK, 'news')}; return e.classList.contains('active') && getComputedStyle(e).color==='rgb(192, 174, 234)';`)));
+  // Opening a tab never moves anything in the header (the bold label is reserved).
+  const geo = () => evalJs(c, `return [...document.querySelectorAll('${DESK} .tb-navtab, ${DESK} .tb-snav')].map(e=>{var r=e.getBoundingClientRect();return r.left.toFixed(2)+'/'+r.width.toFixed(2);}).join(',');`);
+  const g0 = await geo(); let moved = null;
+  for (const id of await tabs(c, DESK)) { await evalJs(c, `${tab(DESK, id)}.click(); return 1;`); await sleep(400); if ((await geo()) !== g0) { moved = id; break; } }
+  ok('opening any tab never shifts the header', !moved, moved);
   await load(c, 1440, 900, false, true);
   ok('reload keeps the order', JSON.stringify(await tabs(c, DESK)) === JSON.stringify(want));
 
