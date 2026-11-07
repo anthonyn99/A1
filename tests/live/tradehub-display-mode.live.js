@@ -44,7 +44,7 @@ const worker = {
   c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); });
   const js = (e) => evalJs(c, /^\s*return\b/.test(e) && !/;\s*$/.test(e) ? e + ';' : e);
   const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 250; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(250); } return false; };
-  const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath(name), Buffer.from(r.data, 'base64')); console.log('  shot ' + shotPath(name)); };
+  const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath(name), Buffer.from(r.result.data, 'base64')); console.log('  shot ' + shotPath(name)); };
   const nav = (id) => js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent); t&&t.click(); 1`);
   // Is the visible element whose text matches `re` blurred?
   const blurred = (re) => js(`var re=${re}; var el=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>e.offsetParent&&e.children.length===0&&re.test(e.textContent))[0];
