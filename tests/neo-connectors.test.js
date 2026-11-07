@@ -73,14 +73,17 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const csrc = read('TaskHub/neo-connectors.js');
   function page(opts) {
     opts = opts || {};
-    const log = { patch: [], put: [], opened: [], tabs: [], nav: [], magi: [], gate: [] };
+    const log = { patch: [], put: [], opened: [], tabs: [], nav: [], magi: [], gate: [], tx: [], later: [] };
     const store = Object.assign({}, opts.docs || {});
-    const ctx = { console, Promise, JSON, Object, Array, String, Date, Math, setTimeout: (f, ms) => (ms > 5000 ? 0 : setTimeout(f, 0)) };
+    // The 3 s look-again after a StudyOS write is queued (log.later) so a test can run it when it likes.
+    const ctx = { console, Promise, JSON, Object, Array, String, Date, Math, crypto: require('crypto').webcrypto,
+      setTimeout: (f, ms) => (ms === 3000 ? (log.later.push(f), 0) : ms > 5000 ? 0 : setTimeout(f, 0)) };
     ctx.window = ctx;
     ctx._activeProfile = 'veda';
     ctx._navGetLinks = () => [
       { id: 'sh', label: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
       { id: 'mt', label: 'MAGI (T)', url: 'https://anthonyn99.github.io/A1/magi.html' },
+      { id: 'st', label: 'STUDY', url: 'https://tradeboard.vedapatel05.workers.dev/studyos/' },
     ];
     ctx._navOpenLink = (p, id) => log.opened.push(id);
     ctx._tnOpenTab = (u, k) => { log.tabs.push([u, k]); return { location: { href: u } }; };
@@ -88,6 +91,13 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     ctx.fetch = async (u) => ({ json: async () => JSON.parse(read(u)) });
     ctx._fbNeoGet = async (p) => (p in store ? JSON.parse(JSON.stringify(store[p])) : null);
     ctx._fbNeoPatch = async (p, flat) => { log.patch.push([p, flat]); return p in store; };
+    // A transaction as Firestore runs it: fn sees the server copy, its fields are merged in (set when new).
+    ctx._fbNeoTx = async (p, fn) => {
+      const d = p in store ? JSON.parse(JSON.stringify(store[p])) : null;
+      const u = fn(d); if (!u) return false;
+      log.tx.push([p, Object.keys(u)]);
+      store[p] = Object.assign(d || {}, JSON.parse(JSON.stringify(u))); return true;
+    };
     const locks = opts.locks || {};
     ctx.Guardian = { mustBlock: (id) => !!locks[id] };
     ctx.alGate = (id, ok, no) => { log.gate.push(id); (opts.unlock ? ok : no)(); };
@@ -115,6 +125,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     return { R: ctx._vdNeoPrograms, ctx, log, store };
   }
   const say = (r) => (r && r.say) || '';
+  const ctxFnv = (...a) => page({})['ctx']._vdNeoConnectors.fnv(...a);
 
   section('V\'s Notebook');
   {
@@ -206,6 +217,72 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     t('ask hands MAGI the question as Veda, to run', (await R.run('magi', 'ask', { question: 'Plan my week' })) === true && log.magi.length === 1);
     const h = JSON.parse(Buffer.from(log.magi[0].split('#tb=')[1], 'base64url').toString('utf8'));
     t('…through MAGI (T)\'s own #tb= link', log.magi[0].startsWith('https://anthonyn99.github.io/A1/magi.html#tb=') && h.q === 'Plan my week' && h.p === 'veda' && h.run === 1 && h.src === 'neo', JSON.stringify(h));
+  }
+
+  section('StudyOS');
+  {
+    const cls = [{ id: 'c1', name: 'Biology', code: 'BIO 101', modules: [{ id: 'm1', name: 'Slides', type: 'documents', files: [], prompts: [], notes: [] }, { id: 'm2', name: 'Lecture notes', type: 'notes', files: [], prompts: [], notes: [] }] },
+      { id: 'c2', name: 'Calculus', modules: [] }];
+    const today = new Date(), k = (n) => { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+    const docs = {
+      'dashboards/studyos': { classes: cls, events: [{ id: 'e1', name: 'Bio midterm', date: k(5), time: '10:00', classId: 'c1', type: 'exam' }],
+        tasks: [{ id: 't1', name: 'Lab report', dueDate: k(2), dueTime: '23:59', classId: 'c1', type: 'hw', done: false }, { id: 't0', name: 'Old reading', dueDate: k(-3), classId: 'c2', done: false }],
+        notes: [], ksu: { modules: [] }, d2l: {} },
+      'studyos_cards/c1': { cards: [{ id: 'cd_a', fp: 'x', q: 'Q', a: 'A', sched: { state: 'review', due: Date.now() - 1000 } }, { id: 'cd_b', fp: 'y', q: 'Q2', a: 'A2', sched: null },
+        { id: 'cd_c', fp: 'z', deletedAt: 1 }, { id: 'cd_d', fp: 'w', status: 'archived', sched: { state: 'review', due: 0 } }], meta: { v: 2 }, savedAt: 1 },
+      'dashboards/studyos_sessions': { sessions: [{ id: 's1', startedAt: Date.now() - 60000, durationMs: 45 * 60000 }] },
+      'dashboards/studyos_notebook': { e_old: { id: 'old', title: 'x' }, _order: ['old'], savedAt: 1 },
+    };
+    const { R, log, store } = page({ docs });
+    t('"study" is StudyOS', R.find('study').id === 'studyos');
+    await R._test.refresh('studyos');
+    const s = R._test.summaries.studyos || '';
+    t('summary: classes and their Notes modules, open tasks (overdue counted), events, cards due, time studied',
+      /Biology \(BIO 101\), notes modules: Lecture notes/.test(s) && /\(1 overdue\)/.test(s) && /"Lab report" \[Biology\]/.test(s) && /"Bio midterm" \[Biology\].*\(exam\)/.test(s)
+      && /Biology: 1 due, 1 new/.test(s) && /Studied this week: 45 min/.test(s), s);
+    t('add_task builds StudyOS\'s own task, in a transaction on tasks only', (await R.run('studyos', 'add_task', { title: 'Problem set 4', class: 'calc', date: k(3), time: '17:00', type: 'hw' })) === true
+      && JSON.stringify(log.tx[0]) === JSON.stringify(['dashboards/studyos', ['tasks']]), JSON.stringify(log.tx));
+    const nt = store['dashboards/studyos'].tasks.find((x) => x.name === 'Problem set 4');
+    t('…with every field the form writes, nothing undefined', nt && nt.classId === 'c2' && nt.dueDate === k(3) && nt.dueTime === '17:00' && nt.done === false && nt.priority === 'medium' && nt.type === 'hw'
+      && nt.repeat === 'none' && Array.isArray(nt.repeatDays) && nt.notif === 'none' && typeof nt.createdAt === 'number' && /^[a-z0-9]{10,}$/.test(nt.id) && !Object.values(nt).some((v) => v === undefined), JSON.stringify(nt));
+    t('…the other arrays untouched', store['dashboards/studyos'].events.length === 1 && store['dashboards/studyos'].classes.length === 2);
+    // An open tab saves its stale copy over it; the look-again puts it back once.
+    const before = JSON.parse(JSON.stringify(store['dashboards/studyos'].tasks.filter((x) => x.id !== nt.id)));
+    store['dashboards/studyos'].tasks = before;
+    for (const f of log.later.splice(0)) f();
+    await new Promise((r) => setTimeout(r, 20));
+    t('overwritten by an open tab → put back, once', store['dashboards/studyos'].tasks.filter((x) => x.id === nt.id).length === 1);
+    for (const f of log.later.splice(0)) f();
+    t('an unknown class is said, not guessed', (await R.run('studyos', 'add_task', { title: 'x', class: 'chemistry' })).reason === 'not_found');
+    t('complete_task ticks the open one', (await R.run('studyos', 'complete_task', { title: 'lab report' })) === true && store['dashboards/studyos'].tasks.find((x) => x.id === 't1').done === true);
+    t('move_task moves it', (await R.run('studyos', 'move_task', { title: 'problem set', date: k(4) })) === true && store['dashboards/studyos'].tasks.find((x) => x.id === nt.id).dueDate === k(4));
+    t('remove_task removes only it', (await R.run('studyos', 'remove_task', { title: 'old reading' })) === true && !store['dashboards/studyos'].tasks.some((x) => x.id === 't0') && store['dashboards/studyos'].tasks.length === 2);
+    t('add_event builds StudyOS\'s own event', (await R.run('studyos', 'add_event', { title: 'Quiz 3', date: k(6), class: 'biology', type: 'quiz' })) === true
+      && (() => { const e = store['dashboards/studyos'].events.find((x) => x.name === 'Quiz 3'); return e && e.classId === 'c1' && e.type === 'quiz' && e.weight === 0 && e.time === ''; })());
+    t('remove_event removes it', (await R.run('studyos', 'remove_event', { title: 'bio midterm' })) === true && !store['dashboards/studyos'].events.some((x) => x.id === 'e1'));
+    const n1 = await R.run('studyos', 'add_note', { class: 'biology', text: 'Mitochondria\nmake ATP', title: 'Cells' });
+    const pg = Object.keys(store['dashboards/studyos_notebook']).filter((x) => /^e_neo/.test(x)).map((x) => store['dashboards/studyos_notebook'][x])[0];
+    t('add_note: a page in the class\'s Notes module folder, on top of the order', n1.say === 'Noted in Biology Lecture notes.' && pg && pg.folder === 'm2' && pg.template === 'page' && pg.title === 'Cells'
+      && pg.data.html === '<p>Mitochondria</p><p>make ATP</p>' && store['dashboards/studyos_notebook']._order[0] === pg.id && store['dashboards/studyos_notebook']._order[1] === 'old' && store['dashboards/studyos_notebook'].e_old.title === 'x', JSON.stringify(pg));
+    t('…never into a documents module; a class with none says so', (await R.run('studyos', 'add_note', { class: 'calculus', text: 'x' })).say === 'Calculus has no Notes module yet.');
+    t('…no class: Quick Notes', (await R.run('studyos', 'add_note', { text: 'Buy a calculator' })).say === 'Noted in Quick Notes.');
+    t('add_card: a v2 card with StudyOS\'s fingerprint', (await R.run('studyos', 'add_card', { class: 'bio', question: 'What makes ATP?', answer: 'Mitochondria' })) === true
+      && (() => { const c = store['studyos_cards/c1'].cards.find((x) => x.q === 'What makes ATP?'); return c && /^cd_[a-z0-9]{12}$/.test(c.id) && c.fp === ctxFnv('qa', 'What makes ATP?', 'Mitochondria') && c.sched === null && c.kind === 'qa' && c.classId === 'c1'; })()
+      && store['studyos_cards/c1'].meta.v === 2 && store['studyos_cards/c1'].cards.length === 5);
+    t('…the same card twice is not added', (await R.run('studyos', 'add_card', { class: 'bio', question: 'what makes  ATP?', answer: 'mitochondria' })).reason === 'already' && store['studyos_cards/c1'].cards.length === 5);
+    t('…a class with no deck: Neo doesn\'t make one', /has no flashcards yet/.test((await R.run('studyos', 'add_card', { class: 'calculus', question: 'q', answer: 'a' })).say) && !store['studyos_cards/c2']);
+    t('open_class opens StudyOS on that class, in its STUDY tab', (await R.run('studyos', 'open_class', { class: 'bio' })) === true && log.tabs[log.tabs.length - 1][0] === 'https://tradeboard.vedapatel05.workers.dev/studyos/?class=c1' && log.tabs[log.tabs.length - 1][1] === 'link_veda_st', JSON.stringify(log.tabs));
+  }
+  {
+    const { R, store } = page({ docs: { 'dashboards/studyos': { classes: [], tasks: [], events: [] } }, locks: { veda_studyos: true } });
+    await R._test.refresh('studyos');
+    t('a locked StudyOS: nothing read, nothing written', !R._test.summaries.studyos && (await R.run('studyos', 'add_task', { title: 'x' })).reason === 'locked' && store['dashboards/studyos'].tasks.length === 0);
+  }
+  {
+    // StudyOS's own fingerprint, copied here from its module, must match Neo's.
+    const m = /export function fingerprint[\s\S]*?\r?\n}\r?\n/.exec(read('V1/StudyOS/js/modules/cards.js'));
+    const own = new Function(m[0].replace('export ', '') + '; return fingerprint;')();
+    t('Neo\'s card fingerprint is StudyOS\'s', ['What makes ATP?|Mitochondria', '  Two  spaces |X', 'Ünïcode|∑'].every((x) => { const [q, a] = x.split('|'); return own('qa', q, a) === ctxFnv('qa', q, a); }));
   }
 
   section('Tony\'s side');

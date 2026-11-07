@@ -2026,7 +2026,7 @@ function vedaNeoState(state, prev, history) {
   if (Array.isArray(state.programs)) out.programs = list(state.programs, 40).filter(p => p && p.id).map(p => {
     const o = { id: str(p.id, 60), label: str(p.label, 60) };
     if (Array.isArray(p.ops) && p.ops.length) o.ops = list(p.ops, 20).map(x => str(x, 160));
-    if (p.summary != null) o.summary = typeof p.summary === 'string' ? str(p.summary, 1500) : str(JSON.stringify(p.summary), 1500);
+    if (p.summary != null) o.summary = typeof p.summary === 'string' ? str(p.summary, 3000) : str(JSON.stringify(p.summary), 3000);
     return o;
   });
   if (Array.isArray(state.marketCal)) out.marketCal = list(state.marketCal, 40).map(e => pick(e, ['date', 'title', 'kind', 'when'], 120));

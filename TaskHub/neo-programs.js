@@ -110,7 +110,9 @@
     var w = null;
     try { w = window._tnOpenTab ? window._tnOpenTab(url, tab) : window.open(url, tab || '_blank'); } catch (e) {}
     if (!w) return { ok: false, reason: 'blocked' };
-    try { if (w.location && w.location.href !== url) w.location.href = url; } catch (e) {}   // another origin: _tnOpenTab sent it
+    // Another origin can't be read, but it can be sent somewhere.
+    var cur = null; try { cur = w.location.href; } catch (e) { cur = null; }
+    if (cur !== url) { try { w.location.href = url; } catch (e) {} }
     return true;
   }
 

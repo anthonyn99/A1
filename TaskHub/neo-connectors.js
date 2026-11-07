@@ -8,7 +8,7 @@
    that reads something aloud answers {ok:true, say}, which Neo speaks after
    its reply. VEDA'S SIDE ONLY: the registry refuses every call off her side.
 
-   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T).
+   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS.
    Each writes the way its own program does:
      · Notebook  only through Notebook's API (pages, page, putPage, open)
      · Plans     only through PlansCore, as Veda
@@ -284,5 +284,222 @@
     },
   });
 
-  window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook };
+  /* ── StudyOS (STUDY; dashboards/studyos, studyos_cards/<class>, …) ────────
+     Phase 2 (2026-11-06). StudyOS saves its main document WHOLE (setDoc, no
+     merge) and an open tab takes a remote copy's arrays wholesale. So every
+     write here is a transaction on the server copy that changes one item by
+     id and updates only that array; the objects are built exactly as
+     StudyOS's own forms build them. An open tab saving at the same moment can
+     still write over it, so the change is looked for again 3 s later and put
+     back (by id, so never twice) if it is gone. Notes are pages in StudyOS's
+     Notebook (dashboards/studyos_notebook), in a Notes module's folder only:
+     a note in a documents module would render nowhere. Cards follow StudyOS's
+     cards v2 (random id, content fingerprint, a duplicate is not added). */
+  var SOS = 'dashboards/studyos', SOS_NB = 'dashboards/studyos_notebook';
+  var TASK_TYPES = ['hw', 'quiz', 'exam', 'lab', 'lecture', 'other'], PRIOS = ['high', 'medium', 'low'];
+  function sosUid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function sosGet(path) { return window._fbNeoGet ? race(window._fbNeoGet(path || SOS), 10000, null) : Promise.resolve(null); }
+  function classOf(doc, q) {
+    var cs = (doc && doc.classes) || [];
+    if (!str(q)) return null;
+    return R.pick(cs, q, 'name') || R.pick(cs, q, 'code') || null;
+  }
+  function spokenDay(k) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k || ''); if (!m) return ''; return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); }
+  // The change, written; then looked for again once an open tab has had time to save.
+  function sosWrite(path, field, mutate, present, missing) {
+    if (!window._fbNeoTx) return Promise.resolve(bad('no_bridge'));
+    var why = null;
+    var tx = function (d) {
+      if (!d) { why = missing || 'no_bridge'; return null; }
+      var r = mutate(d);
+      if (r && r.ok === false) { why = r; return null; }
+      if (r == null) return null;
+      var u = {}; u[field] = r; return u;
+    };
+    return window._fbNeoTx(path, tx).then(function (ok) {
+      if (!ok) return why && why.ok === false ? why : bad(why || 'failed');
+      setTimeout(function () {
+        sosGet(path).then(function (d) { if (d && !present(d)) window._fbNeoTx(path, function (d2) { return d2 && !present(d2) ? tx(d2) : null; }); });
+      }, 3000);
+      return true;
+    });
+  }
+  function taskNamed(d, q, open) {
+    var ts = (d.tasks || []).filter(function (t) { return t && (!open || !t.done); });
+    return R.pick(ts, q, 'name');
+  }
+  function fnv(kind, q, a) {   // StudyOS cards.js fingerprint(), exactly
+    var n = function (s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+    var s = kind + '|' + n(q) + '|' + n(a), h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(36);
+  }
+  function cardId() {
+    var r = '';
+    try { var b = new Uint8Array(8); crypto.getRandomValues(b); r = Array.prototype.map.call(b, function (x) { return x.toString(36); }).map(function (x) { return x.length < 2 ? '0' + x : x; }).join('').slice(0, 12); } catch (e) {}
+    return 'cd_' + (r || (Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)));
+  }
+  function liveCard(c) { return c && !c.deletedAt && (c.status || 'active') === 'active'; }
+  R.register('studyos', {
+    lock: 'veda_studyos',
+    deep: function (d, p) {
+      var id = typeof d === 'object' ? d.classId : d; if (!id) return null;
+      var base = String(p.url || 'https://tradeboard.vedapatel05.workers.dev/studyos/').split('#')[0];
+      return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'class=' + encodeURIComponent(id);
+    },
+    summary: function () {
+      return Promise.all([sosGet(), sosGet('dashboards/studyos_sessions')]).then(function (r) {
+        var d = r[0], ss = r[1]; if (!d) return null;
+        var cs = d.classes || [], now = new Date(), today = ymd(now), soon = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14));
+        var cname = function (id) { var c = cs.filter(function (x) { return x.id === id; })[0]; return c ? c.name : ''; };
+        var tasks = (d.tasks || []).filter(function (t) { return t && !t.done && t.dueDate && t.dueDate <= soon; })
+          .sort(function (a, b) { return (a.dueDate + (a.dueTime || '')).localeCompare(b.dueDate + (b.dueTime || '')); });
+        var overdue = tasks.filter(function (t) { return t.dueDate < today; }).length;
+        var evs = (d.events || []).filter(function (e) { return e && e.date >= today && e.date <= soon; })
+          .sort(function (a, b) { return (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')); });
+        var item = function (x, dk, tm) { return '"' + clip(x.name, 60) + '"' + (cname(x.classId) ? ' [' + clip(cname(x.classId), 30) + ']' : '') + ' ' + spokenDay(dk) + (tm ? ' ' + tm : '') + (x.type ? ' (' + x.type + ')' : ''); };
+        var mins = 0; var monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)).getTime();
+        ((ss && ss.sessions) || []).forEach(function (s) { if (s && s.startedAt >= monday) mins += (Number(s.durationMs) || 0) / 60000; });
+        // Cards due per class: one read per class, in parallel.
+        return Promise.all(cs.map(function (c) { return sosGet('studyos_cards/' + c.id); })).then(function (decks) {
+          var nowMs = Date.now();
+          var due = cs.map(function (c, i) {
+            var cards = ((decks[i] && decks[i].cards) || []).filter(liveCard);
+            var n = cards.filter(function (k) { return k.sched && k.sched.state !== 'new' && (k.sched.due || 0) <= nowMs; }).length;
+            var unseen = cards.filter(function (k) { return !k.sched || k.sched.state === 'new'; }).length;
+            return n || unseen ? c.name + ': ' + n + ' due, ' + unseen + ' new' : '';
+          }).filter(Boolean);
+          return 'Classes: ' + (cs.length ? cs.map(function (c) {
+            var notes = (c.modules || []).filter(function (m) { return m && m.type === 'notes'; }).map(function (m) { return m.name; });
+            return c.name + (c.code ? ' (' + c.code + ')' : '') + (notes.length ? ', notes modules: ' + notes.join(', ') : '');
+          }).join('; ') : 'none') + '. ' +
+            'Open tasks due in the next 2 weeks' + (overdue ? ' (' + overdue + ' overdue)' : '') + ': ' + (tasks.length ? tasks.slice(0, 12).map(function (t) { return item(t, t.dueDate, t.dueTime); }).join('; ') : 'none') + '. ' +
+            'Events: ' + (evs.length ? evs.slice(0, 10).map(function (e) { return item(e, e.date, e.time); }).join('; ') : 'none') + '. ' +
+            'Flashcards: ' + (due.length ? due.join('; ') : 'none due') + '. ' +
+            'Studied this week: ' + Math.round(mins) + ' min.';
+        });
+      });
+    },
+    ops: {
+      add_task: { args: 'title, class?, date? (YYYY-MM-DD), time? (HH:MM), type? (hw|quiz|exam|lab|lecture|other), priority? (high|medium|low)', run: function (a) {
+        var name = str(a.title); if (!name) return bad('invalid');
+        var id = sosUid();
+        return sosWrite(SOS, 'tasks', function (d) {
+          var list = (d.tasks || []).slice();
+          if (list.some(function (t) { return t && t.id === id; })) return null;
+          var c = classOf(d, a.class);
+          if (str(a.class) && !c) return bad('not_found', 'I can\'t find a class called ' + str(a.class) + ' in StudyOS.');
+          list.push({ id: id, done: false, createdAt: Date.now(), name: name, dueDate: DATE.test(str(a.date)) ? a.date : '', dueTime: TIME.test(str(a.time)) ? a.time : '',
+            priority: PRIOS.indexOf(str(a.priority)) >= 0 ? a.priority : 'medium', type: TASK_TYPES.indexOf(str(a.type)) >= 0 ? a.type : 'hw', classId: c ? c.id : '',
+            notes: '', notif: 'none', repeat: 'none', repeatDays: [], repeatEndDate: '' });
+          return list;
+        }, function (d) { return (d.tasks || []).some(function (t) { return t && t.id === id; }); });
+      } },
+      complete_task: { args: 'title', run: function (a) {
+        var id = null;
+        return sosWrite(SOS, 'tasks', function (d) {
+          var t = id ? (d.tasks || []).filter(function (x) { return x && x.id === id; })[0] : taskNamed(d, a.title, true);
+          if (!t) return bad('not_found', 'I can\'t find an open StudyOS task called ' + (str(a.title) || 'that') + '.');
+          id = t.id;
+          return (d.tasks || []).map(function (x) { return x && x.id === id ? Object.assign({}, x, { done: true }) : x; });
+        }, function (d) { return (d.tasks || []).some(function (t) { return t && t.id === id && t.done; }); });
+      } },
+      move_task: { args: 'title, date (YYYY-MM-DD), time? (HH:MM)', run: function (a) {
+        if (!DATE.test(str(a.date))) return bad('invalid');
+        var id = null;
+        return sosWrite(SOS, 'tasks', function (d) {
+          var t = id ? (d.tasks || []).filter(function (x) { return x && x.id === id; })[0] : taskNamed(d, a.title, true);
+          if (!t) return bad('not_found', 'I can\'t find an open StudyOS task called ' + (str(a.title) || 'that') + '.');
+          id = t.id;
+          return (d.tasks || []).map(function (x) { return x && x.id === id ? Object.assign({}, x, { dueDate: a.date }, TIME.test(str(a.time)) ? { dueTime: a.time } : {}) : x; });
+        }, function (d) { return (d.tasks || []).some(function (t) { return t && t.id === id && t.dueDate === a.date; }); });
+      } },
+      remove_task: { args: 'title', run: function (a) {
+        var id = null;
+        return sosWrite(SOS, 'tasks', function (d) {
+          var t = id ? (d.tasks || []).filter(function (x) { return x && x.id === id; })[0] : taskNamed(d, a.title, false);
+          if (!t) return id ? null : bad('not_found', 'I can\'t find a StudyOS task called ' + (str(a.title) || 'that') + '.');
+          id = t.id;
+          return (d.tasks || []).filter(function (x) { return !(x && x.id === id); });
+        }, function (d) { return !(d.tasks || []).some(function (t) { return t && t.id === id; }); });
+      } },
+      add_event: { args: 'title, date (YYYY-MM-DD), time? (HH:MM), class?, type? (exam|quiz|hw|lab|lecture|other)', run: function (a) {
+        var name = str(a.title); if (!name || !DATE.test(str(a.date))) return bad('invalid');
+        var id = sosUid();
+        return sosWrite(SOS, 'events', function (d) {
+          var list = (d.events || []).slice();
+          if (list.some(function (e) { return e && e.id === id; })) return null;
+          var c = classOf(d, a.class);
+          if (str(a.class) && !c) return bad('not_found', 'I can\'t find a class called ' + str(a.class) + ' in StudyOS.');
+          list.push({ id: id, name: name, date: a.date, time: TIME.test(str(a.time)) ? a.time : '', classId: c ? c.id : '', type: TASK_TYPES.indexOf(str(a.type)) >= 0 ? a.type : 'other',
+            weight: 0, notif: 'none', repeat: 'none', repeatDays: [], repeatEndDate: '' });
+          return list;
+        }, function (d) { return (d.events || []).some(function (e) { return e && e.id === id; }); });
+      } },
+      remove_event: { args: 'title', run: function (a) {
+        var id = null;
+        return sosWrite(SOS, 'events', function (d) {
+          var e = id ? (d.events || []).filter(function (x) { return x && x.id === id; })[0] : R.pick(d.events || [], a.title, 'name');
+          if (!e) return id ? null : bad('not_found', 'I can\'t find a StudyOS event called ' + (str(a.title) || 'that') + '.');
+          id = e.id;
+          return (d.events || []).filter(function (x) { return !(x && x.id === id); });
+        }, function (d) { return !(d.events || []).some(function (e) { return e && e.id === id; }); });
+      } },
+      add_note: { args: 'text, class?, module? (a Notes module), title?', run: function (a) {
+        var text = str(a.text); if (!text) return bad('invalid');
+        return sosGet().then(function (d) {
+          if (!d) return bad('no_bridge');
+          var folder = 'quick', where = 'Quick Notes';
+          if (str(a.class)) {
+            var c = classOf(d, a.class);
+            if (!c) return bad('not_found', 'I can\'t find a class called ' + str(a.class) + ' in StudyOS.');
+            var nm = (c.modules || []).filter(function (m) { return m && m.type === 'notes'; });
+            var m = str(a.module) ? R.pick(nm, a.module, 'name') : (nm.length === 1 ? nm[0] : null);
+            if (!m) return bad('not_found', nm.length ? c.name + ' has more than one Notes module: ' + list3(nm.map(function (x) { return x.name; })) + '. Which one?' : c.name + ' has no Notes module yet.');
+            folder = String(m.id); where = c.name + ' ' + m.name;
+          }
+          var now = Date.now(), id = 'neo' + now.toString(36) + Math.random().toString(36).slice(2, 6);
+          var page = { id: id, title: str(a.title) || ('Note · ' + new Date(now).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })), template: 'page', folder: folder,
+            created: now, updated: now, tags: [], data: { html: text.split(/\n+/).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join(''), attachments: [] }, rev: 1 };
+          // A new page field, and the order with it on top, from the server copy (never a stale order).
+          return window._fbNeoTx(SOS_NB, function (nb) {
+            nb = nb || {};
+            if (nb['e_' + id]) return null;
+            var u = { savedAt: now }; u['e_' + id] = page;
+            if (Array.isArray(nb._order) && nb._order.length) u._order = [id].concat(nb._order.filter(function (x) { return x !== id; }));
+            return u;
+          }).then(function (ok) { return ok ? spoken('Noted in ' + where + '.') : bad('failed'); });
+        });
+      } },
+      add_card: { args: 'class, question, answer', run: function (a) {
+        var q = str(a.question), ans = str(a.answer); if (!q || !ans) return bad('invalid');
+        return sosGet().then(function (d) {
+          var c = classOf(d, a.class);
+          if (!c) return bad('not_found', 'I can\'t find a class called ' + (str(a.class) || 'that') + ' in StudyOS.');
+          var fp = fnv('qa', q, ans), id = cardId(), now = Date.now();
+          var path = 'studyos_cards/' + c.id, dup = false;
+          return sosWrite(path, 'cards', function (deck) {
+            var cards = (deck.cards || []).slice();
+            if (cards.some(function (k) { return k && k.id === id; })) return null;
+            if (cards.some(function (k) { return k && !k.deletedAt && k.fp === fp; })) { dup = true; return bad('already', 'That card is already in ' + c.name + '.'); }
+            cards.push({ id: id, fp: fp, kind: 'qa', q: q, a: ans, classId: c.id, moduleId: '', sourceNoteId: '', sourceTitle: 'Neo', topic: 'Neo', sourceSlide: null,
+              createdAt: now, updatedAt: now, source: 'neo', sched: null });
+            return cards;
+          }, function (deck) { return dup || (deck.cards || []).some(function (k) { return k && k.id === id; }); },
+          // A class with no deck yet: StudyOS makes that document itself (with its own meta), not Neo.
+          bad('not_found', c.name + ' has no flashcards yet. Make the first one in StudyOS, then I can add more.'));
+        });
+      } },
+      open_class: { args: 'class', run: function (a) {
+        return sosGet().then(function (d) {
+          var c = classOf(d, a.class);
+          if (!c) return bad('not_found', 'I can\'t find a class called ' + (str(a.class) || 'that') + ' in StudyOS.');
+          return R.open('studyos', { classId: c.id });
+        });
+      } },
+    },
+  });
+
+  window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook, fnv: fnv };
 })();

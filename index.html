@@ -12050,7 +12050,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // and only the documents those programs keep for her (NEO_DOCS). Writes are
     // field-path patches, transactions or new entries — never a whole document
     // rebuilt from a stale copy (each program's rules: docs/TaskHub/neo-assistant.md).
-    const NEO_DOCS = /^(dashboards\/(shruti_veda|studyos|studyos_sessions|wellness|wellness\/entries|mylist|journal|shield_veda|magi_veda|magi_veda\/runs\/[\w-]{1,80})|studyos_cards\/[\w-]{1,80})$/;
+    const NEO_DOCS = /^(dashboards\/(shruti_veda|studyos|studyos_sessions|studyos_notebook|wellness|wellness\/entries|mylist|journal|shield_veda|magi_veda|magi_veda\/runs\/[\w-]{1,80})|studyos_cards\/[\w-]{1,80})$/;
     const _neoOk = (path) => window._activeProfile === 'veda' && NEO_DOCS.test(String(path || ''));
     window._fbNeoGet = async (path) => {
       if (!_neoOk(path)) return null;

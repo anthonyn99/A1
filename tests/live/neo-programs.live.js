@@ -99,6 +99,17 @@ const ok = (name, cond, extra) => {
   ok('MAGI ask hands the question to MAGI (T)', mg.v === true && /\/A1\/magi\.html#tb=/.test(mg.u), JSON.stringify(mg));
   ok('…and Neo asks first', await js(`return /ask the MAGI council/.test((_vdNeo._test.needsConfirm([{type:'program',program:'magi',op:'ask',args:[{k:'question',v:'Plan my week'}]}],{})||{}).question||'');`));
 
+  console.log('\nphase 2: StudyOS in the real page');
+  await js(`__fakeFs.docs['dashboards/studyos'] = {classes:[{id:'c1',name:'Biology',modules:[{id:'m2',name:'Lecture notes',type:'notes',files:[],prompts:[],notes:[]}]}], tasks:[{id:'t1',name:'Lab report',dueDate:'2099-01-01',done:false,classId:'c1'}], events:[], notes:[], ksu:{modules:[]}, d2l:{}};
+    __fakeFs.docs['studyos_cards/c1'] = {cards:[], meta:{v:2}, savedAt:1}; __fakeFs.docs['dashboards/studyos_notebook'] = {_order:['old'], e_old:{id:'old',title:'x'}}; 1`);
+  ok('add_task lands in StudyOS\'s tasks', await js(`return _vdNeoPrograms.run('studyos','add_task',{title:'Problem set 4', class:'biology', date:'2099-01-02'}).then(function(v){ return _fbNeoGet('dashboards/studyos').then(function(d){ return v === true && d.tasks.length === 2 && d.tasks[1].classId === 'c1' && d.classes.length === 1; }); });`));
+  ok('complete_task ticks it', await js(`return _vdNeoPrograms.run('studyos','complete_task',{title:'lab report'}).then(function(v){ return _fbNeoGet('dashboards/studyos').then(function(d){ return v === true && d.tasks[0].done === true; }); });`));
+  ok('add_note lands in the Notes module\'s folder', await js(`return _vdNeoPrograms.run('studyos','add_note',{class:'biology', text:'Cells make ATP'}).then(function(r){ return _fbNeoGet('dashboards/studyos_notebook').then(function(d){ var k=Object.keys(d).filter(function(x){return /^e_neo/.test(x);})[0]; return r.ok === true && d[k].folder === 'm2' && d._order[0] === d[k].id && d._order[1] === 'old'; }); });`));
+  ok('add_card lands in the deck', await js(`return _vdNeoPrograms.run('studyos','add_card',{class:'biology', question:'What makes ATP?', answer:'Mitochondria'}).then(function(v){ return _fbNeoGet('studyos_cards/c1').then(function(d){ return v === true && d.cards.length === 1 && d.meta.v === 2; }); });`));
+  await js(`return _vdNeoPrograms.refreshAll(true);`);
+  ok('her state carries the StudyOS summary', await until(`/Classes: Biology, notes modules: Lecture notes/.test((_vdNeoPrograms.state().find(function(p){return p.id==='studyos';})||{}).summary||'')`, 5000),
+    await js(`return JSON.stringify(_vdNeoPrograms.state().find(function(p){return p.id==='studyos';}));`));
+
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   try { c.ws.close(); } catch (e) {}

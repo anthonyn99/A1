@@ -306,8 +306,8 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 |---|---|---|
 | 0 | Foundation; every linked program opens | **done 2026-11-06** |
 | 1 | V's Notebook, Plans, Shruti, MAGI (T) (`TaskHub/neo-connectors.js`) | **done 2026-11-06** |
-| 2 | STUDY (StudyOS) | next |
-| 3 | Wellness, LIST (MyList), ORCA (ask a model with her `orca_sk` key; `/v1/*` already allows TaskHub's origin), RIFTIQ (`riftiq_lookups`; the shared parts only in a transaction) | |
+| 2 | STUDY (StudyOS) | **done 2026-11-06** |
+| 3 (next) | Wellness, LIST (MyList), ORCA (ask a model with her `orca_sk` key; `/v1/*` already allows TaskHub's origin), RIFTIQ (`riftiq_lookups`; the shared parts only in a transaction) | |
 | 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
 | 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
 
@@ -364,6 +364,28 @@ worker sees state.programs [{id, label, ops?, summary?}]
 | Plans (`plans`, lock `veda_taskhub`) | (already in `state.plans`) | `edit`, `reschedule`, `remove_idea` (asks first; an idea only) | `PlansCore.applyEdit` / `proposeReschedule` / `removePlan`. An agreed plan's change goes to Tony to approve, and Neo says so. |
 | Shruti (`shruti`, lock `veda_shruti`) | last opened, chapters read, in progress, next unread, bookmarks | `open_chapter(chapter, mode?)`, `continue`, `mark_read`, `mark_unread` | Field-path patches on `dashboards/shruti_veda` (`progress.gita.chN.{f,done,modes.read,at}`, `last`), as Shruti's own `setProgress` does. Deep link `shruti.html?profile=veda#/b/gita/N/mode`. |
 | MAGI (T) (`magi`, lock `veda_magi`) | her recent questions; `read_answer(question?)` (the verdict) | `ask(question)` (asks first: it uses her AI accounts) | Reads `dashboards/magi_veda` and its `runs/<id>`. Asking writes nothing: MAGI gets the question through its own `#tb=` link (`A1Debrief.openMagi`, `p:"veda"`, `run:1`) and runs it. |
+
+#### Phase 2: StudyOS (`studyos`, lock `veda_studyos`)
+
+**Reads (the summary):**
+- her classes and each class's Notes modules
+- open tasks due in the next two weeks, with how many are overdue
+- events in the next two weeks
+- flashcards due and new, per class (`studyos_cards/<class>`: live, active, `sched.state` not new, `sched.due` passed)
+- minutes studied this week (`dashboards/studyos_sessions`)
+
+**Acts:** `add_task`, `complete_task`, `move_task`, `remove_task`, `add_event`, `remove_event`, `add_note`, `add_card` and `open_class` (`studyos/?class=<id>`).
+
+How each write stays safe:
+- **Tasks and events:** StudyOS saves `dashboards/studyos` whole, and an open tab takes a remote copy's arrays wholesale. So each write is `_fbNeoTx` on the server copy. It changes one item by id and updates only `tasks` or `events`. Each object is built exactly as StudyOS's forms build it (`saveTask`/`saveEvent` field names: `name`, `dueDate`, `dueTime`; never `undefined`).
+- **The tab race:** an open tab saving in the same moment can still write over Neo's change. `sosWrite` therefore looks again 3 s later and puts the change back, by id so never twice.
+- **TaskHub's calendar:** StudyOS's mirror updates when StudyOS next runs, so a task Neo adds shows on her TaskHub calendar once StudyOS has been open.
+- **Notes** are pages in StudyOS's Notebook (`dashboards/studyos_notebook`). Each is a new `e_<id>` field, with `_order` taken from the server copy in the same transaction and the new page on top. A note goes only into a **Notes** module's folder: a note in a documents module would render nowhere. With no class it goes to Quick Notes. A class with several Notes modules gets a question back.
+- **Cards** follow cards v2:
+  - a random `cd_` id and StudyOS's own FNV-1a fingerprint (tested against `cards.js`)
+  - `sched: null`, so the card is new; `source: 'neo'`
+  - no duplicate by fingerprint
+  - a class with no deck yet is left for StudyOS to make: Neo never creates a deck document, which would lack its `meta`.
 
 - **The traps each program has, which the later phases must keep to:**
   - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.
