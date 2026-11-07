@@ -309,7 +309,7 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 2 | STUDY (StudyOS) | **done 2026-11-06** |
 | 3 | LIST (MyList) | **done 2026-11-06** |
 | 4 | TRADE (TradeBoard) and FINANCE (Shield left out: Veda's call) | **done 2026-11-07** |
-| 5 | SYSTEM (Solo-Leveling), RESERV, WARDEN | **built 2026-11-07**; SYSTEM's and RESERV's worker changes committed in their repos, deployed once Veda approves |
+| 5 | SYSTEM (Solo-Leveling), RESERV, WARDEN | **done 2026-11-07** (both workers deployed and checked: CORS for TaskHub only, a bad token refused) |
 
 Veda's calls (2026-11-06):
 - **EVERWELL is out**, and so are **Wellness, RIFTIQ and ORCA** (her call, later the same day). Neo never
