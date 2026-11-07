@@ -8,7 +8,7 @@
    that reads something aloud answers {ok:true, say}, which Neo speaks after
    its reply. VEDA'S SIDE ONLY: the registry refuses every call off her side.
 
-   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS.
+   Phase 1 (2026-11-06): V's Notebook, Plans, Shruti, MAGI (T). Phase 2: StudyOS. Phase 3: MyList.
    Each writes the way its own program does:
      · Notebook  only through Notebook's API (pages, page, putPage, open)
      · Plans     only through PlansCore, as Veda
@@ -500,6 +500,133 @@
       } },
     },
   });
+
+  /* ── MyList (LIST; dashboards/mylist, her lists only) ─────────────────────
+     Phase 3 (2026-11-06). The document holds BOTH profiles (tony, veda) and
+     MyList saves it whole, so Neo changes only the field path `veda.lists`,
+     in a transaction on the server copy; Tony's lists are never in a write.
+     An open MyList tab ignores snapshots for 8 s after its own save, so the
+     change is looked for again at 3 s and at 12 s and put back if gone. */
+  var ML = 'dashboards/mylist', ML_TYPES = ['shopping', 'packing', 'itinerary', 'todo', 'reminders', 'other'];
+  function mlUid() { return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4); }
+  function mlLists(d) { return (d && d.veda && Array.isArray(d.veda.lists)) ? d.veda.lists : null; }
+  // Which list: the one she named, else her only one.
+  function mlList(lists, q) {
+    if (str(q)) return R.pick(lists, q, 'name') || bad('not_found', 'You have no list called ' + str(q) + '.');
+    if (lists.length === 1) return lists[0];
+    return bad('invalid', 'Which list, ' + (lists.length ? list3(lists.map(function (l) { return l.name; })) : 'you have none yet') + '?');
+  }
+  function mlWrite(mutate, present) {
+    if (!window._fbNeoTx) return Promise.resolve(bad('no_bridge'));
+    var why = null;
+    var tx = function (d) {
+      var lists = mlLists(d);
+      if (!lists) { why = bad('no_bridge'); return null; }   // never write lists Neo couldn't read
+      var r = mutate(JSON.parse(JSON.stringify(lists)));
+      if (r && r.ok === false) { why = r; return null; }
+      if (r == null) return null;
+      return { 'veda.lists': r, savedAt: Date.now() };
+    };
+    return window._fbNeoTx(ML, tx).then(function (ok) {
+      if (!ok) return why || bad('failed');
+      [3000, 12000].forEach(function (ms) {
+        setTimeout(function () {
+          sosGet(ML).then(function (d) { if (d && mlLists(d) && !present(mlLists(d))) window._fbNeoTx(ML, function (d2) { return mlLists(d2) && !present(mlLists(d2)) ? tx(d2) : null; }); });
+        }, ms);
+      });
+      return true;
+    });
+  }
+  function itemIn(l, q, open) {
+    // open: true = only items still to do, false = only ticked ones, null = any.
+    var its = (l.items || []).filter(function (x) { return x && (open == null || !x.done === open); });
+    return R.pick(its, q, 'name');
+  }
+  R.register('mylist', {
+    lock: 'mylist:profile_veda',
+    summary: function () {
+      return sosGet(ML).then(function (d) {
+        var lists = mlLists(d); if (!lists) return null;
+        if (!lists.length) return 'No lists yet.';
+        return 'Her lists: ' + lists.map(function (l) {
+          var open = (l.items || []).filter(function (x) { return x && !x.done; });
+          return '"' + l.name + '" (' + (l.type || 'other') + ', ' + open.length + ' to do' + ((l.items || []).length - open.length ? ', ' + ((l.items || []).length - open.length) + ' done' : '') + ')' +
+            (open.length ? ': ' + open.slice(0, 10).map(function (x) { return x.name + (x.qty ? ' (' + x.qty + ')' : '') + (x.store ? ' @' + x.store : ''); }).join(', ') : '');
+        }).join('; ') + '.';
+      });
+    },
+    ops: {
+      read_list: { args: 'list?', run: function (a) {
+        return sosGet(ML).then(function (d) {
+          var lists = mlLists(d); if (!lists) return bad('no_bridge');
+          var l = mlList(lists, a.list); if (l.ok === false) return l;
+          var open = (l.items || []).filter(function (x) { return x && !x.done; });
+          return spoken(open.length ? l.name + ': ' + list3(open.slice(0, 25).map(function (x) { return x.name + (x.qty ? ', ' + x.qty : ''); })) + '.' : l.name + ' has nothing left on it.');
+        });
+      } },
+      add_item: { args: 'item, list?, qty?, store?', run: function (a) {
+        var name = str(a.item || a.name || a.title); if (!name) return bad('invalid');
+        var id = mlUid(), lid = null;
+        return mlWrite(function (lists) {
+          var l = lid ? lists.filter(function (x) { return x.id === lid; })[0] : mlList(lists, a.list); if (!l || l.ok === false) return l || null;
+          lid = l.id;
+          if ((l.items || []).some(function (x) { return x && x.id === id; })) return null;
+          var store = str(a.store);
+          if (store) { l.stores = l.stores || []; var f = l.stores.filter(function (s) { return String(s).toLowerCase() === store.toLowerCase(); })[0]; if (f) store = f; else l.stores.push(store); }
+          (l.items = l.items || []).push({ id: id, name: name, qty: str(a.qty), store: store, desc: '', done: false });
+          return lists;
+        }, function (lists) { return lists.some(function (l) { return (l.items || []).some(function (x) { return x && x.id === id; }); }); });
+      } },
+      check_item: { args: 'item, list?', run: function (a) { return mlTick(a, true); } },
+      uncheck_item: { args: 'item, list?', run: function (a) { return mlTick(a, false); } },
+      remove_item: { args: 'item, list?', run: function (a) {
+        var id = null;
+        return mlWrite(function (lists) {
+          var hit = mlFindItem(lists, a, null, id); if (!hit) return id ? null : bad('not_found', 'I can\'t find ' + (str(a.item) || 'that') + ' on your lists.');
+          if (hit.ok === false) return hit;
+          id = hit.it.id; hit.l.items = hit.l.items.filter(function (x) { return !(x && x.id === id); });
+          return lists;
+        }, function (lists) { return !lists.some(function (l) { return (l.items || []).some(function (x) { return x && x.id === id; }); }); });
+      } },
+      clear_checked: { args: 'list', confirm: function (a) { return 'clear the ticked items off ' + (str(a.list) || 'that list'); }, run: function (a) {
+        var lid = null;
+        return mlWrite(function (lists) {
+          var l = lid ? lists.filter(function (x) { return x.id === lid; })[0] : mlList(lists, a.list); if (!l || l.ok === false) return l || null;
+          lid = l.id;
+          var before = (l.items || []).length; l.items = (l.items || []).filter(function (x) { return x && !x.done; });
+          return l.items.length === before ? bad('already', 'Nothing on ' + l.name + ' is ticked.') : lists;
+        }, function (lists) { return lists.filter(function (l) { return l.id === lid; }).every(function (l) { return !(l.items || []).some(function (x) { return x && x.done; }); }); });
+      } },
+      new_list: { args: 'name, type? (shopping|packing|itinerary|todo|reminders|other)', run: function (a) {
+        var name = str(a.name || a.list); if (!name) return bad('invalid');
+        var id = mlUid();
+        return mlWrite(function (lists) {
+          if (lists.some(function (l) { return l.id === id; })) return null;
+          if (lists.some(function (l) { return R.norm(l.name) === R.norm(name); })) return bad('already', 'You already have a list called ' + name + '.');
+          lists.push({ id: id, name: name, type: ML_TYPES.indexOf(str(a.type)) >= 0 ? a.type : 'other', stores: [], items: [], createdAt: Date.now() });
+          return lists;
+        }, function (lists) { return lists.some(function (l) { return l.id === id; }); });
+      } },
+    },
+  });
+  // The item she named, on the list she named (or on any list).
+  function mlFindItem(lists, a, open, id) {
+    if (id) { for (var i = 0; i < lists.length; i++) { var it = (lists[i].items || []).filter(function (x) { return x && x.id === id; })[0]; if (it) return { l: lists[i], it: it }; } return null; }
+    var pool = lists;
+    if (str(a.list)) { var l = mlList(lists, a.list); if (l.ok === false) return l; pool = [l]; }
+    for (var j = 0; j < pool.length; j++) { var hit = itemIn(pool[j], a.item || a.name, open); if (hit) return { l: pool[j], it: hit }; }
+    return null;
+  }
+  function mlTick(a, done) {
+    var id = null;
+    return mlWrite(function (lists) {
+      var hit = mlFindItem(lists, a, id ? null : done, id);   // ticking looks among open items, unticking among ticked
+      if (!hit) return bad('not_found', 'I can\'t find ' + (str(a.item) || 'that') + (done ? ' left' : ' ticked') + ' on your lists.');
+      if (hit.ok === false) return hit;
+      id = hit.it.id; hit.it.done = done;
+      return lists;
+    }, function (lists) { return lists.some(function (l) { return (l.items || []).some(function (x) { return x && x.id === id && !!x.done === done; }); }); });
+  }
 
   window._vdNeoConnectors = { chOf: chOf, clip: clip, gitaBook: gitaBook, fnv: fnv };
 })();

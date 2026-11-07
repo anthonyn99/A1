@@ -84,6 +84,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
       { id: 'sh', label: 'Shruti', url: 'https://anthonyn99.github.io/A1/shruti.html' },
       { id: 'mt', label: 'MAGI (T)', url: 'https://anthonyn99.github.io/A1/magi.html' },
       { id: 'st', label: 'STUDY', url: 'https://tradeboard.vedapatel05.workers.dev/studyos/' },
+      { id: 'li', label: 'LIST', url: 'https://anthonyn99.github.io/A1/mylist.html' },
     ];
     ctx._navOpenLink = (p, id) => log.opened.push(id);
     ctx._tnOpenTab = (u, k) => { log.tabs.push([u, k]); return { location: { href: u } }; };
@@ -96,7 +97,14 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
       const d = p in store ? JSON.parse(JSON.stringify(store[p])) : null;
       const u = fn(d); if (!u) return false;
       log.tx.push([p, Object.keys(u)]);
-      store[p] = Object.assign(d || {}, JSON.parse(JSON.stringify(u))); return true;
+      // Dotted keys are field paths (tx.update), as in Firestore.
+      const out = d || {};
+      for (const [key, v] of Object.entries(JSON.parse(JSON.stringify(u)))) {
+        const parts = key.split('.'); let o = out;
+        for (const q of parts.slice(0, -1)) o = (o[q] = o[q] && typeof o[q] === 'object' ? o[q] : {});
+        o[parts[parts.length - 1]] = v;
+      }
+      store[p] = out; return true;
     };
     const locks = opts.locks || {};
     ctx.Guardian = { mustBlock: (id) => !!locks[id] };
@@ -283,6 +291,51 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
     const m = /export function fingerprint[\s\S]*?\r?\n}\r?\n/.exec(read('V1/StudyOS/js/modules/cards.js'));
     const own = new Function(m[0].replace('export ', '') + '; return fingerprint;')();
     t('Neo\'s card fingerprint is StudyOS\'s', ['What makes ATP?|Mitochondria', '  Two  spaces |X', 'Ünïcode|∑'].every((x) => { const [q, a] = x.split('|'); return own('qa', q, a) === ctxFnv('qa', q, a); }));
+  }
+
+  section('MyList');
+  {
+    const tonyLists = [{ id: 'T1', name: 'Tony groceries', items: [{ id: 'x', name: 'Steak', done: false }] }];
+    const docs = { 'dashboards/mylist': { tony: { lists: tonyLists }, veda: { lists: [
+      { id: 'g', name: 'Groceries', type: 'shopping', stores: ['Costco'], items: [{ id: 'i1', name: 'Milk', qty: '2', store: 'Costco', desc: '', done: false }, { id: 'i2', name: 'Eggs', done: true }] },
+      { id: 'p', name: 'Packing', type: 'packing', stores: [], items: [] }] }, locks: { a: 1 }, lockV: {} } };
+    const { R, log, store } = page({ docs });
+    const veda = () => store['dashboards/mylist'].veda.lists;
+    t('"list" is MyList', R.find('list').id === 'mylist');
+    await R._test.refresh('mylist');
+    const s = R._test.summaries.mylist || '';
+    t('summary: her lists, what is left on each (never Tony\'s)', /"Groceries" \(shopping, 1 to do, 1 done\): Milk \(2\) @Costco/.test(s) && /"Packing"/.test(s) && !/Steak|Tony groceries/.test(s), s);
+    t('read_list reads what is left', say(await R.run('mylist', 'read_list', { list: 'groceries' })) === 'Groceries: Milk, 2.');
+    t('…two lists and none named: Neo asks which', /Which list, Groceries and Packing\?/.test((await R.run('mylist', 'read_list', {})).say));
+    t('add_item writes only veda.lists, in a transaction', (await R.run('mylist', 'add_item', { list: 'groceries', item: 'Bread', store: 'trader joes' })) === true
+      && JSON.stringify(log.tx[0]) === JSON.stringify(['dashboards/mylist', ['veda.lists', 'savedAt']]), JSON.stringify(log.tx));
+    const br = veda()[0].items.find((x) => x.name === 'Bread');
+    t('…an item shaped as MyList makes it, its store added to the list', br && br.done === false && br.qty === '' && br.desc === '' && br.store === 'trader joes' && veda()[0].stores.join() === 'Costco,trader joes' && /^[a-z0-9]{9,}$/.test(br.id));
+    t('…Tony\'s lists and the locks untouched', JSON.stringify(store['dashboards/mylist'].tony.lists) === JSON.stringify(tonyLists) && store['dashboards/mylist'].locks.a === 1);
+    // An open tab saves its stale copy; the look-agains (3 s, 12 s) put it back once.
+    store['dashboards/mylist'].veda.lists[0].items = veda()[0].items.filter((x) => x.name !== 'Bread');
+    for (const f of log.later.splice(0)) f();
+    await new Promise((r) => setTimeout(r, 20));
+    t('overwritten by an open tab → put back, once', veda()[0].items.filter((x) => x.name === 'Bread').length === 1);
+    t('check_item ticks it, on any list', (await R.run('mylist', 'check_item', { item: 'milk' })) === true && veda()[0].items.find((x) => x.id === 'i1').done === true);
+    t('uncheck_item unticks', (await R.run('mylist', 'uncheck_item', { item: 'eggs' })) === true && veda()[0].items.find((x) => x.id === 'i2').done === false);
+    t('remove_item removes only it', (await R.run('mylist', 'remove_item', { item: 'bread' })) === true && !veda()[0].items.some((x) => x.name === 'Bread') && veda()[0].items.length === 2);
+    t('an item that isn\'t there is said', (await R.run('mylist', 'check_item', { item: 'caviar' })).reason === 'not_found');
+    t('clear_checked asks first', /clear the ticked items off groceries/.test(R.opInfo('mylist', 'clear_checked').op.confirm({ list: 'groceries' })));
+    await R.run('mylist', 'check_item', { item: 'eggs' }); await R.run('mylist', 'uncheck_item', { item: 'milk' });
+    t('…and clears only ticked ones', (await R.run('mylist', 'clear_checked', { list: 'groceries' })) === true && veda()[0].items.length === 1 && veda()[0].items[0].id === 'i1');
+    t('new_list makes a list as MyList does', (await R.run('mylist', 'new_list', { name: 'Gifts', type: 'todo' })) === true
+      && (() => { const l = veda().find((x) => x.name === 'Gifts'); return l && l.type === 'todo' && Array.isArray(l.items) && Array.isArray(l.stores) && typeof l.createdAt === 'number'; })());
+    t('…never a second one with that name', (await R.run('mylist', 'new_list', { name: 'gifts' })).reason === 'already');
+    t('Tony\'s lists still untouched after all of it', JSON.stringify(store['dashboards/mylist'].tony.lists) === JSON.stringify(tonyLists));
+  }
+  {
+    const { R, store } = page({ docs: { 'dashboards/mylist': { tony: { lists: [{ id: 'T' }] } } } });
+    t('no lists of hers to read: nothing is written', (await R.run('mylist', 'new_list', { name: 'X' })).reason === 'no_bridge' && !store['dashboards/mylist'].veda);
+  }
+  {
+    const { R } = page({ docs: { 'dashboards/mylist': { veda: { lists: [] } } }, locks: { 'mylist:profile_veda': true } });
+    t('her MyList locked: nothing written', (await R.run('mylist', 'new_list', { name: 'X' })).reason === 'locked');
   }
 
   section('Tony\'s side');

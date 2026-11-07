@@ -307,8 +307,8 @@ from her TaskHub. Tony's Neo is unchanged. This is built in phases, one per sess
 | 0 | Foundation; every linked program opens | **done 2026-11-06** |
 | 1 | V's Notebook, Plans, Shruti, MAGI (T) (`TaskHub/neo-connectors.js`) | **done 2026-11-06** |
 | 2 | STUDY (StudyOS) | **done 2026-11-06** |
-| 3 (next) | LIST (MyList) | |
-| 4 | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
+| 3 | LIST (MyList) | **done 2026-11-06** |
+| 4 (next) | TRADE (TradeBoard) and FINANCE: a second Firebase app on `tradeboard-6b2ea`. First check that App Check key `6LeMmVst…` accepts anthonyn99.github.io. Finance: manual transactions as new docs, and the ledger only in a transaction. Shield. | |
 | 5 | SYSTEM (Solo-Leveling) and RESERV: cookie-gated workers with no CORS, so each needs a CORS allowlist and a token route in its own repo (`Downloads/SOLO-LEVELING`, `Downloads/RESERV`). WARDEN (another repo, `Desktop/Warden`). | |
 
 Veda's calls (2026-11-06):
@@ -386,6 +386,20 @@ How each write stays safe:
   - `sched: null`, so the card is new; `source: 'neo'`
   - no duplicate by fingerprint
   - a class with no deck yet is left for StudyOS to make: Neo never creates a deck document, which would lack its `meta`.
+
+#### Phase 3: MyList (`mylist`, lock `mylist:profile_veda`)
+
+**Reads:**
+- the summary: her lists, each list's type, and how many items are left and done, with up to 10 open items each
+- `read_list(list?)`
+
+**Acts:** `add_item` (with qty and store, the store added to the list's stores as MyList does), `check_item`, `uncheck_item`, `remove_item`, `clear_checked` (asks first) and `new_list`.
+
+**How it writes:**
+- `dashboards/mylist` holds Tony's lists as well, and MyList saves it whole. Neo changes only the field path `veda.lists` (plus `savedAt`), in a transaction on the server copy. Tony's lists, the locks and `lockV` are never in a write.
+- If her lists can't be read, nothing is written.
+- An open MyList tab ignores snapshots for 8 s after its own save. Neo therefore looks again at 3 s and 12 s and puts its change back (by id, once).
+- With two or more lists and none named, Neo asks which.
 
 - **The traps each program has, which the later phases must keep to:**
   - StudyOS: whole-doc saves; cards v2 tombstones; never write `studyos_mirror`.

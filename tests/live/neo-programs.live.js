@@ -111,6 +111,12 @@ const ok = (name, cond, extra) => {
   ok('her state carries the StudyOS summary', await until(`/Classes: Biology, notes modules: Lecture notes/.test((_vdNeoPrograms.state().find(function(p){return p.id==='studyos';})||{}).summary||'')`, 5000),
     await js(`return JSON.stringify(_vdNeoPrograms.state().find(function(p){return p.id==='studyos';}));`));
 
+  console.log('\nphase 3: MyList in the real page');
+  await js(`__fakeFs.docs['dashboards/mylist'] = {tony:{lists:[{id:'T',name:'Tony groceries',items:[{id:'x',name:'Steak',done:false}]}]}, veda:{lists:[{id:'g',name:'Groceries',type:'shopping',stores:[],items:[{id:'i1',name:'Milk',done:false}]}]}}; 1`);
+  ok('add_item lands on her list, Tony\'s untouched', await js(`return _vdNeoPrograms.run('mylist','add_item',{list:'groceries', item:'Bread'}).then(function(v){ return _fbNeoGet('dashboards/mylist').then(function(d){ return v === true && d.veda.lists[0].items.length === 2 && d.tony.lists[0].items[0].name === 'Steak'; }); });`));
+  ok('check_item ticks it', await js(`return _vdNeoPrograms.run('mylist','check_item',{item:'milk'}).then(function(v){ return _fbNeoGet('dashboards/mylist').then(function(d){ return v === true && d.veda.lists[0].items[0].done === true; }); });`));
+  ok('read_list reads what is left', (await js(`return _vdNeoPrograms.run('mylist','read_list',{}).then(function(r){ return r.say; });`)) === 'Groceries: Bread.');
+
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   try { c.ws.close(); } catch (e) {}
