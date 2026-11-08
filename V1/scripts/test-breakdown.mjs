@@ -77,6 +77,7 @@ const reply = (obj) => new Response(JSON.stringify({ choices: [{ message: { cont
 const bd = await import(new URL('../StudyOS/js/modules/breakdown.js', import.meta.url).href);
 const ai = await import(new URL('../StudyOS/js/modules/ai.js', import.meta.url).href);
 const deck = await import(new URL('../StudyOS/js/modules/deck.js', import.meta.url).href);
+bd.setLessonFormat('v1'); // these cases pin the v1 lesson writer; v2 has its own section at the end
 
 // ── Validation ────────────────────────────────────────────────────────────
 console.log('\nvalidateTopics');
@@ -966,6 +967,84 @@ console.log('\nan empty answer is never "repaired" into a lesson');
   } catch (e) { threw = e; }
   t('it fails as retryable bad_json', threw && threw.kind === 'bad_json' && threw.retryable === true, threw && threw.message);
   t('no repair ask was sent', calls.length === 1 && !calls.some((c) => /malformed JSON/.test(JSON.stringify(c.body))), calls.length);
+}
+
+// ── v2 lessons: typed steps, lint repair, upgrade ─────────────────────────
+console.log('\nv2 — end to end');
+{
+  const { TREENODE } = await import('./fixtures/lesson-v2.mjs');
+  let nCard = 0;
+  const WORDS = ['heap', 'graph', 'queue', 'stack', 'trie', 'hash', 'sort', 'merge', 'split', 'rotate', 'balance', 'height', 'depth', 'level', 'parent', 'sibling'];
+  // Distinct cards per answer, so the class's near-duplicate filter keeps them.
+  const cardsOnce = () => Array.from({ length: 4 }, () => { const w = WORDS[nCard % WORDS.length] + (nCard++); return { front: `Explain ${w} precisely?`, back: `${w} answer`, tag: 'definition' }; });
+  const v2fix = (title, mut = (x) => x) => mut({ ...JSON.parse(JSON.stringify(TREENODE)), title, flashcards: cardsOnce() });
+  const noHook = (x) => ({ ...x, steps: x.steps.slice(1) });
+  bd.setPageReader(async () => null);
+  const F8 = { id: 'f8', name: 'L8.pdf', mime: 'application/pdf' }, F9 = { id: 'f9', name: '25slide.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F8, F9);
+  let mode = 'good';
+  let fixes = 0;
+  responder = (body) => {
+    const text = body.messages.find((m) => m.role === 'user').content.map((p) => p.text || '').join('');
+    if (/Break it into the TOPICS/.test(text)) return reply(TOPICS);
+    if (/breaks some rules/.test(text)) { fixes++; return reply(mode === 'stubborn' ? v2fix('Fixed?', noHook) : v2fix('Fixed')); }
+    if (/visual learner/.test(text)) {
+      const m = text.match(/TOPIC: (\w+)/);
+      return reply(mode === 'good' ? v2fix(m ? m[1] : 'X') : v2fix(m ? m[1] : 'X', noHook));
+    }
+    const m = text.match(/title: (\w+)/);
+    return reply(lessonFor(m ? m[1] : 'X'));
+  };
+  bd.setLessonFormat('v2');
+  calls = [];
+  const d9 = await bd.run('c1', 'm1', F9);
+  t('a v2 breakdown finishes', d9.status === 'ready', { status: d9.status, error: d9.error, t: d9.topics.map((x) => x.error) });
+  t('its lessons are version 2', d9.topics.every((x) => x.lesson && x.lesson.version === 2 && x.lesson.steps.length === 9));
+  t('the v2 prompt asked for data diagrams', calls.some((c) => /Never output SVG/.test(JSON.stringify(c.body))));
+  t('a lesson that passes the lint needs no fix ask', fixes === 0 && calls.length === 3, calls.length);
+  t('not marked for review', d9.topics.every((x) => !x.needsReview));
+  const c9 = deck.byNotePrefix('c1', bd.notePrefixFor('f9'));
+  t('its flashcards joined the deck', c9.length === 8, c9.length);
+  t('the checks read v2 lessons too', /NullPointerException/.test(bd.lessonText(bd.blocksOf(d9.topics[0].lesson), [])));
+
+  console.log('\nv2 — the lint repair loop');
+  mode = 'fixable'; fixes = 0;
+  await bd.regenerate('f9', d9.topics[0].id, F9, { note: 'more diagrams' });
+  let t0 = bd.peek('f9').topics[0];
+  t('a lesson without a hook gets ONE fix ask', fixes === 1, fixes);
+  t('...whose answer is kept', t0.lesson.title === 'Fixed' && t0.lesson.steps[0].type === 'hook' && !t0.needsReview, t0.lesson.title);
+  t('her rewrite note reaches the prompt', calls.some((c) => /THE STUDENT ASKED FOR THIS REWRITE: more diagrams/.test(JSON.stringify(c.body))));
+  mode = 'stubborn'; fixes = 0;
+  await bd.regenerate('f9', d9.topics[0].id, F9);
+  t0 = bd.peek('f9').topics[0];
+  t('at most 2 fix asks', fixes === 2, fixes);
+  t('...then what is valid is saved, marked needs review', t0.status === 'ready' && t0.needsReview === true && t0.lesson.version === 2);
+  const versions = await bd.versionsOf('f9', t0.id);
+  t('the last 2 versions are kept', versions.length === 2 && versions[0].lesson.title === 'Fixed', versions.map((v) => v.lesson.title));
+  t('...in their own synced doc', docsSaved.some((d) => d.path === 'studyos_lessons_prev/f9'));
+  await bd.restoreVersion('f9', t0.id, 0);
+  t('switching back restores that version', bd.peek('f9').topics[0].lesson.title === 'Fixed' && (await bd.versionsOf('f9', t0.id))[0].lesson.title === 'Keys');
+
+  console.log('\nv2 — upgrading a v1 document');
+  mode = 'good';
+  bd.setLessonFormat('v1');
+  const d8 = await bd.run('c1', 'm1', F8);
+  t('a v1 document to upgrade', d8.topics.every((x) => !x.lesson.version));
+  const before = deck.byNotePrefix('c1', bd.notePrefixFor('f8')).filter(deck.isLive).map((c) => c.id);
+  bd.setLessonFormat('v2');
+  bd.setProgress('f8', d8.topics[0].id, { block: 2, wrong: [{ b: 0, q: 0 }] });
+  await bd.upgradeAll('f8', F8);
+  const u = bd.peek('f8');
+  t('every topic is now v2', u.topics.every((x) => x.lesson.version === 2) && u.status === 'ready', u.topics.map((x) => x.status));
+  t('the label counter is cleared', !u.upgrade);
+  const after = deck.byNotePrefix('c1', bd.notePrefixFor('f8')).filter(deck.isLive).map((c) => c.id);
+  t('the v1 cards are kept', before.every((id) => after.includes(id)), { before, after });
+  t('new cards were added beside them', after.length > before.length, after.length);
+  t('old progress no longer points into the new steps', !u.topics[0].progress.wrong && !u.topics[0].progress.block);
+  t('the v1 lesson is a previous version', (await bd.versionsOf('f8', u.topics[0].id))[0].lesson.blocks.length >= 1);
+  const again = deck.byNotePrefix('c1', bd.notePrefixFor('f8')).filter(deck.isLive).length;
+  await bd.upgradeAll('f8', F8);
+  t('upgrading again does nothing (no v1 topics left)', deck.byNotePrefix('c1', bd.notePrefixFor('f8')).filter(deck.isLive).length === again);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

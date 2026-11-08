@@ -33,6 +33,7 @@ import * as deck from './deck.js';
 import * as fsrs from './fsrs.js';
 import * as pipeline from './pipeline.js';
 import { store } from './store.js';
+import * as v2 from './lesson-v2.js';
 
 export const STYLES = ['concept', 'procedure', 'applied', 'definitions'];
 export const KINDS = ['read', 'example', 'steps', 'check', 'recap', 'figure'];
@@ -46,6 +47,9 @@ const MAX_QUESTIONS = 6;
 const MAX_DRAWN = 2;                // drawn figures per lesson
 const MAX_SVG = 12 * 1024;
 const DOC_LIMIT = 900 * 1024;       // Firestore's hard cap is 1 MiB per doc
+// v2 lessons (typed steps, diagrams as data) have their own cache keys.
+export const PROMPT_V2 = 1;
+const MAX_FIX_ASKS = 2;             // lint repair round-trips (spec §6.3)
 
 export const noteIdFor = (fileId, topicId) => `topic_${fileId}_${topicId}`;
 export const notePrefixFor = (fileId) => `topic_${fileId}_`;
@@ -885,6 +889,9 @@ function neighbour(run, model, topics) {
   return bestScore >= 0.2 || words.size < 20 ? best : null;
 }
 
+/** A lesson as v1-shaped blocks, whatever its version — what the checks read. */
+export const blocksOf = (lesson) => (!lesson ? [] : v2.isV2(lesson) ? v2.asBlocks(lesson) : (lesson.blocks || []));
+
 /** Everything a lesson says, as one text: blocks, checks, recap, cards. */
 export function lessonText(blocks, flashcards) {
   const out = [];
@@ -1234,6 +1241,7 @@ async function runInner(classId, moduleId, file, { fresh = false, instructions }
         name: String(instructions.name || '').slice(0, 120) };
     } else doc.instructions = null;   // null, not delete: a merged remote write must clear it too
   }
+  delete doc.upgrade;
   Object.assign(doc, { classId, moduleId, status: 'running', error: '',
     provider: active.id, model: active.model, runningOn: deviceId() });
   save(doc);
@@ -1375,7 +1383,26 @@ function fail(doc, e) {
 
 const pagesOf = (topic, ctx) => (ctx.model ? parsePages(topic.pages, ctx.model.max).pages : []);
 
-async function writeTopic(doc, topic, pdf, className, ctx) {
+/** Text hygiene for v2 text: citation markers and sentences about the document. */
+const cleanV2 = (t) => stripMeta(stripCitations(t));
+
+/** A v2 lesson's every figure page: one the steps do not show is added before the recap. */
+function placeFigureSteps(lesson, figurePages) {
+  const have = new Set(lesson.steps.filter((s) => s.type === 'figure').map((s) => s.page));
+  const add = (figurePages || []).filter((n) => !have.has(n)).map((n) => ({ type: 'figure', heading: 'From the document', page: n }));
+  return add.length ? v2.insertSteps(lesson, add) : lesson;
+}
+
+/* New lessons are written as v2. The v1 writer stays for the tests that
+ * pin its behaviour (and as a way back): setLessonFormat('v1'). */
+let _format = 'v2';
+export function setLessonFormat(f) { _format = f === 'v1' ? 'v1' : 'v2'; }
+
+/** opts: { v2 (default: the lesson format), note — her note for a rewrite }. */
+async function writeTopic(doc, topic, pdf, className, ctx, opts = {}) {
+  const useV2 = opts.v2 == null ? _format === 'v2' : !!opts.v2;
+  const upgrading = !!topic.lesson && !v2.isV2(topic.lesson) && useV2;
+  const before = topic.lesson || null;
   topic.status = 'writing';
   topic.error = '';
   delete topic.retryable;
@@ -1397,7 +1424,27 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
     // and filterCards drops near-copies whatever the model does.
     const existing = deck.forClass(doc.classId).filter((c) => c.sourceNoteId !== noteId);
     const written = doc.topics.filter((t) => t.status === 'ready' && t.id !== topic.id);
-    const ask = (withAtt) => {
+    const note = String(opts.note || '').trim().slice(0, 300);
+    const v2Key = `bdl2v${PROMPT_V2}:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${note ? ':n' + ai.hash(note).slice(1, 7) : ''}${instrKey(doc)}`;
+    const ask = useV2 ? (withAtt) => {
+      const imgs = withAtt ? images : [];
+      const withFile = withAtt && ctx.sendsFile;
+      return ai.generateJSON({
+        system: SYSTEM,
+        prompt: v2.lessonV2Prompt({ className, sourceName: doc.sourceName, topic,
+          index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached || withFile,
+          figures: imgs.map((i) => i.n), figurePages: figPages, instructionsBlock: instructionsBlock(instructionsOf(doc)),
+          budget, written, carded: existing.filter(deck.isActive).map((c) => c.q).slice(-60),
+          objectives: (ctx.model && ctx.model.objectives) || [], note }),
+        pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
+        attachFile: withFile, images: imgs.map((i) => i.url),
+        schema: v2.LESSON_V2_SCHEMA, validate: (o) => v2.validateLessonV2(o, { figurePages: figPages, clean: cleanV2 }), maxTokens: 64000,
+        key: v2Key + (withAtt ? ':att' : ''), fileId: doc.fileId,
+        resumeJobId: topic.jobId,
+        onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
+        onWait: waitOn(doc, topic),
+      });
+    } : (withAtt) => {
       const imgs = withAtt ? images : [];
       const withFile = withAtt && ctx.sendsFile;
       return ai.generateJSON({
@@ -1417,7 +1464,38 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
         onWait: waitOn(doc, topic),
       });
     };
-    const { data, attached, servedBy } = await withFallback(ask, images.length > 0 || ctx.sendsFile, 'the lesson');
+    const got = await withFallback(ask, images.length > 0 || ctx.sendsFile, 'the lesson');
+    const { attached, servedBy } = got;
+    let data = got.data;
+    if (useV2) {
+      // The lint (§6): word counts, hook/recap, text-only runs, checks. At
+      // most MAX_FIX_ASKS targeted fixes, without the source; the best
+      // version is kept, and one that still breaks a rule is marked.
+      let lesson = data.lesson, cards = data.flashcards;
+      let problems = v2.lintLessonV2(lesson);
+      for (let n = 1; n <= MAX_FIX_ASKS && v2.needsFix(problems); n++) {
+        try {
+          const fixed = (await ai.generateJSON({
+            system: SYSTEM, prompt: v2.fixV2Prompt({ ...lesson, flashcards: cards }, problems.filter((p) => p.reask)),
+            pdf: null, docText: '', schema: v2.LESSON_V2_SCHEMA,
+            validate: (o) => v2.validateLessonV2(o, { figurePages: figPages, clean: cleanV2 }), maxTokens: 64000,
+            key: `${v2Key}:fix${n}`, fileId: doc.fileId, resumeJobId: topic.fixJobId,
+            onJob: (id, main) => { if (main) { topic.fixJobId = id; save(doc); } }, onWait: waitOn(doc, topic),
+          })).data;
+          delete topic.fixJobId;
+          const p2 = v2.lintLessonV2(fixed.lesson);
+          if (v2.badness(p2) < v2.badness(problems)) { lesson = fixed.lesson; cards = fixed.flashcards.length ? fixed.flashcards : cards; problems = p2; }
+        } catch (e) {
+          delete topic.fixJobId;
+          if (e && (e.kind === 'setup' || e.kind === 'auth')) throw e;
+          console.warn('[breakdown] lesson fix ask failed:', e && e.message);
+          break;
+        }
+      }
+      topic.needsReview = v2.needsFix(problems);
+      topic.lint = problems.slice(0, 12).map((p) => p.note);
+      data = { lesson, flashcards: cards, blocks: v2.asBlocks(lesson), stripped: data.stripped };
+    }
     topic.servedBy = servedBy || '';
     topic.pdfSent = attached && ctx.sendsFile;
     topic.figures = attached ? images.map((i) => i.n) : [];
@@ -1439,13 +1517,25 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
     }
     // The best cards join reviews; the next best wait as suggestions; the
     // rest — meta, duplicates, over budget — are not kept (§6.3).
-    const picked = filterCards(data.flashcards, { budget, existing });
+    const mine = deck.forClass(doc.classId).filter((c) => c.sourceNoteId === noteId);
+    const raw = useV2 ? v2.cardItems(data.flashcards, upgrading ? mine.map((c) => c.q) : []) : data.flashcards;
+    const picked = filterCards(raw, { budget, existing });
     const items = [
       ...picked.active.map((c) => ({ ...c, status: 'active' })),
       ...picked.suggested.map((c) => ({ ...c, status: 'suggested' })),
     ];
-    const r = deck.addExternal(doc.classId, doc.moduleId, items, { noteId, title: topic.title });
-    topic.lesson = { blocks: placeFigures(data.blocks, figPages) };
+    // Upgrading a v1 lesson keeps its cards (§9): the new ones are appended,
+    // minus those whose front the topic already has. Otherwise a rewrite
+    // reconciles, as it always has (unreviewed orphans go, reviewed stay).
+    const r = upgrading && mine.length
+      ? { added: deck.addCards(doc.classId, items, { noteId, title: topic.title, moduleId: doc.moduleId, kind: 'breakdown' }) }
+      : deck.addExternal(doc.classId, doc.moduleId, items, { noteId, title: topic.title });
+    if (before) keepVersion(doc.fileId, topic.id, before);
+    topic.lesson = useV2 ? placeFigureSteps(data.lesson, figPages) : { blocks: placeFigures(data.blocks, figPages) };
+    if (!useV2) { delete topic.needsReview; delete topic.lint; }
+    // Positions and check results point into the old steps: start fresh
+    // (finished stays finished).
+    else if (topic.progress) topic.progress = { done: !!topic.progress.done };
     const held = deck.forClass(doc.classId).filter((c) => c.sourceNoteId === noteId);
     topic.cardCount = held.filter(deck.isActive).length;
     topic.suggested = held.filter((c) => deck.statusOf(c) === 'suggested').length;
@@ -1487,7 +1577,7 @@ async function fillGaps(doc, className, ctx, pool, onlyId = null) {
   const m = ctx.model;
   if (!m) return;
   const ready = () => doc.topics.filter((t) => t.status === 'ready' && t.lesson);
-  const taught = () => tokensOf(ready().map((t) => lessonText(t.lesson.blocks, cardsOf(doc, t))).join('\n'));
+  const taught = () => tokensOf(ready().map((t) => lessonText(blocksOf(t.lesson), cardsOf(doc, t))).join('\n'));
   const spans = new Map(doc.topics.map((t) => [t.id, pagesOf(t, ctx)]));
   const wordsOf = new Map(doc.topics.map((t) => [t.id, tokensOf([t.title, ...(t.key_points || [])].join('\n')).words]));
   const owner = (item) => {
@@ -1543,6 +1633,30 @@ async function fillGaps(doc, className, ctx, pool, onlyId = null) {
 
 async function askGaps(doc, topic, items, className, ctx) {
   const span = pagesOf(topic, ctx);
+  if (v2.isV2(topic.lesson)) {
+    // v2: extra steps (same shape, same lint limits), before the recap.
+    const running = topic.lesson.runningExample || null;
+    const { data } = await ai.generateJSON({
+      system: SYSTEM,
+      prompt: v2.gapsV2Prompt({ className, sourceName: doc.sourceName, topic, missing: items.slice(0, 80),
+        source: span.length ? sourceText(ctx.model, span) : '', instructionsBlock: instructionsBlock(instructionsOf(doc)) }),
+      pdf: null, docText: '',
+      schema: v2.GAPS_V2_SCHEMA,
+      validate: (o) => {
+        const r = v2.validateSteps(o && o.steps, { running, clean: cleanV2 });
+        return r.steps.length ? { value: { steps: r.steps, stripped: r.stripped } } : { error: 'the follow-up had no usable steps' };
+      },
+      maxTokens: 64000,
+      key: `bdl2v${PROMPT_V2}:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps${instrKey(doc)}`, fileId: doc.fileId,
+      resumeJobId: topic.gapJobId,
+      onJob: (id, main) => { if (main) { topic.gapJobId = id; save(doc); } },
+      onWait: waitOn(doc, topic),
+    });
+    delete topic.gapJobId;
+    topic.lesson = v2.insertSteps(topic.lesson, data.steps);
+    topic.stripped = (topic.stripped || 0) + (data.stripped || 0);
+    return;
+  }
   const { data } = await ai.generateJSON({
     system: SYSTEM,
     prompt: gapsPrompt({ className, sourceName: doc.sourceName, topic, missing: items.slice(0, 80),
@@ -1575,14 +1689,16 @@ function summariseChecks(doc, ctx) {
   const figuresSkipped = doc.topics.reduce((n, t) => n + ((t.figuresSkipped && t.figuresSkipped.length) || 0), 0);
   const pdfMissed = ctx.sendsFile ? doc.topics.filter((t) => t.status === 'ready' && !t.pdfSent).length : 0;
   const figBlocks = doc.topics.filter((t) => t.status === 'ready' && t.lesson)
-    .flatMap((t) => t.lesson.blocks.filter((b) => b.kind === 'figure'));
+    .flatMap((t) => blocksOf(t.lesson).filter((b) => b.kind === 'figure'));
   const figures = figBlocks.filter((b) => !b.svg).length, drawn = figBlocks.length - figures;
   doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped, pdfMissed, figures, drawn };
   delete doc.checks.skipped;
 }
 
-/** Rewrite one topic (a new version: never answered from the bridge cache). */
-export async function regenerate(fileId, topicId, file) {
+/** Rewrite one topic (a new version: never answered from the bridge cache).
+ *  opts: { note — her note for the model ("simpler", "more diagrams"),
+ *          v2 — write it in the new format (default true) }. */
+export async function regenerate(fileId, topicId, file, opts = {}) {
   const doc = await load(fileId);
   const topic = doc && doc.topics.find((t) => t.id === topicId);
   if (!doc || !topic) return null;
@@ -1597,7 +1713,7 @@ export async function regenerate(fileId, topicId, file) {
     const className = cls ? [cls.code, cls.name].filter(Boolean).join(' — ') : '';
     const pool = async (items, fn) => { for (const x of items) await fn(x); };
     try {
-      await writeTopic(doc, topic, pdf, className, ctx);
+      await writeTopic(doc, topic, pdf, className, ctx, { note: opts.note, v2: opts.v2 });
       await fillGaps(doc, className, ctx, pool, topic.id);
     } finally {
       const failed = doc.topics.filter((t) => t.status === 'failed').length;
@@ -1610,6 +1726,151 @@ export async function regenerate(fileId, topicId, file) {
   _running.set(fileId, job);
   emit(fileId);
   try { return await job; } finally { _running.delete(fileId); emit(fileId); }
+}
+
+/**
+ * "Upgrade all lessons in this document" (§9): every v1 topic rewritten as a
+ * v2 lesson, through the same queue as a run. Its cards are kept; reviewed
+ * ones keep their schedule. doc.upgrade = {done, total} drives the label.
+ */
+export function upgradeAll(fileId, file) {
+  if (_running.has(fileId)) return _running.get(fileId);
+  const job = (async () => {
+    const doc = await load(fileId);
+    if (!doc) return null;
+    const todo = doc.topics.filter((t) => t.status === 'ready' && t.lesson && !v2.isV2(t.lesson));
+    if (!todo.length) return doc;
+    const active = ai.active();
+    if (active.problem) throw new ai.AIError(active.problem, { kind: 'setup' });
+    const pdf = await sourceOf(file);
+    const ctx = await contextOf(pdf, active);
+    const cls = store.getClass(doc.classId);
+    const className = cls ? [cls.code, cls.name].filter(Boolean).join(' — ') : '';
+    doc.upgrade = { done: 0, total: todo.length };
+    Object.assign(doc, { status: 'running', error: '', runningOn: deviceId() });
+    save(doc);
+    let fatal = null;
+    const width = active.id === 'bridge' || active.id === 'orca' ? 1 : 2;
+    const queue = [...todo];
+    const worker = async () => {
+      while (queue.length && !fatal) {
+        const topic = queue.shift();
+        topic.rev = (topic.rev || 0) + 1;
+        try {
+          await writeTopic(doc, topic, pdf, className, ctx, { v2: true });
+          await fillGaps(doc, className, ctx, async (items, fn) => { for (const x of items) await fn(x); }, topic.id);
+        } catch (e) {
+          if (e && (e.kind === 'setup' || e.kind === 'auth')) fatal = e;
+          // A failed upgrade leaves the old lesson readable: put it back.
+          if (topic.status === 'failed' && topic.lesson) { topic.status = 'ready'; topic.upgradeError = (e && e.message) || String(e); }
+        }
+        doc.upgrade.done++;
+        save(doc);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(width, todo.length) }, worker));
+    const failed = doc.topics.filter((t) => t.status === 'failed').length;
+    doc.status = fatal ? 'partial' : failed ? 'partial' : 'ready';
+    doc.error = fatal ? fatal.message : '';
+    delete doc.upgrade;
+    delete doc.runningOn;
+    summariseChecks(doc, ctx);
+    save(doc);
+    return doc;
+  })();
+  _running.set(fileId, job);
+  emit(fileId);
+  return job.finally(() => { _running.delete(fileId); emit(fileId); });
+}
+
+// ── Previous versions (§5.1: keep the last 2) ────────────────────────────
+/* In their own doc, studyos_lessons_prev/{fileId}, so the topics doc keeps
+ * its room under Firestore's 1 MiB cap. IndexedDB holds it under the key
+ * 'prev:<fileId>' in the same store. */
+const _prev = new Map();
+const prevPath = (fileId) => 'studyos_lessons_prev/' + fileId;
+/* One load per file, shared: two topics saving at once must edit the SAME
+ * object, or the second save drops the first one's version. */
+function loadPrev(fileId) {
+  if (!_prev.has(fileId)) {
+    _prev.set(fileId, (async () => {
+      let p = await idbGet('prev:' + fileId);
+      if (typeof window._fbLoadDoc === 'function') {
+        const remote = await window._fbLoadDoc(prevPath(fileId)).catch(() => null);
+        if (remote && remote.topics && (!p || (remote.updatedAt || 0) > (p.updatedAt || 0))) p = remote;
+      }
+      return p && p.topics ? { ...p, fileId: 'prev:' + fileId } : { fileId: 'prev:' + fileId, topics: {} };
+    })());
+  }
+  return _prev.get(fileId);
+}
+function savePrev(fileId, p) {
+  p.updatedAt = Date.now();
+  // Too big to sync: keep one version per topic rather than none.
+  if (JSON.stringify(p).length > DOC_LIMIT) for (const k of Object.keys(p.topics)) p.topics[k] = p.topics[k].slice(0, 1);
+  idbPut(p);
+  if (typeof window._fbSaveDoc === 'function' && JSON.stringify(p).length <= DOC_LIMIT) window._fbSaveDoc(prevPath(fileId), p);
+}
+/** Keep `lesson` as the newest previous version of a topic (at most 2). */
+function keepVersion(fileId, topicId, lesson) {
+  loadPrev(fileId).then((p) => {
+    const list = (p.topics[topicId] || []).filter((v) => JSON.stringify(v.lesson) !== JSON.stringify(lesson));
+    p.topics[topicId] = [{ lesson, savedAt: Date.now() }, ...list].slice(0, 2);
+    savePrev(fileId, p);
+  }).catch((e) => console.warn('[breakdown] could not keep the previous version:', e && e.message));
+}
+/** A topic's previous versions, newest first: [{lesson, savedAt}]. */
+export async function versionsOf(fileId, topicId) {
+  return ((await loadPrev(fileId)).topics[topicId] || []).slice();
+}
+/** Switch a topic back to previous version `k`; the current one becomes a previous one. */
+export async function restoreVersion(fileId, topicId, k) {
+  const doc = await load(fileId);
+  const topic = doc && doc.topics.find((t) => t.id === topicId);
+  const p = await loadPrev(fileId);
+  const list = p.topics[topicId] || [];
+  const pick = list[k];
+  if (!topic || !pick) return false;
+  const now = topic.lesson;
+  p.topics[topicId] = [...(now ? [{ lesson: now, savedAt: Date.now() }] : []), ...list.filter((_, i) => i !== k)].slice(0, 2);
+  savePrev(fileId, p);
+  topic.lesson = pick.lesson;
+  if (!v2.isV2(pick.lesson)) { delete topic.needsReview; delete topic.lint; }
+  topic.progress = topic.progress ? { done: !!topic.progress.done } : topic.progress;
+  topic.updatedAt = Date.now();
+  save(doc);
+  return true;
+}
+
+// ── Explain it back (§7, optional) ───────────────────────────────────────
+const EXPLAIN_SCHEMA = obj({ ok: { type: 'boolean' }, verdict: str, missing: strArr });
+/** Her 1-2 sentence explanation, judged against the takeaways: {ok, verdict, missing}. */
+export async function explainBack(fileId, topicId, text) {
+  const doc = await load(fileId);
+  const topic = doc && doc.topics.find((t) => t.id === topicId);
+  if (!topic || !topic.lesson) throw new Error('This lesson is not loaded.');
+  const L = topic.lesson;
+  const points = v2.isV2(L) ? ((L.steps.find((s) => s.type === 'recap') || {}).takeaways || []) : ((blocksOf(L).find((b) => b.kind === 'recap') || {}).points || []);
+  const { data } = await ai.generateJSON({
+    system: 'You are a kind, exact tutor. You check a student\'s short explanation against the key points of a lesson.',
+    prompt: `TOPIC: ${topic.title}
+KEY POINTS:
+${points.map((p) => `- ${p}`).join('\n') || '- ' + (topic.summary || topic.title)}
+
+THE STUDENT'S EXPLANATION:
+<<<
+${String(text).slice(0, 1200)}
+>>>
+
+Is it correct and does it capture the core idea? Reply with ONE JSON object and nothing else:
+{"ok": true|false, "verdict": "one line: right / partly right / wrong, and why (<= 25 words)", "missing": ["a key point it leaves out or gets wrong", ...] (0-3 items)}`,
+    pdf: null, docText: '', schema: EXPLAIN_SCHEMA, maxTokens: 2000,
+    validate: (o) => (o && typeof o.verdict === 'string' && o.verdict.trim()
+      ? { value: { ok: !!o.ok, verdict: String(o.verdict).slice(0, 300), missing: (Array.isArray(o.missing) ? o.missing : []).map((m) => String(m).slice(0, 200)).slice(0, 3) } }
+      : { error: 'no verdict' }),
+    key: `bdx:${fileId}:${topicId}:${ai.hash(text).slice(1, 9)}`, fileId,
+  });
+  return data;
 }
 
 /** Delete a breakdown: its topics everywhere, and its cards that were never
@@ -1692,5 +1953,5 @@ export default {
   lessonRecall, setPageReader, setPageRenderer,
   cleanLesson, stripCitations, stripMeta, cardBudget, filterCards, isMetaCard, nearDuplicate, sanityProblem,
   load, peek, run, regenerate, remove, setProgress, resume, isRunning, isStale, estimateCards, waitingOf, noteIdFor, notePrefixFor,
-  saveDoc,
+  saveDoc, setLessonFormat, upgradeAll, versionsOf, restoreVersion, explainBack, blocksOf, PROMPT_V2,
 };

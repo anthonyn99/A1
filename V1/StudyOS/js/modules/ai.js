@@ -520,6 +520,12 @@ async function viaAnthropic(a, spec) {
     if (e instanceof Anthropic.PermissionDeniedError) throw new AIError('This key may not use that model.', { kind: 'auth' });
     if (e instanceof Anthropic.NotFoundError) throw new AIError(`No such model: ${a.model}.`, { kind: 'setup' });
     if (e instanceof Anthropic.RateLimitError) throw new AIError('Rate limited by Anthropic — try again shortly.', { kind: 'rate', retryable: true });
+    // A schema too complex for structured outputs (the v2 lesson's is large):
+    // ask once more without it — the prompt states the shape, and the
+    // answer is validated either way.
+    if (e instanceof Anthropic.BadRequestError && spec.schema && /schema|output_config|format/i.test(e.message || '')) {
+      return viaAnthropic(a, { ...spec, schema: undefined });
+    }
     if (e instanceof Anthropic.BadRequestError) throw new AIError('Anthropic refused the request: ' + (e.message || ''), { kind: 'request' });
     if (e instanceof Anthropic.APIError) throw new AIError(`Anthropic error ${e.status || ''}: ${e.message}`, { kind: 'api', retryable: true });
     throw new AIError('Could not reach Anthropic: ' + ((e && e.message) || e), { kind: 'network', retryable: true });

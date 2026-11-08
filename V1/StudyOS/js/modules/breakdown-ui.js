@@ -15,6 +15,8 @@ import { escapeHtml as esc } from './md.js';
 import { isBreakable, isSlidesFile, isWordFile } from './pipeline.js';
 import * as prompts from './prompts.js';
 import { ic } from './icons.js';
+import { isV2 } from './lesson-v2.js';
+import { printCheatSheets } from './lesson-v2-ui.js';
 const _open = new Set();              // fileIds whose topic list is expanded
 
 /** A row's label, from the freshest thing known: the loaded doc, else the
@@ -24,6 +26,7 @@ function label(f) {
   const st = doc && doc.status !== 'removed'
     ? { status: doc.status, total: doc.topics.length, done: doc.topics.filter(t => t.status === 'ready').length }
     : (doc ? null : f.study);
+  if (doc && doc.upgrade) return `Upgrading ${doc.upgrade.done}/${doc.upgrade.total}`;
   if (bd.isRunning(f.id) || (st && st.status === 'running')) {
     return st && st.total ? `Writing ${st.done}/${st.total}` : 'Listing topics…';
   }
@@ -304,7 +307,9 @@ async function renderPanel(panel, cls, mod, f) {
         : w ? esc(`Waiting for a free model until ${clock(w.until)}${w.why ? ` — ${w.why}` : ''}…`)
         : `Listing topics with ${esc(providerName(doc))}…`}</div>`);
   } else {
-    const status = running
+    const status = running && doc.upgrade
+      ? `Upgrading lessons to the new format — ${doc.upgrade.done} of ${doc.upgrade.total} done.`
+      : running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
       : stale ? `Interrupted at ${ready.length} of ${topics.length}. Continue to finish it.`
       : doc.error ? doc.error : `${topics.length} topics`;
@@ -339,6 +344,7 @@ async function renderPanel(panel, cls, mod, f) {
           <div class="bd-main">
             <div class="bd-title">${esc(t.title)}</div>
             <div class="bd-sum">${esc(t.status === 'failed' ? (t.error || 'failed') : t.summary || '')}</div>
+            ${ok && isV2(t.lesson) ? `<div class="bd-meta">${esc(lessonMeta(t))}${t.needsReview ? ' · <span class="bd-review" title="Some lesson rules could not be met after two repair asks">needs review</span>' : ''}</div>` : ''}
           </div>
           ${ok ? `<div class="bd-boxes">
             <button class="bd-box" data-lesson="${esc(t.id)}" title="${gaps ? `${gaps} line${gaps === 1 ? '' : 's'} of the document not fully taught — shown at the end of the lesson` : 'Open the lesson'}">Lesson</button>
@@ -354,6 +360,8 @@ async function renderPanel(panel, cls, mod, f) {
     ${cards ? `<button data-review>Review this document’s cards</button>` : ''}
     ${!running && (unfinished || (!topics.length && doc.status === 'failed')) ? `<button data-continue>${topics.length ? 'Write the rest' : 'Try again'}</button>` : ''}
     ${!running && topics.length ? `<button data-redo>Redo with another prompt</button>` : ''}
+    ${!running && ready.some((t) => t.lesson && !isV2(t.lesson)) ? `<button data-upgradeall title="Rewrite every lesson as a step-by-step lesson with diagrams, checks and a cheat sheet. Cards are kept.">Upgrade all lessons in this document</button>` : ''}
+    ${ready.length ? `<button class="quiet" data-sheets>Print cheat sheets</button>` : ''}
     ${!running ? `<button class="quiet" data-remove>Remove breakdown</button>` : ''}
   </div>`);
   panel.innerHTML = html.join('');
@@ -405,6 +413,20 @@ async function renderPanel(panel, cls, mod, f) {
   if (rv) rv.addEventListener('click', () => {
     window.SOS && window.SOS.review && window.SOS.review.startReview({ classId: doc.classId, notePrefix: bd.notePrefixFor(f.id) });
   });
+  const up = panel.querySelector('[data-upgradeall]');
+  if (up) up.addEventListener('click', async () => {
+    const n = ready.filter((t) => t.lesson && !isV2(t.lesson)).length;
+    if (!(await window.uiConfirm(`Rewrites ${n} lesson${n === 1 ? '' : 's'} in the new format — about ${n} AI request${n === 1 ? '' : 's'}, a couple more if one needs repairs. Your flashcards are kept, and each old lesson stays as a version you can switch back to.`,
+      { title: 'Upgrade every lesson in this document?', okLabel: 'Upgrade all' }))) return;
+    bd.upgradeAll(f.id, f).then((d) => {
+      if (d) toast(d.status === 'ready' ? 'check' : 'alert', d.status === 'ready' ? 'Lessons upgraded' : 'Upgrade stopped', d.error || f.name);
+    }).catch((e) => toast('alert', 'Upgrade failed', (e && e.message) || String(e)));
+    refresh(f.id);
+  });
+  const sheets = panel.querySelector('[data-sheets]');
+  if (sheets) sheets.addEventListener('click', () => {
+    if (!printCheatSheets(doc)) toast('alert', 'Pop-up blocked', 'Allow pop-ups to print the cheat sheets.');
+  });
   const cont = panel.querySelector('[data-continue]');
   if (cont) cont.addEventListener('click', () => start(cls, mod, f));
   const redo = panel.querySelector('[data-redo]');
@@ -422,6 +444,17 @@ async function renderPanel(panel, cls, mod, f) {
 }
 
 const _info = new Set();            // files whose ⓘ detail is open
+
+/** "~6 min · 9 steps · ✓ 3/4" for a v2 topic row. */
+function lessonMeta(t) {
+  const steps = t.lesson.steps || [];
+  const total = steps.filter((s) => s.check).length;
+  const res = (t.progress && t.progress.checks) || {};
+  const answered = steps.filter((s, i) => s.check && res[i] != null).length;
+  const right = steps.filter((s, i) => s.check && res[i] === true).length;
+  return `~${t.lesson.estMinutes || 0} min · ${steps.length} steps${total ? ` · ${answered ? `✓ ${right}/${total}` : `${total} checks`}` : ''}`;
+}
+
 
 /** A topic's cards as the row shows them: in reviews, due, suggested, mastery. */
 function topicCounts(doc, t) {

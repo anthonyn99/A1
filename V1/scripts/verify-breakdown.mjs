@@ -114,6 +114,8 @@ const seeded = await evalJs(`(function(){
   window._fbSaveDoc = function(path, payload){ (window.__docSaves = window.__docSaves || []).push({ path: path, json: JSON.stringify(payload) }); };
   window._fbLoadDoc = async function(){ return {}; };
   window._fbSaveCards = function(){};
+  // The stubbed provider answers v1 lessons: these cases pin the v1 writer. v2 is seeded below.
+  window.SOS.breakdown.setLessonFormat('v1');
   window._sosBridge.resolveBlob = async function(){ return new Blob(['%PDF-1.4 test'], { type: 'application/pdf' }); };
   for (var i = classes.length - 1; i >= 0; i--) if (classes[i].id === 'bd1') classes.splice(i, 1);
   var cls = { id:'bd1', name:'Database Processing', code:'CS 3410', color:'#9dc0ee', modules:[] };
@@ -694,6 +696,198 @@ const o3 = await evalJs(`(function(){
 t('saved: one key, DeepSeek picked', o3.pick === 'deepseek/free' && o3.key === 'orca_sk_v' && !o3.old, o3);
 t('the save names ORCA · DeepSeek (browser)', /ORCA · DeepSeek \(browser\)/.test(o3.msg), o3.msg);
 t('no ORCA key in synced data', o3.leaked === false);
+
+// ── v2 lessons in the reader ───────────────────────────────────────────────
+console.log('\nv2 lessons');
+{
+  const { TREENODE, BST_SEARCH } = await import('./fixtures/lesson-v2.mjs');
+  const v2m = await import('../StudyOS/js/modules/lesson-v2.js');
+  const L2 = v2m.validateLessonV2(JSON.parse(JSON.stringify(TREENODE))).value.lesson;
+  const L3 = v2m.validateLessonV2(JSON.parse(JSON.stringify(BST_SEARCH))).value.lesson;
+  // A lesson whose diagrams are broken in ways the validator would have caught:
+  // the reader must still never crash.
+  const BAD = JSON.parse(JSON.stringify(L2));
+  BAD.steps[1].diagram = { id: 'x', kind: 'flow', boxes: 'nope', caption: 'Broken on purpose' };
+  BAD.steps[2].diagram = { id: 'y', kind: 'mystery' };
+  BAD.steps[3].code.annotations = [{ line: 2, note: 'n', highlight: ['ghost'] }];
+  const V = FID + 'v';
+  const seeded2 = await evalJs(`(function(){
+    var cls = classes.find(function(c){ return c.id === 'bd1'; });
+    cls.modules[0].files.push({ id:'${V}', name:'25slide.pdf', size: 12, mime:'application/pdf', fileId:'${V}' });
+    window.SOS.breakdown.saveDoc({ fileId:'${V}', classId:'bd1', moduleId:'bdm1', sourceName:'25slide.pdf', status:'ready', error:'', listedAt: 1, rev: 1,
+      topics: [
+        { id:'t1', title:'Binary tree terminology', summary:'', status:'ready', updatedAt: 1, lesson: { blocks: [{ kind:'read', title:'Terms', markdown:'A **root** has no parent.' }, { kind:'recap', title:'Recap', points:['Root has no parent.'] }] } },
+        { id:'t2', title:'Representing binary trees with linked TreeNode objects', summary:'', status:'ready', updatedAt: 1, lesson: ${JSON.stringify(L2)} },
+        { id:'t3', title:'Searching a binary search tree', summary:'', status:'ready', updatedAt: 1, lesson: ${JSON.stringify(L3)} },
+        { id:'t4', title:'Broken diagrams', summary:'', status:'ready', updatedAt: 1, lesson: ${JSON.stringify(BAD)} },
+      ] });
+    return window.SOS.lessonUi.open('${V}', 't2');
+  })()`);
+  t('a v2 lesson opens', seeded2 === true, seeded2);
+  await wait(400);
+  const read = () => evalJs(`(function(){
+    var r = document.getElementById('sos-lesson-root');
+    var card = r.querySelector('.sl-card');
+    return { count: r.querySelector('.sl-count').textContent.replace(/\\s+/g,' ').trim(), type: (r.querySelector('.v2-type')||{}).textContent,
+      cls: card.className, svg: card.querySelectorAll('svg.dg-svg').length, h2: (card.querySelector('h2')||{}).textContent,
+      accent: r.style.getPropertyValue('--accent'), text: card.textContent.replace(/\\s+/g,' ').slice(0, 900),
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1, unavailable: card.querySelectorAll('.dg-unavail').length };
+  })()`);
+  const next = async () => { await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`); await wait(200); };
+  const shots = [];
+  await evalJs(`(function(){ var i = document.getElementById('sos-intro'); if (i) i.remove(); })(); true;`);
+  const shot = async (name) => {
+    const r = await send('Page.captureScreenshot', { format: 'png' });
+    shots.push({ name, data: r.data });
+  };
+  let s = await read();
+  t('step 1 is labelled by its type (not "Read")', s.type === 'Why it matters' && /1 of 10/.test(s.count), s);
+  t('the header shows ~N min and the checks score', /~6 min/.test(s.count) && /0\/2 checks right/.test(s.count), s.count);
+  t('the class colour is the accent', s.accent === '#9dc0ee', s.accent);
+  t('the hook shows why it matters and an analogy callout', /Why it matters/.test(s.text) && /folders on your laptop/.test(s.text), s.text);
+  t('a prerequisite links to the topic that teaches it', await evalJs(`!!document.querySelector('#sos-lesson-root .v2-chip[data-topic="t1"]')`));
+  await shot('1-hook');
+  await next(); s = await read();
+  t('the nodebox diagram is drawn', s.type === 'Diagram' && s.svg === 1 && /element/.test(s.text), s);
+  await shot('2-nodebox');
+  await next(); s = await read();
+  t('an empty tree is drawn as the running example', s.svg === 1 && /57/.test(s.text) && /107/.test(s.text), s);
+  await shot('3-tree');
+  await next(); s = await read();
+  t('the code step is highlighted with line numbers and dots', s.type === 'Code' && await evalJs(`document.querySelectorAll('#sos-lesson-root .v2-line.ann').length === 3 && !!document.querySelector('#sos-lesson-root .hl-kw')`), s);
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2line="2"]').click(); true;`);
+  await wait(100);
+  const ann = await evalJs(`({ note: document.querySelector('#sos-lesson-root .v2-annote').textContent, lit: !!document.querySelector('#sos-lesson-root .v2-linked .dg-hl[data-dg="element"]') })`);
+  t('tapping an annotated line shows its note and lights the linked diagram', /Line 2/.test(ann.note) && ann.lit, ann);
+  await shot('4-code');
+  await next(); s = await read();
+  const deckBefore = await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${V}_').length`);
+  t('a short-answer check hides the answer until answered', s.type === 'Check' && !/Right|Not quite|left is 55/.test(s.text), s.text);
+  await evalJs(`(function(){ var i = document.querySelector('#sos-lesson-root [data-v2in]'); i.value = '55'; i.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#sos-lesson-root [data-v2check]').click(); })(); true;`);
+  await wait(200);
+  const wrong = await evalJs(`({ res: (document.querySelector('#sos-lesson-root .v2-result')||{}).textContent || '', cards: window.SOS.deck.byNotePrefix('bd1','topic_${V}_').length,
+    prog: JSON.stringify((window.SOS.breakdown.peek('${V}').topics[1].progress||{}).checks || {}) })`);
+  t('a wrong answer shows ✗, the answer and why', /Not quite/.test(wrong.res) && /57/.test(wrong.res) && /left is 55/.test(wrong.res), wrong.res);
+  t('...becomes a card', wrong.cards === deckBefore + 1, { before: deckBefore, after: wrong.cards });
+  t('...and is recorded', /"4":false/.test(wrong.prog), wrong.prog);
+  t('Next is never blocked', await evalJs(`!document.querySelector('#sos-lesson-root [data-next]').disabled`));
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2again]').click(); true;`);
+  await wait(100);
+  await evalJs(`(function(){ var i = document.querySelector('#sos-lesson-root [data-v2in]'); i.value = '57'; i.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#sos-lesson-root [data-v2check]').click(); })(); true;`);
+  await wait(200);
+  s = await read();
+  t('the right answer shows ✓ and the score updates', /Right/.test(s.text) && /1\/2 checks right/.test(s.count), s);
+  await shot('5-check');
+  await next(); s = await read();
+  t('the trap step is a tinted card', s.type === 'Trap' && /trap/.test(s.cls) && /NullPointerException/.test(s.text), s);
+  await shot('6-trap');
+  await next();
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true })); true;`);
+  await wait(200);
+  s = await read();
+  t('key 1 answers an mcq (option 1 = 67, right)', /Right/.test(s.text) && /2\/2 checks right/.test(s.count), s);
+  await next(); s = await read();
+  t('the compare step shows two labelled panels', s.type === 'Compare' && await evalJs(`document.querySelectorAll('#sos-lesson-root .v2-panel').length === 2`), s);
+  await shot('8-compare');
+  await next(); s = await read();
+  t('the recap lists takeaways with ＋ card', s.type === 'Recap' && await evalJs(`document.querySelectorAll('#sos-lesson-root .v2-takeaways [data-addcard]').length === 5`), s);
+  const before2 = await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${V}_').length`);
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2addall]').click(); true;`);
+  await wait(200);
+  t('Add all makes a cloze card per takeaway', (await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${V}_').length`)) === before2 + 5);
+  await shot('9-recap');
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2sheet]').click(); true;`);
+  await wait(200);
+  s = await read();
+  t('the cheat sheet: diagram, bullets, code', s.type === 'Cheat sheet' && s.svg === 1 && /Missing child = null/.test(s.text) && await evalJs(`!!document.querySelector('#sos-lesson-root .v2-sheet .v2-code')`), s);
+  await shot('10-sheet');
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2sheetclose]').click(); true;`);
+  await wait(150);
+  await next(); s = await read();
+  t('then the key cards screen, as before', /Key cards/.test(s.type) && /10 of 10/.test(s.count), s);
+
+  console.log('\nv2 walkthrough');
+  await evalJs(`window.SOS.lessonUi.open('${V}', 't3'); true;`);
+  await wait(300);
+  await next();
+  const frame = () => evalJs(`({ fc: document.querySelector('#sos-lesson-root .v2-fc').textContent, lit: [...document.querySelectorAll('#sos-lesson-root .v2-walk .dg-node.dg-hl')].map(n => n.dataset.dg).join(), note: document.querySelector('#sos-lesson-root .v2-note').textContent })`);
+  let f = await frame();
+  t('frame 1 highlights 60', f.fc === '1 / 3' && f.lit === 'n60' && /57 < 60/.test(f.note), f);
+  await shot('11-walk-1');
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2frame="1"]').click(); true;`); await wait(80);
+  f = await frame();
+  t('frame 2 highlights 55', f.fc === '2 / 3' && f.lit === 'n55', f);
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2frame="1"]').click(); true;`); await wait(80);
+  f = await frame();
+  t('frame 3 highlights 57: found', f.fc === '3 / 3' && f.lit === 'n57' && /found/.test(f.note), f);
+  await shot('12-walk-3');
+  // A hidden headless tab throttles timers: bring it to the front first.
+  await send('Page.bringToFront');
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2play]').click(); true;`);
+  await wait(1700);
+  f = await frame();
+  t('autoplay steps through the frames', f.fc === '2 / 3', f);
+  await evalJs(`document.querySelector('#sos-lesson-root [data-v2play]').click(); true;`);
+  await next(); s = await read();
+  t('an order check offers reordering', s.type === 'Check' && await evalJs(`document.querySelectorAll('#sos-lesson-root .v2-order li').length === 3`), s);
+
+  console.log('\nv2 at phone width');
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await evalJs(`window.SOS.lessonUi.open('${V}', 't2', { block: 0 }); true;`);
+  await wait(300);
+  const wide = [];
+  for (let k = 0; k < 9; k++) {
+    s = await read();
+    if (s.overflow) wide.push(s.type);
+    if (k === 7) {
+      t('compare panels stack', await evalJs(`getComputedStyle(document.querySelector('#sos-lesson-root .v2-compare')).gridTemplateColumns.split(' ').length === 1`));
+      await shot('m-compare');
+    }
+    if (k === 2) await shot('m-tree');
+    if (k === 3) await shot('m-code');
+    await next();
+  }
+  t('no step scrolls sideways at 390px', wide.length === 0, wide);
+  await send('Emulation.clearDeviceMetricsOverride');
+
+  console.log('\nv2 bad data');
+  await evalJs(`window.SOS.lessonUi.open('${V}', 't4'); true;`);
+  await wait(300);
+  await next(); s = await read();
+  t('a broken diagram shows its caption + "diagram unavailable"', s.unavailable === 1 && /Broken on purpose/.test(s.text), s);
+  await next(); await next(); s = await read();
+  t('a highlight to a missing id does not break the code step', s.type === 'Code', s);
+
+  console.log('\nv1 lessons are untouched');
+  await evalJs(`window.SOS.lessonUi.open('${V}', 't1'); true;`);
+  await wait(300);
+  s = await read();
+  t('a v1 lesson still renders with the v1 labels', s.type === undefined && /Read/.test(s.count) && /root/.test(s.text), s);
+  t('...with no class accent', s.accent === '', s.accent);
+  t('...and offers "Upgrade to new format"', await evalJs(`!!document.querySelector('#sos-lesson-root [data-upgrade]')`));
+
+  console.log('\nthe topic list');
+  await evalJs(`(function(){ window._sosBridge.revealModule('bd1', 'bdm1'); })(); true;`);
+  await wait(500);
+  await evalJs(`(function(){ var b = document.querySelector('[data-bd-file="${V}"]'); if (b) b.click(); })(); true;`);
+  await wait(400);
+  const list = await evalJs(`(function(){
+    var p = document.querySelector('[data-bd-panel="${V}"]');
+    return p ? { metas: [...p.querySelectorAll('.bd-meta')].map(m => m.textContent), up: !!p.querySelector('[data-upgradeall]'), sheets: !!p.querySelector('[data-sheets]') } : null;
+  })()`);
+  t('v2 rows show ~N min · X steps · ✓ score', list && list.metas.some((m) => /~6 min · 9 steps · ✓ 2\/2/.test(m)), list);
+  t('"Upgrade all lessons" is offered (a v1 topic remains)', list && list.up, list);
+  t('"Print cheat sheets" is offered', list && list.sheets, list);
+
+  // Screenshots for a look: scratch dir from the env, never the repo.
+  const dir = process.env.SOS_SHOTS;
+  if (dir) {
+    const { writeFileSync, mkdirSync } = await import('node:fs');
+    mkdirSync(dir, { recursive: true });
+    for (const x of shots) writeFileSync(resolve(dir, x.name + '.png'), Buffer.from(x.data, 'base64'));
+    console.log(`  (screenshots in ${dir})`);
+  }
+}
 
 const errs = events
   .filter(e => e.method === 'Runtime.exceptionThrown')
