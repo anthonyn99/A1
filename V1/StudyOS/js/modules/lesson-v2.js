@@ -259,23 +259,25 @@ const norm = (x) => String(x == null ? '' : x).toLowerCase().replace(/\s+/g, ' '
 
 /** Every id a diagram's elements can be referred to by. */
 export function idsOf(d) {
-  if (!d) return new Set();
   const out = new Set();
+  if (!d || typeof d !== 'object') return out;
+  // Safe on unvalidated data too: the reader calls it on stored lessons.
   const add = (x) => x && out.add(String(x));
+  const each = (v, fn) => arr(v).forEach((x, i) => { if (x != null) fn(x, i); });
   switch (d.kind) {
-    case 'tree': case 'linkedlist': (d.nodes || []).forEach((n) => add(n.id)); break;
-    case 'array': (d.cells || []).forEach((_, i) => add('c' + i)); for (let i = (d.cells || []).length; i < (d.capacity || 0); i++) add('c' + i); break;
-    case 'nodebox': (d.fields || []).forEach((f) => add(f.name)); break;
-    case 'stack': case 'queue': (d.items || []).forEach((_, i) => add('i' + i)); break;
-    case 'table': (d.rows || []).forEach((_, i) => add('r' + i)); break;
-    case 'flow': (d.boxes || []).forEach((b) => add(b.id)); break;
-    case 'timeline': (d.events || []).forEach((e) => add(e.id)); break;
+    case 'tree': case 'linkedlist': each(d.nodes, (n) => add(n.id)); break;
+    case 'array': each(d.cells, (_, i) => add('c' + i)); for (let i = arr(d.cells).length; i < Math.min(48, +d.capacity || 0); i++) add('c' + i); break;
+    case 'nodebox': each(d.fields, (f) => add(f.name)); break;
+    case 'stack': case 'queue': each(d.items, (_, i) => add('i' + i)); break;
+    case 'table': each(d.rows, (_, i) => add('r' + i)); break;
+    case 'flow': each(d.boxes, (b) => add(b.id)); break;
+    case 'timeline': each(d.events, (e) => add(e.id)); break;
   }
-  (d.frames || []).forEach((f) => {
-    if (!f.patch) return;
-    (f.patch.nodes || []).forEach((n) => add(n.id));
-    (f.patch.cells || []).forEach((_, i) => add('c' + i));
-    (f.patch.items || []).forEach((_, i) => add('i' + i));
+  each(d.frames, (f) => {
+    if (!f.patch || typeof f.patch !== 'object') return;
+    each(f.patch.nodes, (n) => add(n.id));
+    arr(f.patch.cells).forEach((_, i) => add('c' + i));
+    arr(f.patch.items).forEach((_, i) => add('i' + i));
   });
   return out;
 }

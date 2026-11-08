@@ -18,6 +18,9 @@ import { renderMarkdown, escapeHtml as esc, inline } from './md.js';
 import { ensureStyle } from './study-style.js';
 import { findFile } from './breakdown-ui.js';
 import { ic } from './icons.js';
+import * as v2 from './lesson-v2.js';
+import * as v2ui from './lesson-v2-ui.js';
+import { sheet } from './pipeline-ui.js';
 
 const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
   figure: 'Figure', source: 'From the document', cards: 'Key cards', pretest: 'Warm up', retry: 'Retry' };
@@ -31,6 +34,7 @@ const addBtn = (text) => `<button class="sl-link sl-add" data-addcard="${esc(tex
 const _pageImg = new Map();
 
 function figurePagesOf(topic) {
+  if (v2.isV2(topic.lesson)) return [...new Set(topic.lesson.steps.filter((s) => s.type === 'figure' && s.page).map((s) => s.page))];
   return [...new Set((topic.lesson.blocks || []).filter((b) => b.kind === 'figure' && b.page).map((b) => b.page))];
 }
 
@@ -73,7 +77,7 @@ function fillFigures(root, blocks) {
     const slot = fig.querySelector('.sl-fig-slot');
     if (!b || !slot) return;
     const img = document.createElement('img');
-    img.alt = b.title || 'Figure';
+    img.alt = b.title || b.heading || 'Figure';
     if (b.svg && !S.orig[i]) {
       img.onerror = () => { if (img.isConnected) slotNote(img, 'This drawing couldn’t be displayed.'); };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(b.svg);
@@ -99,7 +103,7 @@ function fillFigures(root, blocks) {
  *  document found lines no lesson teaches — those lines, verbatim. What the
  *  model missed is still in front of her, never silently gone. */
 function lessonBlocks(topic) {
-  const blocks = topic.lesson.blocks;
+  const blocks = v2.isV2(topic.lesson) ? topic.lesson.steps : topic.lesson.blocks;
   const gaps = topic.gaps || [];
   return gaps.length ? [...blocks, { kind: 'source', title: 'Also in the document', lines: gaps }] : blocks;
 }
@@ -115,6 +119,15 @@ function preScreens(topic, now = Date.now()) {
   const blocks = topic.lesson.blocks;
   const p = topic.progress || {};
   const today = new Date(now); today.setHours(0, 0, 0, 0);
+  // v2: the checks she got wrong come back as themselves, the day after.
+  // No warm-up — v2 lessons already ask before they tell.
+  if (v2.isV2(topic.lesson)) {
+    if (!(p.wrong || []).length || (p.wrongAt || 0) >= today.getTime()) return [];
+    return p.wrong.map((w) => {
+      const st = topic.lesson.steps[w.b];
+      return st && st.check ? { ...st, heading: 'From last time: ' + (st.heading || 'check'), _retryOf: w.b } : null;
+    }).filter(Boolean).slice(0, 3);
+  }
   if ((p.wrong || []).length && (p.wrongAt || 0) < today.getTime()) {
     const questions = p.wrong.map((w) => {
       const b = blocks[w.b];
@@ -139,6 +152,7 @@ export async function open(fileId, topicId, opts = {}) {
   const topic = doc && doc.topics.find((t) => t.id === topicId);
   if (!topic || topic.status !== 'ready') return false;
   flush();
+  if (S && S.v) v2ui.stopPlay(S.v);
   // Opening the lesson is what lets its cards be introduced ("only introduce
   // cards from lessons I've read"): understanding first, then memory.
   deck.markLessonRead(doc.classId, bd.noteIdFor(fileId, topicId));
@@ -149,7 +163,7 @@ export async function open(fileId, topicId, opts = {}) {
     // The block nearest a source page: the figure block of that page, or the
     // last figure before it. Lessons carry no other page marks.
     let at = -1;
-    blocks.forEach((b, k) => { if (b.kind === 'figure' && b.page && b.page <= opts.page) at = k; });
+    blocks.forEach((b, k) => { if ((b.kind === 'figure' || b.type === 'figure') && b.page && b.page <= opts.page) at = k; });
     if (at >= 0) resumeAt = at;
   }
   const pre = opts.block != null || opts.page != null ? [] : preScreens(topic);
@@ -157,7 +171,8 @@ export async function open(fileId, topicId, opts = {}) {
   const screen = pre.length ? 0 : resumeAt;
   S = { fileId, topicId, screen, answers: {}, checked: {}, shown: {}, orig: {}, pre: pre.length, preScreens: pre,
     openedAt: Date.now(), logged: false };
-  prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => b.kind === 'figure' && b.page === n && !b.svg)));
+  if (v2.isV2(topic.lesson)) S.v = v2ui.newState();
+  prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => (b.kind === 'figure' || b.type === 'figure') && b.page === n && !b.svg)));
   // A topic is opened from the list inside the module popup. Switching views
   // does not close a popup, so without this the lesson would open BEHIND it.
   try { if (document.querySelector('#modal-module-detail.open') && window.closeModuleDetail) window.closeModuleDetail(); }
@@ -169,7 +184,7 @@ export async function open(fileId, topicId, opts = {}) {
 }
 
 /** Called by switchView when leaving the lesson view: persist where she is. */
-export function leave() { flush(); }
+export function leave() { if (S && S.v) v2ui.stopPlay(S.v); flush(); }
 
 function cur() {
   const doc = S && bd.peek(S.fileId);
@@ -189,6 +204,8 @@ function render() {
   const root = document.getElementById('sos-lesson-root');
   const c = cur();
   if (!root || !c) return;
+  if (v2.isV2(c.topic.lesson)) return renderV2(root, c);
+  root.style.removeProperty('--accent'); root.style.removeProperty('--accent2');
   const { doc, topic, blocks } = c;
   const total = blocks.length + 1;                    // + the key-cards screen
   const screen = Math.min(S.screen, total - 1);
@@ -223,6 +240,7 @@ function render() {
     </div>
     <div class="sl-row" style="justify-content:center;margin-top:18px">
       <button class="sl-link" data-rewrite>Rewrite this lesson</button>
+      <button class="sl-link" data-upgrade style="margin-left:14px" title="Rewrite it as a visual, step-by-step lesson">Upgrade to new format</button>
     </div>`;
 
   wire(root, c, screen, total);
@@ -233,6 +251,134 @@ function render() {
   if (!block) logLesson(doc);
   queueSave({ block: Math.max(0, blockOf(screen)), ...(block ? {} : { done: true }) });
 }
+
+// ── v2 lessons: typed steps, diagrams drawn from data ─────────────────────
+/** The class colour is the lesson's accent (v2 only: v1 looks as it did). */
+function accentOf(doc) {
+  const where = findFile(doc.fileId);
+  const col = where && where.cls && where.cls.color;
+  return /^#[0-9a-f]{3,8}$/i.test(String(col || '')) ? col : '';
+}
+
+/** The checks right so far, from the saved results. */
+function checkScore(topic) {
+  const steps = topic.lesson.steps || [];
+  const total = steps.filter((s) => s.check).length;
+  const res = (topic.progress && topic.progress.checks) || {};
+  const right = steps.reduce((k, s, i) => k + (s.check && res[i] === true ? 1 : 0), 0);
+  return { right, total };
+}
+
+function renderV2(root, c) {
+  const { doc, topic, blocks } = c;
+  const L = topic.lesson;
+  const total = blocks.length + 1;                    // + the key-cards screen
+  const screen = Math.min(S.screen, total - 1);
+  const item = blocks[screen];
+  const ready = doc.topics.filter((t) => t.status === 'ready');
+  const at = ready.findIndex((t) => t.id === topic.id);
+  const prevT = ready[at - 1], nextT = ready[at + 1];
+  const where = findFile(doc.fileId);
+  const clsName = where ? (where.cls.code || where.cls.name || '') : '';
+  const accent = accentOf(doc);
+  for (const v of ['--accent', '--accent2']) { if (accent) root.style.setProperty(v, accent); else root.style.removeProperty(v); }
+  const enter = S.lastScreen !== screen || S.lastSheet !== !!S.sheet;
+  S.lastScreen = screen; S.lastSheet = !!S.sheet;
+  const sc = checkScore(topic);
+  const label = S.sheet ? 'Cheat sheet' : item ? (item.type ? v2ui.labelOf(item) : (LABEL[item.kind] || '')) : 'Key cards';
+  const ctx = { lesson: L, topics: doc.topics, topicId: topic.id, V: S.v || (S.v = v2ui.newState()), sourceName: doc.sourceName };
+  const inner = S.sheet ? `<h2>Cheat sheet</h2>${v2ui.cheatSheetHtml(topic)}`
+    : item ? (item.type ? safeStep(item, screen, ctx) : blockHtml(item, screen, doc)) : cardsHtml(doc);
+  const kind = S.sheet ? 'sheet' : item ? (item.type || item.kind) : 'cards';
+
+  root.innerHTML = `
+    <div class="sl-top">
+      <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
+      <div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>
+    </div>
+    <h1 class="sl-title">${esc(L.title || topic.title)}</h1>
+    ${L.summary || topic.summary ? `<div class="sl-sub">${esc(L.summary || topic.summary)}</div>` : ''}
+    <div class="sl-bar"><div style="width:${Math.round(((screen + 1) / total) * 100)}%"></div></div>
+    <div class="sl-count"><span>${S.sheet ? '' : `${screen + 1} of ${total} · `}~${esc(String(L.estMinutes || 0))} min${sc.total ? ` · ${sc.right}/${sc.total} checks right` : ''}</span><span class="v2-type">${esc(label)}</span></div>
+    <div class="sl-card v2 ${esc(kind)}${enter ? ' sl-enter' : ''}">${inner}</div>
+    <div class="sl-nav">
+      ${S.sheet ? `<button class="primary" data-v2sheetclose>${ic('chevL')}<span>Back to the lesson</span></button>
+        <button data-v2printall>Print all cheat sheets</button>` : `
+      <button data-prev ${screen === 0 ? 'disabled' : ''}>${ic('chevL')}<span>Back</span></button>
+      ${item ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Key cards ' + ic('chevR') : 'Next ' + ic('chevR')}</button>`
+             : (nextT ? `<button class="primary" data-topic="${esc(nextT.id)}">Next topic ${ic('chevR')}</button>`
+                      : `<button class="primary" data-back>Back to the document</button>`)}`}
+    </div>
+    <div class="sl-topicnav">
+      <button data-topic="${prevT ? esc(prevT.id) : ''}" ${prevT ? '' : 'style="visibility:hidden"'}>‹ ${prevT ? esc(prevT.title) : ''}</button>
+      <button data-topic="${nextT ? esc(nextT.id) : ''}" ${nextT ? '' : 'style="visibility:hidden"'}>${nextT ? esc(nextT.title) : ''} ›</button>
+    </div>
+    <div class="sl-row" style="justify-content:center;margin-top:18px;gap:14px">
+      <button class="sl-link" data-rewrite>Rewrite this lesson</button>
+      ${S.sheet ? '' : '<button class="sl-link" data-v2opensheet>Cheat sheet</button>'}
+      ${topic.needsReview ? '<span class="sl-muted" title="Some of the lesson rules could not be met after two repair asks">needs review</span>' : ''}
+    </div>`;
+
+  wire(root, c, screen, total);
+  const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener('click', fn));
+  const openSheet = () => { v2ui.stopPlay(S.v); S.sheet = true; render(); window.scrollTo && window.scrollTo(0, 0); };
+  on('[data-v2opensheet]', openSheet);
+  on('[data-v2sheetclose]', () => { S.sheet = false; render(); });
+  on('[data-v2printall]', () => { if (!v2ui.printCheatSheets(doc)) window.showNotif && window.showNotif('alert', 'Pop-up blocked', 'Allow pop-ups to print the cheat sheets.'); });
+  if (item && item.type && !S.sheet) {
+    v2ui.wireStep(root, item, screen, ctx, {
+      rerender: () => render(),
+      record: (i, ok) => recordV2(c, i, ok),
+      addAll: (texts) => addTakeaways(c, texts),
+      openSheet,
+      explain: (text) => bd.explainBack(doc.fileId, topic.id, text),
+    });
+  }
+  fillFigures(root, blocks);
+  if (S.sheet) return;
+  if (item && item._retryOf != null) return;           // a retry is not a place in the lesson
+  if (!item) logLesson(doc);
+  queueSave({ block: Math.max(0, blockOf(screen)), ...(item ? {} : { done: true }) });
+}
+
+/** A step that cannot be drawn says so; it never takes the reader down. */
+function safeStep(item, screen, ctx) {
+  try { return v2ui.stepHtml(item, screen, ctx); }
+  catch (e) {
+    console.warn('[lesson] step could not be shown:', e && e.message);
+    return `${item.heading ? `<h2>${esc(item.heading)}</h2>` : ''}<div class="sl-muted">This step couldn’t be displayed.</div>`;
+  }
+}
+
+/** A v2 check answered: the result is saved (the topic row's score), a wrong
+ *  one comes back tomorrow and becomes a card now. */
+function recordV2(c, screen, ok) {
+  const item = c.blocks[screen];
+  if (!item || !item.check) return;
+  const idx = item._retryOf != null ? item._retryOf : blockOf(screen);
+  const p = c.topic.progress || {};
+  const checks = { ...(p.checks || {}), [idx]: ok };
+  const wrong = (p.wrong || []).filter((w) => w.b !== idx);
+  if (!ok) wrong.push({ b: idx, q: 0 });
+  bd.setProgress(S.fileId, S.topicId, { checks, wrong: wrong.slice(-20), wrongAt: Date.now() });
+  if (ok) return;
+  const card = v2.cardFromCheck(item.check);
+  if (!card) return;
+  const added = deck.addCards(c.doc.classId, [card], { noteId: bd.noteIdFor(c.doc.fileId, c.topic.id), title: c.topic.title,
+    moduleId: c.doc.moduleId, readAt: Date.now(), kind: 'check' });
+  (S.v.carded || (S.v.carded = {}))[screen] = true;
+  if (added.length && window.showNotif) window.showNotif('cards', 'Card added', 'That question joins your reviews.');
+}
+
+/** "Add all": each takeaway as a cloze card, its key term the blank. */
+function addTakeaways(c, texts) {
+  const items = texts.map((t) => ({ kind: 'cloze', front: v2ui.clozeOf(t), back: '', priority: 1 }));
+  const added = deck.addCards(c.doc.classId, items, { noteId: bd.noteIdFor(c.doc.fileId, c.topic.id), title: c.topic.title,
+    moduleId: c.doc.moduleId, readAt: Date.now(), kind: 'recap' });
+  window.showNotif && window.showNotif('cards', added.length ? `${added.length} card${added.length === 1 ? '' : 's'} added` : 'Already in your cards',
+    added.length ? 'They join your reviews with today\'s new cards.' : 'Every takeaway already has a card.');
+}
+
 
 /** Reading a lesson is studying: it counts toward the day, like a review
  *  (overhaul §7.9). Once per sitting, when she reaches its end. */
@@ -368,7 +514,7 @@ function recordChecks(c, screen) {
 }
 
 function wire(root, c, screen, total) {
-  const go = (n) => { S.screen = Math.max(0, Math.min(total - 1, n)); render(); window.scrollTo && window.scrollTo(0, 0); };
+  const go = (n) => { if (S.v) v2ui.stopPlay(S.v); S.screen = Math.max(0, Math.min(total - 1, n)); render(); window.scrollTo && window.scrollTo(0, 0); };
   const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener('click', fn));
 
   on('[data-prev]', () => go(screen - 1));
@@ -398,15 +544,52 @@ function wire(root, c, screen, total) {
   on('[data-browse]', () => { if (C()) C().openBrowse({ classId: c.doc.classId, noteId, title: c.topic.title }); });
   on('[data-newcard]', () => newCard(c, ''));
   on('[data-addcard]', (e) => { e.stopPropagation(); newCard(c, e.currentTarget.dataset.addcard + '\n---\n'); });
-  on('[data-rewrite]', async () => {
-    if (!(await window.uiConfirm('It replaces the current lesson (one more AI request). Flashcards you have reviewed keep their schedule.', { title: 'Write this lesson again?', okLabel: 'Rewrite' }))) return;
-    const where = findFile(c.doc.fileId);
-    if (!where) return;
-    const topicId = c.topic.id;
+  on('[data-rewrite]', () => rewriteSheet(c, { upgrade: false }));
+  on('[data-upgrade]', () => rewriteSheet(c, { upgrade: true }));
+}
+
+/* Rewrite / Upgrade (§5.1, §9): an optional note for the model, and the
+ * last two versions of the lesson to switch back to. */
+async function rewriteSheet(c, { upgrade }) {
+  const where = findFile(c.doc.fileId);
+  if (!where) return;
+  const topicId = c.topic.id;
+  const versions = await bd.versionsOf(c.doc.fileId, topicId).catch(() => []);
+  const when = (ms) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const s = sheet(upgrade ? 'Upgrade to the new format' : 'Rewrite this lesson', `
+    <div style="font-size:13.5px;color:var(--text2);line-height:1.6;margin-bottom:12px">${upgrade
+      ? 'Rewrites this topic as a step-by-step lesson with diagrams, checks and a cheat sheet.'
+      : 'Writes the lesson again.'} One more AI request (a couple more if it needs repairs). Flashcards you have reviewed keep their schedule; the current version is kept so you can switch back.</div>
+    <div class="field"><label>Note for the rewrite <span style="color:var(--text3);font-weight:400">— optional</span></label>
+      <input id="sl-rw-note" placeholder="e.g. simpler, more examples, more diagrams" maxlength="300" style="width:100%">
+      <div class="sl-row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${['simpler', 'more examples', 'more diagrams', 'more checks']
+        .map((x) => `<button class="sl-link" data-rw-chip="${x}">${x}</button>`).join('')}</div></div>
+    ${versions.length ? `<div class="field" style="margin-top:14px"><label>Previous versions</label>${versions.map((v, k) => `
+      <div class="sl-row" style="justify-content:space-between;gap:10px;margin-top:6px">
+        <span class="sl-muted">${v.lesson && v.lesson.version === 2 ? 'New format' : 'Original format'} · saved ${esc(when(v.savedAt))}</span>
+        <button class="btn" data-rw-restore="${k}" style="padding:3px 10px;font-size:11px">Switch to this</button></div>`).join('')}</div>` : ''}`, { wide: false });
+  const note = s.overlay.querySelector('#sl-rw-note');
+  s.overlay.querySelectorAll('[data-rw-chip]').forEach((b) => b.addEventListener('click', (e) => {
+    e.preventDefault();
+    note.value = note.value ? `${note.value}, ${b.dataset.rwChip}` : b.dataset.rwChip;
+  }));
+  s.overlay.querySelectorAll('[data-rw-restore]').forEach((b) => b.addEventListener('click', async () => {
+    s.close();
+    await bd.restoreVersion(c.doc.fileId, topicId, Number(b.dataset.rwRestore));
+    open(c.doc.fileId, topicId, { block: 0 });
+  }));
+  const cancel = document.createElement('button');
+  cancel.className = 'btn'; cancel.textContent = 'Cancel'; cancel.onclick = s.close;
+  const go = document.createElement('button');
+  go.className = 'btn primary'; go.textContent = upgrade ? 'Upgrade' : 'Rewrite';
+  go.onclick = async () => {
+    const text = note.value.trim();
+    s.close();
     backToDocument(c.doc);
-    try { await bd.regenerate(c.doc.fileId, topicId, where.file); }
-    catch (e) { window.showNotif && window.showNotif('alert', 'Rewrite failed', (e && e.message) || String(e)); }
-  });
+    try { await bd.regenerate(c.doc.fileId, topicId, where.file, { note: text, v2: true }); }
+    catch (e) { window.showNotif && window.showNotif('alert', upgrade ? 'Upgrade failed' : 'Rewrite failed', (e && e.message) || String(e)); }
+  };
+  s.footer.append(cancel, go);
 }
 
 /** The card editor, filed under this topic. */
@@ -490,6 +673,15 @@ document.addEventListener('keydown', (e) => {
   if (!view || !view.classList.contains('active')) return;
   if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
   if (document.querySelector('.modal-overlay.open, .sos-modal.open')) return;
+  // v2: Space reveals a check, 1-9 pick an option (§4 keyboard).
+  const c = cur();
+  if (c && v2.isV2(c.topic.lesson) && !S.sheet && /^[ 1-9]$/.test(e.key)) {
+    const item = c.blocks[S.screen];
+    const root = document.getElementById('sos-lesson-root');
+    if (item && item.type && root && v2ui.onKey(e, item, S.screen, { V: S.v }, {
+      rerender: () => render(), record: (i, ok) => recordV2(c, i, ok),
+    }, root)) return;
+  }
   const next = document.querySelector('#sos-lesson-root [data-next]');
   const prev = document.querySelector('#sos-lesson-root [data-prev]');
   if (e.key === 'ArrowRight' && next) { e.preventDefault(); next.click(); }
