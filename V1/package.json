@@ -35,7 +35,7 @@
     "verify:cleanup": "node scripts/verify-cleanup.mjs && node scripts/verify-decks.mjs",
     "verify:decks": "node scripts/verify-decks.mjs",
     "verify": "npm run build && node scripts/verify-boot.mjs && node scripts/verify-pipeline.mjs && node scripts/verify-autorun.mjs && node scripts/verify-cards.mjs && node scripts/verify-review.mjs && node scripts/verify-session.mjs && node scripts/verify-priority.mjs && node scripts/verify-edges.mjs && node scripts/verify-breakdown.mjs && node scripts/verify-fullstorage.mjs && node scripts/verify-cleanup.mjs && node scripts/verify-decks.mjs",
-    "test:studyos": "node scripts/test-store.mjs && node scripts/test-pipeline.mjs && node scripts/test-prompts.mjs && node scripts/test-fsrs.mjs && node scripts/test-cards.mjs && node scripts/test-deck.mjs && node scripts/test-sessions.mjs && node scripts/test-md.mjs && node scripts/test-ai.mjs && node scripts/test-breakdown.mjs && node scripts/test-migrate.mjs && node scripts/test-d2l-ics.mjs && node scripts/test-d2l-client.mjs && node scripts/test-files-worker.mjs && node scripts/test-sync-setup.mjs",
+    "test:studyos": "node scripts/test-store.mjs && node scripts/test-pipeline.mjs && node scripts/test-prompts.mjs && node scripts/test-fsrs.mjs && node scripts/test-cards.mjs && node scripts/test-deck.mjs && node scripts/test-sessions.mjs && node scripts/test-md.mjs && node scripts/test-ai.mjs && node scripts/test-breakdown.mjs && node scripts/test-lesson-v2.mjs && node scripts/test-migrate.mjs && node scripts/test-d2l-ics.mjs && node scripts/test-d2l-client.mjs && node scripts/test-files-worker.mjs && node scripts/test-sync-setup.mjs",
     "test:d2l:client": "node scripts/test-d2l-client.mjs",
     "desktop:dev": "cd TradeBoard/desktop/src-tauri && cargo run",
     "desktop:build": "cd TradeBoard/desktop/src-tauri && cargo build --release",
@@ -43,7 +43,8 @@
     "studyos:dev": "cd StudyOS/desktop && cargo run",
     "studyos:build": "cd StudyOS/desktop && cargo build --release",
     "studyos:bundle": "cd StudyOS/desktop/src-tauri && cargo tauri build",
-    "studyos:test": "cd StudyOS/desktop && cargo test"
+    "studyos:test": "cd StudyOS/desktop && cargo test",
+    "test:lesson-v2": "node scripts/test-lesson-v2.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.114.0"
