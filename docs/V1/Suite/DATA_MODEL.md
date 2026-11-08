@@ -415,6 +415,48 @@ Brave).
     (`pdfSent` false; `checks.pdfMissed` counts such lessons). Gap asks stay
     text: their missing lines are verbatim in the prompt.
 
+### v2 lessons — `topic.lesson.version === 2` (added 2026-11-08)
+
+New lessons are written as typed steps with diagrams as DATA, drawn by
+StudyOS (`diagram.js`), never SVG from the model. A lesson with no `version`
+is v1 (`{blocks}`) and renders exactly as before. Code: `lesson-v2.js`
+(schema, prompt, validator, lint), `lesson-v2-ui.js` (steps, checks,
+walkthrough, cheat sheet), `diagram.js`, `highlight.js`.
+
+```
+lesson: { version: 2, title, summary, whyItMatters, prerequisites: [], estMinutes,
+  runningExample?: Diagram,
+  steps: [{ type: 'hook'|'concept'|'diagram'|'code'|'walkthrough'|'compare'|'check'|'trap'|'practice'|'recap'|'figure',
+            heading, body?, diagram?, code?: {language, source, annotations?: [{line, note, highlight?}]},
+            callouts?: [{kind: 'key'|'trap'|'analogy'|'exam'|'tip', text}],
+            check?: {format: 'mcq'|'short'|'predict-output'|'order'|'fill-blank', prompt, options?, answer, explanation, diagram?},
+            compare?: {left: Panel, right: Panel}, takeaways?: [], page? }],
+  cheatSheet: { diagram?, bullets: [], code?, complexities?: [{op, best, avg, worst}] } }
+Diagram: { id, kind: tree|linkedlist|array|nodebox|stack|queue|table|flow|timeline, caption?,
+           highlight?, dim?, labels?, frames?: [{highlight, labels, note, patch?}], ...kind fields }
+topic: + needsReview?, lint?: [note], upgradeError?
+progress: + checks: { [stepIndex]: true|false }, wrong: [{ b: stepIndex, q: 0 }]
+```
+
+- **Wire vs stored.** The model gets a flat, strict-mode JSON schema
+  (`LESSON_V2_SCHEMA`: every field present, unused ones empty, diagram kind
+  `"none"`). `validateLessonV2` drops empty fields, ids that point nowhere,
+  non-binary trees, MCQ answers that are not an option, and fills an empty
+  diagram from `runningExample`.
+- **Lint + repair (§6).** `lintLessonV2` checks the rules: hook first, recap
+  last, body over 80 words (flagged), over 120 (re-ask), no two text-only
+  steps in a row, one check per 3 steps. Up to 2 fix asks without the source.
+  The best version is kept; if one still breaks a rule it is `needsReview`.
+- **The checks against the PDF still run** on `asBlocks(lesson)`: sanity,
+  15% recall, and the gap pass (which adds v2 steps before the recap).
+- **Previous versions** (last 2 per topic) live in `studyos_lessons_prev/{fileId}`
+  (IndexedDB key `prev:<fileId>`), not in the topics doc.
+- **Cards.** A v2 lesson's flashcards go through `filterCards` as before.
+  An upgrade from v1 appends with `deck.addCards`, skipping fronts the topic
+  already has, so v1 cards are kept. A wrong check answer (or Reveal) adds a
+  card. "Add all" on the recap adds a cloze card per takeaway.
+- `bd.setLessonFormat('v1')` brings back the v1 writer (the tests pin both).
+
 ### `FileEntry.study` — `{ status, done, total, updatedAt }`
 
 The row's summary ("Topics · 12"), so a file list never loads lessons. Plain
