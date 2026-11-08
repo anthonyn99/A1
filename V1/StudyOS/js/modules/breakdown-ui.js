@@ -348,6 +348,7 @@ async function renderPanel(panel, cls, mod, f) {
           </div>
           ${ok ? `<div class="bd-boxes">
             <button class="bd-box" data-lesson="${esc(t.id)}" title="${gaps ? `${gaps} line${gaps === 1 ? '' : 's'} of the document not fully taught — shown at the end of the lesson` : 'Open the lesson'}">Lesson</button>
+            ${isV2(t.lesson) ? `<button class="bd-box" data-sheet="${esc(t.id)}" title="The topic on one screen: diagram, key points, code, Big-O">Sheet</button>` : ''}
             <button class="bd-box" data-cards="${esc(t.id)}" ${tc.active ? '' : 'disabled'} title="${tc.active ? `Study this topic’s cards · ${tc.mastery}% mastered` : 'No cards in your reviews yet'}">${ring(tc.mastery)}Flashcards${tc.due ? '<span class="bd-dot" aria-label="cards due"></span>' : ''}</button>
             ${tc.suggested ? `<button class="bd-box bd-sugg" data-triage="${esc(t.id)}" title="${tc.suggested} suggested card${tc.suggested === 1 ? '' : 's'} held back — add the ones you want">+</button>` : ''}
           </div>` : `<div class="bd-badge${t.status === 'failed' ? ' fail' : ''}">${esc(badge)}</div>`}
@@ -371,6 +372,10 @@ async function renderPanel(panel, cls, mod, f) {
     row.addEventListener('click', (e) => { if (!e.target.closest('button')) open(); });
     row.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
   });
+  panel.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.SOS && window.SOS.lessonUi && window.SOS.lessonUi.open(f.id, b.dataset.sheet, { sheet: true });
+  }));
   panel.querySelectorAll('[data-lesson]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     window.SOS && window.SOS.lessonUi && window.SOS.lessonUi.open(f.id, b.dataset.lesson);

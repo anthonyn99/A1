@@ -878,6 +878,10 @@ console.log('\nv2 lessons');
   t('v2 rows show ~N min · X steps · ✓ score', list && list.metas.some((m) => /~6 min · 9 steps · ✓ 2\/2/.test(m)), list);
   t('"Upgrade all lessons" is offered (a v1 topic remains)', list && list.up, list);
   t('"Print cheat sheets" is offered', list && list.sheets, list);
+  await evalJs(`(function(){ var b = document.querySelector('[data-bd-panel="${V}"] [data-sheet="t2"]'); if (b) b.click(); })(); true;`);
+  await wait(400);
+  s = await read();
+  t('a v2 row\'s Sheet button opens its cheat sheet', s.type === 'Cheat sheet' && /Missing child = null/.test(s.text), s);
 
   // Screenshots for a look: scratch dir from the env, never the repo.
   const dir = process.env.SOS_SHOTS;

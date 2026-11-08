@@ -166,11 +166,11 @@ export async function open(fileId, topicId, opts = {}) {
     blocks.forEach((b, k) => { if ((b.kind === 'figure' || b.type === 'figure') && b.page && b.page <= opts.page) at = k; });
     if (at >= 0) resumeAt = at;
   }
-  const pre = opts.block != null || opts.page != null ? [] : preScreens(topic);
+  const pre = opts.block != null || opts.page != null || opts.sheet ? [] : preScreens(topic);
   // A retry starts the sitting; a warm-up only ever shows on a first open.
   const screen = pre.length ? 0 : resumeAt;
   S = { fileId, topicId, screen, answers: {}, checked: {}, shown: {}, orig: {}, pre: pre.length, preScreens: pre,
-    openedAt: Date.now(), logged: false };
+    openedAt: Date.now(), logged: false, sheet: !!opts.sheet && v2.isV2(topic.lesson) };
   if (v2.isV2(topic.lesson)) S.v = v2ui.newState();
   prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => (b.kind === 'figure' || b.type === 'figure') && b.page === n && !b.svg)));
   // A topic is opened from the list inside the module popup. Switching views
