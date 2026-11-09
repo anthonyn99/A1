@@ -155,7 +155,7 @@ const FAR = key(far);
   await js(`window.__r=null; _thNeo.ask('undo').then(function(r){window.__r=r;}); 1`);
   await until('window.__r', 5000); await sleep(500);
   const undoLine = await js(`return document.querySelector('#th-neo-hud .tn-say').textContent.trim();`);
-  ok('"undo" names what it took away', /^Undone: removed /.test(undoLine) && /×|\+\d+ more|Gym|Read 20 pages/.test(undoLine), undoLine);
+  ok('"undo" names what it took away', /^Undone: removed /.test(undoLine) && /Stretch/.test(undoLine), undoLine);
   ok('…and it really did', await js(`return !(_thVoice.getState().data[${JSON.stringify(TODAY)}]||[]).some(function(x){return x.title==='Stretch';});`));
 
   console.log('\nhis bridge');
