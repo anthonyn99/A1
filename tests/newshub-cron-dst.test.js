@@ -1,6 +1,7 @@
 // newshub's morning pre-warm begins at 6 AM Mountain all year (2026-11-02). A UTC
 // cron cannot follow daylight saving, so the one trigger fires at 12:00 AND 13:00
-// UTC and scheduled() builds only on the run that is 6 AM in America/Denver.
+// UTC (and at :10 and :20 of each, one build per tick) and scheduled() builds
+// only on the runs that are 6 AM in America/Denver.
 // Until then it was 12:00 UTC alone: 6 AM in summer but 5 AM all winter.
 //
 // The real isCronBuildHour is lifted out of worker.js and run over every day of
@@ -26,7 +27,7 @@ ok('worker.js defines isCronBuildHour', !!m);
 const isCronBuildHour = m && new Function(m[0] + '\nreturn isCronBuildHour;')();
 
 console.log('\nThe trigger');
-ok('wrangler.toml fires at 12:00 and 13:00 UTC from ONE cron expression', /^crons = \["0 12,13 \* \* \*"\]$/m.test(TOML), (TOML.match(/^crons.*$/m) || [])[0]);
+ok('wrangler.toml fires at :00, :10 and :20 of 12:00 and 13:00 UTC from ONE cron expression', /^crons = \["0,10,20 12,13 \* \* \*"\]$/m.test(TOML), (TOML.match(/^crons.*$/m) || [])[0]);
 const sched = SRC.slice(SRC.indexOf('async scheduled(event, env, ctx){'));
 ok('scheduled() returns before any work unless it is the 6 AM run', /^async scheduled\(event, env, ctx\)\{\n(\s*\/\/.*\n)*\s*if \(!isCronBuildHour\(event\.scheduledTime\)\) return;/.test(sched));
 
@@ -47,7 +48,26 @@ if (isCronBuildHour) {
     if (n !== 1) bad.push(d + ':' + n);
   }
   ok('every day of 2026 and 2027 builds exactly once', bad.length === 0, bad.slice(0, 5).join(' '));
+  ok('the :10 and :20 ticks fall in the same 6 AM hour', at('2026-11-02T13:10:00Z') && at('2026-11-02T13:20:00Z') && !at('2026-11-02T12:20:00Z'));
 }
+
+// 2026-11-09: news and the calendar shared one invocation's 50 subrequests, so the
+// calendar starved every morning and a raw news build had nothing left to retry
+// with. Each tick is now its own invocation, one build apiece.
+console.log('
+One build per tick');
+ok(':00 runs the news build alone', /if \(minute < 10\)\{ await cronPrewarmNews\(env, ctx\); return; \}/.test(sched));
+ok(':10 runs the raw-build retry alone', /if \(minute < 20\)\{ await cronRetryNews\(env, ctx\)[^
+]*return; \}/.test(sched));
+ok('the calendar no longer runs in the news invocation', !/cronPrewarmNews\(env, ctx\);\s*
+[\s\S]{0,400}prewarmCalendar/.test(sched.slice(0, 2500)));
+const retry = (SRC.match(/
+async function cronRetryNews\(env, ctx\)\{[\s\S]*?
+\}
+/) || [''])[0];
+ok('cronRetryNews skips a healthy 06:00 build', /if \(!last\.error && !last\.degraded && \(last\.events \|\| 0\) > 0\) return;/.test(retry));
+ok('cronRetryNews never retries a retry', /last\.retry/.test(retry));
+ok('cronRetryNews skips when someone already rebuilt it', /already rebuilt/.test(retry));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

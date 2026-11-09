@@ -14,7 +14,11 @@ compatibility_date = "2025-06-01"
 # run that lands on 6 AM in America/Denver: 12:00 UTC in daylight time (MDT),
 # 13:00 UTC in standard time (MST). The other run returns at once: no fetch, no
 # KV write. (Until 2026-11-02 it was 12:00 UTC alone, i.e. 5 AM all winter.)
-# Fires every day, and scheduled() pre-warms BOTH News and Catalysts on every run
+# It fires at :00, :10 and :20 of those hours, still ONE expression, and each tick
+# is its own invocation with its own 50 subrequests (2026-11-09; before, news and
+# Catalysts shared one run's 50 and Catalysts starved every morning):
+#   06:00 news, 06:10 news again only if 06:00 came back raw, 06:20 Catalysts.
+# Fires every day, and scheduled() pre-warms BOTH News and Catalysts each morning
 # (Mon-Sun, not holiday-gated): world/company news doesn't stop on market holidays,
 # and the forward earnings/macro dates shift daily while the client only ever shows
 # the forward 30-day window. Catalysts is warmed daily so that opening TradeHub any

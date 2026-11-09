@@ -4297,8 +4297,9 @@ export default {
   // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
   // staggered hours so they don't get exhausted.
   async scheduled(event, env, ctx){
-    // Fires at 12:00 AND 13:00 UTC; only the run at 6 AM Mountain builds (see
-    // isCronBuildHour and wrangler.toml), so builds begin at 06:00 MST or MDT.
+    // Fires at :00, :10 and :20 of 12:00 AND 13:00 UTC; only the runs in the 6 AM
+    // Mountain hour build (see isCronBuildHour and wrangler.toml), so builds begin
+    // at 06:00 MST or MDT.
     if (!isCronBuildHour(event.scheduledTime)) return;
     // Both pre-warms run EVERY day (Mon-Sun), not day/holiday-gated: world/company
     // news doesn't stop on weekends, and forward earnings/macro dates shift daily
