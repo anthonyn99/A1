@@ -791,7 +791,10 @@
   function hideSoon(ms) {
     clearTimeout(hideTimer);
     var wait = Math.max(ms || 0, S.holdUntil - Date.now());
-    hideTimer = setTimeout(function () { if (S.mode === 'wake' || S.mode === 'off' || S.mode === 'note') hudShow(false); }, wait);
+    hideTimer = setTimeout(function () {
+      if (POP) { hideSoon(800); return; }   // Details is open: he's reading (Tony, 2026-11-09). Wait for him to close it.
+      if (S.mode === 'wake' || S.mode === 'off' || S.mode === 'note') hudShow(false);
+    }, wait);
   }
   function hudMode(m) {
     var h = ensureHud(); if (!h) return;
@@ -801,7 +804,7 @@
       hudShow(true);
     }
     if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('heard'); S.turn = null; }
-    if (m === 'capture' || m === 'thinking') { h.el.classList.remove('tn-said'); h.say.innerHTML = ''; h.say.classList.remove('ovf'); h.cards.innerHTML = ''; refreshMore(); closePop(); }
+    if (m === 'capture' || m === 'thinking') { h.el.classList.remove('tn-said'); h.say.innerHTML = ''; h.say.classList.remove('ovf'); h.cards.innerHTML = ''; refreshMore(); }
     if (m === 'wake') hideSoon(900);
     if (m === 'off') { S.holdUntil = 0; hideSoon(0); }
   }
@@ -818,6 +821,7 @@
     var h = ensureHud(); if (!h) return;
     h.you.textContent = text || ''; h.you.classList.toggle('heard', !!heard);
     if (S.turn) S.turn.you = text || '';
+    refreshPop();
   }
   // Floating: the cards themselves. Docked: they live behind the details button.
   function hudCards(cards) {
@@ -838,6 +842,7 @@
   // the reply is longer than the slot.
   function refreshMore() {
     var h = H; if (!h) return;
+    refreshPop();
     if (S.pending && h.el.classList.contains('tn-dock')) { h.more.hidden = false; h.more.innerHTML = 'Yes / No'; h.more.title = 'Answer'; return; }
     var t = S.turn, cards = (t && t.cards) || [], ok = cards.filter(function (c) { return !c.bad; }).length, bad = cards.length - ok;
     var long = h.say.scrollHeight > h.say.clientHeight + 2 || h.you.scrollHeight > h.you.clientHeight + 2;
@@ -874,10 +879,11 @@
     var top = (below + ph <= vh - 8 || above < 8) ? below : above;
     POP.style.left = left + 'px'; POP.style.top = Math.max(8, top) + 'px';
   }
-  function togglePop() {
-    if (POP) { closePop(); return; }
-    var t = S.turn; if (!t || !H) return;
-    var p = document.createElement('div'); p.className = 'tn-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Neo — details');
+  // Details stays open until HE closes it (✕ on the HUD, the button again, a
+  // click elsewhere, Escape). Neo moving on (a new turn, the HUD's timer, a
+  // mode change) only updates what it shows.
+  var popTurn = null;
+  function popHtml(t) {
     var html = '';
     if (t.you) html += '<section><h4>You</h4><p class="you">' + esc(t.you) + '</p></section>';
     if (t.shown) html += '<section><h4>Neo</h4><p>' + esc(t.shown) + '</p></section>';
@@ -885,7 +891,19 @@
       return '<li' + (c.bad ? ' class="bad"' : '') + '><i>' + esc(c.icon) + '</i><b>' + esc(c.label) + '</b><span>' + esc(c.detail || '') + '</span></li>';
     }).join('') + '</ul></section>';
     if (t.truncated) html += '<section><p class="note">A long request: check the last items landed.</p></section>';
-    p.innerHTML = html;
+    return html;
+  }
+  function refreshPop() {
+    if (!POP || POP.getAttribute('data-kind') !== 'details') return;
+    var t = S.turn; if (!t || (!t.you && !t.shown && !(t.cards && t.cards.length))) return;   // between turns: keep the last one up
+    var html = popHtml(t);
+    if (t !== popTurn || POP.innerHTML !== html) { popTurn = t; var top = POP.scrollTop; POP.innerHTML = html; POP.scrollTop = top; placePop(); }
+  }
+  function togglePop() {
+    if (POP) { closePop(); return; }
+    var t = S.turn; if (!t || !H) return;
+    var p = document.createElement('div'); p.className = 'tn-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Neo — details'); p.setAttribute('data-kind', 'details');
+    popTurn = t; p.innerHTML = popHtml(t);
     document.body.appendChild(p); POP = p;
     placePop(); requestAnimationFrame(function () { p.classList.add('on'); });
     H.more.setAttribute('aria-expanded', 'true');
@@ -1481,6 +1499,7 @@
   function respond(spoken, shown, thenFollow) {
     shown = shown || spoken;
     if (S.turn) S.turn.shown = shown;
+    refreshPop();
     if (S.typed && !SET.speakTyped) { display(shown); return; }
     speak(spoken, thenFollow, shown);
   }
@@ -2160,7 +2179,7 @@
     if (asking || S.mode === 'thinking') return { ok: false, error: 'busy' };
     asking = true;
     try {
-      stopVoice(); closePop();
+      stopVoice();
       if (S.mode === 'capture') { S.chunks = []; S.vad = null; stopCaptions(); }
       S.typed = true;
       S.turn = { you: text, shown: '', cards: [] };
