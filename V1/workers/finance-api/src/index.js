@@ -580,12 +580,20 @@ export default {
     // no cron of its own (the account is at the free plan's 5-trigger limit),
     // so this existing daily run kicks it. Independent of the sync above: a
     // failure here is logged and never affects finance data.
+    // A build that comes back raw (no AI scoring), empty or errored gets ONE
+    // more try, 8 minutes later, as a separate request: a new tradeboard-news
+    // invocation with its own 50 subrequests (the old in-invocation retry ran
+    // out of them). Cron runs get ~15 min of wall clock; the wait is not CPU.
     if (env.TB_NEWS && env.TB_NEWS_PREWARM_KEY) {
-      ctx.waitUntil(
-        env.TB_NEWS.fetch("https://tradeboard-news/prewarm", { headers: { "X-Prewarm-Key": env.TB_NEWS_PREWARM_KEY } })
-          .then(r => r.text().then(t => console.log("news prewarm:", r.status, t.slice(0, 200))))
-          .catch(e => console.log("news prewarm failed:", e && e.message))
-      );
+      const prewarm = (q) => env.TB_NEWS.fetch("https://tradeboard-news/prewarm" + q, { headers: { "X-Prewarm-Key": env.TB_NEWS_PREWARM_KEY } })
+        .then(r => r.text().then(t => { console.log("news prewarm" + q + ":", r.status, t.slice(0, 200)); try { return JSON.parse(t); } catch (e) { return null; } }));
+      ctx.waitUntil((async () => {
+        const first = await prewarm("").catch(e => { console.log("news prewarm failed:", e && e.message); return null; });
+        const last = first && first.last;
+        if (last && !last.error && !last.degraded && last.events > 0) return;
+        await new Promise(r => setTimeout(r, 8 * 60 * 1000));
+        await prewarm("?retry=1").catch(e => console.log("news prewarm retry failed:", e && e.message));
+      })());
     }
   },
 };
