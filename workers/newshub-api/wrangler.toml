@@ -21,7 +21,7 @@ compatibility_date = "2025-06-01"
 # morning at/after 6 finds the full calendar — earnings dates included — already
 # built, with nothing left for the browser to do but publish it to Firebase.
 [triggers]
-crons = ["0 12,13 * * *"]
+crons = ["0,10,20 12,13 * * *"]
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"

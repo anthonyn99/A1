@@ -1691,7 +1691,7 @@ const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
 // While the lock is held, /calendar answers 202 "building" (or a STALE hit) and the
 // client polls / retries on its next tick instead of competing. Auto-expires, so a
 // cron that dies mid-flight can't wedge the endpoint.
-const CAL_CRON_LOCK_TTL = 600;      // 10 min — comfortably covers news + calendar + retry
+const CAL_CRON_LOCK_TTL = 600;      // 10 min — covers the 06:20 calendar build + its one retry
 const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
 // Grounded-search calendar. gemini-3.5-flash is a thinking model that 429s (low
 // grounding quota) or lets thinking eat the small output budget → empty, so it is
@@ -4525,6 +4525,8 @@ export default {
       // an error). Kept 7 days.
       try { const cr = await env.NEWSHUB_CACHE.get('cron:lastrun');  out.cronLastRun  = cr ? JSON.parse(cr) : null; } catch(e){ out.cronLastRun  = 'err'; }
       try { const cn = await env.NEWSHUB_CACHE.get('cron:lastnews'); out.cronLastNews = cn ? JSON.parse(cn) : null; } catch(e){ out.cronLastNews = 'err'; }
+      try { const ca = await env.NEWSHUB_CACHE.get('cron:lastai'); out.cronLastAI = ca ? JSON.parse(ca) : null; } catch(e){ out.cronLastAI = 'err'; }
+      try { const cr = await env.NEWSHUB_CACHE.get('cron:lastai:retry'); out.cronRetryAI = cr ? JSON.parse(cr) : null; } catch(e){ out.cronRetryAI = 'err'; }
       // List every cached events:* key + size, so a cacheKey mismatch (build wrote
       // one key, client reads another) is immediately visible.
       try {
