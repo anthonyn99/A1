@@ -146,7 +146,7 @@ const FAR = key(far);
   await until('window.__r', 6000);
   ok('a new turn updates the open details instead of closing them', await until(`document.querySelector('.tn-pop.on') && /Stretch/.test(document.querySelector('.tn-pop').textContent)`, 3000));
   await sleep(16000);
-  ok('…and they (and Neo's bar) stay up until he closes them', await js(`return !!document.querySelector('.tn-pop.on') && document.getElementById('th-neo-hud').classList.contains('show');`));
+  ok('…and they (and the Neo bar) stay up until he closes them', await js(`return !!document.querySelector('.tn-pop.on') && document.getElementById('th-neo-hud').classList.contains('show');`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
   ok('Escape closes them', await until(`!document.querySelector('.tn-pop')`, 1500));
 
