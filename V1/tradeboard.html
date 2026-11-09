@@ -1236,6 +1236,23 @@
   }
   .lock-now-btn:hover { border-color: var(--accent); color: var(--text); }
   .lock-now-btn svg { width: 15px; height: 15px; stroke: currentColor; }
+  .lock-now-btn.dm-on { border-color: var(--accent); color: var(--text); }
+
+  /* ══ Display mode (TradeHub's, 2026-11-09) ══
+     The eye button left of the lock blurs her personal figures on Portfolio and
+     Journal (balances, P&L, values, share counts, entry/exit and average prices,
+     returns, journal stats) so TradeBoard can be shown to someone. Live market
+     prices (Last, the stock's Day %) stay readable. Pure CSS on html.tb-privacy,
+     so nothing re-renders; remembered per device (tradeboard_display_mode). */
+  html.tb-privacy :is(
+    #pf-hero .v, #pf-hero > div:nth-child(4) .s, #pf-details .v,
+    .tbt-pos :is(td:nth-child(2), td:nth-child(3), td:nth-child(5), td:nth-child(6)),
+    .pf-m .m-card-val, .pf-m .m-card-facts span:nth-child(-n+2) b,
+    #pf-tab-host .tbt:not(.tbt-pos) td.r, #pf-tab-host .tb-act-tile b, #pf-tab-host .tb-act-row b,
+    #jr-stats .t-val, #jr-curve-meta > span, .tb-eq-tbl td.r, .tb-eq-foot b,
+    #jr-body :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9)),
+    #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b
+  ) { filter: blur(.34em); user-select: none; -webkit-user-select: none; }
 
   /* ══ App Lock overlay (Worker-KV password gate; mirrors TradeHub) ══ */
   #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(6,6,10,0.9);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;font-family:var(--sans),system-ui,sans-serif;}
@@ -1519,6 +1536,9 @@
     <span class="live-pill idle" id="live-pill" title="Local-only. Serve via wb_server.py to auto-sync from Webull.">
       <span class="live-dot"></span><span id="live-text">local</span>
     </span>
+    <button class="lock-now-btn" id="tb-display-btn" type="button" aria-pressed="false" aria-label="Display mode"
+            title="Display mode — blurs your balances, P&amp;L, values, share counts, prices you paid and journal stats on Portfolio and Journal, so you can show TradeBoard to someone."
+            onclick="TBDisplay.set(!TBDisplay.on())"></button>
     <button class="lock-now-btn" id="lock-now-btn" title="Lock TradeBoard / manage password"
             onclick="window._tbManageLock && window._tbManageLock()">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
