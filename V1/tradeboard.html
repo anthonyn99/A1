@@ -1453,6 +1453,33 @@
 .nh-held{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-hover);background:var(--accent-light);border:1px solid var(--accent);border-radius:5px;padding:0 6px;}
 @media (max-width:767px){.nh-mkt-t{grid-template-columns:1fr;grid-template-rows:auto;row-gap:2px;}.nh-mkt-t .d{text-align:left;}.nh-mkt-t .nh-spark{justify-self:start;}}
 </style>
+<script>
+/* Display mode (see the CSS block "Display mode"). Applied here, before the
+   page paints, so a device that left it on never flashes the real figures. */
+window.TBDisplay = (function () {
+  var KEY = 'tradeboard_display_mode', root = document.documentElement;
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.2"/><path d="M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="m2 2 20 20"/></svg>';
+  function on() { return root.classList.contains('tb-privacy'); }
+  function paint() {
+    var b = document.getElementById('tb-display-btn'); if (!b) return;
+    var o = on();
+    b.innerHTML = o ? EYE_OFF : EYE;
+    b.classList.toggle('dm-on', o);
+    b.setAttribute('aria-pressed', o ? 'true' : 'false');
+    b.title = o ? 'Display mode is on — click to show your real figures'
+      : 'Display mode — blurs your balances, P&L, values, share counts, prices you paid and journal stats on Portfolio and Journal, so you can show TradeBoard to someone.';
+  }
+  function set(v) {
+    root.classList.toggle('tb-privacy', !!v);
+    try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) {}
+    paint();
+  }
+  try { if (localStorage.getItem(KEY) === '1') root.classList.add('tb-privacy'); } catch (e) {}
+  document.addEventListener('DOMContentLoaded', paint);
+  return { on: on, set: set, paint: paint };
+})();
+</script>
 </head>
 <body>
 
