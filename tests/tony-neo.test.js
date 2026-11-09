@@ -84,11 +84,13 @@ function makePage(opts) {
     t('on Veda\'s side the mic is never opened, his switch on or not', pg.counts.mic === 0);
     pg.ctx._activeProfile = null; pg.T.sync();
     t('on the profile picker the mic is never opened', pg.counts.mic === 0);
-    pg.ctx._activeProfile = 'tony'; pg.T.sync();
+    pg.ctx._activeProfile = 'tony'; pg.T.sync(); await sleep(20);
     t('on his side, with his switch on, it listens', pg.counts.mic === 1);
     pg.N.setOn(false);
     t('switching it off clears HIS preference only', !('th_neo_on' in pg.store) && pg.store.vd_neo_on === '1');
-    t('Talk works with the switch off: the mic opens at once (no wake phrase)', pg.N.talk() === true && pg.T.state.talk === true && pg.counts.mic === 2);
+    pg.T.state.starting = false;
+    const talked = pg.N.talk(); await sleep(20);
+    t('Talk works with the switch off: the mic opens at once (no wake phrase)', talked === true && pg.T.state.talk === true && pg.counts.mic === 2, pg.counts.mic);
     pg.T.state.starting = false; pg.T.state.talk = false;
     pg.ctx._activeProfile = 'veda';
     t('Talk and Type do nothing off his side', pg.N.talk() === false && pg.N.openAsk() === false);
@@ -246,7 +248,7 @@ function makePage(opts) {
     const hdr = html.slice(hs, he);
     t('his header: Talk → _thNeo.talk, Type → _thNeo.openAsk, NEO → _thNeo.toggle', hs > 0 && /onClick:\(\)=>window\._thNeo&&window\._thNeo\.talk\(\)/.test(hdr) && /onClick:\(\)=>window\._thNeo&&window\._thNeo\.openAsk\(\)/.test(hdr) && /onClick:\(\)=>window\._thNeo&&window\._thNeo\.toggle\(\)/.test(hdr));
     t('…and no device button, no old recorder, nothing of Veda\'s Neo', !/vx-dev|toggleVoice|openDevicePicker|_vdNeo|vd-neo-btn|vxRec/.test(hdr));
-    t('the old recorder state is gone from his App', !/const\[vxRec,setVxRec\]/.test(html.slice(0, html.indexOf('window._vdVoice={profile:"veda"'))));
+    t('the old recorder state is gone from his App', !/const\[vxRec,setVxRec\]/.test(html.slice(0, html.indexOf('window._thVoice={profile:"tony"'))));
     const b0 = html.indexOf('window._thVoice={profile:"tony"'), b1 = html.indexOf('canRedo:', b0);
     const tb = html.slice(b0, b1);
     t('his bridge uses HIS Neo\'s ops (_thNeoOps, _thNeoLaunch, _thNeoClose, _thNeoCloseAll), never Veda\'s', /window\._thNeoOps/.test(tb) && /window\._thNeoLaunch/.test(tb) && /window\._thNeoCloseAll/.test(tb) && !/_vdNeo/.test(tb));
