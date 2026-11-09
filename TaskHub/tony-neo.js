@@ -836,6 +836,7 @@
   // the reply is longer than the slot.
   function refreshMore() {
     var h = H; if (!h) return;
+    if (S.pending && h.el.classList.contains('tn-dock')) { h.more.hidden = false; h.more.innerHTML = 'Yes / No'; h.more.title = 'Answer'; return; }
     var t = S.turn, cards = (t && t.cards) || [], ok = cards.filter(function (c) { return !c.bad; }).length, bad = cards.length - ok;
     var long = h.say.scrollHeight > h.say.clientHeight + 2 || h.you.scrollHeight > h.you.clientHeight + 2;
     if (!t || (!cards.length && !long && !t.truncated)) { h.more.hidden = true; h.more.innerHTML = ''; return; }
