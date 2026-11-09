@@ -61,6 +61,16 @@ on:
         required: false
         default: ""
 
+# One deploy at a time. Auto-commit pushes every save, and each push used to
+# start its own full deploy of every worker on top of the last: on 2026-11-09
+# eight runs began within four minutes and the overlapping uploads to the same
+# scripts failed (studyos-api, studyos-files, site, tradeboard-news) in every
+# one of them. Queued, not cancelled: GitHub keeps only the newest waiting run,
+# so the latest commit always deploys.
+concurrency:
+  group: deploy-v1-workers
+  cancel-in-progress: false
+
 jobs:
   # ── 0. Skip cleanly when the V1 credentials are not configured yet ────────
   # A missing secret would otherwise surface as an opaque wrangler auth error
