@@ -1250,7 +1250,8 @@
     .pf-m .m-card-val, .pf-m .m-card-facts span:nth-child(-n+2) b,
     #pf-tab-host .tbt:not(.tbt-pos) td.r, #pf-tab-host .tb-act-tile b, #pf-tab-host .tb-act-row b,
     #jr-stats .t-val, #jr-curve-meta > span, .tb-eq-tbl td.r, .tb-eq-foot b,
-    #jr-body :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9)),
+    #jr-body :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8)),
+    #jr-body td:nth-child(9) > span:not(.badge-open),
     #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b
   ) { filter: blur(.34em); user-select: none; -webkit-user-select: none; }
 
