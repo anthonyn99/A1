@@ -67,7 +67,10 @@ const BOOT = `(function(){
   await c.send('Page.navigate', { url: URL_ });
   if (!(await until("document.querySelector('.tb-navtab') && window._fbReady", 20000))) throw new Error('TradeHub did not render');
   await sleep(2500);
-  await js(`window.__syncErr=[]; 1`);
+  // The morning news watcher is still polling this fake worker's empty build, and
+  // a running job rightly keeps Firestore awake (_tbJobs.holdFirestore). End it,
+  // so the teardown under test is the only thing in play.
+  await js(`Object.keys(window._tbJobs.active).forEach(function(k){ window._tbJobs.set(k,''); }); window.__syncErr=[]; 1`);
 
   console.log('\nA timer saves while Firestore is asleep');
   await hide(true);
