@@ -2691,7 +2691,7 @@ TB.pf = {
     if (bp != null && cash != null && (bp <= 0 || (totalVal > 0 && bp > totalVal * 4 + 0.01))) bp = cash;
     const dayPnL = acct.day_pnl != null ? num(acct.day_pnl) : null;
     const dayPct = acct.day_pnl_pct != null ? num(acct.day_pnl_pct) : (dayPnL && totalVal > 0 ? dayPnL / (totalVal - dayPnL) * 100 : null);
-    const realized = acct.realized_pnl != null ? num(acct.realized_pnl) : TB.pf._realizedFromHistory(history);
+    const realized = acct.realized_pnl != null ? num(acct.realized_pnl) : TB.pf._realized(history);
     const pc = v => v > 0 ? "pos" : v < 0 ? "neg" : "";
 
     // meta line
@@ -2796,17 +2796,39 @@ TB.pf = {
       <tbody>${body}</tbody></table></div></div>`;
   },
   _d(v) { if (!v) return "—"; const d = new Date(v); return isNaN(d) ? U.esc(String(v)) : d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }); },
-  // FIFO realized P&L over the order history (Webull's balance has no realized figure).
+  // Realized P&L, last 30 days (Webull's balance has no realized figure).
+  // The Journal first: wb_sync.py builds its round trips from every fill since
+  // history_start, shorts included, each dated by its EXIT, so the sum of those
+  // closed in the window is the real figure. The 30-day order-history FIFO is
+  // only the fallback, and it used to drop SHORT fills, so every cover BUY
+  // became a phantom long lot that the next SELL "closed" at a made-up profit
+  // (TradeHub read +$180 for a real +$19 that way, 2026-11-09). Lots are
+  // signed now: + long, - short.
+  _realized(history) {
+    const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const closed = (TB.jr.trades || []).filter(t => !TB.jr.isOpen(t) && (t.date || "") >= from);
+    if (closed.length) return closed.reduce((s, t) => s + (TB.jr.pnl(t) || 0), 0);
+    return TB.pf._realizedFromHistory(history);
+  },
   _realizedFromHistory(history) {
     if (!history || !history.length) return 0;
     const fills = history.filter(h => /FILL/i.test(h.status || "FILLED") && Number(h.qty) > 0)
       .map(h => ({ sym: h.symbol, side: String(h.side || "").toUpperCase(), qty: Number(h.qty), px: Number(h.avg_price ?? h.price) || 0, fee: Number(h.fee) || 0, t: h.filled_at || h.placed_at || "" }))
+      .filter(f => /^(BUY|SELL|SHORT|SELL_SHORT)/.test(f.side))
       .sort((a, b) => String(a.t).localeCompare(String(b.t)));
     const lots = {}; let realized = 0, matched = false;
     fills.forEach(f => {
-      if (f.side === "BUY") { (lots[f.sym] = lots[f.sym] || []).push({ qty: f.qty, px: f.px }); realized -= f.fee; return; }
-      let rem = f.qty; const L = lots[f.sym] || [];
-      while (rem > 1e-9 && L.length) { const lot = L[0], m = Math.min(rem, lot.qty); realized += m * (f.px - lot.px); matched = true; lot.qty -= m; rem -= m; if (lot.qty <= 1e-9) L.shift(); }
+      const L = lots[f.sym] = lots[f.sym] || [];
+      const dir = f.side.startsWith("BUY") ? 1 : -1;   // SELL and SHORT both take shares away
+      let rem = f.qty;
+      while (rem > 1e-9 && L.length && Math.sign(L[0].qty) !== dir) {
+        const lot = L[0], m = Math.min(rem, Math.abs(lot.qty));
+        realized += m * (lot.qty > 0 ? f.px - lot.px : lot.px - f.px); matched = true;
+        lot.qty += lot.qty > 0 ? -m : m; rem -= m;
+        if (Math.abs(lot.qty) <= 1e-9) L.shift();
+      }
+      // A SELL with nothing to close was bought before the history: unknown basis, left out.
+      if (rem > 1e-9 && !(f.side === "SELL" && !L.length)) L.push({ qty: dir * rem, px: f.px });
       realized -= f.fee;
     });
     return matched ? realized : 0;
