@@ -36,7 +36,7 @@
   var FONTS = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap';
   var VOICE = 'en-GB-RyanNeural';
   var SCRIPT_URL = (document.currentScript && document.currentScript.src) ||
-    ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/veda-assistant.js');
+    ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/veda-neo.js');
 
   // Mauve, as hologram (Veda).
   var C_VEDA = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a',
@@ -71,7 +71,7 @@
   var ASK_MS = 16000;        // …longer when Neo has just asked her something
   var DEAF_MS = 700;         // …starting this long after Neo stops talking
 
-  // ══ pure helpers (tested in tests/veda-assistant.test.js) ══════════════════
+  // ══ pure helpers (tested in tests/veda-neo.test.js) ══════════════════
   // The wake phrase is "Hey Neo" (Veda's call, 2026-11-05): "hey" right before
   // "neo". A bare "neo" (or "okay neo") is heard but doesn't wake it.
   function isWake(text) {
