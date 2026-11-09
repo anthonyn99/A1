@@ -4144,18 +4144,44 @@ async function cronPrewarmNews(env, ctx, retry){
     // fetcher swallows it as []). That retry is what turned 2026-10-23's 6am build
     // into 5 articles / 0 analyzed, shown as "AI quota exhausted" — and it is the
     // likely cause of 2026-07-31's "0 events, twice" too. A degraded or empty cron
-    // build is rebuilt instead by TradeHub's morning check (tradehub.html, the
-    // morning-news slot block), which kicks one fresh=1 build in a NEW
-    // invocation with its own 50.
+    // build is rebuilt by the 06:10 cron tick (cronRetryNews), in a NEW
+    // invocation with its own 50, and failing that by TradeHub's morning check.
     await env.NEWSHUB_CACHE.put('cron:lastnews',
-      JSON.stringify({ at: Date.now(), events, articles, degraded, rich: useLimited }),
+      JSON.stringify({ at: Date.now(), events, articles, degraded, rich: useLimited, retry: !!retry }),
       { expirationTtl: 7*86400 }).catch(()=>{});
   } catch(e){
     console.error('Cron news failed:', e.message);
     await env.NEWSHUB_CACHE.put('cron:lastnews',
-      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200), retry: !!retry }),
       { expirationTtl: 7*86400 }).catch(()=>{});
   }
+  // stage:aistats is overwritten by every later build (a Force, an intraday
+  // refresh), so by the time anyone asks "why was the 6am build raw?" the answer
+  // is gone (2026-11-09). Keep the cron's own copy for the week.
+  try {
+    const ai = await env.NEWSHUB_CACHE.get('stage:aistats');
+    if (ai) await env.NEWSHUB_CACHE.put(retry ? 'cron:lastai:retry' : 'cron:lastai', ai, { expirationTtl: 7*86400 });
+  } catch(e){}
+}
+
+// 06:10 tick: rebuild the morning news if the 06:00 build came back raw, empty or
+// errored. Before this, nothing on the worker side retried it; a raw 6am build
+// stayed on screen until TradeHub was opened AND its morning check fired a
+// fresh build (2026-11-09: 6:00 build raw, every model healthy at 6:43). This runs
+// in its own cron invocation, so it has the full 50 subrequests the 06:00 run
+// had already spent. Skipped when someone has already rebuilt it since.
+async function cronRetryNews(env, ctx){
+  let last = null;
+  try { last = JSON.parse(await env.NEWSHUB_CACHE.get('cron:lastnews') || 'null'); } catch(e){}
+  if (!last || last.retry || Date.now() - (last.at || 0) > 30*60*1000) return; // no 06:00 build today, or already retried
+  if (!last.error && !last.degraded && (last.events || 0) > 0) return;          // 06:00 build was healthy
+  const { cacheKey } = await resolveCronWatchlist(env);
+  try {
+    const j = JSON.parse(await env.NEWSHUB_CACHE.get(cacheKey) || 'null');
+    if (j && !j.degraded && Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > (last.at || 0)) return; // already rebuilt
+  } catch(e){}
+  console.warn('[cron] 06:00 news build was raw/empty — rebuilding at 06:10');
+  await cronPrewarmNews(env, ctx, true);
 }
 
 // True when a cron run lands in the 6 AM hour in Mountain time. The cron fires
@@ -4294,23 +4320,28 @@ export default {
     // the news build fetched ZERO articles — twice, since the retry repeated the
     // identical failing configuration. Standalone builds of each, minutes apart on
     // the same data, came back healthy (56 news events; 22 earnings, 10 confirmed).
-    // Running them one after the other gives each build the full connection budget
-    // and keeps Finnhub under its per-minute cap. Cron invocations get ~15 min of
-    // wall clock; news (~90s) + calendar (~30s) fits with room to spare.
+    //
+    // ── ONE BUILD PER INVOCATION (2026-11-09). ─────────────────────────────────
+    // Running them one after the other still shared ONE invocation's 50
+    // subrequests: news spends ~44-48, so the calendar after it was starved every
+    // single morning (Cloudflare analytics: the 6am run used exactly 50, every day
+    // 11-02..11-09), and the news build had nothing left for a retry. So the cron
+    // expression fires at :00, :10 and :20 of the 6 AM hour, and each tick is its
+    // own invocation with its own 50:
+    //   06:00  news build
+    //   06:10  news rebuild, only if the 06:00 build came back raw/empty
+    //   06:20  Catalysts calendar, unless TradeHub already built a healthy one
+    // Ten minutes apart also keeps Finnhub's 60/min cap out of the picture.
+    const minute = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((async () => {
-      // Claim the calendar build lock UP FRONT, before news — see CAL_CRON_LOCK_TTL.
-      // Anyone opening TradeHub while this runs waits for the cron's build instead of
-      // launching a competing one into the same Finnhub minute.
-      const { wl: cronWl } = await resolveCronWatchlist(env).catch(() => ({ wl: null }));
-      const cronCalLock = cronWl ? `cal:lock:${wlHash(cronWl)}` : null;
-      if (cronCalLock) await env.NEWSHUB_CACHE.put(cronCalLock, '1', { expirationTtl: CAL_CRON_LOCK_TTL }).catch(()=>{});
-      await cronPrewarmNews(env, ctx);
-      // Breathe before the calendar. Finnhub's cap is 60 calls per MINUTE, and the
-      // two builds together ask for ~63 on a 31-ticker list — so back-to-back they
-      // can still collide inside one minute even though they no longer overlap.
-      // Wall time is free here (Workers bill CPU, and cron gets ~15 min), so this
-      // costs nothing and guarantees the calendar starts in a clean window.
-      await new Promise(r => setTimeout(r, 20000));
+      if (minute < 10){ await cronPrewarmNews(env, ctx); return; }
+      if (minute < 20){ await cronRetryNews(env, ctx).catch(e => console.error('Cron news retry failed:', e.message)); return; }
+      try {
+        const { wl } = await resolveCronWatchlist(env);
+        const calKey = `cal:v2:${wlHash(wl)}:${etDateStr(0)}:30`;
+        const j = JSON.parse(await env.NEWSHUB_CACHE.get(calKey) || 'null');
+        if (j && !j.degraded && Array.isArray(j.events) && j.events.length) return; // already built today
+      } catch(e){}
       await prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message));
     })());
   },
