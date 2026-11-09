@@ -170,12 +170,12 @@ const worker = {
   const card = `document.querySelector('#nh-host .nh-ev')`;
   ok('the top line: ticker, move, other tickers, time', await js(`var c=${card}; return c.querySelector('.nh-tk').textContent==='NVDA' && /4\\.10%/.test(c.querySelector('.nh-move').textContent) && /AMD/.test(c.querySelector('.nh-alt').textContent) && !!c.querySelector('.nh-ago');`));
   ok('Breaking on a fresh story, with its amber edge', await js(`var c=${card}; return !!c.querySelector('.nh-breaking') && /amber/.test(c.getAttribute('style'));`));
-  ok('the footer: tier, sentiment, type, sector pills and the outlets', await js(`var c=${card}; var p=[...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent.replace(/\\s+/g,' ').trim()); return p[0].indexOf('Critical')===0 && p[1].indexOf('Bullish')===0 && p[2]==='earnings' && p[3]==='Semiconductor' && c.querySelectorAll('.nh-src a').length===3;`),
-    await js(`var c=${card}; return [...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent).join('|') + ' / ' + c.querySelectorAll('.nh-src a').length;`));
-  ok('up to 4 headlines, with "+N more"', await js(`var c=${card}; return c.querySelectorAll('.nh-hl a').length===4 && /\\+ 4 more headlines/.test(c.querySelector('.nh-hl .more').textContent);`),
-    await js(`var c=${card}; return c.querySelectorAll('.nh-hl a').length + ' ' + (c.querySelector('.nh-hl .more')||{}).textContent;`));
-  await js(`${card}.querySelector('.nh-hl .more').click(); 1`);
-  ok('...which opens them all', await until(`${card}.querySelectorAll('.nh-hl a').length===8`, 3000));
+  ok('the footer: tier, sentiment, type, sector pills, and no outlets (they sit under the summary)', await js(`var c=${card}; var p=[...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent.replace(/\\s+/g,' ').trim()); return p[0].indexOf('Critical')===0 && p[1].indexOf('Bullish')===0 && p[2]==='earnings' && p[3]==='Semiconductor' && !c.querySelector('.nh-ev-foot a');`),
+    await js(`var c=${card}; return [...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent).join('|') + ' / ' + c.querySelectorAll('.nh-ev-foot a').length;`));
+  ok('under the summary: the outlets, deduped and comma-separated, and no headlines yet', await js(`var c=${card}; var b=c.querySelector('.nh-hl .nh-outlets'); return !!b && b.querySelector('span').textContent==='Reuters, Bloomberg, CNBC, Yahoo, MarketWatch, Barrons, WSJ' && /8 articles/.test(b.textContent) && c.querySelectorAll('.nh-hl a').length===0;`),
+    await js(`var c=${card}; var b=c.querySelector('.nh-hl .nh-outlets'); return (b||{}).textContent + ' / ' + c.querySelectorAll('.nh-hl a').length;`));
+  await js(`${card}.querySelector('.nh-hl .nh-outlets').click(); 1`);
+  ok('...which opens the articles', await until(`${card}.querySelectorAll('.nh-hl a').length===8`, 3000));
 
   console.log('\nRepaints keep their place');
   await js(`document.querySelector('#nh-host .nh-tools [data-k="hours"][data-v="48"]').focus(); TB.news.render(); 1`);
