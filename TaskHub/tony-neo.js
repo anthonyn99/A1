@@ -2281,7 +2281,7 @@
     } else {
       S.talk = false; S.talkStart = false;
       teardown();
-      hudShow(false);
+      if (POP) hideSoon(0); else hudShow(false);   // Details open: it waits for him
     }
     emit();
   }
@@ -2289,7 +2289,7 @@
   function sync() {
     if (!onTony()) { closeAsk(); if (H && H.el.classList.contains('show') && !S.running) hudShow(false); }
     if (shouldRun()) { if (!S.running) start(); }
-    else if (S.running || S.starting) { S.talk = false; S.talkStart = false; teardown(); hudShow(false); emit(); }
+    else if (S.running || S.starting) { S.talk = false; S.talkStart = false; teardown(); if (POP && onTony()) hideSoon(0); else hudShow(false); emit(); }
   }
   document.addEventListener('visibilitychange', sync);
   setInterval(sync, 1000);   // profile switches (Tony ⇄ Veda ⇄ picker) have no event
