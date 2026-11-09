@@ -41,7 +41,7 @@ function el(tag) {
     setAttribute() {}, getAttribute() { return null; }, removeAttribute() {},
     appendChild(c) { kids.push(c); c.parentNode = e; return c; }, insertBefore(c) { kids.push(c); c.parentNode = e; return c; }, remove() {},
     querySelector: () => el('div'), querySelectorAll: () => [el('span'), el('span')], addEventListener() {}, removeEventListener() {},
-    scrollTo() {}, focus() {}, blur() {}, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }),
+    scrollTo() {}, focus() {}, blur() {}, getContext: () => null, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }),
     set innerHTML(v) { e._html = v; kids.length = 0; }, get innerHTML() { return e._html || ''; },
     classList: { add: c => cls.add(c), remove: c => cls.delete(c), toggle: (c, on) => { if (on === undefined) on = !cls.has(c); on ? cls.add(c) : cls.delete(c); return on; }, contains: c => cls.has(c) },
   };
