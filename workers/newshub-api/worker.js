@@ -4111,12 +4111,12 @@ async function bumpRateLimit(env){
 }
 
 // ─── Cron: News pre-warm ──────────────────────────────────────────────────
-// Runs ALONE in the cron invocation (see scheduled()) so it owns the outbound
-// connection budget. Awaited, not fire-and-forget, so the Catalysts pre-warm
-// cannot start until this finishes.
-async function cronPrewarmNews(env, ctx){
+// Runs ALONE in its cron invocation (see scheduled()) so it owns the outbound
+// connection budget and all 50 subrequests. retry=true is the 06:10 rebuild of a
+// raw 06:00 build: always rich, quota blocks cleared, like a Force fresh.
+async function cronPrewarmNews(env, ctx, retry){
   const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
-  const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
+  const already = retry ? null : await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
   const useLimited = !already;                 // first tick of the hour → rich
   if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
   const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
