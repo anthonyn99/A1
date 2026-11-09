@@ -89,7 +89,29 @@ const SEED = { [TBDOC]: { positions: JSON.stringify(positions), trades: JSON.str
   ok('the market clock card with a ticking countdown', await js(`return /OPEN|PRE-MARKET|AFTER HOURS|CLOSED/.test(document.querySelector('.tbmk-lbl').textContent) && /\\d/.test(document.getElementById('pf-mkt-cd').textContent);`));
   ok('…and upcoming market holidays', await js(`return document.querySelectorAll('.tbmk-hol .tag').length >= 1;`));
   ok('six account figures, Total Value first', await js(`var f=document.querySelectorAll('#pf-hero > div'); return f.length===6 && f[0].classList.contains('hero') && /Total Value/.test(f[0].textContent) && /52,000/.test(f[0].textContent);`));
-  ok('Realized P&L from the order history (FIFO)', await js(`return /\\+\\$100\\.00|\\$99\\.95/.test(document.querySelectorAll('#pf-hero > div')[5].textContent);`), await js(`return document.querySelectorAll('#pf-hero > div')[5].textContent;`));
+  // From the Journal's round trips closed in the last 30 days (NVDA +100, MU -100,
+  // the AAPL short +25), not the 30-day order history, which dropped shorts and
+  // read TradeHub +$180 for a real +$19 (2026-11-09).
+  ok('Realized P&L = the journal\'s closes in the last 30 days, shorts included', await js(`return /\\+\\$25\\.00/.test(document.querySelectorAll('#pf-hero > div')[5].textContent);`), await js(`return document.querySelectorAll('#pf-hero > div')[5].textContent;`));
+  ok('…and the history fallback books a short and its cover', await js(`return Math.abs(TB.pf._realizedFromHistory([{symbol:'S',side:'SHORT',qty:1,avg_price:100,status:'FILLED',filled_at:'2026-11-01T15:00:00Z'},{symbol:'S',side:'BUY',qty:1,avg_price:90,status:'FILLED',filled_at:'2026-11-02T15:00:00Z'},{symbol:'S',side:'BUY',qty:1,avg_price:95,status:'FILLED',filled_at:'2026-11-03T15:00:00Z'},{symbol:'S',side:'SELL',qty:1,avg_price:96,status:'FILLED',filled_at:'2026-11-04T15:00:00Z'}]) - 11) < 1e-9;`));
+
+  console.log('\nDisplay mode');
+  const blurred = (sel) => js(`var e=document.querySelector(${JSON.stringify(sel)}); return !!e && /blur/.test(getComputedStyle(e).filter);`);
+  ok('an eye button sits left of the lock', await js(`var e=document.getElementById('tb-display-btn'), l=document.getElementById('lock-now-btn'); return !!e && !!e.querySelector('svg') && e.nextElementSibling===l && e.getAttribute('aria-pressed')==='false';`));
+  ok('off by default: nothing blurred', !(await blurred('#pf-hero .hero .v')));
+  await js(`document.getElementById('tb-display-btn').click(); 1`); await sleep(200);
+  ok('on: the account figures blur', await blurred('#pf-hero .hero .v') && await blurred('#pf-hero > div:nth-child(6) .v'));
+  ok('on: qty, avg cost, value and P&L blur; Last and the stock\'s Day % stay readable',
+    await blurred('.tbt-pos tbody td:nth-child(2)') && await blurred('.tbt-pos tbody td:nth-child(3)') && await blurred('.tbt-pos tbody td:nth-child(5)') && await blurred('.tbt-pos tbody td:nth-child(6)')
+    && !(await blurred('.tbt-pos tbody td:nth-child(4)')) && !(await blurred('.tbt-pos tbody td:nth-child(7)')) && !(await blurred('.tbt-pos tbody td.sym')));
+  ok('on: remembered on this device, button shows it', await js(`return localStorage.getItem('tradeboard_display_mode')==='1' && document.getElementById('tb-display-btn').getAttribute('aria-pressed')==='true' && document.getElementById('tb-display-btn').classList.contains('dm-on');`));
+  await js(`TB.showSection('journal'); 1`); await sleep(400);
+  ok('on: journal stats, P&L, entry/exit and day nets blur; symbols do not',
+    await blurred('#jr-stats .t-val') && await blurred('#jr-body tr[data-id] td:nth-child(8)') && await blurred('#jr-body tr[data-id] td:nth-child(6)') && await blurred('#jr-body .jr-day b') && !(await blurred('#jr-body tr[data-id] td.sym')));
+  await shot('display-mode');
+  await js(`document.getElementById('tb-display-btn').click(); TB.showSection('portfolio'); 1`); await sleep(200);
+  ok('off again: figures readable', !(await blurred('#pf-hero .hero .v')) && await js(`return localStorage.getItem('tradeboard_display_mode')==='0';`));
+  console.log('\nPortfolio tabs');
   ok('Account details lists the extra figures', await js(`return /3 figures/.test(document.querySelector('.tbdet summary').textContent);`));
   ok('four tabs with counts', await js(`var b=[].map.call(document.querySelectorAll('#pf-tabs button'),x=>x.textContent); return b.length===4 && b[0]==='Positions3' && b[1]==='Open Orders1' && b[2]==='History2' && b[3]==='Activity';`), await js(`return [].map.call(document.querySelectorAll('#pf-tabs button'),x=>x.textContent).join('|');`));
   ok('positions: weight bars, day %, a totals row', await js(`return document.querySelectorAll('.tbt-pos tbody tr').length===3 && document.querySelectorAll('.tbt-w i b').length===3 && /\\+1\\.20%/.test(document.querySelector('.tbt-pos tbody').textContent) && !!document.querySelector('.tbt-pos tfoot');`));
