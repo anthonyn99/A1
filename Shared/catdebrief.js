@@ -407,6 +407,18 @@
     };
     try { bc.postMessage({ t: 'deliver', k: TAB_KEY, to: id, rid: rid, url: url, hashOnly: true }); } catch (e) { finish(false); }
   }
+  /* Delivered over the channel, the console has the prompt but sits behind
+   * this tab, and no page can bring another tab forward (Tony, 2026-11-09:
+   * "it should land on that MAGI tab"). The Vault extension can: its
+   * focusOrOpen (LifeHub's bridge) switches to the tab at MAGI's address.
+   * It only opens one if none exists, and the console just answered, so it
+   * does. Without the extension nothing listens and this does nothing. */
+  function bringForward(abs) {
+    try {
+      var u = new URL(abs);
+      root.postMessage({ source: 'a1-tabs', action: 'focusOrOpen', url: u.origin + u.pathname, key: TAB_KEY }, root.location.origin);
+    } catch (e) {}
+  }
   function openMagi(url) {
     if (!url) return false;
     var selfIsMagi = false;
@@ -421,7 +433,7 @@
     if (id && same) {
       // No answer in ACK_MS: open the tab after all. Still inside the click's
       // user activation (Chromium keeps it ~5 s), so it is not popup-blocked.
-      deliverTo(id, abs, function (ok) { if (!ok) openMagiTab(url); });
+      deliverTo(id, abs, function (ok) { if (ok) bringForward(abs); else openMagiTab(url); });
       return true;
     }
     return openMagiTab(url);

@@ -11620,6 +11620,37 @@ const PRIOR_CONSOLE = (() => {
    the old console, which closed it even mid-council.
    Only when no console answers does this tab stay, and then it retires any
    silent leftover so there is still one. After load, so tabsync.js has its id. */
+/* Handed over, the console that took the prompt should be the tab Tony lands
+   on (2026-11-09: "it should land on that MAGI tab, even if it's an existing
+   one"). No page can bring another tab forward, so the Vault extension does:
+   its focusOrOpen (LifeHub's bridge) switches to the tab at MAGI's address
+   other than this one, then this tab closes. Its bridge starts at
+   document_idle, maybe after this ack, so ping until it answers (a message
+   posted before it listens is lost). No extension: just close, as before. */
+function handoffFocusPrior(then) {
+  let over = false, tries = 0;
+  const finish = (focus) => {
+    if (over) return; over = true;
+    window.removeEventListener("message", onPong);
+    if (!focus) { then(); return; }
+    try { window.postMessage({ source: "a1-tabs", action: "focusOrOpen", url: location.origin + location.pathname, key: "magi" }, location.origin); } catch {}
+    // Closed only after the relay has had time to pass it on: a closed
+    // tab's content script sends nothing.
+    setTimeout(then, 300);
+  };
+  const onPong = (e) => {
+    const d = e.data;
+    if (e.source === window && d && d.source === "vault-extension" && d.action === "tabPong") finish(!!d.ok);
+  };
+  window.addEventListener("message", onPong);
+  const ping = () => {
+    if (over) return;
+    if (++tries > 8) { finish(false); return; }
+    try { window.postMessage({ source: "a1-tabs", action: "tabPing" }, location.origin); } catch {}
+    setTimeout(ping, 200);
+  };
+  ping();
+}
 HANDOFF_PASSING = !!(HANDOFF && !HANDOFF_STASHED && HANDOFF.raw && PRIOR_CONSOLE);
 if (HANDOFF) {
   // Nobody took it: this tab keeps the prompt and convenes it after all.
@@ -11645,9 +11676,12 @@ if (HANDOFF) {
       if (HANDOFF === h) HANDOFF = null;
       HANDOFF_PASSING = false;
       setTimeout(() => { try { bc.close(); } catch {} }, 300);
-      try { window.close(); } catch {}
-      // A tab the browser will not let close says where the prompt went.
-      setTimeout(() => setErr("refineError", "Sent to the MAGI tab that was already open — you can close this one."), 400);
+      const closeMe = () => {
+        try { window.close(); } catch {}
+        // A tab the browser will not let close says where the prompt went.
+        setTimeout(() => setErr("refineError", "Sent to the MAGI tab that was already open — you can close this one."), 400);
+      };
+      handoffFocusPrior(closeMe);
     };
     const url = location.origin + location.pathname + location.search + "#tb=" + h.raw;
     try { bc.postMessage({ t: "deliver", k: "magi", to: PRIOR_CONSOLE, except: window.a1TabId, rid, url, hashOnly: true }); }
