@@ -3881,12 +3881,13 @@ async function bumpRateLimit(env){
 }
 
 // ─── Cron: News pre-warm ──────────────────────────────────────────────────
-// Runs ALONE in the cron invocation (see scheduled()) so it owns the outbound
-// connection budget. Awaited, not fire-and-forget, so the Catalysts pre-warm
-// cannot start until this finishes.
-async function cronPrewarmNews(env, ctx){
+// Runs ALONE in its invocation (/prewarm, called by finance-api's cron) so it
+// owns the outbound connection budget and all 50 subrequests. retry=true is the
+// rebuild of a raw/empty morning build (/prewarm?retry=1): always rich, blocks
+// cleared, and recorded as a retry so it is never retried again.
+async function cronPrewarmNews(env, ctx, retry){
   const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
-  const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
+  const already = retry ? null : await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
   const useLimited = !already;                 // first tick of the hour → rich
   if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
   const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
@@ -3905,30 +3906,17 @@ async function cronPrewarmNews(env, ctx){
     // the whole AI chain look unavailable, so every batch fell back to raw and
     // the 6am build came out degraded with no AI summaries at all.
     await clearQuotaBlocks(env);
-    let body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
-    let events = 0, articles = null, degraded = null, retried = false;
+    const body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
+    let events = 0, articles = null, degraded = null;
     try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
-    // Retry once when the pass produced nothing usable — this is the ONE build of
-    // the day nobody is watching, so it must not leave a dead feed up until someone
-    // notices and hits Force fresh. Blocks are cleared again first: a transient 429
-    // during the failed pass re-arms the very cooldowns that would skip the retry.
-    if (degraded || !events){
-      retried = true;
-      await clearQuotaBlocks(env);
-      await env.NEWSHUB_CACHE.delete(lockKey).catch(()=>{}); // first pass may still hold it
-      // A pass that produced ZERO events failed in the FETCH phase, not the AI
-      // phase, so repeating it identically just fails the same way (exactly what
-      // happened on 2026-07-31: rich pass → 0 events, identical retry → 0 events,
-      // while the plain Finnhub-first build minutes later returned 56). Drop the
-      // scarce-quota wires and retry on the cheap configuration, which is the one
-      // that reliably fills the feed. A pass that DID find events but came back
-      // degraded really is an AI-phase miss — retry that one as-is.
-      const retryLimited = events > 0 ? useLimited : false;
-      body = await buildAndCache(env, ctx, retryLimited, wl, sectors, cacheKey, lockKey);
-      try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
-    }
+    // NO retry in this invocation. One build spends ~47 of Cloudflare's 50
+    // subrequests, so a second build here gets only the first 2-3 fetches through
+    // and every AI call throws "too many subrequests" (each fetcher swallows it as
+    // []): what turned Tony's 2026-10-23 6am build into 5 articles / "AI quota
+    // exhausted". A raw or empty build is rebuilt by finance-api's cron calling
+    // /prewarm?retry=1 a few minutes later, a NEW invocation with its own 50.
     await env.NEWSHUB_CACHE.put('cron:lastnews',
-      JSON.stringify({ at: Date.now(), events, articles, degraded, retried, rich: useLimited }),
+      JSON.stringify({ at: Date.now(), events, articles, degraded, rich: useLimited, retry: !!retry }),
       { expirationTtl: 7*86400 }).catch(()=>{});
   } catch(e){
     console.error('Cron news failed:', e.message);
