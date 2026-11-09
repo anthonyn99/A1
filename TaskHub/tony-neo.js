@@ -749,7 +749,8 @@
       you: el.querySelector('.tn-you'), say: el.querySelector('.tn-say'), cards: el.querySelector('.tn-cards'),
       tele: el.querySelector('.tn-tele'), more: el.querySelector('.tn-more') };
     el.querySelector('.tn-x').onclick = function () { cancel(); };
-    H.more.onclick = function (e) { e.stopPropagation(); togglePop(); };
+    // The details button; while Neo waits for a yes, it carries the yes / no.
+    H.more.onclick = function (e) { e.stopPropagation(); if (S.pending) askYesNo(); else togglePop(); };
     return H;
   }
   var hideTimer = null, boot = 0;
@@ -835,7 +836,7 @@
   function refreshMore() {
     var h = H; if (!h) return;
     var t = S.turn, cards = (t && t.cards) || [], ok = cards.filter(function (c) { return !c.bad; }).length, bad = cards.length - ok;
-    var long = h.say.classList.contains('ovf') || (t && t.you && h.you.scrollWidth > h.you.clientWidth + 1);
+    var long = h.say.scrollHeight > h.say.clientHeight + 2 || h.you.scrollHeight > h.you.clientHeight + 2;
     if (!t || (!cards.length && !long && !t.truncated)) { h.more.hidden = true; h.more.innerHTML = ''; return; }
     var html = '';
     if (ok) html += '<span class="ok">✓</span>' + ok;
@@ -1436,7 +1437,7 @@
     S.turn = S.turn || { you: '', shown: '', cards: [] }; S.turn.shown = question;
     // Docked there's no room for cards: the question itself is the prompt, and
     // the yes/no go into the details popover's place, the side.
-    if (h.el.classList.contains('tn-dock')) { h.more.hidden = false; h.more.innerHTML = 'Yes / No'; h.more.onclick = function (e) { e.stopPropagation(); askYesNo(); }; }
+    if (h.el.classList.contains('tn-dock')) { h.more.hidden = false; h.more.innerHTML = 'Yes / No'; h.more.title = 'Answer'; }
   }
   function askYesNo() {
     // A tiny popover with the two answers.
@@ -1449,7 +1450,6 @@
   }
   function confirmTap(yes) {
     var p = S.pending; if (!p) return; S.pending = null;
-    if (H) H.more.onclick = function (e) { e.stopPropagation(); togglePop(); };
     stopVoice();
     if (yes) runHeld(p); else { hudCards([]); respond('Cancelled.', 'Cancelled — nothing changed.', true); }
   }
@@ -2126,7 +2126,8 @@
     if (!text) { ta.focus(); return; }
     ASKD.draft = ''; ta.value = '';
     closeAsk();
-    ask(text).then(function (r) { if (r && r.ok === false && r.error !== 'busy') { ASKD.draft = text; } });
+    // Not done (busy, offline): the words wait in the composer for another go.
+    ask(text).then(function (r) { if (!r || r.ok === false) ASKD.draft = text; });
   }
   // A typed request: the same path as a spoken one, from the words he typed.
   var asking = false;
@@ -2164,12 +2165,9 @@
   function renderSettings(box) {
     if (!box) return;
     ensureStyles();
-    var groups = {}, order = [];
-    VOICES.forEach(function (v) { if (!groups[v.locale]) { groups[v.locale] = []; order.push(v.locale); } groups[v.locale].push(v); });
-    var vopts = order.map(function (l) {
-      return '<optgroup label="' + esc(LOCALE_NAME[l] || l) + '">' + groups[l].map(function (v) {
-        return '<option value="' + esc(v.id) + '"' + (v.id === SET.voice ? ' selected' : '') + '>' + esc(v.name) + ' · ' + (v.gender === 'male' ? 'male' : 'female') + '</option>';
-      }).join('') + '</optgroup>';
+    // A flat list (A1's select popup draws options, not groups): name · accent · voice.
+    var vopts = VOICES.map(function (v) {
+      return '<option value="' + esc(v.id) + '"' + (v.id === SET.voice ? ' selected' : '') + '>' + esc(v.name) + ' · ' + esc(LOCALE_NAME[v.locale] || v.locale) + ' · ' + v.gender + '</option>';
     }).join('');
     box.innerHTML = '<div class="tns">' +
       '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Microphone</span><span class="tns-sub" id="tns-mic-sub">Matched by name on each device.</span></div>' +
