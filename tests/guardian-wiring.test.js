@@ -116,9 +116,24 @@ function walk(dir, base, out) {
 }
 const scan = walk(ROOT, ROOT, []).filter((f) => !f.startsWith('Guardian/') && !EXEMPT.test(f));
 if (fs.existsSync(M.PRIV)) walk(M.PRIV, M.PRIV, []).forEach((f) => { if (!scan.includes(f) && !EXEMPT.test(f)) scan.push(f); });
+// Check-only backends: files that hand Guardian a backend for ANOTHER program's
+// lock (Neo, opening Veda's programs from TaskHub). They may CHECK a password
+// (verify) and read its hint, nothing else: setting, removing and resetting stay
+// in the program that owns the lock. Proven per file below, then skipped by the
+// general scan.
+const CHECK_ONLY = ['TaskHub/neo-connectors.js'];
+console.log('\nCheck-only backends');
+for (const f of CHECK_ONLY) {
+  const text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  ok(f + ' registers its locks through Guardian.define', /\bG\.define\(|Guardian\.define\(/.test(text));
+  ok(f + ' only checks a password (verify/hint), never sets, removes or resets one',
+    !/\/auth\/journal\/(?:set-lock|remove-lock)\b|\/auth\/reset\/(?:request|confirm)\b/.test(text)
+    && !OWN_LOCK.filter(([re]) => !ROUTES.test(re.source.replace(/\\/g, ''))).some(([re]) => re.test(text)),
+    (text.match(/\/auth\/journal\/(?:set-lock|remove-lock)|\/auth\/reset\/\w+/) || [])[0]);
+}
 const offenders = [];
 for (const f of scan) {
-  if (PENDING.includes(f) || HOSTS[f] !== undefined) continue;
+  if (PENDING.includes(f) || HOSTS[f] !== undefined || CHECK_ONLY.includes(f)) continue;
   let text; try { text = M.has(f) ? M.read(f) : fs.readFileSync(path.join(fs.existsSync(path.join(ROOT, f)) ? ROOT : M.PRIV, f), 'utf8'); } catch (e) { continue; }
   if (/^<!doctype html>[\s\S]{0,2000}location\.replace\(/i.test(text) && text.length < 4000) continue;   // redirect stubs
   const hit = OWN_LOCK.find(([re]) => re.test(text));
