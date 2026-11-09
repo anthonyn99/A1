@@ -1,88 +1,70 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Neo — the hands-free TaskHub assistant.  Docs: docs/TaskHub/neo-assistant.md
+   TONY'S NEO AI — his hands-free TaskHub assistant.
+   Docs: docs/TaskHub/neo-assistant.md ("Tony's Neo AI").
 
-   BOTH SIDES since 2026-11-06 (it was Veda's alone before). One script serves
-   whichever TaskHub is in front: each side has its own switch, name, voice
-   key, colours, bridge and reach (PROFILES below). On the profile picker, or
-   when the side changes, the mic is released and the other side's Neo starts
-   only if that side switched it on.
+   Tony's alone. Veda's Neo AI is a separate program (TaskHub/veda-neo.js);
+   the two share no state, globals, styles or settings (split 2026-11-09):
+     Tony:  window._thNeo, _thNeoOps, _thNeoLaunch/_thNeoClose/_thNeoCloseAll,
+            event "th-neo-change", #th-neo-hud, .tn-*, localStorage th_neo_*,
+            Firestore dashboards/neo_tony (his settings, synced)
+     Veda:  window._vdNeo, _vdNeoOps, ..., event "vd-neo-change", #vd-neo-hud, .vn-*
+   It runs only while Tony's TaskHub is in front.
 
-   Pipeline (all free):
-     mic ─► Vosk (on-device, WASM; fixed word list) hears "Hey Neo"
-         ─► record until she stops talking (loudness end-point, with a 1.5 s
-            pre-roll so "Neo, add milk" in one breath keeps its first words);
-            a second, free-form Vosk recognizer shows live captions meanwhile
-         ─► window._THV.sendAudio()  — the SAME engine and Gemini route as the
-            mic button (personal-ai /taskhub/parse, Veda's own key), so every
-            action it can do, Neo can do
-         ─► the reply in Ryan's voice (Orca's Edge neural voices, her own Orca
-            key — the one Shruti keeps), falling back to the device's voice;
-            then a short follow-up window listens without the wake word.
+   Ways in (all three end in the same place):
+     · "Hey Neo" — Vosk (on-device WASM) hears the wake phrase while his switch
+       (the NEO button) is on; then it records until he stops talking.
+     · Talk (the mic button) — records at once, no wake phrase, no 41 MB model;
+       tap again to send. Works with the switch off (the mic is released after).
+     · Type (the text button) — the composer; Ctrl/⌘+Enter sends.
+   ─► window._THV (index.html's engine) → personal-ai /taskhub/parse with
+      profile "tony" and mode "neo", so HIS Gemini key answers (keyFor 'tony')
+   ─► the engine's executor on HIS bridge (window._thVoice), with the spotlight
+   ─► the answer. Changes are spoken as just "Done." and shown, concisely and
+      exactly, in the HUD (an undo shows what it undid); questions are spoken.
 
-   The look: a holographic HUD in her mauve — an arc-reactor orb whose waveform
-   follows her voice and Neo's, live captions, the reply typed out word by word
-   in time with the voice, an action card per change, and a telemetry strip.
-   It is Neo's own overlay; the rest of her TaskHub's look is untouched.
-
-   Brave blocks the browser's built-in SpeechRecognition, which is why the wake
-   word runs in Vosk instead. Vosk keeps its model in IndexedDB (keyed by the
-   model URL) so the ~41 MB download happens once per device.
+   Settings (Settings → Tony's Neo AI): microphone, voice (Orca's Edge voices,
+   the same set Shruti offers) and whether typed requests are spoken. Saved on
+   the device and in dashboards/neo_tony, so every device of his follows.
    ════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
-  if (window._vdNeo) return;
+  if (window._thNeo) return;
 
   var VOSK_SRC = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
   var MODEL_URL = 'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-en-us-0.15.tar.gz';
-  var FONTS = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap';
-  var VOICE = 'en-GB-RyanNeural';
+  var DEFAULT_VOICE = 'en-GB-RyanNeural';
   var SCRIPT_URL = (document.currentScript && document.currentScript.src) ||
-    ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/veda-assistant.js');
+    ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/tony-neo.js');
 
-  // Mauve, as hologram (Veda). Tony's side wears MAGI's purple (PROFILES.tony.C).
-  var C_VEDA = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a',
-    g0: 'rgba(244,236,250,.95)', g1: 'rgba(201,179,217,.55)', g2: 'rgba(141,118,154,0)', hex: 'rgba(244,236,250,.75)' };
-  var C_TONY = { core: '#ebe4fb', ring: '#c0aeea', accent: '#9a86c9', glow: 'rgba(154,134,201,.55)', hot: '#f4f0fd', red: '#d68a7c',
-    g0: 'rgba(244,240,253,.95)', g1: 'rgba(192,174,234,.55)', g2: 'rgba(154,134,201,0)', hex: 'rgba(244,240,253,.75)' };
-  var C = C_VEDA;
+  // MAGI's purple (docs/Theme/theme-overhaul-plan.md §2).
+  var C = { core: '#ebe4fb', ring: '#c0aeea', accent: '#9a86c9', hot: '#f4f0fd', red: '#d68a7c' };
 
-  // Each side's own everything. `w` names a window global (read live: the
-  // TaskHubs and their prep code set them after this script loads).
-  var PROFILES = {
-    veda: { id: 'veda', name: 'Veda', pref: 'vd_neo_on', orcaLs: 'shruti.veda.orcaKey', loadKey: '_fbLoadVedaOrcaKey', C: C_VEDA,
-      bridge: '_vdVoice', pcApps: '_vdPcApps', up: '_vdBridgeUp', err: '_vdBridgeErr', running: '_vdPcRunning',
-      prepReq: '_vdPrepRequest', prepBusy: '_vdPrepBusy', prepKits: '_vdPrepKits', openLocal: '_vdPrepOpenLocal',
-      nb: 'bj', lockTH: 'veda_taskhub', mobStrip: '.vd-mob-day-strip', dock: '#vr-root .thwx-band > .gita-banner',
-      locks: { taskhub: 'veda_taskhub', gita: 'veda_gita', notebook: 'veda_journal', journal: 'veda_journal', rules: 'veda_rules', shield: 'veda_shield' },
-      bridgeHint: 'Start StudyOS Bridge from the Start menu' },
-    tony: { id: 'tony', name: 'Tony', pref: 'th_neo_on', orcaLs: 'shruti.tony.orcaKey', loadKey: '_fbLoadTonyOrcaKey', C: C_TONY,
-      bridge: '_thVoice', pcApps: '_thPcApps', up: '_thBridgeUp', err: '_thBridgeErr', running: '_thPcRunning',
-      prepReq: '_thPrepRequest', prepBusy: '_thPrepBusy', prepKits: '_thPrepKits', openLocal: '_thPrepOpenLocal',
-      nb: 'tj', lockTH: 'tony_taskhub', mobStrip: '.th-mob-day-strip', dock: '#root .thwx-band > .thwx-bq',
-      locks: { taskhub: 'tony_taskhub', notebook: 'tony_myjournal', journal: 'tony_myjournal', shield: 'tony_shield' },
-      bridgeHint: 'Start the A1 Prep Bridge (it normally starts at logon)' },
+  // His everything. Each entry names a window global (read live: his TaskHub and
+  // its prep code set them after this script loads).
+  var P = {
+    id: 'tony', name: 'Tony', pref: 'th_neo_on', orcaLs: 'shruti.tony.orcaKey', loadKey: '_fbLoadTonyOrcaKey',
+    bridge: '_thVoice', pcApps: '_thPcApps', up: '_thBridgeUp', err: '_thBridgeErr', running: '_thPcRunning',
+    prepReq: '_thPrepRequest', prepBusy: '_thPrepBusy', prepKits: '_thPrepKits', openLocal: '_thPrepOpenLocal',
+    nb: 'tj', lockTH: 'tony_taskhub', mobStrip: '.th-mob-day-strip', dock: '#root .thwx-band > .thwx-bq',
+    locks: { taskhub: 'tony_taskhub', notebook: 'tony_myjournal', journal: 'tony_myjournal', shield: 'tony_shield' },
+    bridgeHint: 'Start the A1 Prep Bridge (it normally starts at logon).',
   };
-  function sideOf() { var a = window._activeProfile; return a === 'veda' || a === 'tony' ? a : null; }
-  var P = PROFILES.veda;                       // the side Neo serves now (S.who)
-  function W(k) { return window[P[k]]; }       // that side's window global
-  function NAME() { return P.name; }
+  function onTony() { return window._activeProfile === 'tony'; }
+  function W(k) { return window[P[k]]; }
 
-  // Words Vosk may choose between. Only "hey neo" wakes; "neo" on its own and the
-  // near-sounding decoys give similar speech somewhere else to land, so "neo",
-  // "new", "no", "video" don't fire it. Every word here is in the small model's vocabulary.
+  // Words Vosk may choose between. Only "hey neo" wakes; the near-sounding decoys
+  // give similar speech somewhere else to land.
   var GRAMMAR = ['neo', 'hey neo', 'okay neo', 'new', 'no', 'know', 'now', 'leo', 'neon', 'nemo', 'knee', 'video', 'oh', 'hey', '[unk]'];
 
   var PRE_ROLL_S = 1.5;      // audio kept from before the wake word fired
-  var END_SILENCE_MS = 1100; // she stopped talking
+  var END_SILENCE_MS = 1100; // he stopped talking
   var NO_SPEECH_MS = 6000;   // woke but nothing followed
   var MAX_CAPTURE_MS = 30000;
   var FOLLOW_MS = 10000;     // after a reply: listen without the wake word
-  var ASK_MS = 16000;        // …longer when Neo has just asked her something
+  var ASK_MS = 16000;        // …longer when Neo has just asked him something
   var DEAF_MS = 700;         // …starting this long after Neo stops talking
 
-  // ══ pure helpers (tested in tests/veda-assistant.test.js) ══════════════════
-  // The wake phrase is "Hey Neo" (Veda's call, 2026-11-05): "hey" right before
-  // "neo". A bare "neo" (or "okay neo") is heard but doesn't wake it.
+  // ══ pure helpers (tests/tony-neo.test.js) ══════════════════════════════════
   function isWake(text) {
     var w = String(text || '').toLowerCase().split(/\s+/).filter(function (t) { return t && t !== '[unk]'; });
     for (var i = 1; i < w.length; i++) if (w[i] === 'neo' && w[i - 1] === 'hey') return true;
@@ -90,8 +72,7 @@
   }
   function rms(buf) { var s = 0; for (var i = 0; i < buf.length; i++) s += buf[i] * buf[i]; return Math.sqrt(s / (buf.length || 1)); }
   function threshold(floor) { return Math.max(0.012, floor * 2.8); }
-  // One step of the end-point detector. st = {speech:bool, silentMs, elapsedMs}
-  // → 'go' (keep recording) | 'end' (she finished) | 'none' (nothing was said).
+  // One step of the end-point detector → 'go' | 'end' (he finished) | 'none' (nothing said).
   function vadStep(st, level, floor, ms) {
     st.elapsedMs += ms;
     if (level > threshold(floor)) { st.speech = true; st.silentMs = 0; }
@@ -122,9 +103,10 @@
     return btoa(bin);
   }
 
-  var DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  var MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var NUMW = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+  var DKEY_RE = /^\d{4}-\d{2}-\d{2}$/;
   function pad2(n) { return String(n).padStart(2, '0'); }
   function dkey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   function fmtDate(k) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(k || '')); if (!m) return ''; var d = new Date(+m[1], +m[2] - 1, +m[3]); return DOW[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()]; }
@@ -135,9 +117,12 @@
     return h12 + (mi ? ':' + pad2(mi) : '') + ' ' + ap;
   }
   function clip(s, n) { s = String(s || '').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function cap1(s) { return String(s).replace(/^./, function (c) { return c.toUpperCase(); }); }
+  function clone(o) { try { return JSON.parse(JSON.stringify(o == null ? null : o)); } catch (e) { return null; } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function normWords(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 
-  // The day at a glance, from Veda's bridge state. Used by the telemetry strip
-  // and the boot greeting.
+  // The day at a glance, from his bridge state (telemetry strip, greeting).
   function dayStats(st, now) {
     now = now || new Date();
     st = st || {};
@@ -150,179 +135,231 @@
     var ticked = habits.filter(function (h) { return hc[h.id + hkey]; }).length;
     return { total: items.length, done: items.length - left.length, left: left.length, next: next, habits: habits.length, habitsDone: ticked };
   }
+  // Short on purpose (Tony, 2026-11-09: "too long winded").
   function greeting(st, now) {
     now = now || new Date();
     var h = now.getHours(), s = dayStats(st, now);
-    var n = NAME(), open = h < 5 ? 'Working late, ' + n + '.' : h < 12 ? 'Good morning, ' + n + '.' : h < 17 ? 'Good afternoon, ' + n + '.' : 'Good evening, ' + n + '.';
-    var line = open + ' Neo online.';
+    var line = h < 5 ? 'Working late, Tony.' : h < 12 ? 'Good morning, Tony.' : h < 17 ? 'Good afternoon, Tony.' : 'Good evening, Tony.';
     if (!s.total) return line + ' Your day is clear.';
-    if (!s.left) return line + ' Everything on today\'s list is done. Splendid.';
-    line += ' ' + (s.left <= 12 ? NUMW[s.left].replace(/^./, function (c) { return c.toUpperCase(); }) : s.left) + (s.left === 1 ? ' task remains' : ' tasks remain') + ' today';
-    if (s.next) line += '; next up, ' + s.next.title + ' at ' + spokenTime(s.next.time);
+    if (!s.left) return line + ' All done today.';
+    line += ' ' + cap1(s.left <= 12 ? NUMW[s.left] : String(s.left)) + ' left today';
+    if (s.next) line += '; next, ' + s.next.title + ' at ' + spokenTime(s.next.time);
     return line + '.';
   }
 
-  // One action → one HUD card {icon, label, detail}, or null for nothing to show.
+  // One action → one card {icon, label, detail}, or null for nothing to show.
   function cardFor(a) {
     if (!a || !a.type) return null;
     var m = a.match || {}, t = a.title || m.title || '';
     var when = [fmtDate(a.date), a.time ? a.time : ''].filter(Boolean).join(' · ');
     switch (a.type) {
       case 'add_task':
-        if (a.box === 'dailyHabits') return { icon: '✦', label: 'HABIT ADDED', detail: t };
-        if (a.box === 'shortTermGoals' || a.box === 'longTermGoals') return { icon: '◆', label: 'GOAL ADDED', detail: t };
-        return { icon: '✓', label: (a.kind === 'event' || a.time) ? 'EVENT ADDED' : 'TASK ADDED', detail: [t || (a.altSeqTitles || []).join(' / '), when].filter(Boolean).join(' · ') + (a.notify ? ' · 🔔' : '') };
-      case 'edit_task': return { icon: '✎', label: 'UPDATED', detail: t };
-      case 'remove_task': return { icon: '✕', label: 'REMOVED', detail: t };
-      case 'toggle_task': return { icon: a.done === false ? '○' : '✓', label: a.done === false ? 'UNCHECKED' : 'COMPLETED', detail: t };
-      case 'move_task': return { icon: '➜', label: 'MOVED', detail: [t, fmtDate(a.toDate)].filter(Boolean).join(' → ') };
-      case 'swap': return { icon: '⇄', label: 'SWAPPED', detail: [(a.first || {}).title, (a.second || {}).title].filter(Boolean).join(' ⇄ ') };
-      case 'reorder': return { icon: '↕', label: 'REORDERED', detail: t };
-      case 'clear': return { icon: '✕', label: 'CLEARED', detail: fmtDate(a.date) || a.box || '' };
-      case 'shift_range': return { icon: '⇥', label: 'SHIFTED', detail: (a.days > 0 ? '+' : '') + a.days + ' DAY' + (Math.abs(a.days) === 1 ? '' : 'S') + ' · ' + [fmtDate(a.from), fmtDate(a.to)].filter(Boolean).join(' – ') };
-      case 'clear_completed': return { icon: '✓', label: 'CLEANED UP', detail: 'COMPLETED ITEMS' };
-      case 'go_to_date': return { icon: '◎', label: 'NAVIGATING', detail: fmtDate(a.date) };
-      case 'set_edit_mode': return { icon: '✎', label: 'EDIT MODE', detail: a.on ? 'ON' : 'OFF' };
-      case 'refresh_quote': return { icon: '❝', label: 'NEW QUOTE', detail: '' };
-      case 'timer_set': return { icon: '⏱', label: 'TIMER', detail: pad2(a.minutes || 0) + ':00' };
-      case 'timer_start': return { icon: '⏱', label: 'TIMER', detail: 'RUNNING' };
-      case 'timer_stop': return { icon: '⏱', label: 'TIMER', detail: 'PAUSED' };
-      case 'timer_reset': return { icon: '⏱', label: 'TIMER', detail: 'RESET' };
-      case 'timer_open': return { icon: '⏱', label: 'TIMER', detail: 'OPEN' };
-      case 'timer_close': return { icon: '⏱', label: 'TIMER', detail: 'CLOSED' };
-      case 'undo': return { icon: '↶', label: 'UNDONE', detail: '' };
-      case 'redo': return { icon: '↷', label: 'REDONE', detail: '' };
-      case 'rules_add': return { icon: '☐', label: 'RULE ADDED', detail: t };
-      case 'rules_edit': return { icon: '☐', label: 'RULE UPDATED', detail: (a.set || {}).title || t };
-      case 'rules_remove': return { icon: '☐', label: 'RULE REMOVED', detail: t };
-      case 'rules_gate': return { icon: '☐', label: 'RULES CHECK', detail: a.on === false ? 'OFF' : 'ON' };
-      case 'open_app': return { icon: '◎', label: 'OPENING', detail: String(a.target || '').toUpperCase() };
-      case 'reels_shuffle': return { icon: '▶', label: 'NEW REEL', detail: '' };
-      case 'prep_task': return { icon: '✦', label: 'AI PREP', detail: t };
-      case 'assistant_off': return { icon: '⏻', label: 'STANDING DOWN', detail: '' };
-      case 'open_pc_app': return { icon: '⧉', label: 'LAUNCHING', detail: a.name || t };
-      case 'open_site': { var host = String(a.url || '').replace(/^[a-z]+:\/\//i, '').replace(/^www\./, '').split('/')[0]; return { icon: '◎', label: 'OPENING', detail: host }; }
-      case 'close_pc_app': return { icon: '⊗', label: a.force ? 'FORCE QUIT' : 'CLOSING', detail: a.name || t };
-      case 'close_all_pc_apps': return { icon: '⊗', label: 'CLOSING ALL', detail: (a.except && a.except.length) ? 'EXCEPT ' + a.except.join(', ') : '' };
-      case 'prep_off': return { icon: '✦', label: 'AI PREP OFF', detail: t };
-      case 'prep_open': return { icon: '✦', label: 'STARTING', detail: t };
-      case 'prep_show': return { icon: '✦', label: 'PREP PANEL', detail: t };
-      case 'clear_reminder': return { icon: '🔕', label: 'REMINDER CLEARED', detail: t };
-      case 'timer_mode': return { icon: '⏱', label: 'TIMER', detail: String(a.mode || '').toUpperCase() };
-      case 'timer_add': return { icon: '⏱', label: 'TIMER', detail: (a.minutes > 0 ? '+' : '') + a.minutes + ' MIN' };
-      case 'rules_run': return { icon: '☐', label: 'RULES CHECK', detail: 'NOW' };
-      case 'rules_check': return { icon: '☑', label: 'RULE TICKED', detail: t };
-      case 'rules_move': return { icon: '☐', label: 'RULE MOVED', detail: t };
-      case 'open_link': return { icon: '◎', label: 'OPENING', detail: String(a.label || t).toUpperCase() };
-      case 'open_program': return { icon: '◎', label: 'OPENING', detail: progLabel(a.program || a.label).toUpperCase() };
-      case 'program': return { icon: '◇', label: String(a.op || 'DONE').replace(/_/g, ' ').toUpperCase(), detail: progLabel(a.program).toUpperCase() };
-      case 'gita_next': return { icon: '❝', label: 'NEXT LESSON', detail: '' };
-      case 'gita_prev': return { icon: '❝', label: 'PREVIOUS LESSON', detail: '' };
-      case 'gita_open': return { icon: '❝', label: 'LESSON', detail: String(a.lesson || '') };
-      case 'week_view': return { icon: '▤', label: 'WEEK', detail: a.collapsed === false ? 'EXPANDED' : 'COLLAPSED' };
-      case 'goals_tab': return { icon: '◆', label: 'GOALS', detail: /long/i.test(a.tab || '') ? 'LONG TERM' : 'SHORT TERM' };
-      case 'month_shift': return { icon: '◎', label: 'MONTH', detail: (a.by > 0 ? 'NEXT' : 'PREVIOUS') };
-      case 'lock_app': return { icon: '🔒', label: 'LOCKED', detail: String(a.target || '').toUpperCase() };
-      case 'journal_entry': return { icon: '✎', label: 'JOURNAL ENTRY', detail: a.title || clip(a.text, 30) };
-      case 'start_class': return { icon: '▶', label: 'CLASS', detail: a.name || t };
-      case 'plan_add': return { icon: '✧', label: 'PLAN IDEA', detail: t };
-      case 'plan_propose': return { icon: '✧', label: 'PLAN PROPOSED', detail: t };
-      case 'plan_confirm': return { icon: '✧', label: 'PLAN CONFIRMED', detail: t };
-      case 'plan_decline': return { icon: '✧', label: 'PLAN DECLINED', detail: t };
-      case 'plan_cancel_request': return { icon: '✧', label: 'CANCEL ASKED', detail: t };
-      case 'plan_done': return { icon: '✧', label: 'PLAN DONE', detail: t };
+        if (a.box === 'dailyHabits') return { icon: '✦', label: 'Habit added', detail: t };
+        if (a.box === 'shortTermGoals' || a.box === 'longTermGoals') return { icon: '◆', label: 'Goal added', detail: t };
+        return { icon: '✓', label: (a.kind === 'event' || a.time) ? 'Event added' : 'Task added', detail: [t || (a.altSeqTitles || []).join(' / '), when].filter(Boolean).join(' · ') + (a.notify ? ' · reminder' : '') };
+      case 'edit_task': return { icon: '✎', label: 'Updated', detail: t };
+      case 'remove_task': return { icon: '✕', label: 'Removed', detail: t + (a.scope === 'future' ? ' · future' : a.scope === 'all' ? ' · all' : '') };
+      case 'toggle_task': return { icon: a.done === false ? '○' : '✓', label: a.done === false ? 'Unticked' : 'Done', detail: t };
+      case 'move_task': return { icon: '➜', label: 'Moved', detail: [t, fmtDate(a.toDate)].filter(Boolean).join(' → ') };
+      case 'swap': return { icon: '⇄', label: 'Swapped', detail: [(a.first || {}).title, (a.second || {}).title].filter(Boolean).join(' ⇄ ') };
+      case 'reorder': return { icon: '↕', label: 'Reordered', detail: t };
+      case 'clear': return { icon: '✕', label: 'Cleared', detail: fmtDate(a.date) || a.box || '' };
+      case 'shift_range': return { icon: '⇥', label: 'Shifted', detail: (a.days > 0 ? '+' : '') + a.days + ' day' + (Math.abs(a.days) === 1 ? '' : 's') + ' · ' + [fmtDate(a.from), fmtDate(a.to)].filter(Boolean).join(' – ') };
+      case 'clear_completed': return { icon: '✓', label: 'Cleaned up', detail: 'completed items' };
+      case 'go_to_date': return { icon: '◎', label: 'Showing', detail: fmtDate(a.date) };
+      case 'set_edit_mode': return { icon: '✎', label: 'Edit mode', detail: a.on ? 'on' : 'off' };
+      case 'refresh_quote': return { icon: '❝', label: 'New quote', detail: '' };
+      case 'timer_set': return { icon: '⏱', label: 'Timer', detail: pad2(a.minutes || 0) + ':00' + (a.start ? ' · running' : '') };
+      case 'timer_start': return { icon: '⏱', label: 'Timer', detail: 'running' };
+      case 'timer_stop': return { icon: '⏱', label: 'Timer', detail: 'paused' };
+      case 'timer_reset': return { icon: '⏱', label: 'Timer', detail: 'reset' };
+      case 'timer_open': return { icon: '⏱', label: 'Timer', detail: 'open' };
+      case 'timer_close': return { icon: '⏱', label: 'Timer', detail: 'closed' };
+      case 'timer_mode': return { icon: '⏱', label: 'Timer', detail: String(a.mode || '') };
+      case 'timer_add': return { icon: '⏱', label: 'Timer', detail: (a.minutes > 0 ? '+' : '') + a.minutes + ' min' };
+      case 'undo': return { icon: '↶', label: 'Undone', detail: '' };
+      case 'redo': return { icon: '↷', label: 'Redone', detail: '' };
+      case 'open_app': return { icon: '◎', label: 'Opening', detail: cap1(String(a.target || '')) };
+      case 'open_link': return { icon: '◎', label: 'Opening', detail: String(a.label || t) };
+      case 'prep_task': return { icon: '✦', label: 'AI prep', detail: t };
+      case 'prep_off': return { icon: '✦', label: 'AI prep off', detail: t };
+      case 'prep_open': return { icon: '✦', label: 'Starting', detail: t };
+      case 'prep_show': return { icon: '✦', label: 'Prep panel', detail: t };
+      case 'assistant_off': return { icon: '⏻', label: 'Neo off', detail: '' };
+      case 'open_pc_app': return { icon: '⧉', label: 'Launching', detail: a.name || t };
+      case 'open_site': { var host = String(a.url || '').replace(/^[a-z]+:\/\//i, '').replace(/^www\./, '').split('/')[0]; return { icon: '◎', label: 'Opening', detail: host }; }
+      case 'close_pc_app': return { icon: '⊗', label: a.force ? 'Force quit' : 'Closing', detail: a.name || t };
+      case 'close_all_pc_apps': return { icon: '⊗', label: 'Closing all', detail: (a.except && a.except.length) ? 'except ' + a.except.join(', ') : '' };
+      case 'clear_reminder': return { icon: '○', label: 'Reminder cleared', detail: t };
+      case 'week_view': return { icon: '▤', label: 'Week', detail: a.collapsed === false ? 'expanded' : 'collapsed' };
+      case 'goals_tab': return { icon: '◆', label: 'Goals', detail: /long/i.test(a.tab || a.target || '') ? 'long term' : 'short term' };
+      case 'month_shift': return { icon: '◎', label: 'Month', detail: (a.by > 0 ? 'next' : 'previous') };
+      case 'lock_app': return { icon: '⊘', label: 'Locked', detail: cap1(String(a.target || '')) };
+      case 'journal_entry': return { icon: '✎', label: 'Journal entry', detail: a.title || clip(a.text, 40) };
+      case 'plan_add': return { icon: '✧', label: 'Plan idea', detail: t };
+      case 'plan_propose': return { icon: '✧', label: 'Plan proposed', detail: t };
+      case 'plan_confirm': return { icon: '✧', label: 'Plan confirmed', detail: t };
+      case 'plan_decline': return { icon: '✧', label: 'Plan declined', detail: t };
+      case 'plan_cancel_request': return { icon: '✧', label: 'Cancel asked', detail: t };
+      case 'plan_done': return { icon: '✧', label: 'Plan done', detail: t };
     }
     return null;
   }
 
-  // A program's own name (neo-programs.js), not the id the model copied.
-  function progLabel(q) {
-    var R = window._vdNeoPrograms, p = R && R.find ? R.find(q) : null;
-    return String((p && p.label) || q || '');
-  }
-
-  // ══ saying only what actually happened ═════════════════════════════════════
-  // The engine reports every action as {action, ok, reason}. A failed one never
-  // gets a ✓ card or the model's "Done": it gets a red card and its own line.
+  // ══ saying only what actually happened — and saying it briefly ═════════════
   function actName(a) {
     a = a || {}; var m = a.match || {};
     return String(a.name || a.title || m.title || a.label || (a.first || {}).title || '').trim();
   }
   var BAD_CARD = {
-    not_found: 'COULDN\'T FIND', no_bridge: 'OUT OF REACH', off_pc: 'PC ONLY', locked: 'LOCKED', no_reminder: 'NO REMINDER',
-    not_flagged: 'NO AI PREP', prep_failed: 'PREP FAILED', not_running: 'NOT RUNNING', still_open: 'LEFT OPEN', bridge_down: 'BRIDGE DOWN',
-    blocked: 'BLOCKED', no_op: 'NOT YET', too_soon: 'TOO SOON', out_of_order: 'OUT OF ORDER', one_at_a_time: 'ONE AT A TIME', bioFailed: 'NOT VERIFIED',
+    not_found: 'not found', no_bridge: 'out of reach', off_pc: 'PC only', locked: 'locked', no_reminder: 'no reminder',
+    not_flagged: 'no AI prep', prep_failed: 'prep failed', not_running: 'not running', still_open: 'left open', bridge_down: 'bridge down',
+    blocked: 'blocked', nothing: 'nothing to do', already: 'already done', bioFailed: 'not verified', failed: 'failed',
   };
   function failCard(r) {
     var a = (r && r.action) || {};
     var base = cardFor(a) || { detail: actName(a) };
-    return { icon: '✕', label: 'COULDN\'T ' + (BAD_CARD[r.reason] ? '· ' + BAD_CARD[r.reason] : 'DO IT'), detail: base.detail || actName(a), bad: true };
+    return { icon: '✕', label: (base.label || 'Not done') + (BAD_CARD[r.reason] ? ' · ' + BAD_CARD[r.reason] : ' · not done'), detail: base.detail || actName(a), bad: true };
   }
-  // One failed result → the line Neo says about it.
+  // One failed result → one short line (shown, and spoken when nothing worked).
   function failLine(r) {
     if (!r || r.ok) return '';
     if (r.say) return r.say;
     var a = r.action || {}, ty = a.type || '', t = actName(a);
     switch (r.reason) {
       case 'not_found':
-        if (/^rules_/.test(ty)) return 'I\'m afraid I can\'t find a rule like ' + (t || 'that') + '.';
-        if (/^plan_/.test(ty)) return 'I can\'t find a plan called ' + (t || 'that') + '.';
-        if (ty === 'open_pc_app' || ty === 'close_pc_app') return 'I couldn\'t find ' + (t || 'that app') + ' on your PC, I\'m afraid.';
-        if (ty === 'open_link') return 'There\'s no link called ' + (t || 'that') + ' in your header.';
-        if (ty === 'open_program' || ty === 'program') return 'I can\'t see a program called ' + (a.program || t || 'that') + ' linked from your TaskHub.';
-        if (ty === 'start_class') return 'I can\'t find a class called ' + (t || 'that') + '.';
-        if (ty === 'gita_open') return 'There\'s no lesson ' + (a.lesson || 'by that number') + ', I\'m afraid.';
-        if (ty === 'shift_range' || ty === 'clear_completed') return 'There was nothing there to change.';
-        return t ? 'I\'m afraid I couldn\'t find a task called ' + t + '.' : 'I\'m afraid I couldn\'t find that one.';
-      case 'off_pc': return /^close_/.test(ty) ? 'I can only close apps on your PC, ' + NAME() + '.' : 'I can only open apps from your PC, ' + NAME() + '.';
-      case 'locked': return 'It stayed locked, so I\'ve left everything as it was.';
-      case 'no_reminder': return (t || 'That one') + ' has no reminder to clear.';
-      case 'not_flagged': return (t || 'That task') + ' has no AI prep yet. Ask me to turn it on first.';
-      case 'prep_failed': return 'I couldn\'t prepare ' + (t || 'that task') + ' just now, I\'m afraid. I\'ll try again shortly.';
-      case 'no_op': return 'I can open ' + progLabel(a.program) + ', but I can\'t do that inside it yet.';
-      case 'no_lock': return 'That has no lock set up, so there\'s nothing to lock.';
-      case 'too_soon': return 'Give that rule a moment on screen first.';
-      case 'out_of_order': return 'The rules go in order, ' + NAME() + '. Tick the next one first.';
-      case 'one_at_a_time': return 'The checklist goes one rule at a time, I\'m afraid. Tell me each one as you read it.';
-      case 'already': return /^plan_/.test(ty) ? 'You\'ve already done that for ' + (t || 'that plan') + '.' : 'That one is already ticked.';
-      case 'not_open': return 'The rules checklist isn\'t open.';
-      case 'no_rules': return 'You have no rules to check yet.';
+        if (/^plan_/.test(ty)) return 'No plan called ' + (t || 'that') + '.';
+        if (ty === 'open_pc_app' || ty === 'close_pc_app') return 'Can\'t find ' + (t || 'that app') + ' on your PC.';
+        if (ty === 'open_link') return 'No link called ' + (t || 'that') + '.';
+        if (ty === 'shift_range' || ty === 'clear_completed') return 'Nothing there to change.';
+        return t ? 'Couldn\'t find ' + t + '.' : 'Couldn\'t find that.';
+      case 'off_pc': return /^close_/.test(ty) ? 'Apps only close from your PC.' : 'Apps only open from your PC.';
+      case 'locked': return 'Still locked; nothing changed.';
+      case 'no_reminder': return (t || 'That') + ' has no reminder.';
+      case 'not_flagged': return (t || 'That task') + ' has no AI prep yet.';
+      case 'prep_failed': return 'Couldn\'t prep ' + (t || 'that') + '.';
+      case 'no_lock': return 'That has no lock.';
+      case 'already': return /^plan_/.test(ty) ? 'Already done for ' + (t || 'that plan') + '.' : 'Already done.';
       case 'not_waiting': return (t || 'That plan') + ' isn\'t waiting on you.';
       case 'not_confirmed': return (t || 'That plan') + ' isn\'t confirmed yet.';
-      case 'bioFailed': return 'The fingerprint check didn\'t pass, so I haven\'t confirmed it.';
-      case 'journal_not_ready': return 'Your journal hasn\'t loaded yet. Open it once, then ask me again.';
-      case 'invalid': return 'I didn\'t quite follow that one, I\'m afraid.';
-      case 'no_bridge': return 'That one is beyond my reach here, I\'m afraid.';
+      case 'bioFailed': return 'Fingerprint didn\'t pass.';
+      case 'journal_not_ready': return 'Your journal isn\'t loaded yet.';
+      case 'nothing': return ty === 'redo' ? 'Nothing to redo.' : 'Nothing to undo.';
+      case 'invalid': return 'Didn\'t catch that.';
+      case 'no_bridge': return 'Out of reach here.';
     }
-    return t ? 'I couldn\'t manage ' + t + ', I\'m afraid.' : 'I couldn\'t manage that one, I\'m afraid.';
+    return t ? 'Couldn\'t do ' + t + '.' : 'Couldn\'t do that.';
   }
   function failSpeech(results) {
     var seen = {}, out = [];
     (results || []).forEach(function (r) { var l = failLine(r); if (l && !seen[l]) { seen[l] = 1; out.push(l); } });
     return out.join(' ');
   }
-  // What Neo says once the actions have run. The model wrote `say` before
-  // anything ran, so it is only trusted for the actions that worked:
-  //   nothing returned (a question)  → the model's answer
-  //   everything worked             → the model's line
-  //   nothing worked                → only the failures (never "Done")
-  //   some worked                   → the model's line, then the failures
-  function compose(say, results) {
+  // What he HEARS once the actions have run (Tony, 2026-11-09: say "Done", show
+  // the detail). A question (no actions) is answered aloud in full.
+  //   nothing returned → the model's answer      everything worked → "Done."
+  //   nothing worked   → the failures             some worked      → "Done, except: …"
+  function spokenFor(say, results) {
     results = results || [];
-    say = String(say || '').trim();
-    if (!results.length) return say;
+    if (!results.length) return String(say || '').trim();
     var bad = results.filter(function (r) { return !r.ok; });
-    if (!bad.length) return say || 'Done.';
+    if (!bad.length) return 'Done.';
     var fl = failSpeech(bad);
-    if (bad.length === results.length) return fl;
-    return (say ? say + ' ' : 'The rest is done. ') + fl;
+    return bad.length === results.length ? fl : 'Done, except: ' + fl;
+  }
+  // What he SEES: exactly what changed, in one short line. The full list is
+  // under the details button.
+  function cardText(c) { return c.label + (c.detail ? ' · ' + c.detail : ''); }
+  function shownFor(say, results) {
+    results = results || [];
+    if (!results.length) return String(say || '').trim();
+    var ok = results.filter(function (r) { return r.ok; }), bad = results.filter(function (r) { return !r.ok; });
+    var parts = ok.map(function (r) {
+      if (r.diff && r.diff.length) return (r.action.type === 'redo' ? 'Redone: ' : 'Undone: ') + diffLine(r.diff);
+      if (r.action && (r.action.type === 'undo' || r.action.type === 'redo')) return r.action.type === 'redo' ? 'Redid the last undo.' : 'Undid the last change.';
+      var c = cardFor(r.action); return c ? cardText(c) : '';
+    }).filter(Boolean);
+    var line = parts.length <= 2 ? parts.join('; ') : parts.slice(0, 2).join('; ') + '; +' + (parts.length - 2) + ' more';
+    if (!line && ok.length) line = String(say || '').trim() || 'Done.';
+    var notes = ok.map(function (r) { return r.note; }).filter(Boolean).join(' ');
+    if (notes) line = (line ? line + '. ' : '') + notes;
+    if (bad.length) line = (line ? line.replace(/[.;]?$/, '.') + ' ' : '') + failSpeech(bad);
+    return line;
+  }
+
+  // ══ what an undo undid: a diff of his TaskHub before and after ═════════════
+  function snapState(st) {
+    if (!st) return null;
+    return clone({ data: st.data || {}, habits: st.habits || [], hc: st.hc || {}, shortGoals: st.shortGoals || [], longGoals: st.longGoals || [] });
+  }
+  function indexItems(s) {
+    var out = {};
+    Object.keys((s && s.data) || {}).forEach(function (k) {
+      if (!DKEY_RE.test(k)) return;
+      (s.data[k] || []).forEach(function (x) { if (x && x.id && !x._planId) out['c:' + x.id] = { item: x, key: k, box: 'calendar' }; });
+    });
+    [['habits', 'habit'], ['shortGoals', 'short-term goal'], ['longGoals', 'long-term goal']].forEach(function (b) {
+      ((s && s[b[0]]) || []).forEach(function (x) { if (x && x.id) out[b[0] + ':' + x.id] = { item: x, box: b[1] }; });
+    });
+    return out;
+  }
+  // → [{verb, title, key?, extra?}] (grouped later by diffLine). Pure.
+  function diffState(a, b) {
+    if (!a || !b) return [];
+    var A = indexItems(a), B = indexItems(b), out = [];
+    Object.keys(A).forEach(function (id) {
+      var x = A[id], y = B[id], t = (x.item.title || '').trim(); if (!t) return;
+      if (!y) { out.push({ verb: 'removed', title: t, key: x.key }); return; }
+      var yt = (y.item.title || '').trim();
+      if (yt && yt !== t) out.push({ verb: 'renamed', title: t, extra: yt });
+      if (x.key && y.key && x.key !== y.key) out.push({ verb: 'moved', title: yt || t, extra: fmtDate(y.key) });
+      if (!!x.item.done !== !!y.item.done) out.push({ verb: y.item.done ? 'ticked' : 'unticked', title: yt || t, key: y.key });
+      if ((x.item.time || '') !== (y.item.time || '')) out.push({ verb: 'retimed', title: yt || t, extra: y.item.time ? spokenTime(y.item.time) : 'no time' });
+      if ((x.item.notifyAt || '') !== (y.item.notifyAt || '')) out.push({ verb: y.item.notifyAt ? (x.item.notifyAt ? 'reminder changed' : 'reminder set') : 'reminder cleared', title: yt || t });
+      if (!!x.item.aiPrep !== !!y.item.aiPrep) out.push({ verb: y.item.aiPrep ? 'AI prep on' : 'AI prep off', title: yt || t });
+    });
+    Object.keys(B).forEach(function (id) {
+      if (A[id]) return; var y = B[id], t = (y.item.title || '').trim(); if (!t) return;
+      out.push({ verb: 'restored', title: t, key: y.key });
+    });
+    // Habit ticks: "<habitId>-<y>-<m 0-11>-<d>".
+    var names = {}; ((b.habits || []).concat(a.habits || [])).forEach(function (h) { if (h && h.id) names[h.id] = h.title; });
+    var ha = a.hc || {}, hb = b.hc || {}, keys = {};
+    Object.keys(ha).concat(Object.keys(hb)).forEach(function (k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      if (!!ha[k] === !!hb[k]) return;
+      var m = /^(.*)-(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(k); if (!m || !names[m[1]]) return;
+      out.push({ verb: hb[k] ? 'ticked' : 'unticked', title: names[m[1]], key: dkey(new Date(+m[2], +m[3], +m[4])) });
+    });
+    return out;
+  }
+  // [{verb, title, key?, extra?}] → "removed Buy milk · Fri 6 Nov; unticked Read". Pure.
+  function diffLine(list, max) {
+    max = max || 3;
+    var groups = [], at = {};
+    (list || []).forEach(function (d) {
+      var k = d.verb + '\u0001' + d.title + '\u0001' + (d.extra || '');
+      if (!(k in at)) { at[k] = groups.length; groups.push({ d: d, n: 0 }); }
+      groups[at[k]].n++;
+    });
+    var phr = groups.map(function (g) {
+      var d = g.d, s;
+      if (d.verb === 'renamed') s = 'renamed ' + d.title + ' to ' + d.extra;
+      else if (d.verb === 'moved') s = 'moved ' + d.title + ' to ' + d.extra;
+      else if (d.verb === 'retimed') s = d.title + ' → ' + d.extra;
+      else if (/^(reminder|AI prep)/.test(d.verb)) s = d.title + ': ' + d.verb;
+      else s = d.verb + ' ' + d.title;
+      if (g.n > 1) s += ' ×' + g.n; else if (d.key && !/^(moved|renamed)$/.test(d.verb)) s += ' · ' + fmtDate(d.key);
+      return s;
+    });
+    if (!phr.length) return '';
+    return phr.length <= max ? phr.join('; ') : phr.slice(0, max).join('; ') + '; +' + (phr.length - max) + ' more';
   }
 
   // ══ asking first ═══════════════════════════════════════════════════════════
-  // Bulk deletions, range shifts and "close everything" are said back as a
-  // question; nothing runs until she says yes. → {question} | null
+  // Bulk deletions, range shifts and "close everything" are asked back as a
+  // question; nothing runs until he says (or taps, or types) yes.
   var BOXN = { dailyHabits: 'daily habits', shortTermGoals: 'short-term goals', longTermGoals: 'long-term goals' };
-  function cap1(s) { return String(s).replace(/^./, function (c) { return c.toUpperCase(); }); }
   function spokenNum(n) { return n <= 12 ? (n === 0 ? 'no' : NUMW[n]) : String(n); }
   function spokenDate(k) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(k || '')); if (!m) return 'that day';
@@ -347,10 +384,6 @@
       } else if (a.type === 'shift_range') {
         var d = parseInt(a.days, 10) || 0;
         q.push('move everything ' + (a.from ? 'from ' + spokenDate(a.from) + ' ' : '') + (a.to && a.to !== a.from ? 'to ' + spokenDate(a.to) + ' ' : '') + spokenNum(Math.abs(d)) + ' day' + (Math.abs(d) === 1 ? '' : 's') + (d < 0 ? ' earlier' : ' later'));
-      } else if (a.type === 'program') {
-        // An operation its connector marks as ask-first (neo-programs.js).
-        var R = window._vdNeoPrograms, oi = R && R.opInfo ? R.opInfo(a.program, a.op) : null;
-        if (oi && oi.op.confirm) q.push(typeof oi.op.confirm === 'function' ? oi.op.confirm(a.args || {}, oi.program) : (String(a.op).replace(/_/g, ' ') + ' in ' + oi.program.label));
       } else if (a.type === 'close_all_pc_apps') {
         q.push('close all your apps' + (a.except && a.except.length ? ' except ' + a.except.join(' and ') : ''));
       } else if (a.type === 'plan_confirm') {
@@ -359,15 +392,12 @@
       }
     });
     if (removes > 3) q.unshift('remove ' + spokenNum(removes) + ' items');
-    return q.length ? { question: 'Shall I ' + q.join(', and ') + '?' } : null;
+    return q.length ? { question: cap1(q.join(', and ')) + '?' } : null;
   }
-  // Before anything runs: is this really a new request from her?
-  //  · Neo hearing itself: the transcript is mostly the line Neo just said
-  //    (the device voice isn't removed by the mic's echo cancellation).
-  //  · a replay: every action re-adds what the previous turn just added, and she
-  //    didn't say "again" / "another". The model, shown the previous turn and
-  //    given silence or noise, re-emits it; that is the "Call Ashton" loop.
-  // → {drop: reason} | the ask-first question | null.
+  // Before anything runs: is this really a new request from him?
+  //  · Neo hearing itself (spoken turns only): the transcript is mostly Neo's last line.
+  //  · a replay: every action re-adds what the previous turn just added, and he
+  //    didn't say "again" / "another".
   function overlap(a, b) {
     var wa = normWords(a).split(' ').filter(function (w) { return w.length > 2; });
     var wb = normWords(b).split(' ').filter(function (w) { return w.length > 2; });
@@ -383,26 +413,27 @@
   }
   function guardTurn(acts, st, reply) {
     var tr = (reply && reply.transcript) || '';
-    if (S.lastSaid && overlap(tr, S.lastSaid) >= 0.6) return { drop: 'echo' };
+    if (!S.typed && S.lastSaid && overlap(tr, S.lastSaid) >= 0.6) return { drop: 'echo' };
     var prev = S.prev && Date.now() - S.prev.at < PREV_MS ? S.prev.data : null;
     if (isReplay(acts, prev, tr)) return { drop: 'replay' };
     return needsConfirm(acts, st);
   }
   function isYes(t) { return /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|do it|go ahead|confirm(ed)?|please( do)?|affirmative|correct|right)\b/i.test(String(t || '')); }
   function isNo(t) { return /^\s*(no|nope|nah|don'?t|do not|cancel|stop|never ?mind|leave it|wait)\b/i.test(String(t || '')); }
+  // Undo / redo said or typed on their own run here, on the device: instant, free.
+  function isUndo(t) { return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|that was a mistake)\s*[.!?]?\s*$/i.test(String(t || '')); }
+  function isRedo(t) { return /^\s*(please\s+)?(redo( that| last| it)?)\s*[.!?]?\s*$/i.test(String(t || '')); }
 
-  // What people call an app → its Start-menu name (normalised: lower case, spaces).
+  // What people call an app → its Start-menu name (normalised).
   var APP_ALIASES = {
     'vs code': 'visual studio code', 'vscode': 'visual studio code', 'code': 'visual studio code',
     'chrome': 'google chrome', 'google': 'google chrome', 'explorer': 'file explorer', 'files': 'file explorer',
     'teams': 'microsoft teams', 'edge': 'microsoft edge', 'store': 'microsoft store', 'settings': 'settings',
     'terminal': 'terminal', 'cmd': 'command prompt', 'calc': 'calculator', 'ppt': 'powerpoint', 'powerpoint': 'powerpoint',
   };
-  // A spoken app name → one of her PC's apps ({id,name} from dashboards/veda_pc_apps,
-  // which her PC's StudyOS bridge publishes). Exact name, then a name that starts
-  // with it, then one containing it, then the best word overlap. null when nothing fits.
+  // A spoken app name → one of his PC's apps ({id,name}, which his PC's A1 Prep
+  // Bridge publishes). Exact, alias, whole words (shortest name wins), overlap.
   function matchApp(name, apps) {
-    // "_" stays part of a word, so "chrome_proxy" never passes for Chrome.
     var norm = function (s) { return String(s).toLowerCase().replace(/\.exe$/, '').replace(/[^a-z0-9+#_]+/g, ' ').trim(); };
     var q = norm(name || '');
     if (!q) return null;
@@ -411,8 +442,6 @@
     for (i = 0; i < list.length; i++) if (norm(list[i].name) === q) return list[i];
     var alias = APP_ALIASES[q];
     if (alias) for (i = 0; i < list.length; i++) if (norm(list[i].name) === alias) return list[i];
-    // Her words as whole words of an app's name; the shortest such name wins
-    // ("Chrome" → Google Chrome, not Chrome Remote Desktop; "Zoom" → Zoom Workplace).
     var best = null;
     if (q.length >= 2) for (i = 0; i < list.length; i++) { n = norm(list[i].name); if ((' ' + n + ' ').indexOf(' ' + q + ' ') >= 0 && (!best || n.length < norm(best.name).length)) best = list[i]; }
     if (best) return best;
@@ -429,455 +458,547 @@
     if (!/^[a-z]+:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
     try { var p = new URL(u); return /^https?:$/.test(p.protocol) && p.hostname.indexOf('.') > 0 ? p.href : ''; } catch (e) { return ''; }
   }
-  // What Neo says when a launch went wrong ('' when it didn't).
   function launchIssue(res, missing, bridgeErr, names) {
-    if (missing && missing.length) return 'I couldn\'t find ' + missing.join(' or ') + ' on your PC, I\'m afraid.';
+    if (missing && missing.length) return 'Can\'t find ' + missing.join(' or ') + ' on your PC.';
     if (!res) {
-      if (/blocked/.test(bridgeErr || '')) return 'Your browser is blocking me from reaching your PC, ' + NAME() + '. Allow local network access for this site, then ask again.';
-      return 'Your PC\'s launcher isn\'t answering, ' + NAME() + '. ' + P.bridgeHint + ', and I\'ll try again.';
+      if (/blocked/.test(bridgeErr || '')) return 'The browser is blocking your PC. Allow local network access for this site.';
+      return 'Your PC\'s launcher isn\'t answering. ' + P.bridgeHint;
     }
-    // unknown holds the ids it never knew; failed holds the NAMES of what Windows refused.
     var bad = (res.unknown || []).map(function (id) { return names[id] || 'one of them'; }).concat(res.failed || []);
-    return bad.length ? bad.join(' and ') + (bad.length > 1 ? ' didn\'t' : ' didn\'t') + ' open, I\'m afraid.' : '';
+    return bad.length ? bad.join(' and ') + ' didn\'t open.' : '';
   }
 
-  // The device voice when Orca can't speak: British male first, like Ryan.
-  function pickVoiceFrom(vs) {
+  // The device voice when Orca can't speak: his chosen voice's locale first,
+  // then British male (like Ryan).
+  function pickVoiceFrom(vs, voiceId) {
     vs = vs || [];
-    var prefs = ['Microsoft Ryan Online', 'Microsoft Thomas Online', 'Google UK English Male', 'Daniel', 'Microsoft George', 'Arthur', 'Oliver'];
+    var loc = (/^([a-z]{2}-[A-Z]{2})-/.exec(String(voiceId || '')) || [])[1];
+    var male = !voiceId || VOICE_GENDER[voiceId] !== 'female';
+    var prefs = male ? ['Microsoft Ryan Online', 'Microsoft Thomas Online', 'Google UK English Male', 'Daniel', 'Microsoft George', 'Arthur', 'Oliver']
+      : ['Microsoft Libby Online', 'Microsoft Sonia Online', 'Google UK English Female', 'Serena', 'Kate', 'Microsoft Hazel'];
+    if (loc && loc !== 'en-GB') {
+      var same = vs.filter(function (v) { return String(v.lang).replace('_', '-') === loc; });
+      var g = same.find(function (v) { return male ? !/female|woman/i.test(v.name) : /female|woman|aria|jenny|ava|emma|michelle|natasha|neerja|emily/i.test(v.name); });
+      if (g || same[0]) return g || same[0];
+    }
     for (var i = 0; i < prefs.length; i++) { var p = prefs[i], hit = vs.find(function (v) { return String(v.name).indexOf(p) === 0; }); if (hit) return hit; }
-    return vs.find(function (v) { return /^en[-_]GB/i.test(v.lang) && /male|man|guy/i.test(v.name) && !/female|woman/i.test(v.name); })
+    return vs.find(function (v) { return /^en[-_]GB/i.test(v.lang) && (male ? /male|man|guy/i.test(v.name) && !/female|woman/i.test(v.name) : /female|woman/i.test(v.name)); })
       || vs.find(function (v) { return /^en[-_]GB/i.test(v.lang); })
       || vs.find(function (v) { return /^en/i.test(v.lang); }) || null;
+  }
+
+  // ══ his settings (synced: dashboards/neo_tony) ═════════════════════════════
+  // Orca's Edge voices, the set Shruti offers (Shruti/app/orca.js VOICES).
+  var VOICES = [
+    ['en-GB-RyanNeural', 'Ryan', 'en-GB', 'male'], ['en-GB-ThomasNeural', 'Thomas', 'en-GB', 'male'],
+    ['en-GB-SoniaNeural', 'Sonia', 'en-GB', 'female'], ['en-GB-LibbyNeural', 'Libby', 'en-GB', 'female'],
+    ['en-US-AndrewMultilingualNeural', 'Andrew', 'en-US', 'male'], ['en-US-BrianMultilingualNeural', 'Brian', 'en-US', 'male'],
+    ['en-US-GuyNeural', 'Guy', 'en-US', 'male'], ['en-US-ChristopherNeural', 'Christopher', 'en-US', 'male'], ['en-US-SteffanNeural', 'Steffan', 'en-US', 'male'],
+    ['en-US-AvaMultilingualNeural', 'Ava', 'en-US', 'female'], ['en-US-EmmaMultilingualNeural', 'Emma', 'en-US', 'female'],
+    ['en-US-JennyNeural', 'Jenny', 'en-US', 'female'], ['en-US-AriaNeural', 'Aria', 'en-US', 'female'], ['en-US-MichelleNeural', 'Michelle', 'en-US', 'female'],
+    ['en-AU-WilliamMultilingualNeural', 'William', 'en-AU', 'male'], ['en-AU-NatashaNeural', 'Natasha', 'en-AU', 'female'],
+    ['en-IN-PrabhatNeural', 'Prabhat', 'en-IN', 'male'], ['en-IN-NeerjaNeural', 'Neerja', 'en-IN', 'female'],
+    ['en-IE-ConnorNeural', 'Connor', 'en-IE', 'male'], ['en-IE-EmilyNeural', 'Emily', 'en-IE', 'female'],
+  ].map(function (v) { return { id: v[0], name: v[1], locale: v[2], gender: v[3] }; });
+  var VOICE_GENDER = {}; VOICES.forEach(function (v) { VOICE_GENDER[v.id] = v.gender; });
+  var LOCALE_NAME = { 'en-GB': 'British', 'en-US': 'American', 'en-AU': 'Australian', 'en-IN': 'Indian', 'en-IE': 'Irish' };
+  function voiceName(id) { var v = VOICES.find(function (x) { return x.id === id; }); return v ? v.name : 'Ryan'; }
+
+  var SET_LS = 'th_neo_settings', MIC_LS = 'th_neo_mic_id';
+  var DEFAULTS = { voice: DEFAULT_VOICE, micLabel: '', speakTyped: true, at: 0 };
+  // Only known shapes get in, from either side (this device or the cloud).
+  function cleanSettings(o) {
+    o = (o && typeof o === 'object') ? o : {};
+    var out = {};
+    if (typeof o.voice === 'string' && VOICE_GENDER[o.voice]) out.voice = o.voice;
+    if (typeof o.micLabel === 'string') out.micLabel = o.micLabel.slice(0, 200);
+    if (typeof o.speakTyped === 'boolean') out.speakTyped = o.speakTyped;
+    if (typeof o.at === 'number' && isFinite(o.at)) out.at = o.at;
+    return out;
+  }
+  function readSettings() {
+    var o = {}; try { o = JSON.parse(localStorage.getItem(SET_LS) || '{}'); } catch (e) {}
+    return Object.assign({}, DEFAULTS, cleanSettings(o));
+  }
+  var SET = readSettings();
+  function storeSettings() { try { localStorage.setItem(SET_LS, JSON.stringify(SET)); } catch (e) {} }
+  function settingsChanged() { try { window.dispatchEvent(new CustomEvent('th-neo-settings', { detail: Object.assign({}, SET) })); } catch (e) {} if (H) refreshTele(); }
+  // A change made here: this device now, every device of his through Firestore.
+  function setSettings(patch) {
+    var c = cleanSettings(patch);
+    if (!Object.keys(c).length) return false;
+    SET = Object.assign({}, SET, c, { at: Date.now() });
+    storeSettings(); settingsChanged();
+    var save = window._fbSaveNeoTony;
+    if (typeof save === 'function') { try { save({ voice: SET.voice, micLabel: SET.micLabel, speakTyped: SET.speakTyped, at: SET.at }); } catch (e) {} }
+    return true;
+  }
+  // The cloud copy (index.html's listener): newer wins.
+  function applyRemote(o) {
+    var c = cleanSettings(o);
+    if (!c.at || c.at <= (SET.at || 0)) return false;
+    SET = Object.assign({}, DEFAULTS, SET, c);
+    storeSettings(); settingsChanged();
+    if (S.running && c.micLabel !== undefined) { teardown(); sync(); }   // a new mic: reopen on it
+    return true;
+  }
+  window.addEventListener('th-neo-remote', function (e) { applyRemote(e && e.detail); });
+  if (window._thNeoRemote) applyRemote(window._thNeoRemote);
+
+  async function listMics() {
+    var md = navigator.mediaDevices;
+    if (!md || !md.enumerateDevices) return [];
+    try { return (await md.enumerateDevices()).filter(function (d) { return d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications'; }); } catch (e) { return []; }
+  }
+  // His chosen microphone on THIS device: device ids differ per device and site,
+  // so the label is what syncs; the id found for it is kept on the device.
+  async function micDeviceId() {
+    if (!SET.micLabel) return '';
+    var local = ''; try { local = localStorage.getItem(MIC_LS) || ''; } catch (e) {}
+    var devs = await listMics();
+    var hit = devs.find(function (d) { return d.label && d.label === SET.micLabel; });
+    if (hit) { try { localStorage.setItem(MIC_LS, hit.deviceId); } catch (e) {} return hit.deviceId; }
+    var labelled = devs.some(function (d) { return d.label; });
+    return labelled ? '' : local;   // no labels yet (no permission): the last id this device used
   }
 
   // ══ state ══════════════════════════════════════════════════════════════════
   var S = {
     on: false, running: false, starting: false,
-    mode: 'off',            // off | loading | wake | capture | thinking | speaking | follow
+    talk: false,            // a Talk-button session (no wake phrase; ends when the conversation does)
+    talkStart: false,       // …start capturing as soon as the mic is up
+    typed: false,           // the turn in hand was typed
+    mode: 'off',            // off | loading | boot | wake | capture | thinking | speaking | follow | note | error
     stream: null, ctx: null, src: null, proc: null, sr: 48000, anMic: null, anOut: null,
     model: null, rec: null, cap: null,
     ring: [], ringLen: 0, chunks: [], vad: null, followUntil: 0,
     floor: 0.006, greet: false, level: 0, afterSay: '',
-    capText: '',            // what the caption recognizer heard this capture (for a spoken yes / no)
-    pending: null,          // actions held for a yes / no: {actions, say, transcript, at}
-    lastSaid: '',           // Neo's last spoken line, so it never acts on hearing itself
-    deafUntil: 0,           // follow mode ignores the mic until then (its own voice's tail)
-    capFollow: false,       // this capture began in follow mode (no wake phrase)
-    prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
-    history: [],            // the conversation so far (oldest first, ≤ HISTORY_N turns): [{at, data}]
+    capText: '', pending: null, lastSaid: '', deafUntil: 0, capFollow: false,
+    prev: null, history: [], holdUntil: 0,
+    turn: null,             // the latest turn, for the details popover: {you, shown, cards, truncated}
   };
-  S.who = null;                                 // the side S.on belongs to ('veda' | 'tony' | null)
-  function readPref(id) { try { return localStorage.getItem(PROFILES[id].pref) === '1'; } catch (e) { return false; } }
-  // Becomes the side in front: its switch, colours and bridge. The old side's
-  // conversation is not carried over.
-  function adopt(id) {
-    if (S.who === id) return;
-    S.who = id; if (id) { P = PROFILES[id]; C = P.C; }
-    S.on = id ? readPref(id) : false;
-    S.prev = null; S.history = []; S.pending = null; S.lastSaid = '';
-    orcaKey = ''; orcaOk = null; keyP = null; lastVoice = '';
-    if (H) H.el.classList.toggle('p-tony', P.id === 'tony');
-  }
+  try { S.on = localStorage.getItem(P.pref) === '1'; } catch (e) {}
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
-  // Neo runs only for the side it belongs to, and only while that side is in front.
-  function isVeda() { return !!S.who && sideOf() === S.who; }
-  function emit() { try { window.dispatchEvent(new CustomEvent('vd-neo-change', { detail: { on: S.on, mode: S.mode, who: S.who } })); } catch (e) {} }
+  function emit() { try { window.dispatchEvent(new CustomEvent('th-neo-change', { detail: { on: S.on, mode: S.mode, talk: S.talk } })); } catch (e) {} }
   function setMode(m) { S.mode = m; hudMode(m); emit(); }
   function bridgeState() { try { var b = W('bridge'); return b && b.getState ? b.getState() : null; } catch (e) { return null; } }
 
-  // ══ styles (injected at load: the header button animates from them too) ═══
+  // ══ styles ═════════════════════════════════════════════════════════════════
   var styled = false;
   function ensureStyles() {
     if (styled || !document.head) return; styled = true;
-    var C = C_VEDA;   // her sheet is always her colours; Tony's is tonySheet()
-    var st = document.createElement('style'); st.id = 'vd-neo-style';
-    var veda = [
-      '#vd-neo-hud{--vn-core:' + C.core + ';--vn-ring:' + C.ring + ';--vn-acc:' + C.accent + ';--vn-glow:' + C.glow + ';',
-      ' position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:100000;width:min(620px,calc(100vw - 32px));',
-      ' transform:translate(-50%,24px) scale(.97);opacity:0;pointer-events:none;transition:opacity .28s ease,transform .38s cubic-bezier(.2,.9,.25,1.1);',
-      " font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--vn-core);}",
-      '#vd-neo-hud.show{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto;}',
-      '#vd-neo-hud .vn-glass{position:relative;overflow:hidden;border-radius:18px;padding:14px 16px 12px;',
-      ' background:linear-gradient(160deg,rgba(30,22,38,.78),rgba(14,11,18,.82));border:1px solid rgba(201,179,217,.28);',
-      ' box-shadow:0 0 0 1px rgba(141,118,154,.25),0 0 34px rgba(141,118,154,.32),inset 0 0 40px rgba(141,118,154,.10);',
-      ' -webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);}',
-      // scan lines + a slow sweep + corner brackets
-      '#vd-neo-hud .vn-scan{position:absolute;inset:0;pointer-events:none;opacity:.22;mix-blend-mode:screen;',
-      ' background:repeating-linear-gradient(0deg,rgba(230,217,240,.08) 0 1px,transparent 1px 3px);}',
-      '#vd-neo-hud .vn-sweep{position:absolute;left:0;right:0;height:60px;top:-60px;pointer-events:none;mix-blend-mode:screen;',
-      ' background:linear-gradient(180deg,transparent,rgba(201,179,217,.10),transparent);animation:vnSweep 4.5s linear infinite;}',
-      '#vd-neo-hud .vn-br{position:absolute;width:14px;height:14px;border:1.5px solid var(--vn-ring);opacity:.7;pointer-events:none;}',
-      '#vd-neo-hud .vn-br.a{top:7px;left:7px;border-right:0;border-bottom:0;border-top-left-radius:6px}',
-      '#vd-neo-hud .vn-br.b{top:7px;right:7px;border-left:0;border-bottom:0;border-top-right-radius:6px}',
-      '#vd-neo-hud .vn-br.c{bottom:7px;left:7px;border-right:0;border-top:0;border-bottom-left-radius:6px}',
-      '#vd-neo-hud .vn-br.d{bottom:7px;right:7px;border-left:0;border-top:0;border-bottom-right-radius:6px}',
-      // header row
-      '#vd-neo-hud .vn-top{position:relative;display:flex;align-items:center;gap:10px;font-size:10px;letter-spacing:2px;color:rgba(230,217,240,.62);}',
-      "#vd-neo-hud .vn-brand{font-family:Orbitron,'JetBrains Mono',sans-serif;font-weight:700;font-size:12px;letter-spacing:4px;color:var(--vn-core);text-shadow:0 0 10px var(--vn-glow);}",
-      "#vd-neo-hud .vn-state{font-family:Orbitron,'JetBrains Mono',sans-serif;font-weight:500;color:var(--vn-ring);}",
-      '#vd-neo-hud .vn-state::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--vn-ring);box-shadow:0 0 8px var(--vn-ring);}',
-      '#vd-neo-hud.m-capture .vn-state::before{background:' + C.red + ';box-shadow:0 0 10px ' + C.red + ';animation:vnBlink 1s steps(2) infinite;}',
-      '#vd-neo-hud .vn-clock{margin-left:auto;}',
-      '#vd-neo-hud .vn-x{background:none;border:1px solid rgba(201,179,217,.25);color:rgba(230,217,240,.7);border-radius:6px;width:22px;height:22px;font-size:11px;line-height:1;cursor:pointer;padding:0;}',
-      '#vd-neo-hud .vn-x:hover{border-color:var(--vn-ring);color:var(--vn-core);box-shadow:0 0 8px var(--vn-glow);}',
-      // body: orb + text
-      '#vd-neo-hud .vn-main{position:relative;display:flex;align-items:center;gap:16px;margin-top:8px;min-height:150px;}',
-      '#vd-neo-hud .vn-orb{flex:0 0 150px;width:150px;height:150px;position:relative;}',
-      '#vd-neo-hud canvas{width:150px;height:150px;display:block;}',
-      '#vd-neo-hud .vn-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}',
-      '#vd-neo-hud .vn-you{font-size:12px;color:rgba(230,217,240,.6);min-height:16px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}',
-      '#vd-neo-hud .vn-you:not(:empty)::before{content:"YOU › ";color:var(--vn-acc);letter-spacing:1px;}',
-      "#vd-neo-hud .vn-say{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:15px;line-height:1.5;color:var(--vn-core);min-height:22px;text-shadow:0 0 12px rgba(201,179,217,.35);}",
-      '#vd-neo-hud .vn-say .w{opacity:.18;transition:opacity .18s,text-shadow .3s;}',
-      '#vd-neo-hud .vn-say .w.lit{opacity:1;}',
-      '#vd-neo-hud .vn-say .w.now{text-shadow:0 0 14px ' + C.hot + ';}',
-      '#vd-neo-hud .vn-tick{font-size:10px;letter-spacing:1.5px;color:rgba(201,179,217,.55);white-space:nowrap;overflow:hidden;height:14px;}',
-      // action cards
-      '#vd-neo-hud .vn-cards{position:relative;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}',
-      '#vd-neo-hud .vn-card{display:flex;align-items:center;gap:8px;max-width:100%;padding:6px 10px;border-radius:8px;font-size:11px;letter-spacing:1px;',
-      ' background:rgba(141,118,154,.14);border:1px solid rgba(201,179,217,.32);box-shadow:inset 0 0 12px rgba(141,118,154,.15);',
-      ' opacity:0;transform:translateY(8px);animation:vnCard .42s cubic-bezier(.2,.9,.25,1.15) forwards;}',
-      '#vd-neo-hud .vn-card b{font-weight:600;color:var(--vn-core);white-space:nowrap;}',
-      '#vd-neo-hud .vn-card i{font-style:normal;color:var(--vn-ring);font-size:13px;text-shadow:0 0 8px var(--vn-glow);}',
-      '#vd-neo-hud .vn-card span{color:rgba(230,217,240,.75);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-      '#vd-neo-hud .vn-card.bad{background:rgba(210,122,138,.12);border-color:rgba(210,122,138,.5);}',
-      '#vd-neo-hud .vn-card.bad i,#vd-neo-hud .vn-card.bad b{color:' + C.red + ';text-shadow:0 0 8px rgba(210,122,138,.5);}',
-      '#vd-neo-hud .vn-ask button{font:inherit;font-size:11px;letter-spacing:1.5px;padding:3px 10px;border-radius:6px;cursor:pointer;background:transparent;color:var(--vn-core);border:1px solid rgba(201,179,217,.45);}',
-      '#vd-neo-hud .vn-ask button:hover{border-color:var(--vn-ring);box-shadow:0 0 8px var(--vn-glow);}',
-      // telemetry
-      '#vd-neo-hud .vn-tele{position:relative;display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding-top:8px;border-top:1px dashed rgba(201,179,217,.18);',
-      ' font-size:10px;letter-spacing:1.5px;color:rgba(230,217,240,.5);}',
-      '#vd-neo-hud .vn-tele b{color:var(--vn-ring);font-weight:600;}',
-      '#vd-neo-hud .vn-glitch{animation:vnGlitch .6s steps(6) 1;}',
-      '#vd-neo-hud.m-error .vn-glass{border-color:rgba(210,122,138,.5);}',
-      // phone: a bottom sheet, orb on top
-      '@media (max-width:600px){#vd-neo-hud{left:0;right:0;width:auto;bottom:0;transform:translateY(30px);}',
-      ' #vd-neo-hud.show{transform:translateY(0);}',
-      ' #vd-neo-hud .vn-glass{border-radius:20px 20px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));}',
-      ' #vd-neo-hud .vn-main{flex-direction:column;align-items:stretch;gap:8px;}',
-      ' #vd-neo-hud .vn-orb{align-self:center;flex-basis:auto;width:128px;height:128px;}#vd-neo-hud canvas{width:128px;height:128px;}',
-      ' #vd-neo-hud .vn-say{font-size:14px;text-align:center;}#vd-neo-hud .vn-you{text-align:center;}#vd-neo-hud .vn-tick{text-align:center;}',
-      ' #vd-neo-hud .vn-cards{justify-content:center;}#vd-neo-hud .vn-tele{justify-content:center;}}',
-      // docked: in the Gita quote banner's slot (Veda's TaskHub) while Neo is up. Dressed as the
-      // banner itself (its border, left accent, type); no scanlines, brackets or glitch, just
-      // a row of voice-level bars. Banner and Neo crossfade.
-      'body.vn-docked #vr-root .thwx-band > .gita-banner{display:none;}',
-      'body.vn-undock #vr-root .thwx-band > .gita-banner{animation:vnIn .35s ease;}',
-      '#vd-neo-hud.vn-dock{position:relative;left:auto;right:auto;bottom:auto;z-index:auto;width:auto;flex:1 1 auto;min-width:0;display:none;transform:none;opacity:1;transition:none;',
-      " font-family:'IBM Plex Mono',ui-monospace,monospace;}",
-      '#vd-neo-hud.vn-dock.show{display:block;transform:none;animation:vnIn .35s ease;}',
-      '#vd-neo-hud.vn-dock .vn-glass{height:100%;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:6px 12px;border-radius:6px;',
-      ' background:linear-gradient(90deg,rgba(141,118,154,.07),rgba(141,118,154,.05) 50%,rgba(141,118,154,.07));',
-      ' border:1px solid rgba(141,118,154,.25);border-left:3px solid ' + C.accent + ';box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;}',
-      '#vd-neo-hud.vn-dock .vn-scan,#vd-neo-hud.vn-dock .vn-sweep,#vd-neo-hud.vn-dock .vn-br,#vd-neo-hud.vn-dock .vn-tick,#vd-neo-hud.vn-dock .vn-tele,#vd-neo-hud.vn-dock .vn-clock{display:none;}',
-      '#vd-neo-hud.vn-dock .vn-glitch{animation:none;}',
-      '#vd-neo-hud.vn-dock .vn-main{order:1;flex:1 1 auto;min-width:0;margin-top:0;min-height:0;gap:12px;flex-direction:row;align-items:center;}',
-      '#vd-neo-hud.vn-dock .vn-orb{flex:0 0 64px;width:64px;height:26px;align-self:center;}#vd-neo-hud.vn-dock canvas{width:64px;height:26px;}',
-      '#vd-neo-hud.vn-dock .vn-text{gap:2px;}',
-      '#vd-neo-hud.vn-dock .vn-you{font-size:10.5px;min-height:0;-webkit-line-clamp:1;text-align:left;color:#76777C;}',
-      '#vd-neo-hud.vn-dock .vn-you:not(:empty)::before{content:"you  ";color:' + C.accent + ';letter-spacing:0;}',
-      '#vd-neo-hud.vn-dock .vn-you:empty{display:none;}',
-      '#vd-neo-hud .vn-you.vn-heard{color:rgba(230,217,240,.85);}#vd-neo-hud.vn-dock .vn-you.vn-heard{color:#A9AAB0;}',
-      '#vd-neo-hud.vn-dock .vn-say{font-family:var(--font-accent,inherit);font-size:12.5px;line-height:1.45;min-height:0;text-align:left;color:#D8D3DC;text-shadow:none;',
-      ' display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}',
-      '#vd-neo-hud.vn-dock .vn-say:empty{display:none;}',
-      '#vd-neo-hud.vn-dock .vn-say .w{opacity:.3;transition:opacity .25s ease;}#vd-neo-hud.vn-dock .vn-say .w.lit{opacity:1;}#vd-neo-hud.vn-dock .vn-say .w.now{text-shadow:none;}',
-      '#vd-neo-hud.vn-dock .vn-cards{margin-top:2px;flex-wrap:nowrap;overflow:hidden;justify-content:flex-start;gap:6px;}#vd-neo-hud.vn-dock .vn-cards:empty{display:none;}',
-      '#vd-neo-hud.vn-dock .vn-card{padding:2px 8px;font-size:9.5px;letter-spacing:.5px;flex-shrink:0;border-radius:4px;background:transparent;border:1px solid rgba(141,118,154,.3);box-shadow:none;}',
-      '#vd-neo-hud.vn-dock .vn-card i{color:' + C.accent + ';text-shadow:none;font-size:11px;}#vd-neo-hud.vn-dock .vn-card b{color:#AFB0B5;font-weight:600;}#vd-neo-hud.vn-dock .vn-card span{color:#76777C;}',
-      '#vd-neo-hud.vn-dock .vn-card.bad{background:transparent;}#vd-neo-hud.vn-dock .vn-card.bad i,#vd-neo-hud.vn-dock .vn-card.bad b{text-shadow:none;}',
-      '#vd-neo-hud.vn-dock .vn-top{order:2;flex:0 0 auto;flex-direction:column;align-items:flex-end;gap:6px;font-size:9px;letter-spacing:1.5px;color:#76777C;}',
-      "#vd-neo-hud.vn-dock .vn-brand{font-family:inherit;font-size:9px;font-weight:600;letter-spacing:1.5px;color:#76777C;text-shadow:none;}",
-      "#vd-neo-hud.vn-dock .vn-state{font-family:inherit;font-weight:600;color:" + C.ring + ";}",
-      '#vd-neo-hud.vn-dock .vn-state::before{width:5px;height:5px;margin-right:6px;box-shadow:none;background:' + C.accent + ';}',
-      '#vd-neo-hud.vn-dock.m-capture .vn-state::before{background:' + C.ring + ';box-shadow:none;animation:vnBreathe 1.4s ease-in-out infinite;}',
-      '#vd-neo-hud.vn-dock .vn-x{width:18px;height:18px;font-size:9px;border-color:rgba(141,118,154,.3);color:#76777C;}',
-      '#vd-neo-hud.vn-dock .vn-x:hover{border-color:' + C.accent + ';color:#AFB0B5;box-shadow:none;}',
-      '@keyframes vnIn{from{opacity:0}to{opacity:1}}',
-      // spotlight: the ring Neo draws around the row it is changing
-      '.vn-spot{position:fixed;pointer-events:none;z-index:99990;box-sizing:border-box;border:1.5px solid ' + C.ring + ';background:rgba(201,179,217,.06);',
-      ' box-shadow:0 0 0 3px rgba(201,179,217,.10),0 0 16px rgba(141,118,154,.35);opacity:0;transform:scale(1.035);',
-      ' transition:opacity .18s ease-out,transform .18s ease-out;will-change:opacity,transform;}',
-      '.vn-spot.on{opacity:1;transform:none;}',
-      '.vn-spot.out{opacity:0;transform:scale(.97);transition:opacity .22s ease-in,transform .22s ease-in;}',
-      '.vn-spot-gone{border-color:' + C.red + ';background:rgba(210,122,138,.07);box-shadow:0 0 0 3px rgba(210,122,138,.10),0 0 16px rgba(210,122,138,.3);}',
-      '@media (prefers-reduced-motion:reduce){.vn-spot,.vn-spot.out{transform:none!important;transition:opacity .01s!important}}',
-      // header button: a mini reactor
-      '.vd-neo-btn .vnb{width:15px;height:15px;display:block;overflow:visible;}',
-      '.vd-neo-btn .vnb .r1{transform-origin:12px 12px;}',
-      '.vd-neo-btn.on .vnb .r1{animation:vnSpin 9s linear infinite;}',
-      '.vd-neo-btn.on .vnb .c{animation:vnBreathe 3.2s ease-in-out infinite;}',
-      '.vd-neo-btn.busy .vnb .r1{animation:vnSpin 1.1s linear infinite;}',
-      '@keyframes vnSpin{to{transform:rotate(360deg)}}',
-      '@keyframes vnBreathe{0%,100%{opacity:.55}50%{opacity:1}}',
-      '@keyframes vnBlink{50%{opacity:.25}}',
-      '@keyframes vnSweep{to{top:110%}}',
-      '@keyframes vnCard{to{opacity:1;transform:none}}',
-      '@keyframes vnGlitch{0%{clip-path:inset(0 0 60% 0);transform:translateX(-3px)}20%{clip-path:inset(40% 0 20% 0);transform:translateX(3px)}40%{clip-path:inset(10% 0 70% 0);transform:translateX(-2px)}60%{clip-path:inset(70% 0 0 0);transform:translateX(2px)}80%{clip-path:inset(0 0 0 0);transform:translateX(-1px)}100%{clip-path:none;transform:none}}',
-      '@media (prefers-reduced-motion:reduce){#vd-neo-hud .vn-sweep{display:none}.vd-neo-btn .vnb .r1,.vd-neo-btn .vnb .c{animation:none!important}#vd-neo-hud .vn-glitch{animation:none}#vd-neo-hud .vn-card{animation-duration:.01s}}',
-    ];
-    st.textContent = veda.join('\n') + '\n' + tonySheet(veda);
+    var st = document.createElement('style'); st.id = 'th-neo-style';
+    st.textContent = [
+      '#th-neo-hud{--ac:#c0aeea;--acl:#dbd0f5;--acd:#9a86c9;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--s1:#232327;--s2:#2c2c31;--bdl:#45454c;--hl:rgba(255,255,255,.06);--red:#d68a7c;',
+      ' position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:100000;width:min(560px,calc(100vw - 32px));box-sizing:border-box;',
+      ' transform:translate(-50%,14px);opacity:0;pointer-events:none;transition:opacity .22s ease,transform .3s cubic-bezier(.2,.9,.25,1);',
+      " font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--tx);font-variant-numeric:tabular-nums;}",
+      '#th-neo-hud.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;}',
+      '#th-neo-hud .tn-panel{display:flex;align-items:center;gap:14px;min-width:0;box-sizing:border-box;padding:14px 14px 14px 16px;background:var(--s1);border:1px solid var(--hl);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.45);}',
+      '#th-neo-hud .tn-orb{flex:0 0 84px;width:84px;height:84px;align-self:center;}',
+      '#th-neo-hud canvas{width:100%;height:100%;display:block;}',
+      '#th-neo-hud .tn-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:6px;}',
+      '#th-neo-hud .tn-head{display:flex;align-items:center;gap:10px;min-width:0;}',
+      "#th-neo-hud .tn-brand{font-family:'Manrope','Inter',sans-serif;font-weight:800;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--acl);}",
+      '#th-neo-hud .tn-state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--txm);}',
+      '#th-neo-hud .tn-state::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ac);flex:0 0 auto;}',
+      '#th-neo-hud.m-capture .tn-state::before{background:var(--red);animation:tnBlink 1s steps(2) infinite;}',
+      '#th-neo-hud.m-thinking .tn-state::before,#th-neo-hud.m-loading .tn-state::before{animation:tnBreathe 1s ease-in-out infinite;}',
+      '#th-neo-hud.m-error .tn-state{color:var(--red);}#th-neo-hud.m-error .tn-state::before{background:var(--red);}',
+      '#th-neo-hud .tn-clock{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.6px;color:var(--txm);white-space:nowrap;}',
+      '#th-neo-hud .tn-side{flex:0 0 auto;align-self:flex-start;display:flex;align-items:center;gap:6px;}',
+      '#th-neo-hud .tn-side .tn-state{display:none;}',
+      "#th-neo-hud .tn-btn{flex:0 0 auto;box-sizing:border-box;height:22px;min-width:22px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;gap:4px;background:transparent;border:1px solid var(--bdl);border-radius:6px;color:var(--txd);font:inherit;font-size:10px;font-weight:700;letter-spacing:.4px;line-height:1;cursor:pointer;transition:border-color .15s,color .15s;}",
+      '#th-neo-hud .tn-btn:hover,#th-neo-hud .tn-btn[aria-expanded="true"]{border-color:var(--ac);color:var(--acl);}',
+      '#th-neo-hud .tn-btn:focus-visible{outline:2px solid var(--ac);outline-offset:1px;}',
+      '#th-neo-hud .tn-btn[hidden]{display:none;}',
+      '#th-neo-hud .tn-more .ok{color:var(--ac);}#th-neo-hud .tn-more .bad{color:var(--red);}',
+      '#th-neo-hud .tn-you{font-size:12px;line-height:1.4;color:var(--txm);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;}',
+      '#th-neo-hud .tn-you:empty{display:none;}',
+      '#th-neo-hud .tn-you::before{content:"You  ";color:var(--acd);font-weight:700;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;}',
+      '#th-neo-hud .tn-you.heard{color:var(--txd);}',
+      '#th-neo-hud .tn-say{position:relative;font-size:14px;line-height:1.5;color:var(--tx);max-height:7.5em;overflow:hidden;overflow-wrap:anywhere;}',
+      '#th-neo-hud .tn-say:empty{display:none;}',
+      '#th-neo-hud .tn-say .w{opacity:.3;transition:opacity .18s;}#th-neo-hud .tn-say .w.lit{opacity:1;}',
+      '#th-neo-hud .tn-say.ovf{-webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);mask-image:linear-gradient(180deg,#000 62%,transparent);}',
+      '#th-neo-hud .tn-cards{display:flex;flex-wrap:wrap;gap:6px;max-height:52px;overflow:hidden;}',
+      '#th-neo-hud .tn-cards:empty{display:none;}',
+      '#th-neo-hud .tn-card{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;box-sizing:border-box;padding:2px 8px;border:1px solid var(--bdl);border-radius:4px;font-size:11px;line-height:18px;animation:tnIn .3s ease both;}',
+      '#th-neo-hud .tn-card i{font-style:normal;color:var(--ac);}',
+      '#th-neo-hud .tn-card b{font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--txd);white-space:nowrap;}',
+      '#th-neo-hud .tn-card span{color:var(--txm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}',
+      '#th-neo-hud .tn-card.bad{border-color:color-mix(in srgb,var(--red) 55%,transparent);}#th-neo-hud .tn-card.bad i,#th-neo-hud .tn-card.bad b{color:var(--red);}',
+      '#th-neo-hud .tn-ask{display:inline-flex;align-items:center;gap:6px;}',
+      '#th-neo-hud .tn-ask button{font:inherit;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 10px;border-radius:6px;cursor:pointer;background:transparent;color:var(--acl);border:1px solid var(--bdl);}',
+      '#th-neo-hud .tn-ask button:hover{border-color:var(--ac);}#th-neo-hud .tn-ask button.y{background:var(--ac);border-color:var(--ac);color:#1a1a1d;}',
+      '#th-neo-hud .tn-tele{display:flex;flex-wrap:wrap;gap:4px 14px;padding-top:8px;border-top:1px solid var(--hl);font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--txm);}',
+      '#th-neo-hud .tn-tele b{color:var(--txd);font-weight:600;}',
+      // phone: a bottom sheet
+      '@media (max-width:600px){#th-neo-hud{left:0;right:0;width:auto;bottom:0;transform:translateY(20px);}',
+      ' #th-neo-hud.show{transform:translateY(0);}',
+      ' #th-neo-hud .tn-panel{border-radius:12px 12px 0 0;border-bottom:0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));gap:12px;}',
+      ' #th-neo-hud .tn-orb{flex-basis:60px;width:60px;height:60px;}#th-neo-hud .tn-clock{display:none;}}',
+      // ── docked: in his quote's slot (between weather and Tesla), at exactly the
+      // quote's height so nothing below moves (taskhub-no-pixel-shift). One line
+      // of what he said, the reply in the rest (it scrolls with the voice), and
+      // everything else behind the details button.
+      'body.tn-docked #root .thwx-band > .thwx-bq{display:none;}',
+      'body.tn-undock #root .thwx-band > .thwx-bq{animation:tnIn .35s ease;}',
+      '#th-neo-hud.tn-dock{position:relative;left:auto;right:auto;bottom:auto;z-index:auto;width:auto;min-width:0;display:none;transform:none;opacity:1;transition:none;overflow:hidden;}',
+      '#th-neo-hud.tn-dock.show{display:block;animation:tnIn .3s ease;}',
+      '#th-neo-hud.tn-dock .tn-panel{height:100%;gap:10px;padding:0 8px 0 10px;background:transparent;border:1px solid var(--hl);box-shadow:none;border-radius:8px;overflow:hidden;}',
+      '#th-neo-hud.tn-dock .tn-orb{flex:0 0 36px;width:36px;height:20px;}',
+      '#th-neo-hud.tn-dock .tn-body{height:100%;justify-content:center;gap:1px;padding:4px 0;box-sizing:border-box;min-height:0;}',
+      '#th-neo-hud.tn-dock .tn-head,#th-neo-hud.tn-dock .tn-cards,#th-neo-hud.tn-dock .tn-tele{display:none;}',
+      '#th-neo-hud.tn-dock .tn-you{flex:0 0 auto;font-size:11px;line-height:1.35;-webkit-line-clamp:1;}',
+      '#th-neo-hud.tn-dock .tn-say{flex:0 1 auto;min-height:0;max-height:none;font-size:12.5px;line-height:1.4;}',
+      '#th-neo-hud.tn-dock .tn-side{align-self:center;}',
+      '#th-neo-hud.tn-dock .tn-side .tn-state{display:inline-flex;font-size:9px;letter-spacing:1px;}',
+      '@media (max-width:600px){#th-neo-hud.tn-dock .tn-side .tn-state{display:none;}#th-neo-hud.tn-dock .tn-say{font-size:12px;}}',
+      // ── the details popover (outside the HUD: the docked HUD clips)
+      ".tn-pop{position:fixed;z-index:100001;box-sizing:border-box;width:min(420px,calc(100vw - 24px));max-height:min(60vh,460px);overflow:auto;overscroll-behavior:contain;padding:12px 14px;background:#232327;border:1px solid #45454c;border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.5);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:#f4f3f0;font-variant-numeric:tabular-nums;opacity:0;transform:translateY(-4px);transition:opacity .15s ease,transform .15s ease;}",
+      '.tn-pop.on{opacity:1;transform:none;}',
+      ".tn-pop h4{margin:0 0 4px;font-family:'Manrope','Inter',sans-serif;font-weight:800;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:#8d8d94;}",
+      '.tn-pop section+section{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);}',
+      '.tn-pop p{margin:0;overflow-wrap:anywhere;}.tn-pop .you{color:#adadb2;}',
+      '.tn-pop ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}',
+      '.tn-pop li{display:grid;grid-template-columns:16px auto 1fr;gap:8px;align-items:baseline;}',
+      '.tn-pop li i{font-style:normal;color:#c0aeea;}.tn-pop li b{font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#adadb2;white-space:nowrap;}',
+      '.tn-pop li span{color:#f4f3f0;overflow-wrap:anywhere;}.tn-pop li.bad i,.tn-pop li.bad b{color:#d68a7c;}',
+      '.tn-pop .note{font-size:11.5px;color:#e0b874;}',
+      // ── spotlight: the ring Neo draws round the row it is changing
+      '.tn-spot{position:fixed;pointer-events:none;z-index:99990;box-sizing:border-box;border:1.5px solid #c0aeea;background:transparent;opacity:0;transform:scale(1.035);transition:opacity .18s ease-out,transform .18s ease-out;will-change:opacity,transform;}',
+      '.tn-spot.on{opacity:1;transform:none;}',
+      '.tn-spot.out{opacity:0;transform:scale(.97);transition:opacity .22s ease-in,transform .22s ease-in;}',
+      '.tn-spot-gone{border-color:#d68a7c;}',
+      // ── the composer (Type)
+      '#tn-ask{position:fixed;inset:0;z-index:99400;display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(7px) saturate(.9);backdrop-filter:blur(7px) saturate(.9);opacity:0;pointer-events:none;transition:opacity .18s ease;}',
+      '#tn-ask.show{opacity:1;pointer-events:auto;}',
+      "#tn-ask .tn-ask-box{width:100%;max-width:600px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;padding:14px 14px 12px;background:#232327;border:1px solid rgba(255,255,255,.06);border-radius:8px;box-shadow:0 24px 64px rgba(0,0,0,.5);font-family:'Inter',system-ui,-apple-system,sans-serif;color:#f4f3f0;transform:translateY(8px);transition:transform .2s ease;}",
+      '#tn-ask.show .tn-ask-box{transform:none;}',
+      '#tn-ask .tn-ask-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}',
+      "#tn-ask .tn-ask-title{display:flex;align-items:center;gap:8px;font-family:'Manrope','Inter',sans-serif;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#dbd0f5;}",
+      '#tn-ask .tn-ask-title svg{width:14px;height:14px;color:#c0aeea;}',
+      '#tn-ask .tn-ask-x{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid #45454c;border-radius:6px;color:#8d8d94;cursor:pointer;font-size:14px;line-height:1;}',
+      '#tn-ask .tn-ask-x:hover{border-color:#c0aeea;color:#f4f3f0;}',
+      '#tn-ask .tn-ask-wrap{position:relative;--ds-ac:#c0aeea;--ds-tx:#f4f3f0;--ds-txd:#8d8d94;}',
+      "#tn-ask textarea{display:block;width:100%;box-sizing:border-box;min-height:96px;max-height:42vh;resize:none;overflow-y:auto;overscroll-behavior:contain;padding:11px 12px;background:#1a1a1d;border:1px solid #45454c;border-radius:6px;outline:none;font:inherit;font-size:15px;line-height:1.5;color:#f4f3f0;transition:border-color .15s,box-shadow .15s;}",
+      '#tn-ask textarea:focus{border-color:#c0aeea;box-shadow:0 0 0 3px rgba(192,174,234,.16);}',
+      '#tn-ask textarea::placeholder{color:#8d8d94;opacity:.7;}',
+      '#tn-ask .tn-ask-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;}',
+      '#tn-ask .tn-ask-hint{font-size:11px;color:#8d8d94;line-height:1.4;min-width:0;}',
+      '#tn-ask kbd{font:inherit;font-size:10px;font-weight:700;border:1px solid #45454c;border-radius:4px;padding:0 5px;}',
+      '#tn-ask .tn-ask-send{flex:0 0 auto;background:#c0aeea;color:#1a1a1d;border:1px solid #c0aeea;border-radius:6px;padding:8px 18px;font:inherit;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}',
+      '#tn-ask .tn-ask-send:hover{box-shadow:0 0 0 3px rgba(192,174,234,.22);}',
+      '#tn-ask .tn-ask-send:disabled{opacity:.5;cursor:default;box-shadow:none;}',
+      '@media (max-width:600px){#tn-ask{align-items:flex-end;padding:0;}',
+      ' #tn-ask .tn-ask-box{max-width:none;border-radius:12px 12px 0 0;border-bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));margin-bottom:var(--tn-kb,0px);}',
+      ' #tn-ask textarea{font-size:16px;min-height:88px;max-height:34vh;}#tn-ask .tn-ask-hint{display:none;}#tn-ask .tn-ask-foot{justify-content:flex-end;}}',
+      // ── Settings → Tony's Neo AI
+      '.tns{display:flex;flex-direction:column;gap:8px;}',
+      '.thset-row.tns-row{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;}',
+      '.tns-txt{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0;}',
+      '.tns-txt .thset-label{white-space:normal;}',
+      '.tns-sub{font-size:11px;font-weight:500;line-height:1.4;color:#8d8d94;}',
+      '.tns-sub.warn{color:#e0b874;}',
+      '.tns-ctl{display:flex;align-items:center;gap:6px;flex:0 1 260px;min-width:0;justify-content:flex-end;}',
+      '.tns-ctl select{flex:1 1 auto;min-width:0;width:100%;}',
+      '.tns-sw{position:relative;flex:0 0 auto;width:36px;height:20px;border-radius:10px;border:1px solid #45454c;background:transparent;cursor:pointer;padding:0;transition:background .15s,border-color .15s;}',
+      '.tns-sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#8d8d94;transition:transform .15s,background .15s;}',
+      '.tns-sw[aria-checked="true"]{background:#c0aeea;border-color:#c0aeea;}',
+      '.tns-sw[aria-checked="true"]::after{transform:translateX(16px);background:#1a1a1d;}',
+      '.tns-sw:focus-visible{outline:2px solid #c0aeea;outline-offset:2px;}',
+      '.tns-foot{font-size:10.5px;font-weight:600;color:#8d8d94;letter-spacing:.3px;}',
+      '@media (max-width:520px){.thset-row.tns-row.tns-wrap{flex-wrap:wrap;}.tns-wrap .tns-ctl{flex:1 1 100%;}}',
+      // ── header buttons: the NEO switch (a mini reactor) and Talk
+      '.th-neo-btn .tnb{width:15px;height:15px;display:block;overflow:visible;}',
+      '.th-neo-btn .tnb .r1{transform-origin:12px 12px;}',
+      '.th-neo-btn.on .tnb .r1{animation:tnSpin 9s linear infinite;}',
+      '.th-neo-btn.on .tnb .c{animation:tnBreathe 3.2s ease-in-out infinite;}',
+      '.th-neo-btn.busy .tnb .r1{animation:tnSpin 1.1s linear infinite;}',
+      '.th-neo-talk.rec{animation:tnRec 1.2s ease-in-out infinite;}',
+      '@keyframes tnSpin{to{transform:rotate(360deg)}}',
+      '@keyframes tnBreathe{0%,100%{opacity:.5}50%{opacity:1}}',
+      '@keyframes tnBlink{50%{opacity:.25}}',
+      '@keyframes tnRec{0%,100%{opacity:1}50%{opacity:.62}}',
+      '@keyframes tnIn{from{opacity:0}to{opacity:1}}',
+      '@media (prefers-reduced-motion:reduce){.th-neo-btn .tnb .r1,.th-neo-btn .tnb .c,.th-neo-talk.rec{animation:none!important}#th-neo-hud .tn-card{animation-duration:.01s}.tn-spot,.tn-spot.out{transform:none!important;transition:opacity .01s!important}}',
+    ].join('\n');
     document.head.appendChild(st);
-  }
-  // Tony's side: the same HUD in MAGI's purple, on a solid panel (no gradient
-  // fill), docked in his quote's slot (#root's .thwx-bq) dressed as that quote.
-  // Built from Veda's rules so the two never drift: every #vd-neo-hud / .vn-spot
-  // rule is repeated under .p-tony with her colours swapped for his.
-  function tonySheet(rules) {
-    var swap = [[/#E6D9F0/gi, C_TONY.core], [/#C9B3D9/gi, C_TONY.ring], [/#8D769A/gi, C_TONY.accent], [/#F4ECFA/gi, C_TONY.hot], [/#d27a8a/gi, C_TONY.red],
-      [/rgba\(141,118,154,/g, 'rgba(154,134,201,'], [/rgba\(201,179,217,/g, 'rgba(192,174,234,'], [/rgba\(230,217,240,/g, 'rgba(219,208,245,'], [/rgba\(210,122,138,/g, 'rgba(214,138,124,'],
-      [/#76777C/gi, '#8d8d94'], [/#A9AAB0/gi, '#adadb2'], [/#D8D3DC/gi, '#f4f3f0'], [/#AFB0B5/gi, '#adadb2'],
-      [/linear-gradient\(160deg,rgba\(30,22,38,\.78\),rgba\(14,11,18,\.82\)\)/g, 'rgba(26,26,29,.94)']];
-    // Whole top-level blocks (a rule can span several of Veda's lines, and an
-    // @media wraps several rules), so every copied block keeps its braces.
-    var css = rules.join('\n'), blocks = [], depth = 0, from = 0;
-    for (var i = 0; i < css.length; i++) {
-      var ch = css.charAt(i);
-      if (ch === '{') depth++;
-      else if (ch === '}' && --depth === 0) { blocks.push(css.slice(from, i + 1).trim()); from = i + 1; }
-    }
-    var out = [];
-    blocks.forEach(function (r) {
-      if (/^@keyframes/.test(r) || !/#vd-neo-hud|\.vn-spot/.test(r)) return;
-      var t = r.replace(/\.vn-spot-gone/g, '.p-tony.vn-spot-gone').replace(/#vd-neo-hud(?![\w-])/g, '#vd-neo-hud.p-tony').replace(/\.vn-spot(?![\w-])/g, '.vn-spot.p-tony');
-      swap.forEach(function (x) { t = t.replace(x[0], x[1]); });
-      out.push(t);
-    });
-    out.push(
-      'body.vn-docked #root .thwx-band > .thwx-bq{display:none;}',
-      'body.vn-undock #root .thwx-band > .thwx-bq{animation:vnIn .35s ease;}',
-      // Docked on Tony's side: his quote's slot, his type (Inter), a hairline, no accent edge.
-      "#vd-neo-hud.p-tony.vn-dock{font-family:'Inter',system-ui,-apple-system,sans-serif;}",
-      '#vd-neo-hud.p-tony.vn-dock{overflow:hidden;box-sizing:border-box;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-glass{background:transparent;border:1px solid rgba(255,255,255,.06);border-left:1px solid rgba(255,255,255,.06);border-radius:8px;padding:3px 10px;overflow:hidden;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-top{flex-direction:row;align-items:center;gap:8px;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-say{font-family:inherit;color:#adadb2;font-size:12px;line-height:1.35;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-card{border-color:#45454c;}'
-    );
-    return out.join('\n');
-  }
-  var fontsLoaded = false;
-  function loadFonts() {
-    if (fontsLoaded || !document.head) return; fontsLoaded = true;
-    try { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = FONTS; document.head.appendChild(l); } catch (e) {}
   }
 
   // ══ HUD ════════════════════════════════════════════════════════════════════
-  var H = null;   // {el, canvas, g, state, clock, you, say, tick, cards, tele}
+  var H = null;
   function ensureHud() {
     if (H || !document.body) return H;
-    ensureStyles(); loadFonts();
+    ensureStyles();
     var el = document.createElement('div');
-    el.id = 'vd-neo-hud';
+    el.id = 'th-neo-hud';
     el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
     el.innerHTML =
-      '<div class="vn-glass"><div class="vn-scan"></div><div class="vn-sweep"></div>' +
-      '<i class="vn-br a"></i><i class="vn-br b"></i><i class="vn-br c"></i><i class="vn-br d"></i>' +
-      '<div class="vn-top"><span class="vn-brand">NEO</span><span class="vn-state">ONLINE</span><span class="vn-clock"></span>' +
-      '<button type="button" class="vn-x" aria-label="Cancel" title="Cancel">✕</button></div>' +
-      '<div class="vn-main"><div class="vn-orb"><canvas></canvas></div>' +
-      '<div class="vn-text"><div class="vn-you"></div><div class="vn-say"></div><div class="vn-tick"></div><div class="vn-cards"></div></div></div>' +
-      '<div class="vn-tele"></div></div>';
-    if (P.id === 'tony') el.classList.add('p-tony');
+      '<div class="tn-panel"><div class="tn-orb"><canvas></canvas></div>' +
+      '<div class="tn-body"><div class="tn-head"><span class="tn-brand">Neo</span><span class="tn-state">Online</span><span class="tn-clock"></span></div>' +
+      '<div class="tn-you"></div><div class="tn-say"></div><div class="tn-cards"></div><div class="tn-tele"></div></div>' +
+      '<div class="tn-side"><span class="tn-state">Online</span>' +
+      '<button type="button" class="tn-btn tn-more" hidden aria-expanded="false" aria-haspopup="dialog" title="Details"></button>' +
+      '<button type="button" class="tn-btn tn-x" aria-label="Dismiss" title="Dismiss">✕</button></div></div>';
     document.body.appendChild(el);
-    H = { el: el, canvas: el.querySelector('canvas'), state: el.querySelector('.vn-state'), clock: el.querySelector('.vn-clock'),
-      you: el.querySelector('.vn-you'), say: el.querySelector('.vn-say'), tick: el.querySelector('.vn-tick'),
-      cards: el.querySelector('.vn-cards'), tele: el.querySelector('.vn-tele') };
-    el.querySelector('.vn-x').onclick = function () { cancel(); };
+    var states = el.querySelectorAll('.tn-state');
+    H = { el: el, canvas: el.querySelector('canvas'), states: states, clock: el.querySelector('.tn-clock'),
+      you: el.querySelector('.tn-you'), say: el.querySelector('.tn-say'), cards: el.querySelector('.tn-cards'),
+      tele: el.querySelector('.tn-tele'), more: el.querySelector('.tn-more') };
+    el.querySelector('.tn-x').onclick = function () { cancel(); };
+    H.more.onclick = function (e) { e.stopPropagation(); togglePop(); };
     return H;
   }
   var hideTimer = null, boot = 0;
-  var LABEL = { loading: 'INITIALISING', boot: 'ONLINE', capture: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING', follow: 'STANDING BY', error: 'FAULT', note: 'NOTICE' };
-  // Where the HUD sits: in place of the quote when that's on screen (Veda's Gita
-  // banner; Tony's quote between weather and Tesla), else the floating panel at
-  // the bottom. The quote is React's, so it's hidden by a body class and the HUD
-  // goes in beside it.
+  var LABEL = { loading: 'Starting', boot: 'Online', capture: 'Listening', thinking: 'Working', speaking: 'Replying', follow: 'Standing by', error: 'Error', note: 'Neo', wake: 'Online' };
+  // Where the HUD sits: in place of his quote when that's on screen, else the
+  // floating panel at the bottom. The docked HUD copies the quote's box exactly
+  // (height, flex and order, so the tablet layout's full-width quote row stays
+  // full width), so nothing on the page moves.
   function placeHud(h) {
     var b = document.querySelector(P.dock), dock = false;
     var r = b ? b.getBoundingClientRect() : null;
-    if (r) dock = r.width > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0);
-    // Tony's TaskHub never shifts a pixel (docs: taskhub-no-pixel-shift): his
-    // docked HUD keeps exactly the quote's height, so the week below stays put.
-    h.el.style.height = dock && P.id === 'tony' ? Math.round(r.height) + 'px' : '';
-    if (dock) { if (h.el.previousElementSibling !== b) b.parentNode.insertBefore(h.el, b.nextSibling); }
-    else if (h.el.parentNode !== document.body) document.body.appendChild(h.el);
-    h.el.classList.toggle('vn-dock', dock);
-    document.body.classList.toggle('vn-docked', dock);
+    if (r) dock = r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0);
+    var s = h.el.style;
+    if (dock) {
+      var cs = getComputedStyle(b);
+      s.height = Math.round(r.height) + 'px';
+      s.flexGrow = cs.flexGrow; s.flexShrink = cs.flexShrink; s.flexBasis = cs.flexBasis; s.order = cs.order; s.maxWidth = cs.maxWidth;
+      if (h.el.previousElementSibling !== b) b.parentNode.insertBefore(h.el, b.nextSibling);
+    } else {
+      s.height = s.flexGrow = s.flexShrink = s.flexBasis = s.order = s.maxWidth = '';
+      if (h.el.parentNode !== document.body) document.body.appendChild(h.el);
+    }
+    h.el.classList.toggle('tn-dock', dock);
+    document.body.classList.toggle('tn-docked', dock);
   }
   function hudShow(on) {
     var h = ensureHud(); if (!h) return;
     clearTimeout(hideTimer);
     if (on) { if (!h.el.classList.contains('show') || !h.el.isConnected) { placeHud(h); h.el.classList.add('show'); refreshTele(); startAnim(); } }
-    else if (h.el.classList.contains('show')) { h.el.classList.remove('show'); var bd = document.body.classList; if (bd.contains('vn-docked')) { bd.remove('vn-docked'); bd.add('vn-undock'); setTimeout(function () { bd.remove('vn-undock'); }, 400); } }
+    else {
+      closePop();
+      if (h.el.classList.contains('show')) { h.el.classList.remove('show'); var bd = document.body.classList; if (bd.contains('tn-docked')) { bd.remove('tn-docked'); bd.add('tn-undock'); setTimeout(function () { bd.remove('tn-undock'); }, 400); } }
+    }
+  }
+  // Hide once there's nothing left to read (holdUntil keeps a reply up).
+  function hideSoon(ms) {
+    clearTimeout(hideTimer);
+    var wait = Math.max(ms || 0, S.holdUntil - Date.now());
+    hideTimer = setTimeout(function () { if (S.mode === 'wake' || S.mode === 'off' || S.mode === 'note') hudShow(false); }, wait);
   }
   function hudMode(m) {
     var h = ensureHud(); if (!h) return;
     ['loading', 'boot', 'capture', 'thinking', 'speaking', 'follow', 'error', 'note'].forEach(function (k) { h.el.classList.toggle('m-' + k, k === m); });
-    if (LABEL[m]) {
-      if (h.state.textContent !== LABEL[m]) { h.state.textContent = LABEL[m]; h.state.classList.remove('vn-glitch'); void h.state.offsetWidth; if (!reduced && !h.el.classList.contains('vn-dock')) h.state.classList.add('vn-glitch'); }
+    if (LABEL[m] && m !== 'wake') {
+      for (var i = 0; i < h.states.length; i++) h.states[i].textContent = LABEL[m];
       hudShow(true);
     }
-    if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('vn-heard'); h.say.innerHTML = ''; h.cards.innerHTML = ''; }
-    if (m === 'thinking') startTicker(); else stopTicker();
-    if (m === 'wake' || m === 'off') hideTimer = setTimeout(function () { hudShow(false); }, m === 'off' ? 0 : 900);
+    if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('heard'); h.say.innerHTML = ''; h.say.classList.remove('ovf'); h.cards.innerHTML = ''; S.turn = null; refreshMore(); closePop(); }
+    if (m === 'wake') hideSoon(900);
+    if (m === 'off') { S.holdUntil = 0; hideSoon(0); }
   }
   function hudNote(text, kind, ms) {
     var h = ensureHud(); if (!h) return;
     hudMode(kind || 'note');
     h.you.textContent = ''; h.cards.innerHTML = '';
-    h.say.innerHTML = ''; h.say.textContent = text;
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(function () { if (S.mode === 'wake' || S.mode === 'off') hudShow(false); }, ms || 3400);
+    h.say.innerHTML = ''; h.say.textContent = text; markOverflow();
+    S.turn = { you: '', shown: text, cards: [] }; refreshMore();
+    S.holdUntil = Date.now() + (ms || 3400);
+    hideSoon(ms || 3400);
   }
-  function hudCards(actions) {
+  function showYou(text, heard) {
+    var h = ensureHud(); if (!h) return;
+    h.you.textContent = text || ''; h.you.classList.toggle('heard', !!heard);
+    if (S.turn) S.turn.you = text || '';
+  }
+  // Floating: the cards themselves. Docked: they live behind the details button.
+  function hudCards(cards) {
     var h = ensureHud(); if (!h) return;
     h.cards.innerHTML = '';
-    // Cards, or actions (each → cardFor). A failed action's card is red (failCard).
-    (actions || []).map(function (x) { return x && x.icon && !x.type ? x : cardFor(x); }).filter(Boolean).slice(0, 6).forEach(function (c, i) {
-      var d = document.createElement('div'); d.className = 'vn-card' + (c.bad ? ' bad' : ''); d.style.animationDelay = (i * 90) + 'ms';
+    (cards || []).filter(Boolean).forEach(function (c, i) {
+      var d = document.createElement('div'); d.className = 'tn-card' + (c.bad ? ' bad' : ''); d.style.animationDelay = (i * 70) + 'ms';
       d.innerHTML = '<i></i><b></b><span></span>';
       d.querySelector('i').textContent = c.icon; d.querySelector('b').textContent = c.label;
-      d.querySelector('span').textContent = clip(c.detail, 46);
-      if (!c.detail) d.querySelector('span').remove();
+      if (c.detail) d.querySelector('span').textContent = c.detail; else d.querySelector('span').remove();
+      d.title = cardText(c);
       h.cards.appendChild(d);
     });
+    if (S.turn) S.turn.cards = (cards || []).filter(Boolean);
+    refreshMore();
   }
+  // The details button: how many changes landed (and didn't), or "More" when
+  // the reply is longer than the slot.
+  function refreshMore() {
+    var h = H; if (!h) return;
+    var t = S.turn, cards = (t && t.cards) || [], ok = cards.filter(function (c) { return !c.bad; }).length, bad = cards.length - ok;
+    var long = h.say.classList.contains('ovf') || (t && t.you && h.you.scrollWidth > h.you.clientWidth + 1);
+    if (!t || (!cards.length && !long && !t.truncated)) { h.more.hidden = true; h.more.innerHTML = ''; return; }
+    var html = '';
+    if (ok) html += '<span class="ok">✓</span>' + ok;
+    if (bad) html += (ok ? '&nbsp;' : '') + '<span class="bad">✕</span>' + bad;
+    if (!html) html = 'More';
+    h.more.innerHTML = html; h.more.hidden = false;
+    h.more.title = cards.length ? cards.length + ' change' + (cards.length === 1 ? '' : 's') + ' · details' : 'Details';
+  }
+  function markOverflow() {
+    var h = H; if (!h) return;
+    requestAnimationFrame(function () { h.say.classList.toggle('ovf', h.say.scrollHeight > h.say.clientHeight + 2 && h.say.scrollTop + h.say.clientHeight < h.say.scrollHeight - 2); refreshMore(); });
+  }
+
+  // ── the details popover ──
+  var POP = null;
+  function closePop() {
+    if (!POP) return;
+    var p = POP; POP = null;
+    document.removeEventListener('pointerdown', popOutside, true); document.removeEventListener('keydown', popKey, true);
+    window.removeEventListener('resize', placePop); window.removeEventListener('scroll', placePop, true);
+    p.classList.remove('on'); setTimeout(function () { try { p.remove(); } catch (e) {} }, 160);
+    if (H) H.more.setAttribute('aria-expanded', 'false');
+  }
+  function popOutside(e) { if (POP && !POP.contains(e.target) && !(H && H.more.contains(e.target))) closePop(); }
+  function popKey(e) { if (e.key === 'Escape') { e.stopPropagation(); closePop(); } }
+  function placePop() {
+    if (!POP || !H) return;
+    var r = H.more.getBoundingClientRect(), pw = POP.offsetWidth, ph = POP.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var left = Math.max(12, Math.min(vw - pw - 12, r.right - pw));
+    var below = r.bottom + 6, above = r.top - 6 - ph;
+    var top = (below + ph <= vh - 8 || above < 8) ? below : above;
+    POP.style.left = left + 'px'; POP.style.top = Math.max(8, top) + 'px';
+  }
+  function togglePop() {
+    if (POP) { closePop(); return; }
+    var t = S.turn; if (!t || !H) return;
+    var p = document.createElement('div'); p.className = 'tn-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Neo — details');
+    var html = '';
+    if (t.you) html += '<section><h4>You</h4><p class="you">' + esc(t.you) + '</p></section>';
+    if (t.shown) html += '<section><h4>Neo</h4><p>' + esc(t.shown) + '</p></section>';
+    if (t.cards && t.cards.length) html += '<section><h4>' + t.cards.length + ' change' + (t.cards.length === 1 ? '' : 's') + '</h4><ul>' + t.cards.map(function (c) {
+      return '<li' + (c.bad ? ' class="bad"' : '') + '><i>' + esc(c.icon) + '</i><b>' + esc(c.label) + '</b><span>' + esc(c.detail || '') + '</span></li>';
+    }).join('') + '</ul></section>';
+    if (t.truncated) html += '<section><p class="note">A long request: check the last items landed.</p></section>';
+    p.innerHTML = html;
+    document.body.appendChild(p); POP = p;
+    placePop(); requestAnimationFrame(function () { p.classList.add('on'); });
+    H.more.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', popOutside, true); document.addEventListener('keydown', popKey, true);
+    window.addEventListener('resize', placePop); window.addEventListener('scroll', placePop, true);
+  }
+
   function refreshTele() {
     var h = H; if (!h) return;
     var now = new Date();
-    h.clock.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ' · ' + DOW[now.getDay()] + ' ' + pad2(now.getDate()) + ' ' + MON[now.getMonth()];
+    h.clock.textContent = pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ' · ' + DOW[now.getDay()] + ' ' + now.getDate() + ' ' + MON[now.getMonth()];
     var s = dayStats(bridgeState(), now);
-    var parts = ['TASKS <b>' + s.done + '/' + s.total + '</b>'];
-    parts.push('NEXT · <b>' + (s.next ? esc(clip(s.next.title, 22)) + ' ' + s.next.time : '—') + '</b>');
-    if (s.habits) parts.push('HABITS <b>' + s.habitsDone + '/' + s.habits + '</b>');
-    parts.push('VOICE <b>' + (lastVoice || (orcaOk === false ? 'DEVICE' : 'RYAN')) + '</b>');
+    var parts = ['Tasks <b>' + s.done + '/' + s.total + '</b>'];
+    parts.push('Next <b>' + (s.next ? esc(clip(s.next.title, 22)) + ' ' + s.next.time : '—') + '</b>');
+    if (s.habits) parts.push('Habits <b>' + s.habitsDone + '/' + s.habits + '</b>');
+    parts.push('Voice <b>' + esc(lastVoice || (orcaOk === false ? 'Device' : voiceName(SET.voice))) + '</b>');
     h.tele.innerHTML = parts.map(function (p) { return '<span>' + p + '</span>'; }).join('');
   }
-  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
-  var tickTimer = null;
-  function startTicker() {
-    var h = H; if (!h) return; stopTicker();
-    var hex = '0123456789ABCDEF', line = '';
-    tickTimer = setInterval(function () {
-      var seg = ''; for (var i = 0; i < 4; i++) seg += hex[Math.floor(Math.random() * 16)];
-      line = (line + ' ' + seg + (Math.random() < .25 ? ' ◇ PARSE' : Math.random() < .2 ? ' ◇ CTX' : '')).slice(-90);
-      h.tick.textContent = '› ' + line;
-    }, 90);
-  }
-  function stopTicker() { clearInterval(tickTimer); tickTimer = null; if (H) H.tick.textContent = ''; }
-
-  // The reply, as word spans lit in time with the voice.
+  // The reply as word spans. Spoken in full (karaoke): lit in time with the
+  // voice, and the box scrolls so the word being said stays in view.
   function sayWords(text) {
     var h = ensureHud(); if (!h) return [];
-    h.say.innerHTML = '';
+    h.say.innerHTML = ''; h.say.scrollTop = 0; h.say.classList.remove('ovf');
     return String(text).split(/\s+/).filter(Boolean).map(function (w) {
       var s = document.createElement('span'); s.className = 'w'; s.textContent = w + ' '; h.say.appendChild(s); return s;
     });
   }
   function lightTo(spans, n) {
-    for (var i = 0; i < spans.length; i++) { spans[i].classList.toggle('lit', i < n); spans[i].classList.toggle('now', i === n - 1); }
+    for (var i = 0; i < spans.length; i++) spans[i].classList.toggle('lit', i < n);
+    var cur = spans[Math.max(0, n - 1)], box = H && H.say;
+    if (cur && box && box.scrollHeight > box.clientHeight + 1) {
+      var want = Math.max(0, cur.offsetTop + cur.offsetHeight - box.clientHeight);
+      if (want > box.scrollTop + 1) { try { box.scrollTo({ top: want, behavior: reduced ? 'auto' : 'smooth' }); } catch (e) { box.scrollTop = want; } }
+    }
   }
 
-  // Docked: a quiet row of rounded bars, tall where her voice (or Neo's) is loud.
-  // Mirrored from the middle out; no glow. Idle is a low, slow breath.
+  // Docked: a quiet row of rounded bars, tall where his voice (or Neo's) is loud.
   function drawBars(cv, dpr, t, m) {
-    var w = cv.clientWidth || 64, ht = cv.clientHeight || 26;
+    var w = cv.clientWidth || 36, ht = cv.clientHeight || 20;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(ht * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(ht * dpr); }
     var g = cv.getContext('2d'); if (!g) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, ht);
     g.globalCompositeOperation = 'source-over'; g.shadowBlur = 0;
-    var n = 11, gap = (w - 2) / (n - 1), mid = (n - 1) / 2, live = m === 'capture' || m === 'follow' || m === 'speaking';
+    var n = 7, gap = (w - 2) / (n - 1), mid = (n - 1) / 2, live = m === 'capture' || m === 'follow' || m === 'speaking';
     g.lineCap = 'round'; g.lineWidth = 2;
     for (var i = 0; i < n; i++) {
-      var d = Math.abs(i - mid), v = smooth[Math.min(63, 4 + Math.round(d * 5))];
-      var idle = reduced ? 0.12 : 0.1 + 0.06 * Math.sin(t * 1.6 - d * 0.6);
-      if (m === 'thinking' && !reduced) idle = 0.12 + 0.25 * Math.max(0, Math.sin(t * 4 - i * 0.55));
+      var d = Math.abs(i - mid), v = smooth[Math.min(63, 4 + Math.round(d * 7))];
+      var idle = reduced ? 0.14 : 0.12 + 0.07 * Math.sin(t * 1.6 - d * 0.6);
+      if (m === 'thinking' && !reduced) idle = 0.14 + 0.3 * Math.max(0, Math.sin(t * 4 - i * 0.7));
       var a = live ? Math.max(idle, Math.min(1, v * 1.6)) * (1 - d / (mid + 3)) : idle;
       var len = Math.max(2, a * (ht - 4));
-      g.globalAlpha = 0.45 + 0.55 * Math.min(1, a * 1.4); g.strokeStyle = C.ring;
+      g.globalAlpha = 0.5 + 0.5 * Math.min(1, a * 1.4); g.strokeStyle = m === 'capture' ? C.red : C.ring;
       var x = 1 + i * gap; g.beginPath(); g.moveTo(x, ht / 2 - len / 2); g.lineTo(x, ht / 2 + len / 2); g.stroke();
     }
     g.globalAlpha = 1;
   }
 
-  // ── the arc-reactor orb ─────────────────────────────────────────────────────
+  // ── the orb (floating): rings, a voice-level waveform and a solid core ──────
   var now0 = function () { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); };
   var raf = 0, bins = new Uint8Array(64), smooth = new Float32Array(64), t0 = now0();
   function startAnim() { if (!raf) raf = requestAnimationFrame(frame); }
   function frame(now) {
     raf = 0;
     var h = H; if (!h || !h.el.classList.contains('show')) return;
-    var cv = h.canvas, dpr = Math.min(2, window.devicePixelRatio || 1), size = cv.clientWidth || 150, docked = h.el.classList.contains('vn-dock');
+    var cv = h.canvas, dpr = Math.min(2, window.devicePixelRatio || 1), size = cv.clientWidth || 84, docked = h.el.classList.contains('tn-dock');
     if (!docked && (cv.width !== Math.round(size * dpr) || cv.height !== cv.width)) { cv.width = cv.height = Math.round(size * dpr); }
     var g = cv.getContext('2d'); if (!g) return;
     var t = (now - t0) / 1000, m = S.mode;
-    // sound in: her voice while listening, Neo's while speaking, a synthetic
-    // shimmer otherwise (device speech can't be analysed)
     var an = m === 'capture' || m === 'follow' ? S.anMic : (m === 'speaking' && speakingViaAudio ? S.anOut : null);
     var lvl = 0;
     if (an) { try { var fb = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(fb); for (var i = 0; i < 64; i++) bins[i] = fb[Math.min(fb.length - 1, 2 + Math.floor(i * (fb.length * 0.55) / 64))]; } catch (e) {} }
     else for (var j = 0; j < 64; j++) bins[j] = m === 'speaking' ? 90 + 70 * Math.max(0, Math.sin(t * 9 + j * 0.7) * Math.sin(t * 3.3 + j * 0.23)) : m === 'thinking' ? 40 + 40 * Math.max(0, Math.sin(t * 6 - j * 0.4)) : 18 + 10 * Math.sin(t * 2 + j * 0.5);
     for (var k = 0; k < 64; k++) { smooth[k] += (bins[k] / 255 - smooth[k]) * 0.35; lvl += smooth[k]; }
     lvl /= 64; S.level = lvl;
-    if (docked) { drawBars(cv, dpr, (now - t0) / 1000, m); raf = requestAnimationFrame(frame); return; }
+    if (docked) { drawBars(cv, dpr, t, m); raf = requestAnimationFrame(frame); return; }
     var speed = reduced ? 0.12 : ({ capture: 0.45, thinking: 2.2, speaking: 0.7, follow: 0.3, loading: 1.4, boot: 1 }[m] || 0.35);
     var bootP = Math.min(1, (now - boot) / 1100);
     var s = size / 150, c = (cv.width / dpr) / 2;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, size, size);
-    g.globalCompositeOperation = 'lighter';
+    g.globalCompositeOperation = 'source-over'; g.shadowBlur = 0;
     var flicker = m === 'error' ? (0.45 + 0.55 * (Math.random() > 0.15 ? 1 : 0.2)) : 1;
-    g.globalAlpha = flicker;
     g.lineCap = 'round';
-    // outer tick ring
     var rot1 = t * speed * 0.35;
-    g.strokeStyle = C.ring; g.shadowColor = C.glow; g.shadowBlur = 8 * s;
+    g.strokeStyle = C.ring;
     for (var a = 0; a < 72 * bootP; a++) {
       var ang = rot1 + a * Math.PI * 2 / 72, long = a % 6 === 0, r0 = 66 * s, r1 = (long ? 73 : 69.5) * s;
-      g.globalAlpha = flicker * (long ? 0.9 : 0.42); g.lineWidth = (long ? 1.6 : 1) * s;
+      g.globalAlpha = flicker * (long ? 0.8 : 0.3); g.lineWidth = (long ? 1.6 : 1) * s;
       g.beginPath(); g.moveTo(c + Math.cos(ang) * r0, c + Math.sin(ang) * r0); g.lineTo(c + Math.cos(ang) * r1, c + Math.sin(ang) * r1); g.stroke();
     }
-    // three arc segments, counter-rotating
     var rot2 = -t * speed * 0.8;
     g.globalAlpha = flicker * 0.85; g.lineWidth = 2.2 * s; g.strokeStyle = C.core;
     for (var q = 0; q < 3; q++) { var st0 = rot2 + q * Math.PI * 2 / 3; g.beginPath(); g.arc(c, c, 60 * s, st0, st0 + (Math.PI * 2 / 3 - 0.55) * bootP); g.stroke(); }
-    // waveform bars
-    g.lineWidth = 2 * s; g.strokeStyle = C.ring; g.shadowBlur = 10 * s;
+    g.lineWidth = 2 * s; g.strokeStyle = m === 'capture' ? C.red : C.ring;
     for (var b = 0; b < 64; b++) {
       var an2 = b * Math.PI * 2 / 64 - Math.PI / 2, len = (2 + smooth[b] * 15) * s * bootP, rb = 44 * s;
-      g.globalAlpha = flicker * (0.35 + smooth[b] * 0.65);
+      g.globalAlpha = flicker * (0.3 + smooth[b] * 0.7);
       g.beginPath(); g.moveTo(c + Math.cos(an2) * rb, c + Math.sin(an2) * rb); g.lineTo(c + Math.cos(an2) * (rb + len), c + Math.sin(an2) * (rb + len)); g.stroke();
     }
-    // inner ring + comet
-    g.globalAlpha = flicker * 0.5; g.lineWidth = 1 * s; g.strokeStyle = C.ring;
+    g.globalAlpha = flicker * 0.45; g.lineWidth = 1 * s; g.strokeStyle = C.ring;
     g.beginPath(); g.arc(c, c, 38 * s, 0, Math.PI * 2 * bootP); g.stroke();
     var rot3 = t * speed * 2.4;
-    g.globalAlpha = flicker; g.lineWidth = 2.4 * s; g.strokeStyle = C.hot; g.shadowColor = C.core; g.shadowBlur = 14 * s;
+    g.globalAlpha = flicker; g.lineWidth = 2.4 * s; g.strokeStyle = C.hot;
     g.beginPath(); g.arc(c, c, 38 * s, rot3, rot3 + 0.7); g.stroke();
-    // orbiting particles while processing
     if (m === 'thinking' || m === 'loading') {
       g.fillStyle = C.hot;
-      for (var p = 0; p < 6; p++) { var pa = t * (1.6 + p * 0.35) + p; var pr = (52 + 6 * Math.sin(t * 2 + p)) * s; g.globalAlpha = flicker * 0.8; g.beginPath(); g.arc(c + Math.cos(pa) * pr, c + Math.sin(pa) * pr, 1.6 * s, 0, Math.PI * 2); g.fill(); }
+      for (var p = 0; p < 6; p++) { var pa = t * (1.6 + p * 0.35) + p; var pr = (52 + 6 * Math.sin(t * 2 + p)) * s; g.globalAlpha = flicker * 0.75; g.beginPath(); g.arc(c + Math.cos(pa) * pr, c + Math.sin(pa) * pr, 1.6 * s, 0, Math.PI * 2); g.fill(); }
     }
-    // core
-    var cr = (20 + lvl * 9 + Math.sin(t * 2.2) * 1.2) * s * (0.4 + 0.6 * bootP);
-    var grd = g.createRadialGradient(c, c, 0, c, c, cr * 1.9);
-    grd.addColorStop(0, C.g0); grd.addColorStop(0.35, C.g1); grd.addColorStop(1, C.g2);
-    g.globalAlpha = flicker; g.shadowBlur = 0; g.fillStyle = grd;
-    g.beginPath(); g.arc(c, c, cr * 1.9, 0, Math.PI * 2); g.fill();
-    // a hexagon in the core
-    g.strokeStyle = C.hex; g.lineWidth = 1.1 * s; g.beginPath();
-    for (var x = 0; x <= 6; x++) { var ha = x * Math.PI / 3 + t * speed * 0.3; var hr = cr * 0.62; if (x) g.lineTo(c + Math.cos(ha) * hr, c + Math.sin(ha) * hr); else g.moveTo(c + Math.cos(ha) * hr, c + Math.sin(ha) * hr); }
-    g.stroke();
-    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    var cr = (17 + lvl * 9 + Math.sin(t * 2.2) * 1.2) * s * (0.4 + 0.6 * bootP);
+    g.globalAlpha = flicker * 0.22; g.fillStyle = C.ring; g.beginPath(); g.arc(c, c, cr * 1.55, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = flicker * 0.9; g.fillStyle = C.core; g.beginPath(); g.arc(c, c, cr * 0.8, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
     raf = requestAnimationFrame(frame);
   }
   setInterval(function () { if (H && H.el.classList.contains('show')) refreshTele(); }, 15000);
 
-  // ══ sound design (synthesized, quiet) ══════════════════════════════════════
+  // ══ sound (synthesized, quiet) ═════════════════════════════════════════════
   function sfx(name) {
     var ctx = S.ctx; if (!ctx || ctx.state !== 'running') return;
     try {
@@ -888,22 +1009,15 @@
         g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol || 0.05, t + at + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
         o.connect(g); g.connect(out); o.start(t + at); o.stop(t + at + dur + 0.02);
       };
-      if (name === 'wake') { tone(740, 1110, 0, 0.16, 'sine', 0.05); tone(1110, 1480, 0.09, 0.2, 'sine', 0.04); tone(2220, 0, 0.12, 0.25, 'triangle', 0.012); }
+      if (name === 'wake') { tone(740, 1110, 0, 0.16, 'sine', 0.05); tone(1110, 1480, 0.09, 0.2, 'sine', 0.04); }
       else if (name === 'think') { tone(196, 220, 0, 0.22, 'sine', 0.03); }
       else if (name === 'done') { tone(1320, 0, 0, 0.09, 'sine', 0.04); tone(1760, 0, 0.08, 0.14, 'sine', 0.035); }
       else if (name === 'error') { tone(440, 260, 0, 0.32, 'triangle', 0.045); }
-      else if (name === 'boot') {
-        var o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-        o.type = 'sawtooth'; o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.7);
-        f.type = 'lowpass'; f.frequency.setValueAtTime(200, t); f.frequency.exponentialRampToValueAtTime(2400, t + 0.7); f.Q.value = 6;
-        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.03, t + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
-        o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + 0.85);
-        tone(880, 0, 0.7, 0.3, 'sine', 0.035); tone(1320, 0, 0.78, 0.35, 'sine', 0.025);
-      }
+      else if (name === 'boot') { tone(660, 0, 0, 0.18, 'sine', 0.035); tone(990, 0, 0.12, 0.26, 'sine', 0.03); }
     } catch (e) {}
   }
 
-  // ══ loading Vosk ═══════════════════════════════════════════════════════════
+  // ══ Vosk ═══════════════════════════════════════════════════════════════════
   var voskP = null;
   function loadVosk() {
     if (window.Vosk) return Promise.resolve(window.Vosk);
@@ -912,7 +1026,7 @@
       var s = document.createElement('script');
       s.src = VOSK_SRC; s.async = true;
       s.onload = function () { window.Vosk ? res(window.Vosk) : rej(new Error('Vosk missing')); };
-      s.onerror = function () { voskP = null; rej(new Error('I could not load my wake-word engine. Check the connection.')); };
+      s.onerror = function () { voskP = null; rej(new Error('Couldn\'t load the wake-word engine. Check the connection.')); };
       document.head.appendChild(s);
     });
     return voskP;
@@ -934,17 +1048,12 @@
     r.on('result', function (m) { if (S.mode === 'wake' && m && m.result && isWake(m.result.text)) onWake(); });
     S.rec = r;
   }
-  // Live captions. The browser's own recognizer (Chrome / Edge) is far more
-  // accurate than Vosk's small model, so it leads when it works; Brave and
-  // offline fall back to Vosk. Either way the words are snapped to her own
-  // (task titles, habits, apps, plans) so "spotty fi" reads "Spotify".
-  // The final transcript (Gemini) replaces the caption when the turn lands.
+  // Live captions: the browser's recognizer (Chrome / Edge) leads when it works;
+  // otherwise a free-form Vosk recognizer (only when the model is loaded). Words
+  // are snapped to his own names. Gemini's transcript replaces them.
   var WS = window.SpeechRecognition || window.webkitSpeechRecognition, wsBroken = false;
-  // The wake phrase as the small model mishears it ("her new", "hey know"),
-  // with the noise words it puts before it ("you", "the", "uh").
   var WAKE_RE = /^\s*(?:(?:you|the|uh+|um+|hmm+|ah|oh|huh)[,.]?\s+)*(?:(?:hey|hi|hay|her|okay|ok)[,.]?\s+(?:neo|new|neil|nio|knee|know|now|leo|neon|nemo|no)|neo|nio)\b[,.!?]?\s*/i;
   function stripWake(s) { return String(s || '').replace(WAKE_RE, ''); }
-  // What she sees: no wake phrase, no lone noise word, a capital, "I" not "i".
   function tidyText(s) {
     s = stripWake(s).replace(/\s+/g, ' ').trim();
     if (/^(?:you|the|uh+|um+|hmm+|ah|oh|huh)[.?!]?$/i.test(s)) return '';
@@ -955,7 +1064,7 @@
   function startCaptions() {
     stopCaptions();
     S.capVocab = captionVocab();
-
+    S.capWs = false;
     if (WS && !wsBroken) {
       try {
         var w = new WS(), fin = '';
@@ -971,7 +1080,6 @@
         w.start(); S.capWsRec = w;
       } catch (e) { wsBroken = true; }
     }
-    S.capWs = false;
     if (!S.model) return;
     var done = '';
     try {
@@ -985,11 +1093,8 @@
     if (S.cap) { try { S.cap.remove(); } catch (e) {} S.cap = null; }
     if (S.capWsRec) { var w = S.capWsRec; S.capWsRec = null; w.onresult = w.onerror = null; try { w.abort(); } catch (e) {} }
   }
-
-  // Her own words, for snapping misheard captions: titles near today, habits,
-  // goals, PC apps, and the names Neo itself answers to.
   function captionVocab() {
-    var out = ['Neo', 'TaskHub', 'Gita', 'Notebook', 'Shield', 'Spotify', 'YouTube', 'Canvas', 'Gmail', 'Pomodoro'];
+    var out = ['Neo', 'TaskHub', 'Notebook', 'Shield', 'TradeHub', 'WarRoom', 'Keychain', 'Spotify', 'YouTube', 'Gmail', 'Pomodoro'];
     try {
       var st = bridgeState() || {}, data = st.data || {}, now = new Date();
       for (var d = -3; d <= 10; d++) { var t = new Date(now); t.setDate(now.getDate() + d); (data[dkey(t)] || []).forEach(function (x) { if (x && x.title) out.push(x.title); }); }
@@ -1007,7 +1112,6 @@
     return vocab.slice(0, 400);
   }
   function letters(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
-  // A rough sound key: first letter, then the consonants, alike sounds merged.
   function skel(s) {
     var l = letters(s).replace(/ph/g, 'f').replace(/[ckq]/g, 'k').replace(/[sz]/g, 's').replace(/[dt]/g, 't').replace(/[bp]/g, 'p');
     return l.charAt(0) + l.slice(1).replace(/[aeiouyhw]/g, '').replace(/(.)\1+/g, '$1');
@@ -1018,11 +1122,6 @@
     for (i = 1; i <= m; i++) { prev = row[0]; row[0] = i; for (j = 1; j <= n; j++) { tmp = row[j]; row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; } }
     return row[n];
   }
-  // Replace caption word runs that sound like one of her phrases. Strict, so
-  // ordinary words are left alone: same first letter, close spelling, and the
-  // same consonant skeleton (or very close spelling).
-  // Everyday words that sound like one of her names ("should" ~ "Shield") are
-  // what she said, so a run made only of them is never swapped.
   var COMMON_SET = {};
   ('a about after again all also am an and any are as ask at back be because been before being both but by call can check close could day did do does done each else even every first for from get give go going good got had has have he help her here him his how i if in into is it its just keep know last later let like list long look make many me more morning most move much must my need never new next night no not now of off on once one only open or other our out over please put read really remind right said same say see set shall she should show so some start still stop such take tell than thank thanks that the their them then there these they thing things think this those through time to today told tomorrow tonight too under until up us very wait want was way we week well were what when where which while who why will with work would yes yet you your')
     .split(' ').forEach(function (w) { COMMON_SET[w] = 1; });
@@ -1033,14 +1132,14 @@
     while (i < words.length) {
       var best = null;
       for (var v = 0; v < vocab.length; v++) {
-        var P = vocab[v];
-        for (var k = P.n; k <= P.n + 1 && i + k <= words.length; k++) {
+        var Q = vocab[v];
+        for (var k = Q.n; k <= Q.n + 1 && i + k <= words.length; k++) {
           var win = words.slice(i, i + k).join(' '), wl = letters(win);
-          if (wl !== P.l && allCommon(words.slice(i, i + k))) continue;
-          if (!wl || wl === P.l) { if (wl === P.l && (!best || P.l.length > best.score)) best = { k: k, text: P.text, score: P.l.length, exact: true }; continue; }
-          if (wl.charAt(0) !== P.l.charAt(0) || Math.abs(wl.length - P.l.length) > 3) continue;
-          var sim = 1 - lev(wl, P.l) / Math.max(wl.length, P.l.length);
-          if (sim >= 0.86 || (sim >= 0.6 && skel(win) === P.sk)) { if (!best || P.l.length > best.score) best = { k: k, text: P.text, score: P.l.length }; }
+          if (wl !== Q.l && allCommon(words.slice(i, i + k))) continue;
+          if (!wl || wl === Q.l) { if (wl === Q.l && (!best || Q.l.length > best.score)) best = { k: k, text: Q.text, score: Q.l.length, exact: true }; continue; }
+          if (wl.charAt(0) !== Q.l.charAt(0) || Math.abs(wl.length - Q.l.length) > 3) continue;
+          var sim = 1 - lev(wl, Q.l) / Math.max(wl.length, Q.l.length);
+          if (sim >= 0.86 || (sim >= 0.6 && skel(win) === Q.sk)) { if (!best || Q.l.length > best.score) best = { k: k, text: Q.text, score: Q.l.length }; }
         }
       }
       if (best && !best.exact) { out.push(best.text); i += best.k; }
@@ -1052,13 +1151,10 @@
   // ══ mic ════════════════════════════════════════════════════════════════════
   async function openMic() {
     var base = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-    var dev = ''; try { dev = localStorage.getItem('thv_mic_device') || ''; } catch (e) {}
+    var dev = ''; try { dev = await micDeviceId(); } catch (e) {}
     if (dev) { try { return await navigator.mediaDevices.getUserMedia({ audio: Object.assign({ deviceId: { exact: dev } }, base) }); } catch (e) {} }
     return await navigator.mediaDevices.getUserMedia({ audio: base });
   }
-
-  // A page that opens with Neo already on has had no tap yet, so the browser
-  // keeps its audio suspended until the first one. Wait for it, quietly.
   var resumeArmed = false;
   function armResume() {
     if (resumeArmed) return; resumeArmed = true;
@@ -1074,25 +1170,27 @@
     if (S.running || S.starting) return;
     S.starting = true;
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('This browser gives me no microphone, I\'m afraid.');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('This browser gives Neo no microphone.');
       var stream;
-      try { stream = await openMic(); } catch (e) { throw new Error('I need the microphone, ' + NAME() + '. Allow it for this site, then switch me on again.'); }
-      if (!S.on || !isVeda()) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+      try { stream = await openMic(); } catch (e) { throw new Error('Neo needs the microphone. Allow it for this site, then try again.'); }
+      if (!shouldRun()) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
       var AC = window.AudioContext || window.webkitAudioContext;
       var ctx = new AC();
       if (ctx.state === 'suspended') { try { await ctx.resume(); } catch (e) {} }
       if (ctx.state === 'suspended') armResume();
       S.stream = stream; S.ctx = ctx; S.sr = ctx.sampleRate;
-      // A cached model loads in a moment; only a slow (first, ~41 MB) load shows the HUD.
-      var slow = S.model ? 0 : setTimeout(function () {
-        if (S.model || !S.on) return;
-        boot = performance.now(); setMode('loading');
-        if (H) H.say.textContent = 'Calibrating voice recognition. This first start takes a moment.';
-      }, S.greet ? 0 : 1500);
-      await loadModel();
-      clearTimeout(slow);
-      if (!S.on || !isVeda() || S.ctx !== ctx) return;
-      newRecognizer();
+      // The wake word needs the model; Talk alone doesn't (no 41 MB wait).
+      if (S.on) {
+        var slow = S.model ? 0 : setTimeout(function () {
+          if (S.model || !S.on) return;
+          boot = performance.now(); setMode('loading');
+          if (H) H.say.textContent = 'Loading voice recognition — the first start takes a moment.';
+        }, S.greet ? 0 : 1500);
+        try { await loadModel(); }
+        finally { clearTimeout(slow); }
+        if (!shouldRun() || S.ctx !== ctx) return;
+        newRecognizer();
+      }
       S.src = ctx.createMediaStreamSource(stream);
       S.anMic = ctx.createAnalyser(); S.anMic.fftSize = 256; S.anMic.smoothingTimeConstant = 0.6;
       S.anOut = ctx.createAnalyser(); S.anOut.fftSize = 256; S.anOut.smoothingTimeConstant = 0.55; S.anOut.connect(ctx.destination);
@@ -1103,16 +1201,19 @@
       S.ring = []; S.ringLen = 0;
       S.running = true;
       prefetchKey();
-      if (S.greet) {
+      if (S.talkStart) { S.talkStart = false; S.greet = false; boot = performance.now(); sfx('wake'); refreshRunning(); beginCapture(0, false); }
+      else if (S.greet) {
         S.greet = false;
         boot = performance.now(); setMode('boot'); sfx('boot');
-        setTimeout(function () { if (S.running && S.mode === 'boot') speak(greeting(bridgeState()), false); }, 650);
+        setTimeout(function () { if (S.running && S.mode === 'boot') speak(greeting(bridgeState()), false); }, 500);
       } else setMode('wake');
     } catch (e) {
-      console.warn('[neo]', e);
+      console.warn('[tony-neo]', e);
+      var wasOn = S.on;
       teardown();
-      setOn(false);
-      hudNote((e && e.message) || 'I could not start, I\'m afraid.', 'error', 5600);
+      S.talk = false; S.talkStart = false;
+      if (wasOn) setOn(false); else emit();
+      hudNote((e && e.message) || 'Neo couldn\'t start.', 'error', 5600);
     } finally { S.starting = false; }
   }
 
@@ -1129,6 +1230,11 @@
     S.ring = []; S.chunks = []; S.vad = null;
     if (S.mode !== 'off') setMode('off');
   }
+  // Back to waiting. Without his switch on (a Talk session) the mic is released.
+  function idle() {
+    if (!S.on) { S.talk = false; if (S.running || S.starting) teardown(); else if (S.mode !== 'off') setMode('off'); emit(); return; }
+    setMode('wake'); newRecognizer();
+  }
 
   // ══ audio loop ═════════════════════════════════════════════════════════════
   function onAudio(e) {
@@ -1137,10 +1243,6 @@
     var level = rms(chunk);
     S.ring.push(chunk); S.ringLen += chunk.length;
     while (S.ringLen - S.ring[0].length > PRE_ROLL_S * S.sr) S.ringLen -= S.ring.shift().length;
-
-    // The manual mic button owns the conversation while it records.
-    if (window._THV && window._THV.isActive && window._THV.isActive()) return;
-
     if (S.mode === 'wake') {
       if (level < threshold(S.floor)) S.floor = S.floor * 0.95 + level * 0.05;   // ambient noise, learned while quiet
       if (S.rec) { try { S.rec.acceptWaveformFloat(chunk, S.sr); } catch (err) {} }
@@ -1149,17 +1251,15 @@
       if (S.cap) { try { S.cap.acceptWaveformFloat(chunk, S.sr); } catch (err) {} }
       var r = vadStep(S.vad, level, S.floor, ms);
       if (r === 'end') finishCapture();
-      else if (r === 'none') { stopCaptions(); setMode('wake'); newRecognizer(); }
+      else if (r === 'none') { stopCaptions(); idle(); }
     } else if (S.mode === 'follow') {
       if (Date.now() < S.deafUntil) return;   // the tail of Neo's own voice
       if (level > threshold(S.floor) * 1.3) beginCapture(0.6, true);
-      else if (Date.now() > S.followUntil) { setMode('wake'); newRecognizer(); }
+      else if (Date.now() > S.followUntil) idle();
     }
   }
-
   function onWake() {
     if (S.mode !== 'wake') return;
-    if (window._THV && window._THV.isBusy && window._THV.isBusy()) return;
     sfx('wake');
     refreshRunning();
     beginCapture(PRE_ROLL_S, false);
@@ -1169,60 +1269,70 @@
     for (var i = S.ring.length - 1; i >= 0 && n < keep; i--) { pre.unshift(S.ring[i]); n += S.ring[i].length; }
     S.chunks = pre;
     S.vad = { speech: !!alreadySpeaking, silentMs: 0, elapsedMs: 0 };
-    S.capFollow = !!alreadySpeaking;   // no wake phrase: words must be heard (finishCapture)
+    S.capFollow = !!alreadySpeaking;
+    S.typed = false;
     setMode('capture');
     startCaptions();
     if (S.cap) pre.forEach(function (c) { try { S.cap.acceptWaveformFloat(c, S.sr); } catch (e) {} });
   }
 
+  // Everything a request carries besides what he said.
+  function extraFor() {
+    var extra = { mode: 'neo', profile: 'tony' };   // HIS Gemini key (worker keyFor 'tony')
+    if (S.prev && Date.now() - S.prev.at < PREV_MS) extra.prev = S.prev.data;
+    var hist = recentHistory(); if (hist.length) extra.history = hist;
+    return extra;
+  }
+  var preSnap = null;
+  async function beforeRun(actions) {
+    preSnap = snapState(bridgeState());
+    await spotlightBefore(actions);
+  }
+
   async function finishCapture() {
     var buffers = S.chunks; S.chunks = []; S.vad = null;
     var heard = S.capText || ''; S.capText = '';
-    var hadCaptions = !!S.cap, wasFollow = S.capFollow; S.capFollow = false;
+    var hadCaptions = !!S.cap, browserHeard = !!S.capWs, wasFollow = S.capFollow; S.capFollow = false;
     stopCaptions();
-    // A follow-up has no wake phrase to prove she spoke to Neo. If the caption
-    // recognizer heard no words at all (a cough, a chair, the TV, Neo's own
-    // voice fading), nothing is sent: that empty audio is what the model used
-    // to "hear" the last task again and add it a second time.
-    if (wasFollow && !S.pending && hadCaptions && !heard.trim()) { setMode('wake'); newRecognizer(); return; }
-    // A yes / no to a question Neo just asked is decided here, on the device.
+    if (wasFollow && !S.pending && hadCaptions && !heard.trim()) { idle(); return; }
     if (S.pending) {
       var pend = S.pending; S.pending = null;
       if (Date.now() - pend.at < 30000) {
         if (isYes(heard)) return runHeld(pend);
-        if (isNo(heard) || !heard.trim()) { hudCards([]); speak('Very well. I\'ve left everything as it was.', true); return; }
-        // Anything else is a new request: send it as usual.
+        if (isNo(heard) || !heard.trim()) { hudCards([]); respond('Cancelled.', 'Cancelled — nothing changed.', true); return; }
       }
     }
+    // "Undo" / "redo" heard clearly by the browser: done here, no round trip.
+    if (browserHeard && (isUndo(heard) || isRedo(heard))) { showYou(heard, true); return localUndo(isUndo(heard) ? 'undo' : 'redo', heard); }
     setMode('thinking'); sfx('think');
+    S.turn = { you: heard, shown: '', cards: [] };
     var res = null;
     try {
       if (!window._THV || !window._THV.sendAudio) throw new Error('TaskHub voice is not ready');
       var wav = encodeWav(buffers, S.sr, 16000);
-      var extra = { mode: 'neo' };
-      // The last turn, so "…and remind me at 4" / "actually make it 5" find their item.
-      if (S.prev && Date.now() - S.prev.at < PREV_MS) extra.prev = S.prev.data;
-      // The whole conversation, so she can clarify, change her mind or keep talking.
-      var hist = recentHistory();
-      if (hist.length) extra.history = hist;
-      res = await window._THV.sendAudio(b64(wav), { extra: extra, hold: guardTurn, before: spotlightBefore });
-    } catch (e) { console.warn('[neo]', e); res = { ok: false, error: 'network' }; }
-    // What Neo actually understood replaces the live guess.
-    if (res && res.transcript && H) { H.you.textContent = tidyText(res.transcript); H.you.classList.add('vn-heard'); }
-    if (res && res.dropped) { console.info('[neo] ignored:', res.dropped, res.transcript || ''); setMode('wake'); newRecognizer(); return; }
-    if (!S.running) { if (res && res.say) speak(res.say, false); return; }   // turned off mid-request ("stop listening")
+      res = await window._THV.sendAudio(b64(wav), { extra: extraFor(), silent: true, hold: guardTurn, before: beforeRun });
+    } catch (e) { console.warn('[tony-neo]', e); res = { ok: false, error: 'network' }; }
+    if (res && res.transcript) showYou(tidyText(res.transcript), true);
+    if (res && res.dropped) { console.info('[tony-neo] ignored:', res.dropped, res.transcript || ''); idle(); return; }
+    if (!S.running) { if (res && res.ok) await handle(res, res.transcript || heard); return; }
+    await handle(res, (res && res.transcript) || heard);
+  }
+
+  // A reply in hand → held for a yes, an error, or reported.
+  async function handle(res, transcript) {
     if (!res || !res.ok) {
       sfx('error'); hudMode('error');
-      speak(res && /network/i.test(res.error || '') ? 'My apologies, ' + NAME() + '. The connection seems to be down.' : 'My apologies. I couldn\'t manage that one. Do try again.', true);
+      respond(res && /network/i.test(res.error || '') ? 'The connection seems to be down.' : 'Couldn\'t do that. Try again.', null, true);
       return;
     }
-    if (res.held) {   // a bulk delete, a shift, "close everything": ask first
-      S.pending = { actions: res.held.actions, say: res.say, transcript: res.transcript || '', at: Date.now() };
+    if (res.held) {
+      S.pending = { actions: res.held.actions, say: res.say, transcript: res.transcript || transcript || '', at: Date.now() };
       showConfirm(res.held.question);
-      speak(res.held.question, true);
+      respond(res.held.question, null, true);
       return;
     }
-    await report(res, res.transcript || '');
+    if (S.turn) S.turn.truncated = !!res.truncated;
+    await report(res, transcript || '');
   }
 
   // Says and shows what the engine reports, never what the model hoped.
@@ -1241,9 +1351,13 @@
       return Object.assign({}, r, bad ? { ok: false, reason: bad.reason, say: bad.say } : { note: mine.map(function (l) { return l.say; }).filter(Boolean).join(' ') }, { pending: false });
     });
   }
-  function cardsFor(results, say) {
-    if (!results.length) { if (say && H) H.cards.innerHTML = '<div class="vn-card"><i>≡</i><b>BRIEFING</b></div>'; return; }   // a question, answered
-    hudCards(results.map(function (r) { return r.ok ? cardFor(r.action) : failCard(r); }));
+  function cardsOf(results) {
+    return results.map(function (r) {
+      if (!r.ok) return failCard(r);
+      var c = cardFor(r.action);
+      if (c && r.diff && r.diff.length) c = Object.assign({}, c, { detail: diffLine(r.diff, 8) });
+      return c;
+    }).filter(Boolean);
   }
   function rememberTurn(transcript, say, results) {
     S.prev = { at: Date.now(), data: { said: clip(transcript, 300), reply: clip(say, 300), did: results.slice(0, 12).map(function (r) {
@@ -1254,75 +1368,122 @@
     }) } };
     S.history.push(S.prev); recentHistory();
   }
+  function wait(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+  function frames(n) { return new Promise(function (res) { var k = 0; (function f() { if (++k > n) return res(); requestAnimationFrame(f); })(); }); }
+  function timeoutP(ms, v) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms); }); }
+  // An undo/redo restores a snapshot through React: diff once it has rendered.
+  async function attachDiffs(results, before) {
+    var idx = []; results.forEach(function (r, i) { if (r.ok && r.action && (r.action.type === 'undo' || r.action.type === 'redo')) idx.push(i); });
+    if (!idx.length || !before) return results;
+    await wait(160); await frames(2);
+    var d = diffState(before, snapState(bridgeState()));
+    return results.map(function (r, i) { return i === idx[0] ? Object.assign({}, r, { diff: d }) : r; });
+  }
   async function report(res, transcript) {
     var results = (res.results || []).slice();
     var laterP = res.later || Promise.resolve([]);
     var gated = results.some(function (r) { return r.gated; });
     var early = await Promise.race([laterP.then(function (l) { return { done: true, l: l }; }, function () { return { done: true, l: [] }; }), timeoutP(SETTLE_MS, { done: false })]);
     if (early.done) results = mergeLater(results, early.l);
+    results = await attachDiffs(results, res.before || preSnap); preSnap = null;
     spotlightAfter(results);   // runs alongside the reply; never waited on
-    cardsFor(results, res.say);
+    var shown = shownFor(res.say, results), spoken = spokenFor(res.say, results);
+    if (gated && !early.done) { shown = 'Waiting for the unlock.'; spoken = 'Unlock it first.'; }
+    if (!S.turn) S.turn = { you: transcript || '', shown: '', cards: [] };
+    S.turn.shown = shown;
+    hudCards(cardsOf(results));
     if (results.some(function (r) { return r.ok; })) sfx('done');
-    rememberTurn(transcript, res.say, results);
+    rememberTurn(transcript, results.length ? shown : res.say, results);
     refreshTele();
-    var say;
-    if (gated && !early.done) say = 'Unlock it, ' + NAME() + ', and I\'ll make the change.';
-    else {
-      say = compose(res.say, results);
-      var notes = results.map(function (r) { return r.ok && r.note; }).filter(Boolean).join(' ');
-      if (notes) say = (say ? say + ' ' : '') + notes;
-    }
     if (!early.done) {
-      // Still running (a kit being built, an app opening, the lock prompt): say
-      // the outcome when it lands, and redraw the cards.
+      // Still running (a kit, an app opening, the lock prompt): report the
+      // outcome when it lands, and redraw.
       laterP.then(function (l) {
         var after = mergeLater(results, l);
-        if (H && H.el.classList.contains('show')) cardsFor(after, res.say);
+        if (H && H.el.classList.contains('show')) { hudCards(cardsOf(after)); var s2 = shownFor(res.say, after); if (S.turn) S.turn.shown = s2; if (H.say && !S.speaking) { H.say.textContent = s2; markOverflow(); } }
         var bad = after.filter(function (r, i) { return !r.ok && results[i].ok; });
         if (bad.length) tellLater(failSpeech(bad));
-        else if (gated) tellLater(res.say || 'Done.', true);
-        var notes2 = after.map(function (r) { return r.ok && r.note; }).filter(Boolean).join(' ');
-        if (notes2) tellLater(notes2, true);
+        else if (gated) tellLater('Done.', true);
       });
     }
-    if (!say) { setMode('wake'); newRecognizer(); return; }   // background talk: stay quiet
-    speak(say, true);
+    if (!spoken) { idle(); return; }   // background talk: stay quiet
+    respond(spoken, shown, true);
   }
-  // She said yes (or tapped it): run what was held, and report it like any other.
+  // He said yes (or tapped / typed it): run what was held, and report it.
   async function runHeld(pend) {
     setMode('thinking');
+    var before = snapState(bridgeState());
     try { await spotlightBefore(pend.actions); } catch (e) {}
     var r = window._THV && window._THV.runActions ? window._THV.runActions(pend.actions) : { ok: false, results: [], later: Promise.resolve([]) };
-    return report({ ok: true, results: r.results, later: r.later, say: pend.say }, pend.transcript);
+    return report({ ok: true, results: r.results, later: r.later, say: pend.say, before: before }, pend.transcript);
+  }
+  // Undo / redo on the device, reported like any other turn (with what it undid).
+  async function localUndo(kind, transcript) {
+    var b = W('bridge');
+    var before = snapState(bridgeState());
+    var ok = !!(b && typeof b[kind] === 'function' && b[kind]());
+    if (window._THV && window._THV.refreshButtons) window._THV.refreshButtons();
+    if (!S.turn) S.turn = { you: transcript || '', shown: '', cards: [] };
+    return report({ ok: true, results: [{ action: { type: kind }, ok: ok, reason: ok ? '' : 'nothing' }], later: Promise.resolve([]), say: '', before: before }, transcript || '');
   }
   function showConfirm(question) {
     var h = ensureHud(); if (!h) return;
     h.cards.innerHTML = '';
-    var d = document.createElement('div'); d.className = 'vn-card vn-ask';
-    d.innerHTML = '<i>?</i><b>CONFIRM</b><button type="button" data-a="1">YES</button><button type="button" data-a="0">NO</button>';
+    var d = document.createElement('div'); d.className = 'tn-card tn-ask';
+    d.innerHTML = '<i>?</i><b>Confirm</b><button type="button" class="y" data-a="1">Yes</button><button type="button" data-a="0">No</button>';
     d.querySelectorAll('button').forEach(function (btn) { btn.onclick = function () { confirmTap(btn.getAttribute('data-a') === '1'); }; });
     h.cards.appendChild(d);
+    S.turn = S.turn || { you: '', shown: '', cards: [] }; S.turn.shown = question;
+    // Docked there's no room for cards: the question itself is the prompt, and
+    // the yes/no go into the details popover's place, the side.
+    if (h.el.classList.contains('tn-dock')) { h.more.hidden = false; h.more.innerHTML = 'Yes / No'; h.more.onclick = function (e) { e.stopPropagation(); askYesNo(); }; }
+  }
+  function askYesNo() {
+    // A tiny popover with the two answers.
+    closePop();
+    var p = document.createElement('div'); p.className = 'tn-pop'; p.setAttribute('role', 'dialog');
+    p.innerHTML = '<section><h4>Confirm</h4><p>' + esc((S.turn && S.turn.shown) || 'Go ahead?') + '</p></section><section style="display:flex;gap:8px;justify-content:flex-end"><button type="button" data-a="0" class="tn-btn">No</button><button type="button" data-a="1" class="tn-btn">Yes</button></section>';
+    p.querySelectorAll('button').forEach(function (btn) { btn.style.cssText = 'height:28px;padding:0 14px;background:transparent;border:1px solid #45454c;border-radius:6px;color:#dbd0f5;font:inherit;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer'; btn.onclick = function () { closePop(); confirmTap(btn.getAttribute('data-a') === '1'); }; });
+    document.body.appendChild(p); POP = p; placePop(); requestAnimationFrame(function () { p.classList.add('on'); });
+    document.addEventListener('pointerdown', popOutside, true); document.addEventListener('keydown', popKey, true);
   }
   function confirmTap(yes) {
     var p = S.pending; if (!p) return; S.pending = null;
+    if (H) H.more.onclick = function (e) { e.stopPropagation(); togglePop(); };
     stopVoice();
-    if (yes) runHeld(p); else { hudCards([]); speak('Very well. I\'ve left everything as it was.', true); }
+    if (yes) runHeld(p); else { hudCards([]); respond('Cancelled.', 'Cancelled — nothing changed.', true); }
+  }
+
+  // ══ answering: spoken, or on screen only ═══════════════════════════════════
+  // A typed turn is spoken only when his setting says so (Settings → Neo).
+  function respond(spoken, shown, thenFollow) {
+    shown = shown || spoken;
+    if (S.turn) S.turn.shown = shown;
+    if (S.typed && !SET.speakTyped) { display(shown); return; }
+    speak(spoken, thenFollow, shown);
+  }
+  // On screen only: the whole line at once, kept up long enough to read.
+  function display(text) {
+    stopVoice();
+    S.lastSaid = '';
+    var spans = sayWords(text); lightTo(spans, spans.length); markOverflow();
+    S.holdUntil = Date.now() + Math.min(14000, 3600 + String(text).split(/\s+/).length * 300);
+    if (S.running) { if (S.typed && /\?\s*$/.test(text)) reopenAsk(); idle(); hideSoon(900); return; }
+    if (S.mode !== 'error') setMode('note');
+    if (S.typed && /\?\s*$/.test(text)) reopenAsk();
+    hideSoon(0);
+  }
+  function tellLater(text, good) {
+    if (!text) return;
+    if (!good) sfx('error');
+    if (S.running && (S.mode === 'thinking' || S.mode === 'speaking')) { S.afterSay = S.afterSay ? S.afterSay + ' ' + text : text; return; }
+    if (S.running) speak(text, false); else hudNote(text, good ? 'note' : 'error', 5200);
   }
 
   // ══ spotlight: show each change on screen, then go back ════════════════════
-  // Before a change lands Neo goes to it (its week, its day on a phone, its goals
-  // tab) and rings the item it is about to change; after, it rings what changed,
-  // visits up to four places, then returns to the view she had. A tap, scroll or
-  // key ends it on the spot and leaves her where she is. Rings are their own
-  // fixed elements drawn over the rows, so React re-renders can't disturb them
-  // and nothing in the layout moves.
   var SPOT_MAX = 4, SPOT_PRE_MS = 450, SPOT_STEP_MS = 1200, SPOT_HOLD_MS = 1400, SPOT_FADE_MS = 160;
   var SP = { run: 0, saved: null, rings: [], raf: 0, armed: false };
   var GOAL_TAB = { shortTermGoals: 'short', longTermGoals: 'long' };
-
-  // Pure: where to go, in order — a day for calendar items, the list for habits
-  // and goals — and which ids to ring there. `gone` rings are for items about to
-  // leave (a remove, the old place of a move).
   function spotStops(targets) {
     var stops = [], at = {};
     (targets || []).forEach(function (t) {
@@ -1334,8 +1495,6 @@
     });
     return stops;
   }
-  // Pure: the places a command will touch, from _THV.preview() — the item it
-  // starts on when there is one, else where the new item will go.
   function spotBefore(pv) {
     return spotStops((pv || []).filter(function (p) { return p && p.ok; }).map(function (p) {
       var t = p.action && p.action.type, gone = t === 'remove_task' || t === 'move_task' || t === 'clear' || t === 'clear_completed';
@@ -1343,24 +1502,17 @@
       return p.ref ? { box: p.ref.box, date: p.ref.date, id: null } : null;
     }));
   }
-  // Pure: what changed, from dispatch() results (a removed item has no ref).
   function spotAfter(results) {
     return spotStops((results || []).filter(function (r) { return r && r.ok && r.ref && r.action && r.action.type !== 'remove_task'; })
       .map(function (r) { return { box: r.ref.box, date: r.ref.date || null, id: r.ref.id }; }));
   }
-
-  function spotBridge() { var b = W('bridge'); return isVeda() && b && b.goToDate ? b : null; }
-  // Only while her TaskHub is the screen in front of her (not a journal, not Gita).
+  function spotBridge() { var b = W('bridge'); return onTony() && b && b.goToDate ? b : null; }
   function spotVisible() { var tv = document.getElementById('task-view'); return !!(tv && getComputedStyle(tv).display !== 'none'); }
-  function frames(n) { return new Promise(function (res) { var k = 0; (function f() { if (++k > n) return res(); requestAnimationFrame(f); })(); }); }
-  function wait(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
   function isMobStrip() { var s = document.querySelector(P.mobStrip); return !!(s && s.offsetParent !== null); }
-
   function spotSave(b) {
     var st = b.getState() || {};
     return { date: st.selectedDate, week: (st.week || []).map(function (w) { return w.date; }), goalTab: st.goalTab, mobDay: st.mobDay, scrollY: window.scrollY, changed: false };
   }
-  // Fades the TaskHub view around a switch so the new week doesn't snap in.
   async function spotSwitch(fn) {
     var tv = document.getElementById('task-view');
     if (reduced || !tv) { fn(); await frames(2); return; }
@@ -1371,14 +1523,12 @@
     await wait(SPOT_FADE_MS);
     tv.style.transition = ''; tv.style.opacity = '';
   }
-  // Brings one stop on screen. Returns false when it was cut short.
   async function spotGo(b, stop, run) {
     var st = b.getState() || {}, sw = null;
     if (stop.box === 'calendar' && stop.date) {
       var dates = (st.week || []).map(function (w) { return w.date; }), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(stop.date);
       var idx = dates.indexOf(stop.date);
       if (idx < 0 && m) sw = function () { b.goToDate(+m[1], +m[2] - 1, +m[3]); };
-      // On a phone only one day shows: pick it (its place in the new week).
       if (isMobStrip() && b.mobDay) {
         var wantIdx = idx >= 0 ? idx : (new Date(+m[1], +m[2] - 1, +m[3]).getDay() + 6) % 7;
         if (wantIdx !== st.mobDay) { var prev = sw; sw = function () { if (prev) prev(); b.mobDay(wantIdx); }; }
@@ -1389,17 +1539,15 @@
     if (sw) { SP.saved.changed = true; await spotSwitch(sw); }
     return run === SP.run;
   }
-
-  // ── rings ──
   function spotFind(id) {
-    var els = document.querySelectorAll('[data-dkey="' + String(id).replace(/["\\]/g, '') + '"]');
+    var els = document.querySelectorAll('#root [data-dkey="' + String(id).replace(/["\\]/g, '') + '"]');
     for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); if (r.width > 0 && r.height > 0) return els[i]; }
     return null;
   }
   function spotRing(id, kind) {
     var el = spotFind(id); if (!el) return null;
     var d = document.createElement('div');
-    d.className = 'vn-spot' + (P.id === 'tony' ? ' p-tony' : '') + (kind === 'gone' ? ' vn-spot-gone' : '');
+    d.className = 'tn-spot' + (kind === 'gone' ? ' tn-spot-gone' : '');
     d.style.borderRadius = getComputedStyle(el).borderRadius || '6px';
     document.body.appendChild(d);
     var ring = { id: id, el: d, out: false };
@@ -1413,8 +1561,6 @@
     var p = 3, s = ring.el.style;
     s.left = (r.left - p) + 'px'; s.top = (r.top - p) + 'px'; s.width = (r.width + p * 2) + 'px'; s.height = (r.height + p * 2) + 'px';
   }
-  // Follows each row as it moves (scrolling, re-sorting); a row that has gone
-  // keeps its last place and fades out there.
   function spotTrack() {
     if (SP.raf) return;
     var f = function () {
@@ -1434,10 +1580,8 @@
     setTimeout(function () { try { ring.el.remove(); } catch (e) {} SP.rings = SP.rings.filter(function (r) { return r !== ring; }); }, 260);
   }
   function spotClear() { SP.rings.slice().forEach(spotDrop); }
-
-  // A tap, wheel, touch or key from her: stop now, stay where she is.
   function spotInterrupt(e) {
-    if (e && e.target && e.target.closest && e.target.closest('#vd-neo-hud')) return;
+    if (e && e.target && e.target.closest && e.target.closest('#th-neo-hud, .tn-pop')) return;
     spotEnd(false);
   }
   function spotArm(on) {
@@ -1460,8 +1604,6 @@
     });
     try { window.scrollTo({ top: sv.scrollY, behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
   }
-
-  // Runs just before the actions are applied (send()'s `before` hook).
   async function spotlightBefore(actions) {
     var b = spotBridge();
     if (!b || !window._THV || !window._THV.preview || !spotVisible()) return;
@@ -1478,7 +1620,6 @@
       await wait(SPOT_PRE_MS);
     }
   }
-  // Runs once the change has landed: ring what changed, visit each place, go back.
   async function spotlightAfter(results) {
     var b = spotBridge();
     if (!b || !SP.saved) return;
@@ -1495,12 +1636,12 @@
       if (first) try { first.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
       await wait(i === stops.length - 1 ? SPOT_HOLD_MS : SPOT_STEP_MS);
     }
-    if (!stops.length) await wait(SPOT_HOLD_MS * 0.6);   // removals: let the ring fade where the row was
+    if (!stops.length) await wait(SPOT_HOLD_MS * 0.6);
     if (run !== SP.run) return;
     await spotEnd(true);
   }
 
-  // ══ voice: Ryan through Orca, the device's voice as fallback ═══════════════
+  // ══ voice: his chosen Orca voice (his key), the device's voice as fallback ══
   var orcaKey = '', orcaOk = null, orcaMod = null, keyP = null, lastVoice = '';
   function prefetchKey() {
     if (orcaKey || keyP) return keyP;
@@ -1515,33 +1656,42 @@
   }
   var curAudio = null, speakingViaAudio = false, speakSeq = 0;
   function stopVoice() {
-    speakSeq++;
+    speakSeq++; S.speaking = false;
     if (curAudio) { try { curAudio.pause(); } catch (e) {} try { URL.revokeObjectURL(curAudio.src); } catch (e) {} curAudio = null; }
     speakingViaAudio = false;
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
   }
-
   var devVoice = null;
   if (window.speechSynthesis) { try { speechSynthesis.onvoiceschanged = function () { devVoice = null; }; } catch (e) {} }
 
-  async function speak(text, thenFollow) {
+  // Speaks `text`; shows `shown` (the same words, lit as they're said, unless
+  // the screen carries more than the voice — then it shows at once).
+  async function speak(text, thenFollow, shown) {
     stopVoice();
     S.lastSaid = String(text || '');
+    shown = shown || text;
+    var karaoke = shown === text;
     var seq = speakSeq;
-    // The greeting keeps the boot look ("ONLINE"); an error keeps its fault look.
     var look = S.mode === 'boot' ? 'boot' : S.mode === 'error' ? null : 'speaking';
-    if (S.running) { S.mode = 'speaking'; if (look) hudMode(look); emit(); }
-    var spans = sayWords(text);
+    if (S.running || S.typed) { S.mode = 'speaking'; if (look) hudMode(look); emit(); }
+    else hudShow(true);
+    S.speaking = true;
+    var spans = sayWords(shown);
+    var light = karaoke ? function (n) { lightTo(spans, n); } : function () {};
+    if (!karaoke) { lightTo(spans, spans.length); markOverflow(); }
+    var reask = S.typed && /\?\s*$/.test(shown);
     var done = false;
     function after() {
       if (done || seq !== speakSeq) return; done = true;
-      speakingViaAudio = false; lightTo(spans, spans.length);
+      S.speaking = false; speakingViaAudio = false; lightTo(spans, spans.length); markOverflow();
       if (S.afterSay && S.running) { var more = S.afterSay; S.afterSay = ''; speak(more, thenFollow); return; }
-      if (!S.running) { setTimeout(function () { if (!S.running) hudShow(false); }, 1600); return; }
-      if (thenFollow) { S.deafUntil = Date.now() + DEAF_MS; S.followUntil = S.deafUntil + (/\?\s*$/.test(String(text || '')) ? ASK_MS : FOLLOW_MS); setMode('follow'); }
-      else { setMode('wake'); newRecognizer(); }
+      S.holdUntil = Date.now() + (karaoke ? 2200 : Math.min(12000, 3000 + String(shown).split(/\s+/).length * 250));
+      if (reask) reopenAsk();
+      if (!S.running) { setMode('note'); hideSoon(1600); return; }
+      if (thenFollow && !S.typed) { S.deafUntil = Date.now() + DEAF_MS; S.followUntil = S.deafUntil + (/\?\s*$/.test(String(text || '')) ? ASK_MS : FOLLOW_MS); setMode('follow'); }
+      else idle();
     }
-    // 1) Ryan, via Orca with her own key
+    var voice = SET.voice || DEFAULT_VOICE;
     if (orcaOk !== false) {
       try {
         if (!orcaKey) await prefetchKey();
@@ -1549,10 +1699,10 @@
         if (orcaKey) {
           var mod = await orca();
           var ac = new AbortController(), to = setTimeout(function () { ac.abort(); }, 9000);
-          var r = await mod.speak({ key: orcaKey, text: text, voice: VOICE, signal: ac.signal });
+          var r = await mod.speak({ key: orcaKey, text: text, voice: voice, signal: ac.signal });
           clearTimeout(to);
           if (seq !== speakSeq) return;
-          orcaOk = true; lastVoice = 'RYAN'; refreshTele();
+          orcaOk = true; lastVoice = voiceName(voice); refreshTele();
           var el = new Audio(URL.createObjectURL(r.audio));
           curAudio = el;
           if (S.ctx && S.anOut && S.ctx.state !== 'closed') { try { S.ctx.createMediaElementSource(el).connect(S.anOut); speakingViaAudio = true; } catch (e) {} }
@@ -1561,7 +1711,7 @@
             var ct = el.currentTime, n = 0;
             if (words && words.length) { for (var i = 0; i < words.length; i++) if (words[i][0] <= ct) n = i + 1; n = Math.round(n * spans.length / words.length); }
             else n = Math.ceil(spans.length * ct / (el.duration || 1));
-            lightTo(spans, n);
+            light(n);
           };
           el.onended = after; el.onerror = after;
           await el.play();
@@ -1571,38 +1721,49 @@
       } catch (e) {
         if (seq !== speakSeq) return;
         if (e && e.code === 'key') orcaOk = false;
-        console.warn('[neo] Orca voice unavailable, using the device voice', e && e.message);
+        console.warn('[tony-neo] Orca voice unavailable, using the device voice', e && e.message);
       }
     }
-    // 2) the device's own voice
-    lastVoice = 'DEVICE'; refreshTele();
-    if (!window.speechSynthesis) { lightTo(spans, spans.length); setTimeout(after, 1800); return; }
+    lastVoice = 'Device'; refreshTele();
+    if (!window.speechSynthesis) { light(spans.length); setTimeout(after, 1800); return; }
     try {
       var u = new SpeechSynthesisUtterance(text);
-      if (!devVoice) devVoice = pickVoiceFrom(speechSynthesis.getVoices());
+      if (!devVoice) devVoice = pickVoiceFrom(speechSynthesis.getVoices(), voice);
       if (devVoice) { u.voice = devVoice; u.lang = devVoice.lang; } else u.lang = 'en-GB';
       u.rate = 1.0; u.pitch = 0.95;
       var starts = []; String(text).replace(/\S+/g, function (m, i) { starts.push(i); return m; });
-      u.onboundary = function (ev) { var n = 0; while (n < starts.length && starts[n] <= ev.charIndex) n++; lightTo(spans, n); };
-      // Voices without boundary events still reveal, at a speaking pace.
-      var w = 0, rev = setInterval(function () { if (done) return clearInterval(rev); w = Math.min(spans.length, w + 1); if (!spans[w - 1] || !spans[w - 1].classList.contains('lit')) lightTo(spans, w); }, 330);
+      u.onboundary = function (ev) { var n = 0; while (n < starts.length && starts[n] <= ev.charIndex) n++; light(n); };
+      var w = 0, rev = setInterval(function () { if (done) return clearInterval(rev); w = Math.min(spans.length, w + 1); if (karaoke && (!spans[w - 1] || !spans[w - 1].classList.contains('lit'))) light(w); }, 330);
       u.onend = function () { clearInterval(rev); after(); }; u.onerror = u.onend;
       speechSynthesis.speak(u);
       setTimeout(function () { clearInterval(rev); after(); }, 2500 + String(text).split(/\s+/).length * 450);
     } catch (e) { after(); }
   }
+  // Settings → Voice → Test: a sample in the chosen voice. → {ok, via}
+  async function previewVoice(id) {
+    id = VOICE_GENDER[id] ? id : (SET.voice || DEFAULT_VOICE);
+    var line = 'Neo online, Tony. This is ' + voiceName(id) + '.';
+    try {
+      if (!orcaKey) await prefetchKey();
+      if (orcaKey) {
+        var mod = await orca();
+        var r = await mod.speak({ key: orcaKey, text: line, voice: id });
+        var a = new Audio(URL.createObjectURL(r.audio));
+        a.onended = function () { try { URL.revokeObjectURL(a.src); } catch (e) {} };
+        await a.play();
+        return { ok: true, via: 'orca' };
+      }
+    } catch (e) { console.warn('[tony-neo] voice test', e && e.message); }
+    try {
+      if (!window.speechSynthesis) return { ok: false, via: 'none' };
+      var u = new SpeechSynthesisUtterance(line), v = pickVoiceFrom(speechSynthesis.getVoices(), id);
+      if (v) { u.voice = v; u.lang = v.lang; }
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      return { ok: true, via: 'device' };
+    } catch (e) { return { ok: false, via: 'none' }; }
+  }
 
-  // ══ opening and closing apps and sites on her PC ═══════════════════════════
-  // The engine's open_pc_app / open_site / close_pc_app actions land here (through
-  // Veda's bridge, _vdVoice.launchPc / closePc). One command's launches are
-  // batched and handed to the StudyOS bridge in one go (window._sosBridgeLaunch,
-  // which splits them into the bridge's 3-apps / 5-sites requests), the same path
-  // AI prep and class ▶ use; closes go to its /api/close (window._sosBridgeClose).
-  //
-  // Each action answers at once with {ok:false, reason} when it can't even be
-  // tried (no such app, not on her PC), or a promise of its own outcome once the
-  // bridge has answered, so Neo reports each one truthfully.
-  // "Her PC": the bridge answering is proof; a Windows browser is the fallback.
+  // ══ apps and sites on his PC (the A1 Prep Bridge, 127.0.0.1:8781) ══════════
   function onPc() {
     if (W('up') === true) return true;
     return /Windows/i.test((navigator && navigator.userAgent) || '');
@@ -1612,10 +1773,9 @@
   function queueLaunch(app, url) {
     if (!onPc()) {
       if (app) return { ok: false, reason: 'off_pc' };
-      // A website needs no bridge: on her phone it opens in a new tab.
       var w = webUrl(url); if (!w) return { ok: false, reason: 'invalid' };
       var tab = null; try { tab = window.open(w, '_blank'); if (tab) tab.opener = null; } catch (e) { tab = null; }
-      return tab ? true : { ok: false, reason: 'blocked', say: 'Your browser blocked the new tab, ' + NAME() + '. Allow pop-ups for this site and ask again.' };
+      return tab ? true : { ok: false, reason: 'blocked', say: 'The browser blocked the new tab. Allow pop-ups for this site.' };
     }
     var hit = null, u = '';
     if (app) { hit = matchApp(app, W('pcApps')); if (!hit) return { ok: false, reason: 'not_found' }; }
@@ -1637,14 +1797,12 @@
         if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
         var key = it.app ? it.app.id : it.url, label = it.app ? it.app.name : it.url;
         var bad = (res.unknown || []).indexOf(key) >= 0 || (res.failed || []).indexOf(label) >= 0;
-        it.done(bad ? { ok: false, reason: 'failed', say: label === it.url ? 'That site didn\'t open, I\'m afraid.' : label + ' didn\'t open, I\'m afraid.' } : true);
+        it.done(bad ? { ok: false, reason: 'failed', say: label === it.url ? 'That site didn\'t open.' : label + ' didn\'t open.' } : true);
       });
     });
   }
-  // The side's launcher: Veda's StudyOS hand-off (_sosBridgeLaunch), or the same
-  // batching (3 apps / 5 sites a request, launcher.py's caps) over Tony's prep bridge.
+  // His launcher: the prep bridge's open call, batched to its caps (3 apps / 5 sites).
   function bridgeLaunch() {
-    if (P.id === 'veda') return window._sosBridgeLaunch || null;
     var open = W('openLocal'); if (typeof open !== 'function') return null;
     return function (appIds, urls) {
       var a = (appIds || []).slice(), u = (urls || []).slice(), all = { ok: true, opened: [], unknown: [], failed: [] };
@@ -1659,6 +1817,19 @@
       return step();
     };
   }
+  // /api/close and /api/running on his PC's bridge. Resolve to its answer, or null.
+  function bridgeCall(path, body, ms) {
+    if (!/Windows/i.test(navigator.userAgent || '')) return Promise.resolve(null);
+    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    var t = ac ? setTimeout(function () { ac.abort(); }, ms || 8000) : null;
+    var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' };
+    if (ac) opts.signal = ac.signal;
+    return fetch('http://127.0.0.1:8781' + path, opts).then(function (r) { return r.json(); })
+      .then(function (j) { if (t) clearTimeout(t); window[P.up] = !!(j && j.ok); return (j && j.ok) ? j : null; },
+            function () { if (t) clearTimeout(t); window[P.up] = false; return null; });
+  }
+  function bridgeClose(appIds, force, browser) { return bridgeCall('/api/close', { apps: (appIds || []).slice(0, 12), force: force === true, browser: browser === true }, 30000); }
+  function bridgeRunning() { return bridgeCall('/api/running', null, 20000).then(function (j) { return j ? (j.running || []) : null; }); }
   var CQ = null;
   function queueClose(app, force) {
     if (!onPc()) return { ok: false, reason: 'off_pc' };
@@ -1666,24 +1837,21 @@
     if (!CQ) { CQ = { items: [] }; setTimeout(flushClose, 0); }
     return new Promise(function (res) { CQ.items.push({ app: hit, force: !!force, done: res }); });
   }
-  // What to say about one app after /api/close: '' when it closed.
   function closeNote(name, res) {
     if (!res) return null;
     if ((res.closed || []).indexOf(name) >= 0) return '';
     if ((res.notRunning || []).indexOf(name) >= 0) return { ok: false, reason: 'not_running', say: name + ' wasn\'t running.' };
-    if ((res.stillOpen || []).indexOf(name) >= 0) return { ok: false, reason: 'still_open', say: name + ' is asking to save, so I\'ve left it open. Say "force quit ' + name + '" if you\'re sure.' };
-    return { ok: false, reason: 'failed', say: name + ' wouldn\'t close, I\'m afraid.' };
+    if ((res.stillOpen || []).indexOf(name) >= 0) return { ok: false, reason: 'still_open', say: name + ' wants to save; left open. Say "force quit ' + name + '" to close it.' };
+    return { ok: false, reason: 'failed', say: name + ' wouldn\'t close.' };
   }
   function flushClose() {
     var q = CQ; CQ = null; if (!q) return;
-    // One request per kind: a force quit never rides along with a graceful close.
     [false, true].forEach(function (force) {
       var mine = q.items.filter(function (it) { return it.force === force; });
       if (!mine.length) return;
       var ids = [], browser = false;
       mine.forEach(function (it) { if (ids.indexOf(it.app.id) < 0) ids.push(it.app.id); if (BROWSERS.test(it.app.name)) browser = true; });
-      var go = window._sosBridgeClose;
-      Promise.resolve(go ? go(ids, force, browser) : null).catch(function () { return null; }).then(function (res) {
+      Promise.resolve(bridgeClose(ids, force, browser)).catch(function () { return null; }).then(function (res) {
         var down = res ? '' : launchIssue(null, [], W('err'), {});
         mine.forEach(function (it) {
           if (!res) return it.done({ ok: false, reason: 'bridge_down', say: down });
@@ -1693,86 +1861,47 @@
       });
     });
   }
-  // "Close everything (but Spotify)": what is open now, less what she kept and
-  // less any browser (TaskHub runs in one), closed gracefully.
+  function listWords(a) { a = (a || []).slice(0, 6); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   function closeAll(except, force) {
     if (!onPc()) return { ok: false, reason: 'off_pc' };
     var keep = (except || []).map(function (n) { return matchApp(n, W('pcApps')); }).filter(Boolean).map(function (a) { return a.id; });
-    var run = window._sosBridgeRunning, go = window._sosBridgeClose;
-    if (!run || !go) return { ok: false, reason: 'no_bridge' };
-    return Promise.resolve(run()).then(function (list) {
+    return Promise.resolve(bridgeRunning()).then(function (list) {
       if (!list) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) };
       var todo = list.filter(function (a) { return keep.indexOf(a.id) < 0 && !BROWSERS.test(a.name); });
-      if (!todo.length) return { ok: true, say: 'There was nothing else open to close.' };
-      return Promise.resolve(go(todo.map(function (a) { return a.id; }), !!force, false)).then(function (res) {
+      if (!todo.length) return { ok: true, say: 'Nothing else was open.' };
+      return Promise.resolve(bridgeClose(todo.map(function (a) { return a.id; }), !!force, false)).then(function (res) {
         if (!res) return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) };
         var left = (res.stillOpen || []), bad = (res.failed || []);
         var line = (res.closed || []).length ? 'Closed ' + listWords(res.closed) + '.' : '';
-        if (left.length) line += ' ' + listWords(left) + (left.length > 1 ? ' are' : ' is') + ' asking to save, so I\'ve left ' + (left.length > 1 ? 'them' : 'it') + ' open.';
+        if (left.length) line += ' ' + listWords(left) + (left.length > 1 ? ' want' : ' wants') + ' to save; left open.';
         if (bad.length) line += ' ' + listWords(bad) + ' wouldn\'t close.';
         return (left.length || bad.length) ? { ok: false, reason: 'still_open', say: line.trim() } : { ok: true, say: line.trim() };
       });
     }).catch(function () { return { ok: false, reason: 'bridge_down', say: launchIssue(null, [], W('err'), {}) }; });
   }
-  function listWords(a) { a = (a || []).slice(0, 6); return a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
-  // Which of her apps are open: refreshed when she wakes Neo, read into state
-  // (pcRunning) for "what's open?".
   function refreshRunning() {
-    if (!onPc() || !window._sosBridgeRunning) return;
-    var r = W('running'), key = P.running;
+    if (!onPc()) return;
+    var r = W('running');
     if (r && Date.now() - r.at < 20000) return;
-    Promise.resolve(window._sosBridgeRunning()).then(function (list) {
-      if (Array.isArray(list)) window[key] = { at: Date.now(), names: list.map(function (a) { return a.name; }) };
+    Promise.resolve(bridgeRunning()).then(function (list) {
+      if (Array.isArray(list)) window[P.running] = { at: Date.now(), names: list.map(function (a) { return a.name; }) };
     }).catch(function () {});
   }
-  // Say something after the current reply (or now, if Neo is quiet).
-  function tellLater(text, good) {
-    if (!text) return;
-    if (!good) sfx('error');
-    if (S.running && (S.mode === 'thinking' || S.mode === 'speaking')) { S.afterSay = S.afterSay ? S.afterSay + ' ' + text : text; return; }
-    if (S.running) speak(text, false); else hudNote(text, good ? 'note' : 'error', 5200);
-  }
-  // The bridge's /api/close and /api/running live here, not in index.html: AI prep
-  // is the page's one sanctioned caller of the local bridge (tests/reels-widget.test.js).
-  /* Neo ("close Spotify", "what's open?"): the bridge's /api/close and /api/running
-   * (launcher.py). Same origin gate as /api/launch, ids from its own scan only.
-   * Resolve to the bridge's answer, or null when it could not be reached. */
-  window._sosBridgeCall = function(path, body, ms){
-    if (!/Windows/i.test(navigator.userAgent || '')) return Promise.resolve(null);
-    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
-    var t = ac ? setTimeout(function(){ ac.abort(); }, ms || 8000) : null;
-    var opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method: 'GET' };
-    if (ac) opts.signal = ac.signal;
-    return fetch('http://127.0.0.1:8781' + path, opts).then(function(r){ return r.json(); })
-      .then(function(j){ if (t) clearTimeout(t); window[P.up] = !!(j && j.ok); return (j && j.ok) ? j : null; },
-            function(){ if (t) clearTimeout(t); window[P.up] = false; return null; });
-  };
-  window._sosBridgeClose = function(appIds, force, browser){
-    return window._sosBridgeCall('/api/close', { apps: (appIds || []).slice(0, 12), force: force === true, browser: browser === true }, 30000);
-  };
-  window._sosBridgeRunning = function(){
-    return window._sosBridgeCall('/api/running', null, 20000).then(function(j){ return j ? (j.running || []) : null; });
-  };
-  window._vdNeoLaunch = queueLaunch;
-  window._vdNeoClose = queueClose;
-  window._vdNeoCloseAll = closeAll;
+  window._thNeoLaunch = queueLaunch;
+  window._thNeoClose = queueClose;
+  window._thNeoCloseAll = closeAll;
 
-  // ══ the rest of the TaskHub, for the side's bridge (_vdVoice / _thVoice) ════
-  // Kept here, not in the App: none of it needs React state, and the App
-  // re-binds its bridge on every render. Every entry answers true, a promise of
-  // its outcome, or {ok:false, reason}. Each acts as the side in front (P).
-  function timeoutP(ms, v) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms); }); }
+  // ══ the rest of his TaskHub, for his bridge (_thVoice) ═════════════════════
+  // Every entry answers true, a promise of its outcome, or {ok:false, reason}.
   function escH(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  // Timer commands, one at a time: each waits for the panel to mount, runs, then
-  // waits for the component to re-register its hook with the new state, so
-  // "set 25 and start" starts 25 minutes, never the old length.
+  // Timer commands, one at a time (the timer component's own API: _vdTimerExec).
   var TQ = [], tBusy = false;
   function timerRun(cmd, arg) { return new Promise(function (res) { TQ.push({ cmd: cmd, arg: arg, res: res }); pump(); }); }
   function pump() {
     if (tBusy || !TQ.length) return;
     tBusy = true;
     var t0 = Date.now();
-    (function wait() {
+    (function waitT() {
       var ex = window._vdTimerExec;
       if (ex) {
         var job = TQ.shift();
@@ -1782,10 +1911,9 @@
         return;
       }
       if (Date.now() - t0 > 4000) { TQ.shift().res(false); tBusy = false; pump(); return; }
-      setTimeout(wait, 50);
+      setTimeout(waitT, 50);
     })();
   }
-  function normWords(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
   function findByName(list, q, key) {
     q = normWords(q); if (!q) return null;
     var n = function (x) { return normWords(x[key]); };
@@ -1800,27 +1928,25 @@
     return out;
   }
   function planGated(fn) {
-    // Plans live in her TaskHub, so they keep its lock.
-    var G = window.Guardian;
-    var lk = P.lockTH;
+    var G = window.Guardian, lk = P.lockTH;
     if (!window.alGate || !G || !G.mustBlock || !G.mustBlock(lk)) return fn();
     var p = new Promise(function (res) { window.alGate(lk, function () { res(fn()); }, function () { res({ ok: false, reason: 'locked' }); }); setTimeout(function () { res({ ok: false, reason: 'locked' }); }, 120000); });
     p.gated = true; return p;
   }
+  var HEADER_PROGS = { tradehub: 'tradeboard', tradeboard: 'tradeboard', warroom: 'warroom', 'war room': 'warroom', keychain: 'keychain', vault: 'keychain' };
   var NEO_OPS = {
     onPc: onPc,
     timer: timerRun,
-    // A kit, or null. A task whose kit is already being built waits for that one.
     prep: function (item, dk) {
       var req = W('prepReq');
       if (!req) return Promise.resolve(null);
       if (!(W('prepBusy') || {})[item.id]) return req(item, dk);
       var t0 = Date.now();
       return new Promise(function (res) {
-        (function wait() {
+        (function waitP() {
           if (!(W('prepBusy') || {})[item.id]) return res((W('prepKits') || {})[item.id] || null);
           if (Date.now() - t0 > 90000) return res(null);
-          setTimeout(wait, 500);
+          setTimeout(waitP, 500);
         })();
       });
     },
@@ -1832,21 +1958,14 @@
       G.lockNow(id); return true;
     },
     openLink: function (label) {
-      var links = (window._navGetLinks ? window._navGetLinks(P.id) : []) || [];
+      var links = (window._navGetLinks ? window._navGetLinks('tony') : []) || [];
       var hit = findByName(links, label, 'label');
-      if (hit && window._navOpenLink) { window._navOpenLink(P.id, hit.id); return true; }
-      // Tony's header programs that open in their own tab (TradeHub, WarRoom, Keychain).
-      if (P.id === 'tony') {
-        var prog = { tradehub: 'tradeboard', tradeboard: 'tradeboard', warroom: 'warroom', 'war room': 'warroom', keychain: 'keychain', vault: 'keychain' }[normWords(label)];
-        if (prog && window._tonyNav) { window._tonyNav(prog); return true; }
-      }
-      // Warden is her links page: it replaces this page, so Neo finishes speaking first.
-      if (P.id === 'veda' && /^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
-      // Any other program linked from her TaskHub (her LifeHub list included).
-      if (P.id === 'veda' && window._vdNeoPrograms && window._vdNeoPrograms.find(label)) return window._vdNeoPrograms.open(label);
+      if (hit && window._navOpenLink) { window._navOpenLink('tony', hit.id); return true; }
+      var prog = HEADER_PROGS[normWords(label)];
+      if (prog && window._tonyNav) { window._tonyNav(prog); return true; }
       return { ok: false, reason: 'not_found' };
     },
-    // A new page in the side's Notebook (V's: bj, T's: tj), through Notebook's public API only.
+    // A new page in T's Notebook (tj), through Notebook's public API only.
     journalEntry: function (text, title) {
       if (!text) return { ok: false, reason: 'invalid' };
       var NB = window.Notebook; if (!NB || !NB.putPage) return { ok: false, reason: 'no_bridge' };
@@ -1856,20 +1975,10 @@
       return Promise.race([NB.putPage(P.nb, page).then(function (p) { return p ? true : { ok: false, reason: 'failed' }; }), timeoutP(10000, { ok: false, reason: 'journal_not_ready' })])
         .catch(function () { return { ok: false, reason: 'journal_not_ready' }; });
     },
-    // StudyOS classes on her calendar → the class ▶ path (apps and sites via the bridge).
-    startClass: function (name, data) {
-      if (P.id !== 'veda') return { ok: false, reason: 'no_bridge' };
-      var seen = {}, list = [];
-      Object.keys(data || {}).forEach(function (k) { (data[k] || []).forEach(function (t) { if (t && t._sosClassId && t._sosClassName && !seen[t._sosClassId]) { seen[t._sosClassId] = 1; list.push({ id: t._sosClassId, name: t._sosClassName }); } }); });
-      var hit = findByName(list, name, 'name'); if (!hit) return { ok: false, reason: 'not_found' };
-      if (!window._sosLaunchClassClick) return { ok: false, reason: 'no_bridge' };
-      window._sosLaunchClassClick(hit.id, hit.name); return true;
-    },
-    // Plans shared between them: only through PlansCore, only as the side in front
-    // (PlansCore acts as the active profile), and inside that side's TaskHub lock.
+    // Plans he shares with Veda: only through PlansCore, only as Tony, inside his TaskHub lock.
     plan: function (op, a) {
       var PC = window.PlansCore;
-      if (!PC || window._activeProfile !== P.id) return { ok: false, reason: 'no_bridge' };
+      if (!PC || !onTony()) return { ok: false, reason: 'no_bridge' };
       if (op === 'add') {
         var title = String(a.title || '').trim(); if (!title) return { ok: false, reason: 'invalid' };
         var dt = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : null, tm = /^\d{2}:\d{2}$/.test(a.time || '') ? a.time : null;
@@ -1882,8 +1991,8 @@
         if (op === 'propose') { if (q.stage === 'proposed' || q.stage === 'confirmed') return { ok: false, reason: 'already' }; return PC.promote(q.id); }
         if (op === 'confirm') {
           if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' };
-          if (q.confirms && q.confirms[P.id]) return { ok: false, reason: 'already' };
-          return Promise.resolve(PC.confirmPlan(q.id)).then(function (v) { return v === 'ok' ? (q.date ? true : { ok: true, say: 'Do note it has no date yet.' }) : v; });
+          if (q.confirms && q.confirms.tony) return { ok: false, reason: 'already' };
+          return Promise.resolve(PC.confirmPlan(q.id)).then(function (v) { return v === 'ok' ? (q.date ? true : { ok: true, say: 'It has no date yet.' }) : v; });
         }
         if (op === 'decline') { if (q.stage !== 'proposed') return { ok: false, reason: 'not_waiting' }; PC.declinePlan(q.id, String(a.reason || '')); return true; }
         if (op === 'cancel_request') { if (q.stage !== 'confirmed') return { ok: false, reason: 'not_confirmed' }; PC.requestCancel(q.id, String(a.reason || '')); return true; }
@@ -1891,7 +2000,7 @@
         return { ok: false, reason: 'invalid' };
       });
     },
-    // What Neo may be asked about beyond tasks. Small, and nothing it can't say aloud.
+    // What Neo may be asked about beyond tasks.
     state: function (base, extra) {
       var out = {}, now = new Date(), today = dkey(now), soon = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14));
       try {
@@ -1903,17 +2012,10 @@
           return o;
         });
       } catch (e) {}
-      try { out.links = ((window._navGetLinks ? window._navGetLinks(P.id) : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
-      if (P.id === 'tony') out.links = ['TradeHub', 'WarRoom', 'Keychain'].concat(out.links || []);
-      // Every program linked from her TaskHub: id, label, what Neo may do there, a summary.
-      if (P.id === 'veda' && window._vdNeoPrograms) { try { out.programs = window._vdNeoPrograms.state(); } catch (e) {} }
+      try { out.links = ['TradeHub', 'WarRoom', 'Keychain'].concat(((window._navGetLinks ? window._navGetLinks('tony') : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30)); } catch (e) {}
       try {
         out.marketCal = ((extra && extra.marketCal) || []).filter(function (e) { return e && e.date >= today && e.date <= soon; }).slice(0, 40)
           .map(function (e) { var o = { date: e.date, title: e.title, kind: e.kind }; if (e.when) o.when = e.when; return o; });
-      } catch (e) {}
-      try {
-        var cls = {}; Object.keys(base.data || {}).forEach(function (k) { (base.data[k] || []).forEach(function (t) { if (t && t._sosClassName) cls[t._sosClassName] = 1; }); });
-        out.classes = Object.keys(cls).slice(0, 20);
       } catch (e) {}
       try {
         var kits = W('prepKits') || {}, tm = dkey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
@@ -1935,14 +2037,195 @@
       return out;
     },
   };
-  window._vdNeoOps = NEO_OPS;
+  window._thNeoOps = NEO_OPS;
 
   function cancel() {
     S.pending = null;
     stopVoice();
     stopCaptions();
-    if (S.running) { S.chunks = []; S.vad = null; setMode('wake'); newRecognizer(); }
+    closePop();
+    if (S.running) { S.chunks = []; S.vad = null; idle(); }
+    S.holdUntil = 0;
     hudShow(false);
+  }
+
+  // ══ Talk: the mic button — no wake phrase ══════════════════════════════════
+  function talk() {
+    if (!onTony()) return false;
+    if (S.mode === 'capture') { finishCapture(); return true; }   // tap again: send now
+    if (S.mode === 'thinking' || S.starting) return false;
+    if (S.mode === 'speaking') stopVoice();
+    try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+    if (S.running) { sfx('wake'); refreshRunning(); beginCapture(0.25, false); return true; }
+    S.talk = true; S.talkStart = true; emit();
+    sync();
+    return true;
+  }
+
+  // ══ Type: the composer ═════════════════════════════════════════════════════
+  var ASKD = { el: null, kb: null, draft: '' };
+  function askEl() {
+    if (ASKD.el || !document.body) return ASKD.el;
+    ensureStyles();
+    var ov = document.createElement('div');
+    ov.id = 'tn-ask'; ov.setAttribute('aria-hidden', 'true');
+    ov.innerHTML = '<div class="tn-ask-box" role="dialog" aria-modal="true" aria-label="Ask Neo">' +
+      '<div class="tn-ask-head"><span class="tn-ask-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="10" stroke-width="1.6" stroke-dasharray="9.5 3.6"/><circle cx="12" cy="12" r="6" stroke-width="1.2" opacity=".75"/><circle cx="12" cy="12" r="2.8" fill="currentColor" stroke="none"/></svg>Ask Neo</span>' +
+      '<button type="button" class="tn-ask-x" aria-label="Close" title="Close">✕</button></div>' +
+      '<div class="tn-ask-wrap"><textarea rows="3" spellcheck="true" autocomplete="off" aria-label="Your request" placeholder="Add gym tomorrow at 6, remind me at 5:45 · Brief me · Undo"></textarea></div>' +
+      '<div class="tn-ask-foot"><span class="tn-ask-hint"><kbd>' + (isMac() ? '⌘' : 'Ctrl') + '</kbd>+<kbd>Enter</kbd> to send · <kbd>Enter</kbd> for a new line · lists work</span>' +
+      '<button type="button" class="tn-ask-send">Send</button></div></div>';
+    document.body.appendChild(ov);
+    var ta = ov.querySelector('textarea');
+    ov.querySelector('.tn-ask-x').onclick = closeAsk;
+    ov.querySelector('.tn-ask-send').onclick = sendAsk;
+    ta.addEventListener('input', function () { ASKD.draft = ta.value; askGrow(); });
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendAsk(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeAsk(); }
+    });
+    if (window.A1Resize) { try { var g = window.A1Resize.grip('the message box'); ov.querySelector('.tn-ask-wrap').appendChild(g); window.A1Resize.attach(ta, g, 'tn-ask', askGrow); } catch (e) {} }
+    ASKD.el = ov;
+    return ov;
+  }
+  function isMac() { return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || ''); }
+  function askGrow() { var ta = ASKD.el && ASKD.el.querySelector('textarea'); if (!ta || ta.getAttribute('data-user-h')) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, Math.round(innerHeight * 0.42)) + 'px'; }
+  function askKeyboard(on) {
+    var vv = window.visualViewport; if (!vv) return;
+    if (on && !ASKD.kb) {
+      ASKD.kb = function () { document.documentElement.style.setProperty('--tn-kb', Math.max(0, innerHeight - vv.height - vv.offsetTop) + 'px'); };
+      vv.addEventListener('resize', ASKD.kb); vv.addEventListener('scroll', ASKD.kb); ASKD.kb();
+    } else if (!on && ASKD.kb) {
+      vv.removeEventListener('resize', ASKD.kb); vv.removeEventListener('scroll', ASKD.kb); ASKD.kb = null;
+      document.documentElement.style.setProperty('--tn-kb', '0px');
+    }
+  }
+  function openAsk(placeholder) {
+    if (!onTony()) return false;
+    var ov = askEl(); if (!ov) return false;
+    var ta = ov.querySelector('textarea');
+    if (placeholder) ta.placeholder = placeholder; else ta.placeholder = 'Add gym tomorrow at 6, remind me at 5:45 · Brief me · Undo';
+    ta.value = ASKD.draft || '';
+    ov.classList.add('show'); ov.setAttribute('aria-hidden', 'false');
+    askKeyboard(true);
+    setTimeout(function () { try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {} askGrow(); }, 60);
+    return true;
+  }
+  function closeAsk() {
+    var ov = ASKD.el; if (!ov || !ov.classList.contains('show')) return;
+    ov.classList.remove('show'); ov.setAttribute('aria-hidden', 'true');
+    askKeyboard(false);
+    try { ov.querySelector('textarea').blur(); } catch (e) {}
+  }
+  function reopenAsk() { setTimeout(function () { if (onTony()) openAsk('Reply to Neo…'); }, 350); }
+  // popups.js closes the composer on an outside click by clicking its ✕ (the
+  // draft is kept). Escape also closes it.
+  function sendAsk() {
+    var ov = ASKD.el; if (!ov) return;
+    var ta = ov.querySelector('textarea'), text = String(ta.value || '').trim();
+    if (!text) { ta.focus(); return; }
+    ASKD.draft = ''; ta.value = '';
+    closeAsk();
+    ask(text).then(function (r) { if (r && r.ok === false && r.error !== 'busy') { ASKD.draft = text; } });
+  }
+  // A typed request: the same path as a spoken one, from the words he typed.
+  var asking = false;
+  async function ask(text) {
+    text = String(text || '').trim();
+    if (!text) return { ok: false, error: 'empty' };
+    if (!onTony()) return { ok: false, error: 'not_tony' };
+    if (asking || S.mode === 'thinking') return { ok: false, error: 'busy' };
+    asking = true;
+    try {
+      stopVoice(); closePop();
+      if (S.mode === 'capture') { S.chunks = []; S.vad = null; stopCaptions(); }
+      S.typed = true;
+      S.turn = { you: text, shown: '', cards: [] };
+      if (S.pending && Date.now() - S.pending.at < 120000) {
+        var pend = S.pending;
+        if (isYes(text)) { S.pending = null; hudShow(true); showYou(text); await runHeld(pend); return { ok: true }; }
+        if (isNo(text)) { S.pending = null; hudShow(true); showYou(text); hudCards([]); respond('Cancelled.', 'Cancelled — nothing changed.', false); return { ok: true }; }
+        S.pending = null;
+      }
+      if (isUndo(text) || isRedo(text)) { setMode('thinking'); showYou(text); await localUndo(isUndo(text) ? 'undo' : 'redo', text); return { ok: true }; }
+      setMode('thinking'); showYou(text);
+      var res = null;
+      try {
+        if (!window._THV || !window._THV.request) throw new Error('TaskHub is not ready');
+        res = await window._THV.request(Object.assign({ transcript: text }, extraFor()), { silent: true, hold: guardTurn, before: beforeRun });
+      } catch (e) { console.warn('[tony-neo]', e); res = { ok: false, error: 'network' }; }
+      if (res && res.dropped) { display('Already done.'); return { ok: true }; }
+      await handle(res, text);
+      return { ok: !!(res && res.ok), error: res && res.error };
+    } finally { asking = false; }
+  }
+
+  // ══ Settings → Tony's Neo AI (rendered into index.html's Settings panel) ════
+  function renderSettings(box) {
+    if (!box) return;
+    ensureStyles();
+    var groups = {}, order = [];
+    VOICES.forEach(function (v) { if (!groups[v.locale]) { groups[v.locale] = []; order.push(v.locale); } groups[v.locale].push(v); });
+    var vopts = order.map(function (l) {
+      return '<optgroup label="' + esc(LOCALE_NAME[l] || l) + '">' + groups[l].map(function (v) {
+        return '<option value="' + esc(v.id) + '"' + (v.id === SET.voice ? ' selected' : '') + '>' + esc(v.name) + ' · ' + (v.gender === 'male' ? 'male' : 'female') + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+    box.innerHTML = '<div class="tns">' +
+      '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Microphone</span><span class="tns-sub" id="tns-mic-sub">Matched by name on each device.</span></div>' +
+      '<div class="tns-ctl"><select class="thset-input" id="tns-mic" aria-label="Microphone"><option value="">System default</option></select></div></div>' +
+      '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Voice</span><span class="tns-sub" id="tns-voice-sub">Neural voices through Orca, with your key.</span></div>' +
+      '<div class="tns-ctl"><select class="thset-input" id="tns-voice" aria-label="Voice">' + vopts + '</select><button type="button" class="thset-mini" id="tns-test">Test</button></div></div>' +
+      '<div class="thset-row tns-row"><div class="tns-txt"><span class="thset-label">Speak typed replies</span><span class="tns-sub">Off: typed requests answer on screen only.</span></div>' +
+      '<button type="button" class="tns-sw" id="tns-typed" role="switch" aria-label="Speak typed replies" aria-checked="' + (SET.speakTyped ? 'true' : 'false') + '"></button></div>' +
+      '<div class="tns-foot">Synced to all your devices.</div></div>';
+    var mic = box.querySelector('#tns-mic'), micSub = box.querySelector('#tns-mic-sub');
+    var voice = box.querySelector('#tns-voice'), test = box.querySelector('#tns-test'), vsub = box.querySelector('#tns-voice-sub');
+    var sw = box.querySelector('#tns-typed');
+    function fillMics(asked) {
+      listMics().then(function (devs) {
+        var labelled = devs.filter(function (d) { return d.label; });
+        var html = '<option value="">System default</option>';
+        labelled.forEach(function (d) { html += '<option value="' + esc(d.label) + '">' + esc(d.label) + '</option>'; });
+        var here = !SET.micLabel || labelled.some(function (d) { return d.label === SET.micLabel; });
+        if (!here) html += '<option value="' + esc(SET.micLabel) + '">' + esc(SET.micLabel) + ' (not on this device)</option>';
+        if (devs.length && !labelled.length && !asked) html += '<option value="__ask">Show this device\'s microphones…</option>';
+        mic.innerHTML = html; mic.value = SET.micLabel || '';
+        micSub.textContent = !here ? 'Not on this device — the default is used here.' : 'Matched by name on each device.';
+        micSub.classList.toggle('warn', !here);
+      });
+    }
+    mic.onchange = function () {
+      if (mic.value === '__ask') {
+        mic.value = SET.micLabel || '';
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); fillMics(true); }).catch(function () { micSub.textContent = 'Microphone access was refused.'; micSub.classList.add('warn'); });
+        return;
+      }
+      setSettings({ micLabel: mic.value });
+      try { localStorage.removeItem(MIC_LS); } catch (e) {}
+      if (S.running) { teardown(); sync(); }
+      fillMics(true);
+    };
+    voice.onchange = function () { setSettings({ voice: voice.value }); };
+    test.onclick = function () {
+      test.disabled = true;
+      previewVoice(voice.value).then(function (r) {
+        test.disabled = false;
+        if (r.via === 'device') { vsub.textContent = 'No Orca key found (Shruti keeps it): the device voice speaks instead.'; vsub.classList.add('warn'); }
+        else if (!r.ok) { vsub.textContent = 'Couldn\'t play a sample here.'; vsub.classList.add('warn'); }
+        else { vsub.textContent = 'Neural voices through Orca, with your key.'; vsub.classList.remove('warn'); }
+      });
+    };
+    sw.onclick = function () { var on = sw.getAttribute('aria-checked') !== 'true'; sw.setAttribute('aria-checked', on ? 'true' : 'false'); setSettings({ speakTyped: on }); };
+    // Another device changed them while this panel is open.
+    var onRemote = function () {
+      if (!box.isConnected) { window.removeEventListener('th-neo-settings', onRemote); return; }
+      if (voice.value !== SET.voice) voice.value = SET.voice;
+      sw.setAttribute('aria-checked', SET.speakTyped ? 'true' : 'false');
+      if ((mic.value || '') !== (SET.micLabel || '')) fillMics(true);
+    };
+    window.addEventListener('th-neo-settings', onRemote);
+    fillMics(false);
   }
 
   // ══ on / off + watcher ═════════════════════════════════════════════════════
@@ -1950,44 +2233,49 @@
     on = !!on;
     var was = S.on;
     S.on = on;
-    if (!S.who) { var sd = sideOf(); if (!sd) return; adopt(sd); }
     try { on ? localStorage.setItem(P.pref, '1') : localStorage.removeItem(P.pref); } catch (e) {}
     if (on) {
-      // A user tap primes speech on iOS/Android, which refuse to speak otherwise.
       try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
       if (!was) S.greet = true;
+      if (S.running && !S.model) { teardown(); }   // a Talk session without the model: restart with the wake word
       sync();
     } else {
+      S.talk = false; S.talkStart = false;
       teardown();
       hudShow(false);
     }
     emit();
   }
-  function shouldRun() { return S.on && isVeda() && !document.hidden; }
+  function shouldRun() { return (S.on || S.talk) && onTony() && !document.hidden; }
   function sync() {
-    // The side in front changed (Veda ⇄ Tony ⇄ picker): release the old side's
-    // mic, then take up the new side's own switch.
-    var sd = sideOf();
-    if (sd && sd !== S.who) { if (S.running || S.starting) teardown(); hudShow(false); adopt(sd); emit(); }
+    if (!onTony()) { closeAsk(); if (H && H.el.classList.contains('show') && !S.running) hudShow(false); }
     if (shouldRun()) { if (!S.running) start(); }
-    else if (S.running || S.starting) teardown();
+    else if (S.running || S.starting) { S.talk = false; S.talkStart = false; teardown(); hudShow(false); emit(); }
   }
   document.addEventListener('visibilitychange', sync);
-  setInterval(sync, 1000);   // profile switches (Veda ⇄ Tony ⇄ picker) have no event
+  setInterval(sync, 1000);   // profile switches (Tony ⇄ Veda ⇄ picker) have no event
   try { ensureStyles(); } catch (e) {}
 
-  adopt(sideOf() || 'veda');
-
-  window._vdNeo = {
+  window._thNeo = {
     isOn: function () { return S.on; },
-    who: function () { return S.who; },
     setOn: setOn,
     toggle: function () { setOn(!S.on); },
     mode: function () { return S.mode; },
     cancel: cancel,
-    _test: { fixCaption: fixCaption, tidyText: tidyText, spotStops: spotStops, spotBefore: spotBefore, spotAfter: spotAfter, spotlightBefore: spotlightBefore, spotlightAfter: spotlightAfter, spot: SP, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
-      cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
+    talk: talk,
+    ask: ask,
+    openAsk: openAsk,
+    closeAsk: closeAsk,
+    settings: function () { return Object.assign({}, SET); },
+    setSettings: setSettings,
+    voices: function () { return VOICES.slice(); },
+    previewVoice: previewVoice,
+    renderSettings: renderSettings,
+    _test: { fixCaption: fixCaption, tidyText: tidyText, spotStops: spotStops, spotBefore: spotBefore, spotAfter: spotAfter, spotlightBefore: spotlightBefore, spotlightAfter: spotlightAfter, spot: SP, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, DEFAULT_VOICE: DEFAULT_VOICE,
+      cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, spokenFor: spokenFor, shownFor: shownFor, diffState: diffState, diffLine: diffLine, snapState: snapState,
+      needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo, isUndo: isUndo, isRedo: isRedo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
-      greeting: greeting, matchApp: matchApp, adopt: adopt, profiles: PROFILES, tonySheet: tonySheet, bridgeLaunch: bridgeLaunch, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
+      greeting: greeting, matchApp: matchApp, bridgeLaunch: bridgeLaunch, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime,
+      cleanSettings: cleanSettings, applyRemote: applyRemote, micDeviceId: micDeviceId, sync: sync, state: S, P: P, placeHud: function () { if (H) placeHud(H); }, hud: function () { return H; } },
   };
 })();
