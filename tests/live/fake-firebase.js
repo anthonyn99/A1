@@ -156,19 +156,24 @@ export const getDownloadURL = (r) => Promise.resolve('data:text/plain,' + encode
 export const deleteObject = () => Promise.resolve();
 
 // ── firebase-firestore ──
-const DB = { type: 'firestore' };
-export const initializeFirestore = () => { fs.fsInit = true; return DB; };
+// Each initializeFirestore() is its own client. With window.__fakeStrictTerminate
+// set (opt-in, per test), a terminated client refuses every read and write as the
+// real SDK does: what made TradeHub's idle teardown read 'Sync failed' (2026-11-09).
+let DB = { type: 'firestore' };
+const dead = (ref) => !!(globalThis.__fakeStrictTerminate && ref && ref.db && ref.db.terminated);
+const deadErr = () => Object.assign(new Error('The client has already been terminated.'), { code: 'failed-precondition' });
+export const initializeFirestore = () => { fs.fsInit = true; DB = { type: 'firestore' }; return DB; };
 export const getFirestore = () => { fs.fsInit = true; return DB; };
 export const memoryLocalCache = () => ({});
 export const persistentLocalCache = () => ({});
 export const persistentMultipleTabManager = () => ({});
 export const persistentSingleTabManager = () => ({});
-export const terminate = () => Promise.resolve();
+export const terminate = (db) => { if (db) db.terminated = true; return Promise.resolve(); };
 export const clearIndexedDbPersistence = () => Promise.resolve();
 export const enableNetwork = () => Promise.resolve();
 export const disableNetwork = () => Promise.resolve();
 export const waitForPendingWrites = () => Promise.resolve();
-export const doc = (db, ...p) => { const path = joinPath(p); return { path, id: path.split('/').pop(), type: 'document' }; };
+export const doc = (db, ...p) => { const path = joinPath(p); return { path, id: path.split('/').pop(), type: 'document', db }; };
 export const collection = (db, ...p) => { const path = joinPath(p); return { path, id: path.split('/').pop(), type: 'collection' }; };
 export const query = (c) => c;
 export const where = () => ({}); export const orderBy = () => ({}); export const limit = () => ({});
@@ -196,11 +201,11 @@ function doDelete(ref) { write('delete', ref.path, undefined, () => { delete fs.
 // __fakeFs.failNext = path: the next setDoc/updateDoc on that path is refused, as
 // the server refuses a write (permission-denied: not retried), and nothing is stored.
 const refuse = (ref) => { if (fs.failNext && fs.failNext === ref.path) { fs.failNext = null; const e = new Error('refused by the test'); e.code = 'permission-denied'; return e; } return null; };
-export const setDoc = (ref, data, opts) => { const r = refuse(ref); if (r) return Promise.reject(r); doSet(ref, data, opts); return Promise.resolve(); };
-export const updateDoc = (ref, data) => { const r = refuse(ref); if (r) return Promise.reject(r); try { doUpdate(ref, data); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
-export const deleteDoc = (ref) => { doDelete(ref); return Promise.resolve(); };
+export const setDoc = (ref, data, opts) => { if (dead(ref)) return Promise.reject(deadErr()); const r = refuse(ref); if (r) return Promise.reject(r); doSet(ref, data, opts); return Promise.resolve(); };
+export const updateDoc = (ref, data) => { if (dead(ref)) return Promise.reject(deadErr()); const r = refuse(ref); if (r) return Promise.reject(r); try { doUpdate(ref, data); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
+export const deleteDoc = (ref) => { if (dead(ref)) return Promise.reject(deadErr()); doDelete(ref); return Promise.resolve(); };
 export const addDoc = (col, data) => { const r = doc(null, col.path, 'auto_' + Math.random().toString(36).slice(2, 10)); doSet(r, data); return Promise.resolve(r); };
-export const getDoc = (ref) => Promise.resolve(docSnap(ref.path));
+export const getDoc = (ref) => dead(ref) ? Promise.reject(deadErr()) : Promise.resolve(docSnap(ref.path));
 export const getDocFromServer = getDoc;
 export const getDocFromCache = getDoc;
 export const getDocs = (q) => Promise.resolve(colSnap(q.path));
