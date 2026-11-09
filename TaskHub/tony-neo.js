@@ -2194,7 +2194,7 @@
     box.innerHTML = '<div class="tns">' +
       '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Microphone</span><span class="tns-sub" id="tns-mic-sub">Matched by name on each device.</span></div>' +
       '<div class="tns-ctl"><select class="thset-input" id="tns-mic" aria-label="Microphone"><option value="">System default</option></select></div></div>' +
-      '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Voice</span><span class="tns-sub" id="tns-voice-sub">Neural voices through Orca, with your key.</span></div>' +
+      '<div class="thset-row tns-row tns-wrap"><div class="tns-txt"><span class="thset-label">Voice</span><span class="tns-sub" id="tns-voice-sub">Orca neural voices, your key.</span></div>' +
       '<div class="tns-ctl"><select class="thset-input" id="tns-voice" aria-label="Voice">' + vopts + '</select><button type="button" class="thset-mini" id="tns-test">Test</button></div></div>' +
       '<div class="thset-row tns-row"><div class="tns-txt"><span class="thset-label">Speak typed replies</span><span class="tns-sub">Off: typed requests answer on screen only.</span></div>' +
       '<button type="button" class="tns-sw" id="tns-typed" role="switch" aria-label="Speak typed replies" aria-checked="' + (SET.speakTyped ? 'true' : 'false') + '"></button></div>' +
