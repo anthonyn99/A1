@@ -1687,10 +1687,10 @@
   window._vdNeoClose = queueClose;
   window._vdNeoCloseAll = closeAll;
 
-  // ══ the rest of the TaskHub, for the side's bridge (_vdVoice / _thVoice) ════
+  // ══ the rest of her TaskHub, for her bridge (_vdVoice) ═════════════════════
   // Kept here, not in the App: none of it needs React state, and the App
   // re-binds its bridge on every render. Every entry answers true, a promise of
-  // its outcome, or {ok:false, reason}. Each acts as the side in front (P).
+  // its outcome, or {ok:false, reason}. Each acts as Veda (P).
   function timeoutP(ms, v) { return new Promise(function (r) { setTimeout(function () { r(v); }, ms); }); }
   function escH(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   // Timer commands, one at a time: each waits for the panel to mount, runs, then
@@ -1771,7 +1771,7 @@
       if (window._vdNeoPrograms && window._vdNeoPrograms.find(label)) return window._vdNeoPrograms.open(label);
       return { ok: false, reason: 'not_found' };
     },
-    // A new page in the side's Notebook (V's: bj, T's: tj), through Notebook's public API only.
+    // A new page in V's Notebook (bj), through Notebook's public API only.
     journalEntry: function (text, title) {
       if (!text) return { ok: false, reason: 'invalid' };
       var NB = window.Notebook; if (!NB || !NB.putPage) return { ok: false, reason: 'no_bridge' };
@@ -1789,8 +1789,8 @@
       if (!window._sosLaunchClassClick) return { ok: false, reason: 'no_bridge' };
       window._sosLaunchClassClick(hit.id, hit.name); return true;
     },
-    // Plans shared between them: only through PlansCore, only as the side in front
-    // (PlansCore acts as the active profile), and inside that side's TaskHub lock.
+    // Plans she shares with Tony: only through PlansCore, only as Veda
+    // (PlansCore acts as the active profile), and inside her TaskHub lock.
     plan: function (op, a) {
       var PC = window.PlansCore;
       if (!PC || window._activeProfile !== P.id) return { ok: false, reason: 'no_bridge' };
