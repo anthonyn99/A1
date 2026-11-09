@@ -653,6 +653,7 @@
       '#th-neo-hud.tn-dock .tn-body{height:100%;justify-content:center;gap:1px;padding:4px 0;box-sizing:border-box;min-height:0;}',
       '#th-neo-hud.tn-dock .tn-head,#th-neo-hud.tn-dock .tn-cards,#th-neo-hud.tn-dock .tn-tele{display:none;}',
       '#th-neo-hud.tn-dock .tn-you{flex:0 0 auto;font-size:11px;line-height:1.35;-webkit-line-clamp:1;}',
+      '#th-neo-hud.tn-dock.tn-said .tn-you{display:none;}',
       '#th-neo-hud.tn-dock .tn-say{flex:0 1 auto;min-height:0;max-height:none;font-size:12.5px;line-height:1.4;}',
       '#th-neo-hud.tn-dock .tn-side{align-self:center;}',
       '#th-neo-hud.tn-dock .tn-side .tn-state{display:inline-flex;font-size:9px;letter-spacing:1px;}',
@@ -799,7 +800,8 @@
       for (var i = 0; i < h.states.length; i++) h.states[i].textContent = LABEL[m];
       hudShow(true);
     }
-    if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('heard'); h.say.innerHTML = ''; h.say.classList.remove('ovf'); h.cards.innerHTML = ''; S.turn = null; refreshMore(); closePop(); }
+    if (m === 'capture') { h.you.textContent = ''; h.you.classList.remove('heard'); S.turn = null; }
+    if (m === 'capture' || m === 'thinking') { h.el.classList.remove('tn-said'); h.say.innerHTML = ''; h.say.classList.remove('ovf'); h.cards.innerHTML = ''; refreshMore(); closePop(); }
     if (m === 'wake') hideSoon(900);
     if (m === 'off') { S.holdUntil = 0; hideSoon(0); }
   }
@@ -905,18 +907,36 @@
 
   // The reply as word spans. Spoken in full (karaoke): lit in time with the
   // voice, and the box scrolls so the word being said stays in view.
+  // Docked, the reply has the whole slot once it arrives: what he said moves
+  // into Details (it shows while he talks and while Neo works), and the box is
+  // a whole number of lines tall, so no line is ever cut in half.
   function sayWords(text) {
     var h = ensureHud(); if (!h) return [];
     h.say.innerHTML = ''; h.say.scrollTop = 0; h.say.classList.remove('ovf');
-    return String(text).split(/\s+/).filter(Boolean).map(function (w) {
+    h.el.classList.add('tn-said');
+    var spans = String(text).split(/\s+/).filter(Boolean).map(function (w) {
       var s = document.createElement('span'); s.className = 'w'; s.textContent = w + ' '; h.say.appendChild(s); return s;
     });
+    fitSay();
+    return spans;
   }
-  function lightTo(spans, n) {
+  function sayLine() { var lh = H && parseFloat(getComputedStyle(H.say).lineHeight); return lh > 0 ? lh : 17.5; }
+  function fitSay() {
+    var h = H; if (!h) return;
+    h.say.style.maxHeight = '';
+    if (!h.el.classList.contains('tn-dock')) return;
+    var room = (parseFloat(h.el.style.height) || h.el.clientHeight) - 10;   // the slot, less the hairline and body padding
+    if (!h.el.classList.contains('tn-said') && h.you.textContent) room -= h.you.offsetHeight + 1;
+    var lh = sayLine();
+    h.say.style.maxHeight = (Math.max(1, Math.floor(room / lh)) * lh) + 'px';
+  }
+  // follow: keep the word being SAID in view (only while it's spoken); a reply
+  // shown at once stays at its first line, with Details for the rest.
+  function lightTo(spans, n, follow) {
     for (var i = 0; i < spans.length; i++) spans[i].classList.toggle('lit', i < n);
     var cur = spans[Math.max(0, n - 1)], box = H && H.say;
-    if (cur && box && box.scrollHeight > box.clientHeight + 1) {
-      var want = Math.max(0, cur.offsetTop + cur.offsetHeight - box.clientHeight);
+    if (follow && cur && box && box.scrollHeight > box.clientHeight + 1) {
+      var lh = sayLine(), want = Math.max(0, Math.ceil((cur.offsetTop + cur.offsetHeight - box.clientHeight) / lh - 0.05) * lh);
       if (want > box.scrollTop + 1) { try { box.scrollTo({ top: want, behavior: reduced ? 'auto' : 'smooth' }); } catch (e) { box.scrollTop = want; } }
     }
   }
@@ -1679,7 +1699,7 @@
     else hudShow(true);
     S.speaking = true;
     var spans = sayWords(shown);
-    var light = karaoke ? function (n) { lightTo(spans, n); } : function () {};
+    var light = karaoke ? function (n) { lightTo(spans, n, true); } : function () {};
     if (!karaoke) { lightTo(spans, spans.length); markOverflow(); }
     var reask = S.typed && /\?\s*$/.test(shown);
     var done = false;
@@ -2213,7 +2233,7 @@
         test.disabled = false;
         if (r.via === 'device') { vsub.textContent = 'No Orca key found (Shruti keeps it): the device voice speaks instead.'; vsub.classList.add('warn'); }
         else if (!r.ok) { vsub.textContent = 'Couldn\'t play a sample here.'; vsub.classList.add('warn'); }
-        else { vsub.textContent = 'Neural voices through Orca, with your key.'; vsub.classList.remove('warn'); }
+        else { vsub.textContent = 'Orca neural voices, your key.'; vsub.classList.remove('warn'); }
       });
     };
     sw.onclick = function () { var on = sw.getAttribute('aria-checked') !== 'true'; sw.setAttribute('aria-checked', on ? 'true' : 'false'); setSettings({ speakTyped: on }); };
