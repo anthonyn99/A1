@@ -54,17 +54,11 @@ if (isCronBuildHour) {
 // 2026-11-09: news and the calendar shared one invocation's 50 subrequests, so the
 // calendar starved every morning and a raw news build had nothing left to retry
 // with. Each tick is now its own invocation, one build apiece.
-console.log('
-One build per tick');
+console.log('\nOne build per tick');
 ok(':00 runs the news build alone', /if \(minute < 10\)\{ await cronPrewarmNews\(env, ctx\); return; \}/.test(sched));
-ok(':10 runs the raw-build retry alone', /if \(minute < 20\)\{ await cronRetryNews\(env, ctx\)[^
-]*return; \}/.test(sched));
-ok('the calendar no longer runs in the news invocation', !/cronPrewarmNews\(env, ctx\);\s*
-[\s\S]{0,400}prewarmCalendar/.test(sched.slice(0, 2500)));
-const retry = (SRC.match(/
-async function cronRetryNews\(env, ctx\)\{[\s\S]*?
-\}
-/) || [''])[0];
+ok(':10 runs the raw-build retry alone', /if \(minute < 20\)\{ await cronRetryNews\(env, ctx\)[^\n]*return; \}/.test(sched));
+ok('the calendar no longer runs in the news invocation', !/cronPrewarmNews\(env, ctx\);\s*\n[\s\S]{0,400}prewarmCalendar/.test(sched.slice(0, 2500)));
+const retry = (SRC.match(/\nasync function cronRetryNews\(env, ctx\)\{[\s\S]*?\n\}\n/) || [''])[0];
 ok('cronRetryNews skips a healthy 06:00 build', /if \(!last\.error && !last\.degraded && \(last\.events \|\| 0\) > 0\) return;/.test(retry));
 ok('cronRetryNews never retries a retry', /last\.retry/.test(retry));
 ok('cronRetryNews skips when someone already rebuilt it', /already rebuilt/.test(retry));
