@@ -277,6 +277,17 @@ if (bg && relay) {
   ok('a new tab it opens carries ?a1tab=', /searchParams\.set\("a1tab", k\)/.test(bg));
 }
 
+console.log('\nA debrief lands on the MAGI tab that took it (2026-11-09)');
+{
+  const deb = fs.readFileSync(path.join(__dirname, '..', 'Shared', 'catdebrief.js'), 'utf8');
+  const magiSrc = fs.readFileSync(path.join(__dirname, '..', 'magi.html'), 'utf8');
+  ok('a delivered prompt asks the extension to bring the console forward',
+    /if \(ok\) bringForward\(abs\)/.test(deb) && /action: 'focusOrOpen', url: u\.origin \+ u\.pathname/.test(deb));
+  ok('a handoff tab pings the extension, focuses the old console, then closes',
+    /handoffFocusPrior\(closeMe\)/.test(magiSrc) && /action: "tabPing"/.test(magiSrc)
+    && /action: "focusOrOpen", url: location\.origin \+ location\.pathname/.test(magiSrc) && /setTimeout\(then, 300\)/.test(magiSrc));
+}
+
 runs.then(() => {
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
