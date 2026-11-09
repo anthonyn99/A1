@@ -809,7 +809,7 @@
     var h = ensureHud(); if (!h) return;
     hudMode(kind || 'note');
     h.you.textContent = ''; h.cards.innerHTML = '';
-    h.say.innerHTML = ''; h.say.textContent = text; markOverflow();
+    var sp = sayWords(text); lightTo(sp, sp.length); markOverflow();
     S.turn = { you: '', shown: text, cards: [] }; refreshMore();
     S.holdUntil = Date.now() + (ms || 3400);
     hideSoon(ms || 3400);
