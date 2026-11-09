@@ -537,9 +537,10 @@
   function applyRemote(o) {
     var c = cleanSettings(o);
     if (!c.at || c.at <= (SET.at || 0)) return false;
+    var oldMic = SET.micLabel;
     SET = Object.assign({}, DEFAULTS, SET, c);
     storeSettings(); settingsChanged();
-    if (S.running && c.micLabel !== undefined) { teardown(); sync(); }   // a new mic: reopen on it
+    if (S.running && SET.micLabel !== oldMic) { teardown(); sync(); }   // a new mic: reopen on it
     return true;
   }
   window.addEventListener('th-neo-remote', function (e) { applyRemote(e && e.detail); });
@@ -2040,7 +2041,7 @@
   window._thNeoOps = NEO_OPS;
 
   function cancel() {
-    S.pending = null;
+    S.pending = null; refreshMore();
     stopVoice();
     stopCaptions();
     closePop();
