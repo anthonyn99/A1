@@ -4189,6 +4189,8 @@ export default {
       // an error). Kept 7 days.
       try { const cr = await env.NEWSHUB_CACHE.get('cron:lastrun');  out.cronLastRun  = cr ? JSON.parse(cr) : null; } catch(e){ out.cronLastRun  = 'err'; }
       try { const cn = await env.NEWSHUB_CACHE.get('cron:lastnews'); out.cronLastNews = cn ? JSON.parse(cn) : null; } catch(e){ out.cronLastNews = 'err'; }
+      try { const ca = await env.NEWSHUB_CACHE.get('cron:lastai'); out.cronLastAI = ca ? JSON.parse(ca) : null; } catch(e){ out.cronLastAI = 'err'; }
+      try { const cr = await env.NEWSHUB_CACHE.get('cron:lastai:retry'); out.cronRetryAI = cr ? JSON.parse(cr) : null; } catch(e){ out.cronRetryAI = 'err'; }
       // List every cached events:* key + size, so a cacheKey mismatch (build wrote
       // one key, client reads another) is immediately visible.
       try {
