@@ -163,6 +163,7 @@ const FAR = key(far);
   ok('the section is there: microphone, voice, typed replies', await until(`document.getElementById('tns-mic') && document.getElementById('tns-voice') && document.getElementById('tns-typed')`, 3000));
   ok('…with Shruti\'s voices, his current one selected', await js(`var s=document.getElementById('tns-voice'); return s.options.length === 20 && s.value === 'en-GB-RyanNeural';`));
   await js(`var s=document.getElementById('tns-voice'); s.value='en-GB-SoniaNeural'; s.dispatchEvent(new Event('change',{bubbles:true})); document.getElementById('tns-typed').click(); 1`);
+  await sleep(400);
   ok('the switch shows on, in his purple', await js(`var e=document.getElementById('tns-typed'); return e.getAttribute('aria-checked')+' '+getComputedStyle(e).backgroundColor;`) === 'true rgb(192, 174, 234)', await js(`var e=document.getElementById('tns-typed'); return e.getAttribute('aria-checked')+' '+getComputedStyle(e).backgroundColor+' '+e.className;`));
   ok('a change is saved (and synced: dashboards/neo_tony)', await js(`var o=JSON.parse(localStorage.getItem('th_neo_settings')); return o.voice==='en-GB-SoniaNeural' && o.speakTyped===true && typeof window._fbSaveNeoTony==='function';`));
   await shot('settings');

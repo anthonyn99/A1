@@ -24266,7 +24266,10 @@ if(document.readyState==='loading'){
 #thset-box:not(.veda) .thset-hdr{border-bottom-color:rgba(255,255,255,.06);}
 #thset-box:not(.veda) .thset-title{font-family:'Manrope',system-ui,sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#dbd0f5;}
 #thset-box:not(.veda) .thset-sec + .thset-sec{border-top-color:rgba(255,255,255,.06);}
-#thset-box:not(.veda) .thset-sec-title{font-size:9px;font-weight:700;letter-spacing:1.6px;opacity:1;color:#8d8d94;}
+/* Section headers stand out (Tony, 2026-11-09: "bolder, more standout"): MAGI panel
+   titles in Manrope 800, his light purple, with a short accent bar. Tony's side only. */
+#thset-box:not(.veda) .thset-sec-title{display:flex;align-items:center;gap:8px;font-family:'Manrope','Inter',system-ui,sans-serif;font-size:11.5px;font-weight:800;letter-spacing:2px;opacity:1;color:#dbd0f5;margin-bottom:14px;}
+#thset-box:not(.veda) .thset-sec-title::before{content:'';flex:0 0 auto;width:3px;height:13px;border-radius:2px;background:#c0aeea;}
 #thset-box:not(.veda) .thset-row{border-radius:6px;border-color:rgba(255,255,255,.06);background:#2c2c31;}
 #thset-box:not(.veda) .thset-pill.locked{background:color-mix(in srgb,#c0aeea 16%,transparent);color:#dbd0f5;border-color:#c0aeea;}
 #thset-box:not(.veda) .thset-pill.unlocked{background:transparent;color:#8d8d94;border-color:#45454c;}
