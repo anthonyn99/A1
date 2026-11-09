@@ -3921,9 +3921,15 @@ async function cronPrewarmNews(env, ctx, retry){
   } catch(e){
     console.error('Cron news failed:', e.message);
     await env.NEWSHUB_CACHE.put('cron:lastnews',
-      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200), retry: !!retry }),
       { expirationTtl: 7*86400 }).catch(()=>{});
   }
+  // stage:aistats is overwritten by every later build, so keep the morning
+  // build's own copy for the week (/_stage-debug → cronLastAI / cronRetryAI).
+  try {
+    const ai = await env.NEWSHUB_CACHE.get('stage:aistats');
+    if (ai) await env.NEWSHUB_CACHE.put(retry ? 'cron:lastai:retry' : 'cron:lastai', ai, { expirationTtl: 7*86400 });
+  } catch(e){}
 }
 
 // ─── HTTP handler ─────────────────────────────────────────────────────────
