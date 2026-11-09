@@ -156,7 +156,7 @@ const FAR = key(far);
   await until('window.__r', 5000); await sleep(500);
   const undoLine = await js(`return document.querySelector('#th-neo-hud .tn-say').textContent.trim();`);
   ok('"undo" names what it took away', /^Undone: removed /.test(undoLine) && /×|\+\d+ more|Gym|Read 20 pages/.test(undoLine), undoLine);
-  ok('…and it really did', await js(`return !(_thVoice.getState().data[${JSON.stringify(TODAY)}]||[]).some(function(x){return x.title==='Gym';});`));
+  ok('…and it really did', await js(`return !(_thVoice.getState().data[${JSON.stringify(TODAY)}]||[]).some(function(x){return x.title==='Stretch';});`));
 
   console.log('\nhis bridge');
   reply = { ok: true, say: 'Done.', transcript: 'Collapse the week and open the timer', actions: [{ type: 'week_view', collapsed: true }, { type: 'timer_set', minutes: 25, start: true }, { type: 'goals_tab', target: 'long' }] };
