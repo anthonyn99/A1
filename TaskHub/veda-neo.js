@@ -1,11 +1,10 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Neo — the hands-free TaskHub assistant.  Docs: docs/TaskHub/neo-assistant.md
+   VEDA'S NEO AI — her hands-free TaskHub assistant.  Docs: docs/TaskHub/neo-assistant.md
 
-   BOTH SIDES since 2026-11-06 (it was Veda's alone before). One script serves
-   whichever TaskHub is in front: each side has its own switch, name, voice
-   key, colours, bridge and reach (PROFILES below). On the profile picker, or
-   when the side changes, the mic is released and the other side's Neo starts
-   only if that side switched it on.
+   Veda's alone. Tony's Neo AI is a separate program (TaskHub/tony-neo.js) with
+   its own switch, globals, HUD and settings; nothing here reaches his side
+   (split 2026-11-09). It runs only while her TaskHub is in front; on the
+   profile picker or Tony's side the mic is released.
 
    Pipeline (all free):
      mic ─► Vosk (on-device, WASM; fixed word list) hears "Hey Neo"
@@ -39,15 +38,13 @@
   var SCRIPT_URL = (document.currentScript && document.currentScript.src) ||
     ((typeof location !== 'undefined' ? String(location.href) : '').replace(/[^/]*$/, '') + 'TaskHub/veda-assistant.js');
 
-  // Mauve, as hologram (Veda). Tony's side wears MAGI's purple (PROFILES.tony.C).
+  // Mauve, as hologram (Veda).
   var C_VEDA = { core: '#E6D9F0', ring: '#C9B3D9', accent: '#8D769A', glow: 'rgba(141,118,154,.55)', hot: '#F4ECFA', red: '#d27a8a',
     g0: 'rgba(244,236,250,.95)', g1: 'rgba(201,179,217,.55)', g2: 'rgba(141,118,154,0)', hex: 'rgba(244,236,250,.75)' };
-  var C_TONY = { core: '#ebe4fb', ring: '#c0aeea', accent: '#9a86c9', glow: 'rgba(154,134,201,.55)', hot: '#f4f0fd', red: '#d68a7c',
-    g0: 'rgba(244,240,253,.95)', g1: 'rgba(192,174,234,.55)', g2: 'rgba(154,134,201,0)', hex: 'rgba(244,240,253,.75)' };
   var C = C_VEDA;
 
-  // Each side's own everything. `w` names a window global (read live: the
-  // TaskHubs and their prep code set them after this script loads).
+  // Her everything. Each entry names a window global (read live: her TaskHub
+  // and its prep code set them after this script loads).
   var PROFILES = {
     veda: { id: 'veda', name: 'Veda', pref: 'vd_neo_on', orcaLs: 'shruti.veda.orcaKey', loadKey: '_fbLoadVedaOrcaKey', C: C_VEDA,
       bridge: '_vdVoice', pcApps: '_vdPcApps', up: '_vdBridgeUp', err: '_vdBridgeErr', running: '_vdPcRunning',
@@ -55,16 +52,10 @@
       nb: 'bj', lockTH: 'veda_taskhub', mobStrip: '.vd-mob-day-strip', dock: '#vr-root .thwx-band > .gita-banner',
       locks: { taskhub: 'veda_taskhub', gita: 'veda_gita', notebook: 'veda_journal', journal: 'veda_journal', rules: 'veda_rules', shield: 'veda_shield' },
       bridgeHint: 'Start StudyOS Bridge from the Start menu' },
-    tony: { id: 'tony', name: 'Tony', pref: 'th_neo_on', orcaLs: 'shruti.tony.orcaKey', loadKey: '_fbLoadTonyOrcaKey', C: C_TONY,
-      bridge: '_thVoice', pcApps: '_thPcApps', up: '_thBridgeUp', err: '_thBridgeErr', running: '_thPcRunning',
-      prepReq: '_thPrepRequest', prepBusy: '_thPrepBusy', prepKits: '_thPrepKits', openLocal: '_thPrepOpenLocal',
-      nb: 'tj', lockTH: 'tony_taskhub', mobStrip: '.th-mob-day-strip', dock: '#root .thwx-band > .thwx-bq',
-      locks: { taskhub: 'tony_taskhub', notebook: 'tony_myjournal', journal: 'tony_myjournal', shield: 'tony_shield' },
-      bridgeHint: 'Start the A1 Prep Bridge (it normally starts at logon)' },
   };
-  function sideOf() { var a = window._activeProfile; return a === 'veda' || a === 'tony' ? a : null; }
-  var P = PROFILES.veda;                       // the side Neo serves now (S.who)
-  function W(k) { return window[P[k]]; }       // that side's window global
+  function sideOf() { return window._activeProfile === 'veda' ? 'veda' : null; }
+  var P = PROFILES.veda;
+  function W(k) { return window[P[k]]; }       // her window global
   function NAME() { return P.name; }
 
   // Words Vosk may choose between. Only "hey neo" wakes; "neo" on its own and the
@@ -467,22 +458,19 @@
     prev: null,             // the last turn, sent with the next for follow-ups: {at, data}
     history: [],            // the conversation so far (oldest first, ≤ HISTORY_N turns): [{at, data}]
   };
-  S.who = null;                                 // the side S.on belongs to ('veda' | 'tony' | null)
+  S.who = null;                                 // 'veda' once her side has been in front
   function readPref(id) { try { return localStorage.getItem(PROFILES[id].pref) === '1'; } catch (e) { return false; } }
-  // Becomes the side in front: its switch, colours and bridge. The old side's
-  // conversation is not carried over.
+  // Takes up her switch the first time her side is in front.
   function adopt(id) {
-    if (S.who === id) return;
-    S.who = id; if (id) { P = PROFILES[id]; C = P.C; }
-    S.on = id ? readPref(id) : false;
+    if (id !== 'veda' || S.who === id) return;
+    S.who = id;
+    S.on = readPref(id);
     S.prev = null; S.history = []; S.pending = null; S.lastSaid = '';
-    orcaKey = ''; orcaOk = null; keyP = null; lastVoice = '';
-    if (H) H.el.classList.toggle('p-tony', P.id === 'tony');
   }
   var reduced = false; try { reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
-  // Neo runs only for the side it belongs to, and only while that side is in front.
-  function isVeda() { return !!S.who && sideOf() === S.who; }
+  // Neo runs only while her TaskHub is in front.
+  function isVeda() { return S.who === 'veda' && sideOf() === 'veda'; }
   function emit() { try { window.dispatchEvent(new CustomEvent('vd-neo-change', { detail: { on: S.on, mode: S.mode, who: S.who } })); } catch (e) {} }
   function setMode(m) { S.mode = m; hudMode(m); emit(); }
   function bridgeState() { try { var b = W('bridge'); return b && b.getState ? b.getState() : null; } catch (e) { return null; } }
@@ -491,7 +479,7 @@
   var styled = false;
   function ensureStyles() {
     if (styled || !document.head) return; styled = true;
-    var C = C_VEDA;   // her sheet is always her colours; Tony's is tonySheet()
+    var C = C_VEDA;
     var st = document.createElement('style'); st.id = 'vd-neo-style';
     var veda = [
       '#vd-neo-hud{--vn-core:' + C.core + ';--vn-ring:' + C.ring + ';--vn-acc:' + C.accent + ';--vn-glow:' + C.glow + ';',
@@ -618,45 +606,8 @@
       '@keyframes vnGlitch{0%{clip-path:inset(0 0 60% 0);transform:translateX(-3px)}20%{clip-path:inset(40% 0 20% 0);transform:translateX(3px)}40%{clip-path:inset(10% 0 70% 0);transform:translateX(-2px)}60%{clip-path:inset(70% 0 0 0);transform:translateX(2px)}80%{clip-path:inset(0 0 0 0);transform:translateX(-1px)}100%{clip-path:none;transform:none}}',
       '@media (prefers-reduced-motion:reduce){#vd-neo-hud .vn-sweep{display:none}.vd-neo-btn .vnb .r1,.vd-neo-btn .vnb .c{animation:none!important}#vd-neo-hud .vn-glitch{animation:none}#vd-neo-hud .vn-card{animation-duration:.01s}}',
     ];
-    st.textContent = veda.join('\n') + '\n' + tonySheet(veda);
+    st.textContent = veda.join('\n');
     document.head.appendChild(st);
-  }
-  // Tony's side: the same HUD in MAGI's purple, on a solid panel (no gradient
-  // fill), docked in his quote's slot (#root's .thwx-bq) dressed as that quote.
-  // Built from Veda's rules so the two never drift: every #vd-neo-hud / .vn-spot
-  // rule is repeated under .p-tony with her colours swapped for his.
-  function tonySheet(rules) {
-    var swap = [[/#E6D9F0/gi, C_TONY.core], [/#C9B3D9/gi, C_TONY.ring], [/#8D769A/gi, C_TONY.accent], [/#F4ECFA/gi, C_TONY.hot], [/#d27a8a/gi, C_TONY.red],
-      [/rgba\(141,118,154,/g, 'rgba(154,134,201,'], [/rgba\(201,179,217,/g, 'rgba(192,174,234,'], [/rgba\(230,217,240,/g, 'rgba(219,208,245,'], [/rgba\(210,122,138,/g, 'rgba(214,138,124,'],
-      [/#76777C/gi, '#8d8d94'], [/#A9AAB0/gi, '#adadb2'], [/#D8D3DC/gi, '#f4f3f0'], [/#AFB0B5/gi, '#adadb2'],
-      [/linear-gradient\(160deg,rgba\(30,22,38,\.78\),rgba\(14,11,18,\.82\)\)/g, 'rgba(26,26,29,.94)']];
-    // Whole top-level blocks (a rule can span several of Veda's lines, and an
-    // @media wraps several rules), so every copied block keeps its braces.
-    var css = rules.join('\n'), blocks = [], depth = 0, from = 0;
-    for (var i = 0; i < css.length; i++) {
-      var ch = css.charAt(i);
-      if (ch === '{') depth++;
-      else if (ch === '}' && --depth === 0) { blocks.push(css.slice(from, i + 1).trim()); from = i + 1; }
-    }
-    var out = [];
-    blocks.forEach(function (r) {
-      if (/^@keyframes/.test(r) || !/#vd-neo-hud|\.vn-spot/.test(r)) return;
-      var t = r.replace(/\.vn-spot-gone/g, '.p-tony.vn-spot-gone').replace(/#vd-neo-hud(?![\w-])/g, '#vd-neo-hud.p-tony').replace(/\.vn-spot(?![\w-])/g, '.vn-spot.p-tony');
-      swap.forEach(function (x) { t = t.replace(x[0], x[1]); });
-      out.push(t);
-    });
-    out.push(
-      'body.vn-docked #root .thwx-band > .thwx-bq{display:none;}',
-      'body.vn-undock #root .thwx-band > .thwx-bq{animation:vnIn .35s ease;}',
-      // Docked on Tony's side: his quote's slot, his type (Inter), a hairline, no accent edge.
-      "#vd-neo-hud.p-tony.vn-dock{font-family:'Inter',system-ui,-apple-system,sans-serif;}",
-      '#vd-neo-hud.p-tony.vn-dock{overflow:hidden;box-sizing:border-box;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-glass{background:transparent;border:1px solid rgba(255,255,255,.06);border-left:1px solid rgba(255,255,255,.06);border-radius:8px;padding:3px 10px;overflow:hidden;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-top{flex-direction:row;align-items:center;gap:8px;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-say{font-family:inherit;color:#adadb2;font-size:12px;line-height:1.35;}',
-      '#vd-neo-hud.p-tony.vn-dock .vn-card{border-color:#45454c;}'
-    );
-    return out.join('\n');
   }
   var fontsLoaded = false;
   function loadFonts() {
@@ -680,7 +631,6 @@
       '<div class="vn-main"><div class="vn-orb"><canvas></canvas></div>' +
       '<div class="vn-text"><div class="vn-you"></div><div class="vn-say"></div><div class="vn-tick"></div><div class="vn-cards"></div></div></div>' +
       '<div class="vn-tele"></div></div>';
-    if (P.id === 'tony') el.classList.add('p-tony');
     document.body.appendChild(el);
     H = { el: el, canvas: el.querySelector('canvas'), state: el.querySelector('.vn-state'), clock: el.querySelector('.vn-clock'),
       you: el.querySelector('.vn-you'), say: el.querySelector('.vn-say'), tick: el.querySelector('.vn-tick'),
@@ -690,17 +640,13 @@
   }
   var hideTimer = null, boot = 0;
   var LABEL = { loading: 'INITIALISING', boot: 'ONLINE', capture: 'LISTENING', thinking: 'PROCESSING', speaking: 'RESPONDING', follow: 'STANDING BY', error: 'FAULT', note: 'NOTICE' };
-  // Where the HUD sits: in place of the quote when that's on screen (Veda's Gita
-  // banner; Tony's quote between weather and Tesla), else the floating panel at
-  // the bottom. The quote is React's, so it's hidden by a body class and the HUD
+  // Where the HUD sits: in place of her Gita banner when that's on screen, else
+  // the floating panel at the bottom. The quote is React's, so it's hidden by a body class and the HUD
   // goes in beside it.
   function placeHud(h) {
     var b = document.querySelector(P.dock), dock = false;
     var r = b ? b.getBoundingClientRect() : null;
     if (r) dock = r.width > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0);
-    // Tony's TaskHub never shifts a pixel (docs: taskhub-no-pixel-shift): his
-    // docked HUD keeps exactly the quote's height, so the week below stays put.
-    h.el.style.height = dock && P.id === 'tony' ? Math.round(r.height) + 'px' : '';
     if (dock) { if (h.el.previousElementSibling !== b) b.parentNode.insertBefore(h.el, b.nextSibling); }
     else if (h.el.parentNode !== document.body) document.body.appendChild(h.el);
     h.el.classList.toggle('vn-dock', dock);
@@ -1399,7 +1345,7 @@
   function spotRing(id, kind) {
     var el = spotFind(id); if (!el) return null;
     var d = document.createElement('div');
-    d.className = 'vn-spot' + (P.id === 'tony' ? ' p-tony' : '') + (kind === 'gone' ? ' vn-spot-gone' : '');
+    d.className = 'vn-spot' + (kind === 'gone' ? ' vn-spot-gone' : '');
     d.style.borderRadius = getComputedStyle(el).borderRadius || '6px';
     document.body.appendChild(d);
     var ring = { id: id, el: d, out: false };
@@ -1641,24 +1587,8 @@
       });
     });
   }
-  // The side's launcher: Veda's StudyOS hand-off (_sosBridgeLaunch), or the same
-  // batching (3 apps / 5 sites a request, launcher.py's caps) over Tony's prep bridge.
-  function bridgeLaunch() {
-    if (P.id === 'veda') return window._sosBridgeLaunch || null;
-    var open = W('openLocal'); if (typeof open !== 'function') return null;
-    return function (appIds, urls) {
-      var a = (appIds || []).slice(), u = (urls || []).slice(), all = { ok: true, opened: [], unknown: [], failed: [] };
-      function step() {
-        if (!a.length && !u.length) return Promise.resolve(all);
-        return Promise.resolve(open(a.splice(0, 3), u.splice(0, 5))).then(function (j) {
-          if (!j || !j.ok) return null;
-          ['opened', 'unknown', 'failed'].forEach(function (k) { all[k] = all[k].concat(j[k] || []); });
-          return step();
-        });
-      }
-      return step();
-    };
-  }
+  // Her launcher: the StudyOS hand-off (_sosBridgeLaunch).
+  function bridgeLaunch() { return window._sosBridgeLaunch || null; }
   var CQ = null;
   function queueClose(app, force) {
     if (!onPc()) return { ok: false, reason: 'off_pc' };
@@ -1835,15 +1765,10 @@
       var links = (window._navGetLinks ? window._navGetLinks(P.id) : []) || [];
       var hit = findByName(links, label, 'label');
       if (hit && window._navOpenLink) { window._navOpenLink(P.id, hit.id); return true; }
-      // Tony's header programs that open in their own tab (TradeHub, WarRoom, Keychain).
-      if (P.id === 'tony') {
-        var prog = { tradehub: 'tradeboard', tradeboard: 'tradeboard', warroom: 'warroom', 'war room': 'warroom', keychain: 'keychain', vault: 'keychain' }[normWords(label)];
-        if (prog && window._tonyNav) { window._tonyNav(prog); return true; }
-      }
       // Warden is her links page: it replaces this page, so Neo finishes speaking first.
-      if (P.id === 'veda' && /^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
+      if (/^(warden|links?|my links)$/i.test(String(label || '').trim()) && window._gotoWarden) { setTimeout(window._gotoWarden, 2600); return true; }
       // Any other program linked from her TaskHub (her LifeHub list included).
-      if (P.id === 'veda' && window._vdNeoPrograms && window._vdNeoPrograms.find(label)) return window._vdNeoPrograms.open(label);
+      if (window._vdNeoPrograms && window._vdNeoPrograms.find(label)) return window._vdNeoPrograms.open(label);
       return { ok: false, reason: 'not_found' };
     },
     // A new page in the side's Notebook (V's: bj, T's: tj), through Notebook's public API only.
@@ -1858,7 +1783,6 @@
     },
     // StudyOS classes on her calendar → the class ▶ path (apps and sites via the bridge).
     startClass: function (name, data) {
-      if (P.id !== 'veda') return { ok: false, reason: 'no_bridge' };
       var seen = {}, list = [];
       Object.keys(data || {}).forEach(function (k) { (data[k] || []).forEach(function (t) { if (t && t._sosClassId && t._sosClassName && !seen[t._sosClassId]) { seen[t._sosClassId] = 1; list.push({ id: t._sosClassId, name: t._sosClassName }); } }); });
       var hit = findByName(list, name, 'name'); if (!hit) return { ok: false, reason: 'not_found' };
@@ -1904,9 +1828,8 @@
         });
       } catch (e) {}
       try { out.links = ((window._navGetLinks ? window._navGetLinks(P.id) : []) || []).map(function (l) { return l.label; }).filter(Boolean).slice(0, 30); } catch (e) {}
-      if (P.id === 'tony') out.links = ['TradeHub', 'WarRoom', 'Keychain'].concat(out.links || []);
       // Every program linked from her TaskHub: id, label, what Neo may do there, a summary.
-      if (P.id === 'veda' && window._vdNeoPrograms) { try { out.programs = window._vdNeoPrograms.state(); } catch (e) {} }
+      if (window._vdNeoPrograms) { try { out.programs = window._vdNeoPrograms.state(); } catch (e) {} }
       try {
         out.marketCal = ((extra && extra.marketCal) || []).filter(function (e) { return e && e.date >= today && e.date <= soon; }).slice(0, 40)
           .map(function (e) { var o = { date: e.date, title: e.title, kind: e.kind }; if (e.when) o.when = e.when; return o; });
@@ -1965,10 +1888,11 @@
   }
   function shouldRun() { return S.on && isVeda() && !document.hidden; }
   function sync() {
-    // The side in front changed (Veda ⇄ Tony ⇄ picker): release the old side's
-    // mic, then take up the new side's own switch.
+    // Her side came to the front for the first time: take up her switch.
+    // Away from her side (Tony's, the picker) shouldRun() is false, so the mic goes.
     var sd = sideOf();
-    if (sd && sd !== S.who) { if (S.running || S.starting) teardown(); hudShow(false); adopt(sd); emit(); }
+    if (sd && sd !== S.who) { adopt(sd); emit(); }
+    if (!sd) hudShow(false);
     if (shouldRun()) { if (!S.running) start(); }
     else if (S.running || S.starting) teardown();
   }
@@ -1976,7 +1900,7 @@
   setInterval(sync, 1000);   // profile switches (Veda ⇄ Tony ⇄ picker) have no event
   try { ensureStyles(); } catch (e) {}
 
-  adopt(sideOf() || 'veda');
+  adopt('veda');
 
   window._vdNeo = {
     isOn: function () { return S.on; },
@@ -1988,6 +1912,6 @@
     _test: { fixCaption: fixCaption, tidyText: tidyText, spotStops: spotStops, spotBefore: spotBefore, spotAfter: spotAfter, spotlightBefore: spotlightBefore, spotlightAfter: spotlightAfter, spot: SP, skel: skel, isWake: isWake, vadStep: vadStep, threshold: threshold, encodeWav: encodeWav, rms: rms, GRAMMAR: GRAMMAR, MODEL_URL: MODEL_URL, VOICE: VOICE,
       cardFor: cardFor, failCard: failCard, failLine: failLine, failSpeech: failSpeech, compose: compose, needsConfirm: needsConfirm, guardTurn: guardTurn, overlap: overlap, isReplay: isReplay, isYes: isYes, isNo: isNo,
       mergeLater: mergeLater, queueClose: queueClose, closeNote: closeNote, closeAll: closeAll, timerRun: timerRun, ops: NEO_OPS, onPc: onPc,
-      greeting: greeting, matchApp: matchApp, adopt: adopt, profiles: PROFILES, tonySheet: tonySheet, bridgeLaunch: bridgeLaunch, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
+      greeting: greeting, matchApp: matchApp, adopt: adopt, profiles: PROFILES, bridgeLaunch: bridgeLaunch, webUrl: webUrl, launchIssue: launchIssue, queueLaunch: queueLaunch, dayStats: dayStats, pickVoiceFrom: pickVoiceFrom, spokenTime: spokenTime, sync: sync, state: S },
   };
 })();
