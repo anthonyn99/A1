@@ -139,6 +139,14 @@ const FAR = key(far);
   ok('…and still inside the slot', (await fits()) === true, await fits());
   await js(`window.scrollTo(0,0); document.querySelector('#th-neo-hud .tn-more').click(); 1`);
   ok('details list all six', await until(`document.querySelectorAll('.tn-pop li').length === 6`, 2000), await js(`return document.querySelectorAll('.tn-pop li').length;`));
+  // Neo moving on never takes Details away (Tony, 2026-11-09): a new turn updates it in place,
+  // and the HUD's own hide timer waits for him to close it.
+  reply = { ok: true, say: 'Added.', transcript: 'add stretch', actions: [{ type: 'add_task', box: 'calendar', date: TODAY, title: 'Stretch', category: 'health' }] };
+  await js(`window.__r=null; _thNeo.ask('add stretch').then(function(r){window.__r=r;}); 1`);
+  await until('window.__r', 6000);
+  ok('a new turn updates the open details instead of closing them', await until(`document.querySelector('.tn-pop.on') && /Stretch/.test(document.querySelector('.tn-pop').textContent)`, 3000));
+  await sleep(16000);
+  ok('…and they (and Neo's bar) stay up until he closes them', await js(`return !!document.querySelector('.tn-pop.on') && document.getElementById('th-neo-hud').classList.contains('show');`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
   ok('Escape closes them', await until(`!document.querySelector('.tn-pop')`, 1500));
 
