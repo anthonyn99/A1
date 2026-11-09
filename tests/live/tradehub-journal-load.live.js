@@ -85,8 +85,8 @@ const DELAY_FB = `(function(){
     && !(await js(`return /Could not load your journal/.test(document.querySelector('#tradeboard-root').innerText);`)),
     await js(`return (document.querySelector('#tradeboard-root').innerText.match(/Could not load[^\\n]*\\n[^\\n]*/)||[document.querySelectorAll('.tbj-tbl tbody tr').length+' rows'])[0];`));
   await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="portfolio"]')].find(b=>b.offsetParent); t&&t.click(); 1`);
-  ok('Portfolio\'s Realized P&L reads the journal (+$20.00)', await until(`/Realized P&L\\s*\\+?\\$20\\.00/.test(document.querySelector('#tradeboard-root').innerText)`, 8000),
-    await js(`return (document.querySelector('#tradeboard-root').innerText.match(/Realized P&L[^\\n]*\\n?[^\\n]*/)||[''])[0];`));
+  ok('Portfolio\'s Realized P&L reads the journal (+$20.00)', await until(`/Realized P&L\\s*\\+?\\$20\\.00/i.test(document.querySelector('#tradeboard-root').innerText)`, 8000),
+    await js(`return (document.querySelector('#tradeboard-root').innerText.match(/Realized P&L[^\\n]*\\n?[^\\n]*/i)||[''])[0];`));
 
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check|finnhub|workers\.dev/i.test(e));
   ok('no page errors', !real.length, real.join(' | '));
