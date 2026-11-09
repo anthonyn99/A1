@@ -3990,7 +3990,26 @@ export default {
       if (!want || req.headers.get('X-Prewarm-Key') !== want){
         return new Response(JSON.stringify({ ok:false, error:'forbidden' }), { status:403, headers:{ 'Content-Type':'application/json' } });
       }
-      await cronPrewarmNews(env, ctx);
+      // ?retry=1: finance-api's second call, minutes after a raw/empty morning
+      // build. Only rebuilds if that build really was bad, was not itself a
+      // retry, and nobody (a Force from TradeBoard) has rebuilt it since.
+      if (url.searchParams.get('retry') === '1'){
+        let prev = null;
+        try { prev = JSON.parse(await env.NEWSHUB_CACHE.get('cron:lastnews') || 'null'); } catch(e){}
+        const bad = prev && !prev.retry && Date.now() - (prev.at || 0) < 60*60*1000
+          && (prev.error || prev.degraded || !(prev.events > 0));
+        let rebuilt = false;
+        if (bad){
+          try {
+            const { cacheKey } = await resolveCronWatchlist(env);
+            const j = JSON.parse(await env.NEWSHUB_CACHE.get(cacheKey) || 'null');
+            rebuilt = !!(j && !j.degraded && Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > (prev.at || 0));
+          } catch(e){}
+        }
+        if (!bad || rebuilt)
+          return new Response(JSON.stringify({ ok:true, skipped: !bad ? 'not needed' : 'already rebuilt' }), { headers:{ 'Content-Type':'application/json' } });
+      }
+      await cronPrewarmNews(env, ctx, url.searchParams.get('retry') === '1');
       const last = await env.NEWSHUB_CACHE.get('cron:lastnews').catch(() => null);
       return new Response(JSON.stringify({ ok:true, last: last ? JSON.parse(last) : null }), { headers:{ 'Content-Type':'application/json' } });
     }
