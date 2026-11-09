@@ -1,40 +1,70 @@
 # Neo — the hands-free TaskHub assistant
 
-**Both sides since 2026-11-06** (it was Veda's alone before). Say **"Hey Neo"**,
-then say what you want. Neo does it in TaskHub and answers out loud. One script
-(`TaskHub/veda-assistant.js`) serves whichever TaskHub is in front; each side has
-its own switch, name, voice key, colours, bridge and reach. Most of this page was
-written for Veda's Neo and still describes it; **Tony's Neo** (below) lists what
-differs on his side.
+Two separate programs since 2026-11-09 (Tony's call): **Veda's Neo AI**
+(`TaskHub/veda-neo.js`, plus her program connectors `neo-programs.js` /
+`neo-connectors.js`) and **Tony's Neo AI** (`TaskHub/tony-neo.js`). They share
+no state, globals, styles or settings; each runs only while its own TaskHub is
+in front. They still share index.html's voice engine (`window._THV`: request,
+sendAudio, runActions, preview, the executor) and the personal-ai worker's
+`/taskhub/parse`. Most of this page was written for Veda's Neo and still
+describes it; **Tony's Neo AI** (below) lists what differs.
 
-## Tony's Neo (2026-11-06)
+| | Veda's Neo AI | Tony's Neo AI |
+|---|---|---|
+| File | `TaskHub/veda-neo.js` | `TaskHub/tony-neo.js` |
+| API / ops | `window._vdNeo`, `_vdNeoOps`, `_vdNeoLaunch/_vdNeoClose/_vdNeoCloseAll` | `window._thNeo`, `_thNeoOps`, `_thNeoLaunch/_thNeoClose/_thNeoCloseAll` |
+| Event | `vd-neo-change` | `th-neo-change` |
+| HUD / classes | `#vd-neo-hud`, `.vn-*`, `.vn-spot`, `body.vn-docked` | `#th-neo-hud`, `.tn-*`, `.tn-spot`, `body.tn-docked`, `.tn-pop`, `#tn-ask` |
+| Switch | `localStorage vd_neo_on` | `localStorage th_neo_on` |
+| Bridge | `window._vdVoice` | `window._thVoice` |
+| Settings | (none) | Settings → Tony's Neo AI, synced in `dashboards/neo_tony` |
+| Tests | `tests/veda-neo.test.js`, `tests/live/neo-assistant.live.js`, `neo-spotlight.live.js`, `neo-programs.live.js` | `tests/tony-neo.test.js`, `tests/live/neo-tony.live.js` |
 
-The same assistant, wired to Tony's TaskHub and contents:
+## Tony's Neo AI (2026-11-06, its own program since 2026-11-09)
 
-- **His switch:** the NEO button in his header (beside the input-device button).
-  Remembered per device as `localStorage th_neo_on`; Veda's is `vd_neo_on`. One
-  side being on never turns the other on, and switching sides releases the mic.
-- **His look:** the same HUD, orb and spotlight in MAGI's purple on a solid panel
-  (`#vd-neo-hud.p-tony`, generated from Veda's rules by `tonySheet()` so the two
-  never drift). Docked, it takes his quote's slot between weather and Tesla at
-  exactly the quote's height, so nothing below moves (`placeHud`).
-- **His voice:** Ryan through Orca with HIS key (`shruti.tony.orcaKey`, else
-  `dashboards/shruti` via `window._fbLoadTonyOrcaKey`, read-only); the device's
-  British voice when there is no key. He is greeted by name, and called "Tony" or
-  "sir" now and then.
-- **His reach** (`window._thVoice` in index.html): tasks, habits and goals with
-  the spotlight; reminders, repeats and scopes; AI prep (`_thPrepRequest`,
-  `_thPrepLaunch`, his Prep panel); the timer; week collapse, goals tab, month;
-  Notebook, Plans, Shield and his header programs (TradeHub, WarRoom, Keychain);
-  locks (`tony_taskhub`, `tony_myjournal`, `tony_shield`); journal entries into
-  T's Notebook (`tj`); plans with Veda as Tony; earnings and releases from his
-  market calendar; and apps on his PC through his A1 Prep Bridge
-  (`V1/tools/sos-browser/prep_bridge.py`, port 8781, his app list `_thPcApps`).
-- **Not on his side:** Veda's trading rules, Gita lessons, StudyOS classes and
-  reels. The worker never offers them to him and his bridge has no method for them.
-- **His mic and text buttons are unchanged.** The worker gives Tony the Neo prompt
-  (`tonyNeoActionLines` / `tonyNeoRuleLines`), the wider schema and the extra
-  state ONLY for requests marked `mode:"neo"`, which only Neo sends.
+- **Three ways in, all in his header:** **Talk** (the mic button: records at
+  once, no wake phrase, no 41 MB model; tap again to send; works with the
+  switch off and releases the mic when the conversation ends), **Type** (the
+  text button: Neo's composer, Ctrl/⌘+Enter sends, Enter is a new line, lists
+  work; a half-typed draft survives closing), and the **NEO switch** ("Hey Neo").
+  His old voice assistant (record-and-process mic, the plain text box, the
+  device button) is retired: index.html's `start` / `openText` /
+  `openDevicePicker` hand over to Neo on his side. Veda keeps her old buttons.
+- **Brief to the ear, exact on screen** (Tony: "too long winded"). A change is
+  spoken as just "Done." (or "Done, except: …" / the failure); the HUD shows
+  exactly what changed (`shownFor`: "Task added · Buy milk · Fri 6 Nov"; more
+  than two → "+N more"). An **undo** diffs his TaskHub before and after
+  (`diffState`/`diffLine`) and shows "Undone: removed Buy milk · Fri 6 Nov".
+  "Undo"/"redo" said (clearly, by the browser recognizer) or typed alone run on
+  the device with no request. Questions are answered aloud. Failure lines are
+  short ("Couldn't find Gym."). The worker's `tonyNeoRuleLines` asks for
+  BREVITY: change lines ≤10 words, answers ≤30, briefings ≤45.
+- **His key:** every request carries `profile:"tony"` and `mode:"neo"`, so the
+  worker answers with `TONY_GEMINI_KEY` (`keyFor`). His voice is his Orca key
+  (`shruti.tony.orcaKey`, else `dashboards/shruti` read-only).
+- **The upper bar:** docked in his quote's slot at exactly the quote's height
+  and flex box (also the tablet full-width row), so nothing moves. While he
+  talks it shows his words; once the reply lands the reply has the whole slot
+  (his words move into Details), the box is a whole number of lines, a spoken
+  reply scrolls with the voice, a shown one starts at its first words. The
+  **details button** (✓n / ✕n / More) opens a popover with what he said, Neo's
+  full reply and every change; Escape or a click elsewhere closes it. A
+  question waiting for yes/no puts Yes / No there. Floating (quote off screen):
+  a solid MAGI panel with the orb, cards and telemetry; a bottom sheet on a phone.
+- **Settings → Tony's Neo AI** (`_thNeo.renderSettings`): microphone (synced
+  by its NAME, since device ids differ per device; this device's id is kept in
+  `th_neo_mic_id`), voice (Orca's Edge voices, the set Shruti offers, with a
+  Test), and "Speak typed replies". Saved in `th_neo_settings` and
+  `dashboards/neo_tony` (`window._fbSaveNeoTony`, his side only; listener →
+  `th-neo-remote`, newer `at` wins).
+- **His reach** (`window._thVoice`): tasks, habits and goals with the
+  spotlight; reminders, repeats and scopes; AI prep; the timer; week collapse,
+  goals tab, month; Notebook, Plans, Shield and his header programs (TradeHub,
+  WarRoom, Keychain); locks; journal entries into T's Notebook (`tj`); plans
+  with Veda as Tony; earnings and releases; apps on his PC through his A1 Prep
+  Bridge (127.0.0.1:8781, `/api/close`, `/api/running`, `_thPcApps`).
+- **Not his:** Veda's trading rules, Gita lessons, StudyOS classes, reels and
+  program connectors.
 
 ## Using it
 
@@ -64,7 +94,7 @@ It is Neo's own overlay and button only; the rest of her TaskHub's look is untou
 
 ### The HUD
 
-`#vd-neo-hud` is built by `veda-assistant.js`.
+`#vd-neo-hud` is built by `veda-neo.js`.
 
 **Docked (2026-11-06, Veda's call).** When her TaskHub's Gita quote banner is on screen, Neo
 takes its slot in the weather band instead of popping up at the bottom (`placeHud`): the HUD is
@@ -190,7 +220,7 @@ When Neo adds, edits, ticks, moves or removes something, it shows the change on 
 then goes back to the view she had.
 
 ```
-reply ─► spotlightBefore(actions)        veda-assistant.js, via send()'s `before` hook
+reply ─► spotlightBefore(actions)        veda-neo.js, via send()'s `before` hook
            · _THV.preview(actions): the same matching as dispatch(), on a copy
            · save the view (week, goals tab, phone day, scroll)
            · go to the first place (week fades out/in; goals tab; phone day)
@@ -289,12 +319,12 @@ reply ─► spotlightBefore(actions)        veda-assistant.js, via send()'s `be
   - **The worker sees her app names.** Neo sends the names from her PC's app list
     (`dashboards/veda_pc_apps`, published by the StudyOS bridge, Store apps included)
     as `state.pcApps`, so Gemini copies the exact name.
-  - **The name becomes an id locally.** `matchApp` in `veda-assistant.js` turns the
+  - **The name becomes an id locally.** `matchApp` in `veda-neo.js` turns the
     name into the bridge's app id: an exact match first, then a nickname ("VS Code",
     "Chrome"), then the shortest name containing her words, then word overlap.
     `chrome_proxy` never passes for Chrome.
   - The page's calls to `/api/close` and `/api/running` (`_sosBridgeClose`,
-    `_sosBridgeRunning`) live in `veda-assistant.js`. In index.html, AI prep stays the
+    `_sosBridgeRunning`) live in `veda-neo.js`. In index.html, AI prep stays the
     only caller of the local bridge (`tests/reels-widget.test.js`).
 
 ### Programs: every program linked from her TaskHub (Veda only, 2026-11-06)
@@ -542,7 +572,7 @@ same TaskHub-only origin gate as `/api/launch`, in both `server.py` and
 
 | Step | Where |
 |---|---|
-| Wake phrase | `TaskHub/veda-assistant.js` runs Vosk (open source, offline WASM, `vosk-browser@0.0.8`) with a fixed word list: "hey neo", "neo", near-sounding decoys, and `[unk]`. Only "hey" then "neo" wakes it. |
+| Wake phrase | `TaskHub/veda-neo.js` runs Vosk (open source, offline WASM, `vosk-browser@0.0.8`) with a fixed word list: "hey neo", "neo", near-sounding decoys, and `[unk]`. Only "hey" then "neo" wakes it. |
 | Capture | The same mic stream. It keeps a 1.5 s pre-roll and stops after 1.1 s of silence (a loudness threshold that adapts to room noise), or after 30 s at most. |
 | Understanding | `_THV.sendAudio(b64, {extra:{mode:'neo'}})` posts the WAV with her state. The worker adds Neo's Veda-only actions and rules to the prompt (`vedaNeoActionLines` / `vedaNeoRuleLines`). |
 | Doing | The engine's `dispatch` → `applyControl` → Veda's bridge `window._vdVoice` (`changeRules`, `nav`, `prep`, `closeTimer`, …). Tony's `_thVoice` has none of these, so the actions do nothing on his side. |
@@ -577,7 +607,7 @@ TaskHub with the spotlight in his purple, timer/week/goals through his bridge, t
 HUD docked in his quote's slot with zero pixel shift, and Veda's switch staying hers.
 
 
-`node tests/veda-assistant.test.js` covers:
+`node tests/veda-neo.test.js` covers:
 
 - Tony's prompt, schema (`ACTION_SCHEMA`), item fields and state carry nothing of Neo,
   and every Neo action does nothing on Tony's bridge
