@@ -8986,11 +8986,11 @@ function App(){
   const vxSnap=useCallback(()=>JSON.stringify({data:thStripPlanItems(stateRef.current.data),habits:stateRef.current.habits,hc:stateRef.current.hc,goals:stateRef.current.goals,monthlyGoals:stateRef.current.monthlyGoals}),[thStripPlanItems]);
   const[vxUndo,setVxUndo]=useState(false);
   const[vxRedo,setVxRedo]=useState(false);
-  // Neo's on/off lives in TaskHub/veda-assistant.js; mirror Tony's for the header button.
+  // Tony's Neo AI lives in TaskHub/tony-neo.js (its own event, th-neo-change);
+  // mirror its switch and mode for his header buttons.
   const[neoOn,setNeoOn]=useState(()=>{try{return localStorage.getItem("th_neo_on")==="1";}catch(e){return false;}});
   const[neoMode,setNeoMode]=useState("off");
-  useEffect(()=>{const f=e=>{const d=(e&&e.detail)||{};if(d.who&&d.who!=="tony")return;setNeoOn(!!d.on);setNeoMode(d.mode||"off");};window.addEventListener("vd-neo-change",f);return()=>window.removeEventListener("vd-neo-change",f);},[]);
-  const[vxRec,setVxRec]=useState(false);
+  useEffect(()=>{const f=e=>{const d=(e&&e.detail)||{};setNeoOn(!!d.on);setNeoMode(d.mode||"off");};window.addEventListener("th-neo-change",f);if(window._thNeo){setNeoOn(window._thNeo.isOn());setNeoMode(window._thNeo.mode());}return()=>window.removeEventListener("th-neo-change",f);},[]);
   const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
   // Snapshots carry no Plans items (see vxSnap), so restoring one must re-graft
   // the live ones — otherwise an undo silently deletes every mirrored plan from
@@ -9004,7 +9004,8 @@ function App(){
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;const nxt=h.future.pop();if(typeof nxt!=="string"){try{nxt.redo();}catch(e){console.warn("[redo]",e);}h.past.push(nxt);vxBtns();return true;}h.past.push(vxSnap());h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
   const vxPushOp=useCallback(op=>{const h=vxHist.current;vxFlush();h.past.push(op);if(h.past.length>100)h.past.shift();h.future=[];vxBtns();},[vxFlush,vxBtns]);
   useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[data,habits,hc,mg,mgMonthly,vxSnap,vxBtns]);
-  useEffect(()=>{window._thVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._thVoiceUI&&window._thVoiceUI.setRec===setVxRec)delete window._thVoiceUI;};},[]);
+  // Undo / redo only: his old record-and-process mic is retired (Talk to Neo replaced it).
+  useEffect(()=>{window._thVoiceUI={setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._thVoiceUI&&window._thVoiceUI.setUndo===setVxUndo)delete window._thVoiceUI;};},[]);
   useEffect(()=>()=>{if(window._thVoice&&window._thVoice.profile==='tony')delete window._thVoice;},[]);
 
   // Load remote state and apply it
@@ -10426,42 +10427,41 @@ function App(){
   // ── Voice bridge (re-bound every render so getState/actions are always current) ──
   window._thVoice={profile:"tony",uid:uid,
     getState:()=>{const base={data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),edit:edit,
-      // Neo (TaskHub/veda-assistant.js, on Tony's side since 2026-11-06). The worker
-      // reads these only for Neo's own requests (mode:"neo"); the mic and text
-      // buttons' prompt is shaped exactly as before.
-      timerOpen:!!showPomo,pcApps:(window._thPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:!!(window._vdNeoOps?window._vdNeoOps.onPc():/Windows/i.test(navigator.userAgent||"")),
+      // Tony's Neo AI (TaskHub/tony-neo.js). The worker reads these only for
+      // Neo's own requests (mode:"neo").
+      timerOpen:!!showPomo,pcApps:(window._thPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:!!(window._thNeoOps?window._thNeoOps.onPc():/Windows/i.test(navigator.userAgent||"")),
       weekCollapsed:!!weekCollapsed,goalTab:goalTab,mobDay:mobDayIdx};
-      return (window._vdNeoOps&&window._activeProfile==="tony")?Object.assign(base,window._vdNeoOps.state(base,{marketCal:marketCal})):base;},
-    // ── Neo's reach on Tony's side: the same methods as _vdVoice, wired to his
-    // TaskHub (his PC bridge, his AI prep, his Notebook, his locks, plans as Tony).
-    // Veda-only reach (trading rules, Gita lessons, classes, reels) is not here.
-    launchPc:(app,url)=>window._vdNeoLaunch?window._vdNeoLaunch(app,url):false,
-    closePc:(name,force)=>window._vdNeoClose?window._vdNeoClose(name,force):false,
-    closeAllPc:(except,force)=>window._vdNeoCloseAll?window._vdNeoCloseAll(except,force):false,
+      return (window._thNeoOps&&window._activeProfile==="tony")?Object.assign(base,window._thNeoOps.state(base,{marketCal:marketCal})):base;},
+    // ── Tony's Neo AI's reach (TaskHub/tony-neo.js: _thNeoOps, _thNeoLaunch…),
+    // wired to his TaskHub: his PC bridge, his AI prep, his Notebook, his locks,
+    // plans as Tony. Veda's own reach (rules, Gita, classes, reels) is not here.
+    launchPc:(app,url)=>window._thNeoLaunch?window._thNeoLaunch(app,url):false,
+    closePc:(name,force)=>window._thNeoClose?window._thNeoClose(name,force):false,
+    closeAllPc:(except,force)=>window._thNeoCloseAll?window._thNeoCloseAll(except,force):false,
     nav:(t)=>{const m={taskhub:"taskhub",journal:"brainstormjournal"}[t];if(m&&window._tonyNav)window._tonyNav(m);},
     openPlans:()=>{if(window._thOpenPlans)window._thOpenPlans("tony");else if(window._thOpenPlansTony)window._thOpenPlansTony();},
     openShield:()=>{if(window._shieldClick)window._shieldClick("tony");},
-    prep:(item,dk)=>window._vdNeoOps?window._vdNeoOps.prep(item,dk):(window._thPrepRequest?window._thPrepRequest(item,dk):null),
+    prep:(item,dk)=>window._thNeoOps?window._thNeoOps.prep(item,dk):(window._thPrepRequest?window._thPrepRequest(item,dk):null),
     prepOpen:(item,dk)=>{if(!window._thPrepLaunch)return {ok:false,reason:"no_bridge"};window._thPrepLaunch(item,dk);return true;},
     prepShow:(item,dk)=>{if(window._tnCurApp&&window._tnCurApp!=="taskhub"&&window._tonyNav)window._tonyNav("taskhub");setThPrepOpen({id:item.id,dateKey:dk});return true;},
     weekView:(collapsed)=>{const v=!!collapsed;setWeekCollapsed(v);saveJ("td6_weekCollapsed",v);return true;},
     mobDay:(i)=>{setMobDayIdx(Math.max(0,Math.min(6,i|0)));return true;},
     goalsTab:(t)=>{goalTabOpen(/long/i.test(String(t||""))?"long":"short");return true;},
     monthShift:(by)=>{const d=new Date(vy,vm+(by||0),1);setVm(d.getMonth());setVy(d.getFullYear());return true;},
-    lockApp:(t)=>window._vdNeoOps?window._vdNeoOps.lockApp(t):false,
-    openLink:(label)=>window._vdNeoOps?window._vdNeoOps.openLink(label):false,
-    journalEntry:(text,title)=>window._vdNeoOps?window._vdNeoOps.journalEntry(text,title):false,
-    plan:(op,a)=>window._vdNeoOps?window._vdNeoOps.plan(op,a):false,
+    lockApp:(t)=>window._thNeoOps?window._thNeoOps.lockApp(t):false,
+    openLink:(label)=>window._thNeoOps?window._thNeoOps.openLink(label):false,
+    journalEntry:(text,title)=>window._thNeoOps?window._thNeoOps.journalEntry(text,title):false,
+    plan:(op,a)=>window._thNeoOps?window._thNeoOps.plan(op,a):false,
     closeTimer:()=>setShowPomo(false),
     mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,mutateHc:setHc,
     setEdit:(on)=>setEdit(!!on),
     refreshQuote:()=>tgNext(),
     goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
     openTimer:()=>setShowPomo(true),
-    // Neo's timer commands queue until the panel mounts (veda-assistant.js, timerRun).
-    timer:(cmd,arg)=>{setShowPomo(true);if(window._vdNeoOps)return window._vdNeoOps.timer(cmd,arg);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
-    timerMode:(i)=>{setShowPomo(true);return window._vdNeoOps?window._vdNeoOps.timer("mode",i):false;},
-    timerAdd:(m)=>{setShowPomo(true);return window._vdNeoOps?window._vdNeoOps.timer("add",m):false;},
+    // Neo's timer commands queue until the panel mounts (tony-neo.js, timerRun).
+    timer:(cmd,arg)=>{setShowPomo(true);if(window._thNeoOps)return window._thNeoOps.timer(cmd,arg);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
+    timerMode:(i)=>{setShowPomo(true);return window._thNeoOps?window._thNeoOps.timer("mode",i):false;},
+    timerAdd:(m)=>{setShowPomo(true);return window._thNeoOps?window._thNeoOps.timer("add",m):false;},
     undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,pushUndo:vxPushOp,
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
@@ -10480,15 +10480,15 @@ function App(){
             window.A1Head&&React.createElement(window.A1Head.SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}})),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
-          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?T.ERR:T.AC,color:T.BG,border:"1px solid "+(vxRec?T.ERR:T.AC),fontWeight:800,boxShadow:(T.SEL||GLOW)(vxRec?T.ERR:T.AC)},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
-          /* Text → AI: the typed twin of the mic, sitting immediately beside it.
-             Plain chrome like the rest of the header row — only the mic stays
-             filled, so the pair doesn't read as two primary buttons. */
-          React.createElement("button",{type:"button",key:"vx-text",title:"Text command (AI)","aria-label":"Text command",style:{...hbtn(false),background:"transparent",color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openText()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),React.createElement("line",{x1:8.5,y1:10,x2:15.5,y2:10}),React.createElement("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
-          React.createElement("button",{type:"button",key:"vx-dev",title:"Input device",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openDevicePicker()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
-          /* Neo: hands-free assistant (TaskHub/veda-assistant.js). Lit while it listens for "Hey Neo". */
-          React.createElement("button",{type:"button",key:"vx-neo",className:"vd-neo-btn"+(neoOn?" on":"")+(/^(capture|thinking|speaking|loading)$/.test(neoMode)?" busy":""),title:neoOn?"Neo is listening — say \"Hey Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Hey Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,style:{...hbtn(false),background:neoOn?T.AC:"transparent",color:neoOn?T.BG:T.AC,border:"1px solid "+(neoOn?T.AC:T.BD),gap:6,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"},onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=T.BD;},onClick:()=>window._vdNeo&&window._vdNeo.toggle()},
-            React.createElement("svg",{className:"vnb",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeLinecap:"round"},
+          /* Tony's Neo AI (TaskHub/tony-neo.js), three ways in. Talk: speak to Neo now,
+             no wake phrase (tap again to send); red while it listens. */
+          React.createElement("button",{type:"button",key:"vx-talk",className:"th-neo-talk"+(neoMode==="capture"?" rec":""),title:neoMode==="capture"?"Listening \u2014 tap to send":"Talk to Neo","aria-label":"Talk to Neo","aria-pressed":neoMode==="capture",style:{...hbtn(false),background:neoMode==="capture"?T.ERR:T.AC,color:T.BG,border:"1px solid "+(neoMode==="capture"?T.ERR:T.AC),fontWeight:800,boxShadow:(T.SEL||GLOW)(neoMode==="capture"?T.ERR:T.AC)},onClick:()=>window._thNeo&&window._thNeo.talk()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
+          /* Type: the same requests, typed (Neo's composer). Plain chrome beside the mic. */
+          React.createElement("button",{type:"button",key:"vx-text",title:"Type to Neo","aria-label":"Type to Neo",style:{...hbtn(false),background:"transparent",color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._thNeo&&window._thNeo.openAsk()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),React.createElement("line",{x1:8.5,y1:10,x2:15.5,y2:10}),React.createElement("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
+          /* The NEO switch: hands-free ("Hey Neo"). Lit while it listens for the wake phrase.
+             Microphone and voice: Settings \u2192 Tony's Neo AI. */
+          React.createElement("button",{type:"button",key:"vx-neo",className:"th-neo-btn"+(neoOn?" on":"")+(/^(capture|thinking|speaking|loading)$/.test(neoMode)?" busy":""),title:neoOn?"Neo is listening \u2014 say \"Hey Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Hey Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,style:{...hbtn(false),background:neoOn?T.AC:"transparent",color:neoOn?T.BG:T.AC,border:"1px solid "+(neoOn?T.AC:T.BD),gap:6,fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase"},onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=T.BD;},onClick:()=>window._thNeo&&window._thNeo.toggle()},
+            React.createElement("svg",{className:"tnb",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeLinecap:"round"},
               React.createElement("g",{className:"r1"},React.createElement("circle",{cx:12,cy:12,r:10,strokeWidth:1.6,strokeDasharray:"9.5 3.6"})),
               React.createElement("circle",{cx:12,cy:12,r:6,strokeWidth:1.2,opacity:.75}),
               React.createElement("circle",{className:"c",cx:12,cy:12,r:2.8,fill:"currentColor",stroke:"none"})),"Neo"),
@@ -11398,6 +11398,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
   let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
+  let _neoTonyUnsub   = null;   // Tony's Neo AI settings (dashboards/neo_tony)
   let _alUnsubscribe  = null;
   let _oiUnsubscribe  = null;
   window._alSaveTimer = null;
@@ -12033,7 +12034,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       try { const snap = await _freshGet(mcCalDocRef); return (snap && snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
       catch(e){ console.warn("MarketCal load failed:", e); return []; }
     };
-    // Neo (TaskHub/veda-assistant.js) speaks with an Orca neural voice. On Veda's
+    // Neo (veda-neo.js / tony-neo.js) speaks with an Orca neural voice. On Veda's
     // side it uses HER Orca key, which Shruti keeps in dashboards/shruti_veda. READ-ONLY:
     // nothing here ever writes Shruti's doc. Used only when Shruti hasn't cached
     // the key in this browser's localStorage already.
@@ -12041,7 +12042,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       try { const s = await _freshGet(doc(db, 'dashboards/shruti_veda')); const k = (s && s.exists()) ? String(s.data().orcaKey || '') : ''; return /^orca_sk_[\w-]{8,}$/.test(k) ? k : ''; }
       catch(e){ return ''; }
     };
-    // Tony's Neo: the same, with HIS key from dashboards/shruti (Shruti's doc for Tony). READ-ONLY.
+    // Tony's Neo AI: the same, with HIS key from dashboards/shruti (Shruti's doc for Tony). READ-ONLY.
     window._fbLoadTonyOrcaKey = async () => {
       try { const s = await _freshGet(doc(db, 'dashboards/shruti')); const k = (s && s.exists()) ? String(s.data().orcaKey || '') : ''; return /^orca_sk_[\w-]{8,}$/.test(k) ? k : ''; }
       catch(e){ return ''; }
@@ -12872,6 +12873,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       try { await setDoc(doc(db, 'dashboards/claude_resets_' + p), { dismissed: { [id]: deleteField() } }, { merge: true }); }
       catch (e) { console.warn('[ClaudeResets] restore failed:', e); return; }
       if (rem) { try { await setDoc(doc(db, 'reminders', id), rem); } catch (e) {} }
+    };
+
+    // ── Tony's Neo AI settings (TaskHub/tony-neo.js) ─────────────────────
+    // His microphone (by name), voice and typed-reply choice, on every device of
+    // his. Only this one document, and only written from his side.
+    try { if (_neoTonyUnsub) _neoTonyUnsub(); } catch (e) {}
+    _neoTonyUnsub = onSnapshot(doc(db, 'dashboards/neo_tony'), (snap) => {
+      const data = snap.exists() ? snap.data() : null;
+      if (!data) return;
+      window._thNeoRemote = data;
+      window.dispatchEvent(new CustomEvent('th-neo-remote', { detail: data }));
+    }, (err) => { console.warn('[TonyNeo] onSnapshot error:', err); });
+    window._fbSaveNeoTony = async (o) => {
+      if (window._activeProfile !== 'tony' || !o || typeof o !== 'object') return false;
+      try { await setDoc(doc(db, 'dashboards/neo_tony'), o, { merge: true }); return true; }
+      catch (e) { console.warn('[TonyNeo] save failed:', e); return false; }
     };
 
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices ──
@@ -16095,7 +16112,7 @@ function App(){
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;const nxt=h.future.pop();if(typeof nxt!=="string"){try{nxt.redo();}catch(e){console.warn("[redo]",e);}h.past.push(nxt);vxBtns();return true;}h.past.push(vxSnap());h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
   const vxPushOp=useCallback(op=>{const h=vxHist.current;vxFlush();h.past.push(op);if(h.past.length>100)h.past.shift();h.future=[];vxBtns();},[vxFlush,vxBtns]);
   useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[dataState,habitsState,hcState,mgState,mgMonthlyState,vxSnap,vxBtns]);
-  // Neo's on/off lives in TaskHub/veda-assistant.js (it loads after this app); mirror it for the header button.
+  // Veda's Neo AI lives in TaskHub/veda-neo.js (it loads after this app); mirror it for the header button.
   const[neoOn,setNeoOn]=useState(()=>{try{return localStorage.getItem("vd_neo_on")==="1";}catch(e){return false;}});
   const[neoMode,setNeoMode]=useState("off");
   useEffect(()=>{const f=e=>{const d=(e&&e.detail)||{};if(d.who&&d.who!=="veda")return;setNeoOn(!!d.on);setNeoMode(d.mode||"off");};window.addEventListener("vd-neo-change",f);if(window._vdNeo&&window._activeProfile==="veda"){setNeoOn(window._vdNeo.isOn());setNeoMode(window._vdNeo.mode());}return()=>window.removeEventListener("vd-neo-change",f);},[]);
@@ -17024,12 +17041,12 @@ function App(){
       // Neo opens PC apps by name: the names her PC's bridge published (dashboards/veda_pc_apps), and whether this device IS a PC.
       pcApps:(window._vdPcApps||[]).map(a=>a&&a.name).filter(Boolean),onPc:!!(window._vdNeoOps?window._vdNeoOps.onPc():/Windows/i.test(navigator.userAgent||"")),
       weekCollapsed:!!weekCollapsed,goalTab:goalTab,mobDay:vrMobDayIdx};
-      // What else Neo can be asked about (plans, links, earnings, classes, prep kits, the timer, open apps): veda-assistant.js.
+      // What else Neo can be asked about (plans, links, earnings, classes, prep kits, the timer, open apps): veda-neo.js.
       return window._vdNeoOps?Object.assign(base,window._vdNeoOps.state(base,{marketCal:marketCal})):base;},
     launchPc:(app,url)=>window._vdNeoLaunch?window._vdNeoLaunch(app,url):false,
     closePc:(name,force)=>window._vdNeoClose?window._vdNeoClose(name,force):false,
     closeAllPc:(except,force)=>window._vdNeoCloseAll?window._vdNeoCloseAll(except,force):false,
-    // ── Neo (TaskHub/veda-assistant.js) reach — Veda-only; Tony's _thVoice has none of these ──
+    // ── Veda's Neo AI (TaskHub/veda-neo.js) reach — hers only; Tony's Neo AI has its own ──
     // Rule changes honour the 'veda_rules' lock (alGate) exactly like the Rules button, and
     // push their own undo step (rules are outside vxSnap, see tests/vd-rules-survive-undo).
     // They answer with a promise that settles once the lock has: true, or "locked" when she
@@ -17081,7 +17098,7 @@ function App(){
     openTimer:()=>setShowPomo(true),
     // Timer commands queue until the panel has mounted and run one at a time, each
     // on the component's fresh state, so "set 25 and start" starts 25 minutes and a
-    // cold open never drops a command (veda-assistant.js, timerRun). Each resolves
+    // cold open never drops a command (veda-neo.js, timerRun). Each resolves
     // true once run, or false if the panel never came up.
     timer:(cmd,arg)=>{setShowPomo(true);if(window._vdNeoOps)return window._vdNeoOps.timer(cmd,arg);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
     timerMode:(i)=>{setShowPomo(true);return window._vdNeoOps?window._vdNeoOps.timer("mode",i):false;},
@@ -17107,9 +17124,9 @@ function App(){
       RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦")));
   const vdToolsRow=RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
       RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:GLOW(vxRec?"#c0564a":A)}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
-      /* Neo: hands-free assistant (TaskHub/veda-assistant.js). Lit while it listens for "Hey Neo". */
+      /* Veda's Neo AI (TaskHub/veda-neo.js). Lit while it listens for "Hey Neo". */
       RC("button",{key:"vx-neo",className:"vd-neo-btn"+(neoOn?" on":"")+(/^(capture|thinking|speaking|loading)$/.test(neoMode)?" busy":""),title:neoOn?"Neo is listening — say \"Hey Neo\" (tap to turn off)":"Turn on Neo (hands-free: say \"Hey Neo\")","aria-label":"Neo assistant","aria-pressed":neoOn,onClick:()=>window._vdNeo&&window._vdNeo.toggle(),onMouseEnter:e=>{if(!neoOn)e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{if(!neoOn)e.currentTarget.style.borderColor=BDL;},style:{background:neoOn?A:"transparent",color:neoOn?BG:A,border:"1px solid "+(neoOn?A:BDL),...(neoOn?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",transition:"all .15s"}},
-        /* a mini arc reactor; veda-assistant.js animates .r1 (spin) and .c (breathe) */
+        /* a mini arc reactor; veda-neo.js animates .r1 (spin) and .c (breathe) */
         RC("svg",{className:"vnb",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeLinecap:"round"},
           RC("g",{className:"r1"},RC("circle",{cx:12,cy:12,r:10,strokeWidth:1.6,strokeDasharray:"9.5 3.6"})),
           RC("circle",{cx:12,cy:12,r:6,strokeWidth:1.2,opacity:.75}),
@@ -19783,6 +19800,12 @@ Notebook.load('docx');
      works on iOS) + live captions (SpeechRecognition, display-only) →
      taskhub-voice worker (Gemini) → structured actions → executor.
      Per-profile bridge registered by each App: window._thVoice / window._vdVoice.
+     The mic, text and device UI below is VEDA'S. On Tony's side every way in is
+     his Neo AI (TaskHub/tony-neo.js: Talk, Type, "Hey Neo"); his old voice
+     assistant was retired 2026-11-09, and the calls that opened it now hand
+     over to Neo (start → talk, openText → Neo's composer, the device picker →
+     Settings → Tony's Neo AI). Neo still uses this engine: request(),
+     sendAudio(), runActions(), preview() and the executor.
      ════════════════════════════════════════════════════════════════════════ -->
 <div id="thv-caption"><div class="thv-cap-h"><span class="thv-rdot"></span><span class="thv-cap-label">Listening</span></div><div id="thv-caption-body"></div></div>
 <div id="thv-hint">Tap the mic again to stop &amp; process</div>
@@ -19954,6 +19977,7 @@ async function getMic(){
   return await navigator.mediaDevices.getUserMedia({audio:base});
 }
 async function start(){
+  if(profile()==='tony'){if(window._thNeo)window._thNeo.talk();return;}   // retired on his side: Talk to Neo
   if(!bridge()){toast('Open a TaskHub first');return;}
   var stream;
   try{stream=await getMic();}catch(e){toast('No microphone available — check your input device',true);return;}
@@ -20040,7 +20064,7 @@ async function send(extra,opts){
       // own voice, or a repeat of what it just did). Nothing runs, nothing is said.
       if(held&&held.drop)return {ok:true,n:0,results:[],later:Promise.resolve([]),say:'',actions:[],transcript:j.transcript||'',dropped:held.drop};
       if(held)return {ok:true,n:0,results:[],held:Object.assign({actions:j.actions},held),later:Promise.resolve([]),say:j.say||'',actions:j.actions,transcript:j.transcript||''};
-      // Neo shows the change on screen before it lands (veda-assistant.js, SPOTLIGHT). Only Neo passes it.
+      // Neo shows the change on screen before it lands (veda-neo.js / tony-neo.js, the spotlight). Only Neo passes it.
       if(opts&&typeof opts.before==='function'){try{await opts.before(j.actions);}catch(e){}}
       var d=dispatch(j.actions,j.say,silent);
       return {ok:true,n:d.n,results:d.results,later:d.later,say:j.say||'',truncated:!!j.truncated,actions:j.actions,transcript:j.transcript||''};
@@ -20461,11 +20485,11 @@ function applyControl(b,a,W,fx){
     case 'timer_stop':return b.timer?later(fx,a,b.timer('stop')):fail('no_bridge');
     case 'timer_reset':return b.timer?later(fx,a,b.timer('reset')):fail('no_bridge');
     case 'timer_open':return b.openTimer?(b.openTimer(),true):fail('no_bridge');
-    case 'undo':doUndo();return true;
-    case 'redo':doRedo();return true;
-    // ── Neo actions. Each needs a bridge method Neo's bridges have (_vdVoice, and
-    // _thVoice since 2026-11-06); the worker offers them only to Veda's prompt and
-    // to Neo's own requests (mode:"neo"), so the mic and text buttons never see them.
+    case 'undo':{var uo=doUndo(b.profile==='tony');return (uo||b.profile!=='tony')?true:fail('nothing');}
+    case 'redo':{var ro=doRedo(b.profile==='tony');return (ro||b.profile!=='tony')?true:fail('nothing');}
+    // ── Neo actions. Each needs a bridge method Neo's bridges have (_vdVoice for
+    // Veda's Neo AI, _thVoice for Tony's); the worker offers them only to Veda's
+    // prompt and to Neo's own requests (mode:"neo").
     case 'timer_close':return b.closeTimer?(b.closeTimer(),true):fail('no_bridge');
     case 'timer_mode':{if(!has('timerMode'))return fail('no_bridge');var mi={work:0,focus:0,pomodoro:0,short:1,'short break':1,break:1,long:2,'long break':2}[String(a.mode||'').toLowerCase()];if(mi==null)return fail('invalid');return later(fx,a,b.timerMode(mi));}
     case 'timer_add':{if(!has('timerAdd'))return fail('no_bridge');var am=Number(a.minutes);if(!am||!isFinite(am))return fail('invalid');return later(fx,a,b.timerAdd(am));}
@@ -20525,8 +20549,8 @@ function applyControl(b,a,W,fx){
       if(a.type==='prep_open'&&!hs.item.aiPrep)return fail('not_flagged');
       return later(fx,a,b[a.type==='prep_open'?'prepOpen':'prepShow'](hs.item,hs.key));
     }
-    case 'assistant_off':if(b.profile===profile()&&window._vdNeo){window._vdNeo.setOn(false);return true;}return fail('no_bridge');
-    // Open / close an app or a website on the PC, through the local bridge (veda-assistant.js batches them).
+    case 'assistant_off':{var nx=b.profile==='veda'?window._vdNeo:window._thNeo;if(b.profile===profile()&&nx){nx.setOn(false);return true;}return fail('no_bridge');}
+    // Open / close an app or a website on the PC, through the local bridge (each side's Neo batches them).
     // Each answers false / {ok:false, reason} at once (no such app, not on her PC),
     // or true / a promise of its outcome once the bridge has answered.
     case 'open_pc_app':return b.launchPc?pcOutcome(fx,a,b.launchPc(a.name||a.title,null),'not_found'):fail('no_bridge');
@@ -20605,12 +20629,14 @@ function dispatch(actions,say,silent){
 }
 
 // ── undo / redo / button refresh ──
-function doUndo(){var b=bridge();if(!b||!b.undo){return;}if(b.undo())toast('Undone');else toast('Nothing to undo');refreshButtons();}
-function doRedo(){var b=bridge();if(!b||!b.redo){return;}if(b.redo())toast('Redone');else toast('Nothing to redo');refreshButtons();}
+// quiet: Tony's Neo reports an undo itself (what it undid), so no toast.
+function doUndo(quiet){var b=bridge();if(!b||!b.undo)return false;var ok=!!b.undo();if(!quiet)toast(ok?'Undone':'Nothing to undo');refreshButtons();return ok;}
+function doRedo(quiet){var b=bridge();if(!b||!b.redo)return false;var ok=!!b.redo();if(!quiet)toast(ok?'Redone':'Nothing to redo');refreshButtons();return ok;}
 function refreshButtons(){var b=bridge(),u=ui();if(b&&u){u.setUndo&&u.setUndo(!!(b.canUndo&&b.canUndo()));u.setRedo&&u.setRedo(!!(b.canRedo&&b.canRedo()));}}
 
 // ── device picker ──
 async function openDevicePicker(){
+  if(profile()==='tony'){if(window._openSettings)window._openSettings('tony');return;}   // his mic: Settings → Tony's Neo AI
   themeVars();
   var box=$('thv-dev-list');box.innerHTML='<div class="thv-dev-sub">Loading…</div>';
   $('thv-dev-overlay').classList.add('show');
@@ -20703,10 +20729,11 @@ function txtTrackKeyboard(on){
   }
 }
 function openText(){
+  if(profile()==='tony'){if(window._thNeo)window._thNeo.openAsk();return;}   // his typed requests: Neo's composer
   if(!bridge()){toast('Open a TaskHub first');return;}
   if(V.active){stop();}                       // typing wins over an open mic
   themeVars();
-  var who=$('thv-txt-who');if(who)who.textContent=profile()==='veda'?"Ask Veda's TaskHub":"Ask Tony's TaskHub";
+  var who=$('thv-txt-who');if(who)who.textContent="Ask Veda's TaskHub";
   var ov=$('thv-txt-overlay'),ta=$('thv-txt-input');
   // A1's resize grip, wired once: the same grip as every other A1 text box.
   if(ta&&!ta._grip&&window.A1Resize){var g=window.A1Resize.grip('the message box');$('thv-txt-wrap').appendChild(g);window.A1Resize.attach(ta,g,'thv-txt',txtGrow);ta._grip=true;}
@@ -20774,9 +20801,11 @@ window._THV={
   undo:doUndo, redo:doRedo, refreshButtons:refreshButtons,
   isActive:function(){return V.active;},
   isBusy:function(){return V.busy;},
-  // Neo (TaskHub/veda-assistant.js) records its own audio and hands it here; the
+  // Neo (veda-neo.js / tony-neo.js) records its own audio and hands it here; the
   // engine applies the actions exactly like the mic button. Additive only.
   sendAudio:function(b64,opts){return send(Object.assign({audio:b64,mimeType:'audio/wav'},(opts&&opts.extra)||{}),opts);},
+  // A request Neo already holds as words (Tony's typed requests): the same route.
+  request:function(extra,opts){return send(Object.assign({},extra||{}),opts);},
   // Run actions already in hand (Neo, after she says "yes" to a held one). Same
   // executor, same results.
   runActions:function(actions,opts){var d=dispatch(actions||[],'',!(opts&&opts.loud));return {ok:true,n:d.n,results:d.results,later:d.later};},
@@ -24947,6 +24976,10 @@ function openSettings(profile){
       '<div id="thset-suitelock"></div>'+
       '<div id="thset-mainrow"></div>'+
     '</div>'+
+    (profile==='tony'?'<div class="thset-sec">'+
+      '<div class="thset-sec-title">Tony\'s Neo AI</div>'+
+      '<div id="thset-neo"></div>'+
+    '</div>':'')+
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Backup</div>'+
       '<div id="thset-backup"></div>'+
@@ -24972,6 +25005,12 @@ function openSettings(profile){
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
   renderSuiteLock(document.getElementById('thset-suitelock'),profile);
   renderMainDeviceRow(document.getElementById('thset-mainrow'),profile);
+  // Tony's Neo AI draws its own section (mic, voice, typed replies): TaskHub/tony-neo.js.
+  if(profile==='tony'){
+    var neoBox=document.getElementById('thset-neo');
+    if(window._thNeo&&window._thNeo.renderSettings) window._thNeo.renderSettings(neoBox);
+    else neoBox.innerHTML='<div class="thset-empty">Neo is still loading. Close and reopen Settings in a moment.</div>';
+  }
   _bkOpen=false;
   renderBackupRow(document.getElementById('thset-backup'),profile);
   renderRestoreRow(document.getElementById('thset-restore'),profile);
@@ -25070,8 +25109,11 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="Shared/tabsync.js"></script>
-<!-- Neo: Veda's hands-free assistant (wake phrase "Hey Neo"). Veda-only; sleeps on Tony's side. docs/TaskHub/neo-assistant.md -->
-<script src="TaskHub/veda-assistant.js" defer></script>
+<!-- Neo, two separate programs (docs/TaskHub/neo-assistant.md). Veda's Neo AI
+     (veda-neo.js, plus her program connectors below) runs only on her side;
+     Tony's Neo AI (tony-neo.js) only on his. They share no state or globals. -->
+<script src="TaskHub/veda-neo.js" defer></script>
+<script src="TaskHub/tony-neo.js" defer></script>
 <script src="TaskHub/neo-programs.js" defer></script>
 <script src="TaskHub/neo-connectors.js" defer></script>
 <!-- LifeHub, headless: Tony's External Links are its list (the nav module's
