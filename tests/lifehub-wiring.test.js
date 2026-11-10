@@ -256,8 +256,14 @@ console.log('\nIcons');
     "var URL = this.URL, location = { href: 'https://anthonyn99.github.io/A1/index.html' };",
     "var BASE = 'https://anthonyn99.github.io/A1/', PRIV = 'https://a1-priv.av1.workers.dev/';",
     'var ICONS = {' + iconKeys.map((k) => JSON.stringify(k) + ':1').join(',') + '};',
-    fnSrc('destKey'), fnSrc('a1IconFor'), 'this.f = a1IconFor;'].join('\n'), Object.assign(ib, { URL }));
+    (/var HOSTED_ICONS = \[[\s\S]*?\n  \];/.exec(src) || [''])[0],
+    fnSrc('destKey'), fnSrc('hostedIconFor'), fnSrc('a1IconFor'), 'this.f = a1IconFor;'].join('\n'), Object.assign(ib, { URL }));
   const f = ib.f || (() => 'missing');
+  ok('Orca, Reserv and StudyOS (Veda\'s Cloudflare site) get their built-in marks, not a 26px favicon',
+    f('https://orca.vedapatel05.workers.dev/') === 'orca' && f('https://reserv.vedapatel05.workers.dev/x') === 'reserv' &&
+    f('https://tradeboard.vedapatel05.workers.dev/studyos/') === 'studyos' && iconKeys.includes('orca') && iconKeys.includes('reserv'),
+    [f('https://orca.vedapatel05.workers.dev/'), f('https://reserv.vedapatel05.workers.dev/x'), f('https://tradeboard.vedapatel05.workers.dev/studyos/')].join());
+  ok('…the rest of that site is not StudyOS', f('https://tradeboard.vedapatel05.workers.dev/') === '');
   ok('an automatic tile on the private host gets its built-in icon (Everwell)', f('https://a1-priv.av1.workers.dev/everwell.html') === 'everwell', f('https://a1-priv.av1.workers.dev/everwell.html'));
   ok('…and on A1\'s host', f('https://anthonyn99.github.io/A1/magi.html') === 'magi');
   ok('another site with a same-named page does not', f('https://example.com/everwell.html') === '');
