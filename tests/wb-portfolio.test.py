@@ -87,5 +87,17 @@ json.dump({"at": time.time() - 3600, "items": [{"id": "stale"}]}, open(wb.ACTIVI
 bad = types.SimpleNamespace(activity=types.SimpleNamespace(list_activities=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down"))))
 t("Webull down: the last good read is kept", wb.cached_cash_activity(bad, "acc") == [{"id": "stale"}])
 
+# The Journal's Hold column (TradeHub parity, 2026-11-09): the entry date goes
+# out as entryDate (it used to be dropped); a merged row carries its earliest.
+print("journal entry dates")
+rt = lambda ed, qty, ex="2026-11-05": {"date": ex, "symbol": "NVDA", "side": "long", "qty": qty, "entry": 100.0, "exit": 110.0,
+                                       "fees": 0, "tags": ["webull"], "notes": "", "_entry_date": ed, "_asset": "stock"}
+one = wb._merge_roundtrips([rt("2026-11-01", 5)])
+t("a single round trip sends entryDate, not _entry_date", one and one[0].get("entryDate") == "2026-11-01" and "_entry_date" not in one[0] and "_asset" not in one[0], one)
+many = wb._merge_roundtrips([rt("2026-11-03", 2), rt("2026-10-28", 3)])
+t("fills merged into one exit keep the earliest entry", len(many) == 1 and many[0].get("entryDate") == "2026-10-28" and many[0]["qty"] == 5, many)
+op = wb._merge_roundtrips([{"date": "2026-11-04", "symbol": "AMD", "side": "long", "qty": 1, "entry": 1, "exit": None, "fees": 0, "tags": ["webull"], "notes": ""}])
+t("an open position is untouched (its date is the entry)", op and "entryDate" not in op[0], op)
+
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)
