@@ -170,6 +170,10 @@
     wellness: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1B1C1E'/><g fill='none' stroke='#8D769A' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 52c0-10 8-18 18-18s18 8 18 18'/><path d='M22 62h12l5-10 6 20 5-10h24'/></g></svg>",
     // StudyOS (Veda's), V1/StudyOS/assets/icon.svg with single quotes, on one line.
     studyos: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='#26272A'/><g transform='translate(-19.4 2.2) scale(5.4)' fill='none' stroke='#B8A2C6' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round'><path d='M48 22 14 38l34 16 34-16Z'/><path d='M28 46v14c0 6 9 12 20 12s20-6 20-12V46'/><path d='M82 38v18'/></g><circle cx='423.4' cy='337' r='30' fill='#F0B3CB'/></svg>",
+    // Orca (ORCA repo, app/web/templates/base.html), its favicon verbatim.
+    orca: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='28'/><path d='M31 58C38 56 50 46 56 26C57 40 59 52 67 58Z' fill='#c0aeea' stroke='none'/><path d='M30 59H66'/><path d='M39 69H57' stroke='#dbd0f5'/></g></svg>",
+    // Reserv (Veda's, RESERV repo), frontend/public/icon.svg with single quotes, on one line.
+    reserv: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='#26272A'/><path d='M256 104L408 256L256 408L104 256Z' fill='none' stroke='#B8A2C6' stroke-width='24' stroke-linejoin='round'/><path d='M256 196L316 256L256 316L196 256Z' fill='#8D769A'/><circle cx='412' cy='412' r='30' fill='#F0B3CB'/></svg>",
     shruti: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z'/><path d='M48 40v38'/><path d='M41 28a10 10 0 0 1 14 0'/><path d='M35 21a19 19 0 0 1 26 0'/></g></svg>",
     link: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='24'/><path d='M24 48h48'/><path d='M48 24c7 7 10 15 10 24s-3 17-10 24c-7-7-10-15-10-24s3-17 10-24z'/></g></svg>"
   };
@@ -1442,8 +1446,18 @@
   // be read by the lifehub-icon worker (a Cloudflare worker may not fetch
   // another workers.dev worker on its account), so without this an automatic
   // Everwell tile showed that host's /favicon.ico instead of Everwell's mark.
+  // Programs served from Veda's Cloudflare site are not under A1's or the
+  // private host, so they are named by address. Without this their tiles drew
+  // the page's favicon at 26px inside a bordered tile, smaller than every
+  // built-in mark.
+  var HOSTED_ICONS = [
+    { re: /^https?:\/\/orca\.vedapatel05\.workers\.dev(?=[\/?#]|$)/i, key: 'orca' },
+    { re: /^https?:\/\/reserv\.vedapatel05\.workers\.dev(?=[\/?#]|$)/i, key: 'reserv' },
+    { re: /^https?:\/\/tradeboard\.vedapatel05\.workers\.dev\/studyos(?=[\/?#]|$)/i, key: 'studyos' }
+  ];
   function a1IconFor(url) {
-    var m = /\/([a-z0-9_-]+)\.html?(?:[?#]|$)/i.exec(String(url || ''));
+    for (var i = 0; i < HOSTED_ICONS.length; i++) if (HOSTED_ICONS[i].re.test(String(url || ''))) return HOSTED_ICONS[i].key;
+    var m =/\/([a-z0-9_-]+)\.html?(?:[?#]|$)/i.exec(String(url || ''));
     if (!m || !ICONS[m[1].toLowerCase()]) return '';
     var k = destKey(url);
     return (k.indexOf(destKey(BASE)) === 0 || k.indexOf(destKey(PRIV)) === 0) ? m[1].toLowerCase() : '';
