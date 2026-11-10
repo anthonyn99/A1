@@ -151,6 +151,13 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_RESETS_PUSH"):
         from .engine import claude_resets as _resets
         resets = asyncio.create_task(_resets.auto_loop())
+    # TradeHub's standing prompts -- today's market movers after the close and
+    # next week's catalysts on Saturday -- run on schedule and posted to
+    # TradeHub's Debrief (engine/autoprompts.py). Tony's engine only.
+    autop = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_AUTOPROMPTS"):
+        from .engine import autoprompts as _autop
+        autop = asyncio.create_task(_autop.auto_loop(**_autoprompt_engine()))
     # Claude (free)'s message cap, watched without a tap (engine/limit_watch.py).
     capwatch = None
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_LIMIT_WATCH"):
@@ -167,6 +174,8 @@ async def lifespan(app: FastAPI):
             kick.cancel()
         if resets:
             resets.cancel()
+        if autop:
+            autop.cancel()
         KEEP_AWAKE.stop()
 
 
