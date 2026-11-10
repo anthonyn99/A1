@@ -197,6 +197,10 @@ def test_text_shown_literally_stays_literal(page):
     assert render(page, "<p>*not italic*</p>") == r"\*not italic\*"
     assert render(page, "<p># not a heading</p>") == r"\# not a heading"
     assert render(page, "<p>snake_case</p>") == "snake_case"
+    # A numbered line that is not a list: escaped before the dot, which markdown
+    # reads; "\1." (before the digit) showed its backslash (2026-11-09).
+    assert render(page, "<p>1. Iran de-escalation</p>") == r"1\. Iran de-escalation"
+    assert render(page, "<p>12) twelve</p>") == r"12\) twelve"
 
 
 def test_unrendered_bold_pair_is_bold_not_escaped(page):

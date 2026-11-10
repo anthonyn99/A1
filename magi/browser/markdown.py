@@ -146,7 +146,11 @@ DOM_TO_MARKDOWN_JS = """
   const para = (node) => inline(node)
     .split('\\u0000')
     .map((l) => l.replace(/\\s+/g, ' ').trim())
-    .map((l) => l.replace(/^(#{1,6}\\s|>|[-+]\\s|\\d+[.)]\\s)/, '\\\\$1'))
+    // A paragraph that literally starts "1. " is not a list: the escape goes
+    // BEFORE the dot ("1\\. "). Before 2026-11-09 it went before the digit
+    // ("\\1. "), which no markdown reads as an escape, so the console showed
+    // the backslash.
+    .map((l) => l.replace(/^(\\d+)([.)]\\s)/, '$1\\\\$2').replace(/^(#{1,6}\\s|>|[-+]\\s)/, '\\\\$1'))
     .join('\\n')
     .replace(/\\n{3,}/g, '\\n\\n')
     .trim();
