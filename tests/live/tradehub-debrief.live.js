@@ -2,9 +2,14 @@
 // Firestore and a fake newshub. MAGI is never opened: its answer is copied from
 // the run MAGI synced (dashboards/magi + runs/{id}), seeded here.
 //
-//   1. The Debrief button: three tabs when the Analysis prompt goes to MAGI
-//      (today's catalysts, the news summary, MAGI's verdict and each unit's
-//      answer), two when it goes to a chat site
+//   1. The Debrief button: five tabs when the Analysis prompt goes to MAGI
+//      (today's catalysts, the news summary, today's market movers and next
+//      week's catalysts -- the standing prompts MAGI's engine runs on its own,
+//      2026-11-09 -- and MAGI's verdict), four when it goes to a chat site
+//   1b. Movers / Next week: the engine's run (dashboards/tb_debrief_auto) as
+//      MAGI gave it, escapes rendered clean, the schedule said; an empty tab
+//      says when it runs; a new run arrives live; the two prompts are pushed
+//      to the worker for the engine
 //   2. The backdrop wears popups.js's look (rgba(0,0,0,.6), blur 7px)
 //   3. Desktop, tablet and phone: no sideways scroll; screenshots of each tab
 //   4. The morning: tradehub.html#tbdebrief with everything in → Analysis with
@@ -61,10 +66,21 @@ const BODY = {
   synthesis: { ok: true, verdict_text: '## Verdict\n\n**Lean long** semis into CPI; hedge with a tight stop.\n\n| Ticker | Bias |\n|---|---|\n| NVDA | Long |\n| MU | Wait |', chairman_provider: 'claude', model: 'Sonnet 5.5', members_responded: 2, members_total: 3 },
 };
 
+const POSTS = [];
+const AUTO_MOVERS = {
+  job: 'movers', for: TODAY, name: 'Movers', src: 'tradehub', at: NOW,
+  run: { id: 'auto-1', question: 'What factor(s) moved the market the most today?', status: 'complete', created_at: new Date(NOW - 3600000).toISOString(), total_ms: 61000 },
+  answers: [
+    { provider_id: 'chatgpt', display_name: 'ChatGPT', ok: true, answer_text: 'Oil fell **5%**; the 10Y stayed below \\~4.85%.', char_count: 900 },
+    { provider_id: 'gemini', display_name: 'Gemini', ok: true, answer_text: 'Semis led.', char_count: 400 },
+  ],
+  synthesis: { ok: true, verdict_text: '### The five biggest market-moving factors\n\n\\1. Iran de-escalation and falling oil — A \\/ Very high impact\n\nLargest macro catalyst.', chairman_provider: 'gemini', model: 'Gemini Pro' },
+};
 const worker = {
   patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*'],
   handle(req) {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
+    if (req.method === 'POST') POSTS.push({ url: req.url, body: req.postData || '' });
     if (/\/news\?/.test(req.url)) return { json: { events: EVENTS, generatedAt: GEN, cached: true } };
     if (/\/calendar\?/.test(req.url)) return { json: { events: CAL, generatedAt: GEN } };
     if (/\/summary\?/.test(req.url)) { const g = +((/[?&]gen=(\d+)/.exec(req.url) || [])[1] || 0); return { json: { ok: true, summary: SUMMARY, generatedAt: g } }; }
@@ -91,19 +107,20 @@ const worker = {
   const isOpen = "document.querySelector('.dbr')";
   const onAnalysis = "document.querySelector('#tradeboard-root .ana-page')";
 
-  async function seed({ aiSite = 'magi', magiRow = true, digest = true } = {}) {
+  async function seed({ aiSite = 'magi', magiRow = true, digest = true, auto = true } = {}) {
     await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
     await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
     await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1b_disabled','1'); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
       localStorage.setItem('td6_analysis_cfg', JSON.stringify({aiSite:${JSON.stringify(aiSite)}, magiUnits:['chatgpt','claude','gemini'], analysisPromptId:'p1', magiMigrated:1}));
       ${digest ? `localStorage.setItem('tb_news_summary', JSON.stringify({gen:${GEN}, data:${JSON.stringify(SUMMARY)}}));` : ''}
       sessionStorage.setItem('__fakefs_docs', JSON.stringify({
-        'dashboards/tradeboard_prompts': { savedAt: ${NOW}, prompts: [{ id: 'p1', name: 'Daily Macro Report', text: ${JSON.stringify(PROMPT)} }] },
+        'dashboards/tradeboard_prompts': { savedAt: ${NOW}, prompts: [{ id: 'p1', name: 'Daily Macro Report', text: ${JSON.stringify(PROMPT)} }, { id: 'p2', name: 'Market Movers', text: 'What factor(s) moved the market the most today? Research and give me the latest.' }, { id: 'p3', name: 'Next Week Catalysts', text: '# Weekly Trading Catalyst Tier List (Next Week)' }] },
         'dashboards/tradeboard_watchlist': { tickers: ['NVDA','MU'], trash: [], savedAt: ${NOW} },
         'dashboards/tradeboard_news': { events: ${JSON.stringify(EVENTS)}, generatedAt: ${GEN}, savedAt: ${GEN} },
         'dashboards/market_calendar': { events: ${JSON.stringify(CAL)}, generatedAt: ${GEN}, savedAt: ${GEN}, watchlist: ['NVDA','MU'] },
         'dashboards/magi': { runs: ${magiRow ? JSON.stringify([ROW]) : '[]'} },
-        'dashboards/magi/runs/${RUN_ID}': ${JSON.stringify(BODY)}
+        'dashboards/magi/runs/${RUN_ID}': ${JSON.stringify(BODY)}${auto ? `,
+        'dashboards/tb_debrief_auto': { movers: ${JSON.stringify(JSON.stringify(AUTO_MOVERS))}, moversAt: ${NOW} }` : ''}
       })); 1`);
   }
   async function open(hash) {
@@ -119,7 +136,7 @@ const worker = {
   await tab('analysis');
   const btn = await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief'); if(b){b.click();return true;} return false;`);
   ok('Analysis has a Debrief button, and it opens the popup', btn && await until(isOpen, 5000));
-  ok('three tabs: Catalysts (with today\'s count), News Summary, MAGI', (await tabs()) === 'Catalysts3|News Summary|MAGI', await tabs());
+  ok('five tabs: Catalysts (with today\'s count), News Summary, Movers, Next week, MAGI', (await tabs()) === 'Catalysts3|News Summary|Movers|Next week|MAGI', await tabs());
   ok('Catalysts shows only today\'s cards, as Catalysts draws them', await until(`document.querySelectorAll('.dbr-cats .cat-card').length>=2`, 6000) &&
     await js(`var t=document.querySelector('.dbr-cats').innerText; return /CPI Report/.test(t)&&/NVDA/.test(t)&&!/\\bMU\\b/.test(t);`), await js(`return (document.querySelector('.dbr-cats')||{}).innerText;`));
   const bd = JSON.parse(await js(`var o=document.querySelector('.dbr').parentElement, cs=getComputedStyle(o); return JSON.stringify({bg:cs.backgroundColor, bf:cs.backdropFilter||cs.webkitBackdropFilter, tag:o.hasAttribute('data-a1-scrim')});`));
@@ -139,14 +156,39 @@ const worker = {
     return /ES/.test(d.innerText) && b.top>=a.top && b.bottom<=a.bottom+1 && b.left>=a.left;`));
   await shot('debrief-desktop-magi');
 
+  console.log('\n1b. Movers and Next week (run by MAGI\'s engine)');
+  await dTab('Movers');
+  ok('Movers shows the engine\'s run as MAGI gave it: the verdict', await until(`/Iran de-escalation/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'')`, 6000));
+  const mv = JSON.parse(await js(`var q=s=>document.querySelector(s); return JSON.stringify({head:q('.dbr-auto-head').innerText, doc:q('.dbr-magi .dbr-doc').innerText, units:[...document.querySelectorAll('.dbr-unit summary')].map(s=>s.innerText.replace(/\\s+/g,' ')), meta:q('.dbr-magi-meta').innerText});`));
+  ok('…under its title, the day it covers and its schedule', /market movers/.test(mv.head) && /Runs automatically after every close, at 5 PM ET/.test(mv.head) && /next /.test(mv.head), mv.head);
+  ok('…with no stray backslashes: "1. Iran", "A / Very"', /1\. Iran de-escalation/.test(mv.doc) && /A \/ Very high/.test(mv.doc) && mv.doc.indexOf('\\') < 0, mv.doc);
+  ok('…and each unit\'s answer, synthesised by Gemini', mv.units.length === 2 && /synthesised by Gemini/.test(mv.meta), JSON.stringify(mv));
+  await js(`document.querySelector('.dbr-unit summary').click(); 1`); await sleep(200);
+  ok('…a unit\'s answer renders its escapes clean too ("~4.85%")', await js(`return /below ~4\\.85%/.test(document.querySelector('.dbr-unit[open] .dbr-doc').innerText);`));
+  await shot('debrief-desktop-movers');
+  await dTab('Next week');
+  ok('Next week with no run yet says when it runs', await until(`/No weekly catalysts yet/.test((document.querySelector('.dbr .tbx-empty')||{}).innerText||'') && /every Saturday at 10 AM ET/.test(document.querySelector('.dbr .tbx-empty').innerText)`, 4000));
+  const WK = { ...AUTO_MOVERS, job: 'weekly', for: '2026-11-14', synthesis: { ok: true, verdict_text: '## Priority #1: CPI', chairman_provider: 'gemini' } };
+  await js(`__fakeFs.remote('dashboards/tb_debrief_auto', { movers: ${JSON.stringify(JSON.stringify(AUTO_MOVERS))}, weekly: ${JSON.stringify(JSON.stringify(WK))} }); 1`);
+  ok('Saturday\'s run arrives live, titled for the week it looks at', await until(`/Priority #1: CPI/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'') && /Week of Nov 16/.test(document.querySelector('.dbr-auto-head').innerText)`, 6000),
+    await js(`return (document.querySelector('.dbr-auto-head')||{}).innerText;`));
+  await shot('debrief-desktop-weekly');
+  const ac = POSTS.filter((x) => /\/analysis-config/.test(x.url)).map((x) => { try { return JSON.parse(x.body); } catch (e) { return {}; } }).pop() || {};
+  ok('TradeHub pushes the two standing prompts with the Analysis config, found by name', !!(ac.auto && ac.auto.movers && /moved the market/.test(ac.auto.movers.text) && ac.auto.weekly && /Weekly Trading Catalyst/.test(ac.auto.weekly.text) && ac.text === PROMPT), JSON.stringify(ac.auto));
+  await dTab('MAGI');
+
   for (const [w, h, tag] of [[820, 1180, 'tablet'], [390, 844, 'phone']]) {
     await size(w, h); await sleep(600);
-    for (const t of ['Catalysts', 'News Summary', 'MAGI']) {
+    for (const t of ['Catalysts', 'News Summary', 'Movers', 'Next week', 'MAGI']) {
       await dTab(t);
       const r = JSON.parse(await js(`var card=document.querySelector('.dbr').getBoundingClientRect(); return JSON.stringify({w:card.width, vw:innerWidth, side:document.documentElement.scrollWidth>innerWidth+1,
-        out:[...document.querySelectorAll('.dbr *')].filter(e=>{var b=e.getBoundingClientRect(); return b.width&&b.right>card.right+1&&!e.closest('table');}).map(e=>e.className||e.tagName).slice(0,4)});`));
+        out:[...document.querySelectorAll('.dbr *')].filter(e=>{var b=e.getBoundingClientRect(); return b.width&&b.right>card.right+1&&!e.closest('table')&&!e.closest('.dbr-tabs');}).map(e=>e.className||e.tagName).slice(0,4)});`));
       ok(`${tag} · ${t}: fits, nothing pokes out`, !r.side && !r.out.length && (tag !== 'phone' || Math.abs(r.w - r.vw) <= 1), JSON.stringify(r));
       await shot(`debrief-${tag}-${t.toLowerCase().replace(' ', '-')}`);
+    }
+    if (tag === 'phone') {
+      const tb = JSON.parse(await js(`var r=document.querySelector('.dbr-tabs'); return JSON.stringify({scroll:r.scrollWidth>r.clientWidth, oneRow:[...r.children].every(b=>b.getBoundingClientRect().height<48)});`));
+      ok('phone: the five tabs sit in one row that scrolls sideways, labels unsqueezed', tb.oneRow, JSON.stringify(tb));
     }
   }
   await size(1440, 1000);
@@ -162,7 +204,7 @@ const worker = {
   await sleep(2000);
   await tab('analysis');
   await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
-  ok('two tabs: Catalysts and News Summary', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary', await tabs());
+  ok('four tabs: Catalysts, News Summary, Movers, Next week (no MAGI tab)', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary|Movers|Next week', await tabs());
 
   console.log('\n3. The morning');
   await seed();
