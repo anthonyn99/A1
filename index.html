@@ -18101,21 +18101,31 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── A newer TaskHub is live ───────────────────────────────────────────────
   // A tab or home-screen app left open runs the page it loaded, for days, so a
   // fix that has shipped never reaches it (the Plans fix of 2026-11-04 did not
-  // reach either of you until a reload). The page's own Last-Modified
-  // (document.lastModified) is compared with the live file's; when the live one
-  // is newer, say so and offer the reload — never reload on its own, as that
-  // could throw away something half-typed. Pending saves are flushed first.
+  // reach either of you until a reload). When the live index.html differs from
+  // the one running, say so and offer the reload — never reload on its own, as
+  // that could throw away something half-typed. Pending saves are flushed first.
+  //
+  // It compares SIZE, not time. GitHub Pages stamps every file with the deploy
+  // time (Last-Modified and the first half of the ETag), so a change to any
+  // other program — or an empty redeploy — looked like a new TaskHub
+  // (2026-11-09). The ETag's second half is this file's own byte size; the
+  // running page's size is what the browser decoded when it loaded it. One
+  // HEAD request to GitHub Pages: no Firebase or Cloudflare use.
   (function(){
-    const loaded=Date.parse(document.lastModified||'');
-    if(!isFinite(loaded))return;
-    let shown=false;
+    if(!/^https?:$/.test(location.protocol))return;
+    let loaded=0,shown=false;
+    try{const nav=performance.getEntriesByType('navigation')[0];loaded=(nav&&nav.decodedBodySize)||0;}catch(e){}
     function check(){
-      if(shown||navigator.onLine===false||!/^https?:$/.test(location.protocol))return;
+      if(shown||navigator.onLine===false)return;
       fetch(location.pathname+location.search,{method:'HEAD',cache:'no-store'}).then(function(r){
-        const lm=r&&r.ok&&r.headers.get('last-modified');
-        const live=lm?Date.parse(lm):NaN;
-        // Whole seconds on both sides; a minute's slack keeps a clock quirk quiet.
-        if(!isFinite(live)||live<=loaded+60000)return;
+        const tag=r&&r.ok&&r.headers.get('etag');
+        const mt=tag&&/-([0-9a-f]+)"$/i.exec(tag);
+        const live=mt?parseInt(mt[1],16):0;
+        if(!live)return;
+        // No size from the load (e.g. served by a service worker): the first
+        // check sets the baseline, so only later changes count.
+        if(!loaded){loaded=live;return;}
+        if(live===loaded)return;
         shown=true;
         showBanner('TaskHub has been updated. Reload to get the latest version.',{key:'th-update',action:{label:'Reload',run:function(){
           try{if(window._fbFlushAll)window._fbFlushAll();}catch(e){}
