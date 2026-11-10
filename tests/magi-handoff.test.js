@@ -296,22 +296,47 @@ console.log('\nThe ordinary case: the console is up and unlocked');
   ok('and nothing is left pending', !c.env.pending());
 }
 
-console.log('\nSent while a council runs: queued, in order, none lost (2026-11-03)');
+console.log('\nSent while a council runs: a row in MAGI\'s queue, in order, none lost (2026-11-09)');
 {
-  const L2 = encode.tbMagiLink('Debrief CPI', ['claude']), L3 = encode.tbMagiLink('Debrief NVDA', ['gemini']);
+  // Was an invisible "1 prompt queued" line (2026-11-03); now each one is a
+  // queue row: shown, editable (text and units), removable, and the queue is
+  // started so it convenes by itself once the running council ends.
+  const L2 = encode.tbMagiLink('Debrief CPI', ['claude', 'grok']), L3 = encode.tbMagiLink('Debrief NVDA', ['gemini']);
   const c = consoleFor({ hash: '', running: true });
   c.loc.hash = L2.slice(L2.indexOf('#')); c.env.onHandoffHash();
   c.loc.hash = L3.slice(L3.indexOf('#')); c.env.onHandoffHash();
+  const rows = c.QUEUES.council.items;
   ok('nothing convenes over the running council', c.calls.start === 0);
-  ok('the first waits, the second is queued behind it (not overwriting it)', c.env.pending() && c.env.queued() === 1, c.env.queued());
-  ok('MAGI says how many are waiting', /2 prompts queued/.test(c.calls.err || ''), c.calls.err);
-  c.S.running = false; c.env.handoffTry();          // endRun() does this
-  ok('the run ends: the FIRST one convenes', c.calls.start === 1 && c.els.composer.value === 'Debrief CPI', c.els.composer.value);
-  c.S.running = true; c.env.handoffTry();
-  ok('…and the next waits for that council', c.calls.start === 1 && c.env.pending());
-  c.S.running = false; c.env.handoffTry();
-  ok('which ends: the SECOND convenes', c.calls.start === 2 && c.els.composer.value === 'Debrief NVDA', c.els.composer.value);
-  ok('nothing left', !c.env.pending() && c.env.queued() === 0);
+  ok('both are rows in the queue, in the order sent', rows.length === 2 && rows[0].q === 'Debrief CPI' && rows[1].q === 'Debrief NVDA' && rows.every(r => r.status === 'queued'), JSON.stringify(rows.map(r => r.q)));
+  ok('each keeps the units it was sent with (minus any this engine lacks)', rows[0].units.join() === 'claude' && rows[1].units.join() === 'gemini', JSON.stringify(rows.map(r => r.units)));
+  ok('the row says where it came from', rows[0].src === 'tradehub');
+  ok('nothing waits in the hidden hand-off list', !c.env.pending() && c.env.queued() === 0);
+  ok('the queue is started (it waits out the running council itself)', c.calls.qstart === 1, c.calls.qstart);
+  ok('the queue is saved and drawn', c.calls.qchanged === 2);
+  ok('MAGI says so, and where to edit it', /Queued from TradeHub/.test(c.calls.err || '') && /queue/.test(c.calls.err || ''), c.calls.err);
+}
+{
+  // No unit sent that this engine has: the units ticked here.
+  const L2 = encode.tbMagiLink('Debrief CPI', ['grok']);
+  const c = consoleFor({ hash: '', running: true, providers: ['chatgpt', 'deepseek'] });
+  c.loc.hash = L2.slice(L2.indexOf('#')); c.env.onHandoffHash();
+  ok('a link naming no unit this engine has queues with the units ticked here', c.QUEUES.council.items.length === 1 && c.QUEUES.council.items[0].units.join() === 'deepseek', JSON.stringify(c.QUEUES.council.items));
+}
+{
+  // Not running: convenes at once, as before (nothing queued).
+  const c = consoleFor({ hash: '' });
+  const L2 = encode.tbMagiLink('Debrief CPI', ['claude']);
+  c.loc.hash = L2.slice(L2.indexOf('#')); c.env.onHandoffHash();
+  ok('idle: it convenes at once, not via the queue', c.calls.start === 1 && c.QUEUES.council.items.length === 0);
+}
+{
+  // Offline (no engine to run a queue): the old hand-off wait keeps it.
+  const L2 = encode.tbMagiLink('Debrief CPI', ['claude']), L3 = encode.tbMagiLink('Debrief NVDA', ['gemini']);
+  const c = consoleFor({ hash: '', running: true, online: false });
+  c.loc.hash = L2.slice(L2.indexOf('#')); c.env.onHandoffHash();
+  c.loc.hash = L3.slice(L3.indexOf('#')); c.env.onHandoffHash();
+  ok('no engine: both wait in the hand-off list instead, none lost', c.QUEUES.council.items.length === 0 && c.env.pending() && c.env.queued() === 1);
+  ok('…and MAGI says how many are waiting', /2 prompts queued/.test(c.calls.err || ''), c.calls.err);
 }
 {
   const c = consoleFor({ hash: HASH });
