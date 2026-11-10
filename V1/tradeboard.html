@@ -1257,6 +1257,15 @@
     #jr-body td:nth-child(9) > span:not(.badge-open),
     #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b
   ) { filter: blur(.34em); user-select: none; -webkit-user-select: none; }
+  /* The equity curve is not drawn at all in display mode (TradeHub, 2026-11-09):
+     a blur still shows the trend. Its table goes too (each row's colour gives
+     the trend away), and a same-height placeholder takes the curve's place. */
+  html.tb-privacy #jr-curve-host :is(#curve-svg, .tb-eq-tog, .tb-eq-tbl, .jr-curve-dates, .jr-curve-tip, .jr-curve-dot) { display: none !important; }
+  html.tb-privacy #jr-curve-host:has(#curve-svg)::before {
+    content: "Chart hidden in display mode"; display: flex; align-items: center; justify-content: center;
+    height: clamp(120px, 12vw, 170px); border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    color: var(--muted); font-size: 12px; box-sizing: border-box;
+  }
 
   /* ══ App Lock overlay (Worker-KV password gate; mirrors TradeHub) ══ */
   #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(6,6,10,0.9);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;font-family:var(--sans),system-ui,sans-serif;}
@@ -1417,6 +1426,14 @@
 .m-day{font-size:11.5px;font-weight:600;color:var(--muted);padding:10px 4px 4px;display:flex;justify-content:space-between;}
 /* equity curve: shorter, a pill toggle and an inset table */
 .curve-card #curve-svg{height:clamp(120px,12vw,170px) !important;}
+/* The curve's range chips, dates and hover (TradeHub's, 2026-11-09), her tokens. */
+.curve-head{align-items:center;gap:10px;flex-wrap:wrap;}
+.jr-range button{padding:3px 9px;font-size:11px;}
+.jr-curve-dates{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px;}
+.jr-curve-dot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--bg-card);pointer-events:none;}
+.jr-curve-tip{position:absolute;pointer-events:none;display:flex;flex-direction:column;gap:2px;min-width:130px;background:var(--bg-slot);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;color:var(--muted);box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:2;}
+.jr-curve-tip b{font-family:var(--mono);font-size:13px;}
+.jr-curve-tip[hidden],.jr-curve-dot[hidden]{display:none;}
 .tb-eq-tog{display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--text-2);font-size:11.5px;font-weight:600;padding:4px 11px;}
 .tb-eq-tog:hover,.tb-eq-tog.on{border-color:var(--accent);color:var(--text);}
 .tb-eq-tog .chev{transition:transform .18s;}
@@ -1455,6 +1472,14 @@
 .nh-mkt-t b{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums;}
 .nh-mkt-t .nh-spark{justify-self:end;}
 .nh-held{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-hover);background:var(--accent-light);border:1px solid var(--accent);border-radius:5px;padding:0 6px;}
+/* TradeHub's movers and moves (2026-11-09): a dot on a ticker she holds, Pre /
+   After figures, a sparkline under the move. Her tokens. */
+.nh-held-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;align-self:center;}
+.nh-ext{font-size:11px;font-weight:500;color:var(--muted);font-family:var(--mono);white-space:nowrap;}
+.nh-ext i{font-style:normal;color:var(--text-2);margin-right:4px;font-family:var(--sans);}
+.nh-mover-top .mv .nh-ext{margin-right:4px;}
+.nh-mover-mid{display:flex;align-items:center;gap:8px;margin-top:6px;min-height:18px;}
+.nh-mover-mid .nh-spark{margin-left:auto;}
 @media (max-width:767px){.nh-mkt-t{grid-template-columns:1fr;grid-template-rows:auto;row-gap:2px;}.nh-mkt-t .d{text-align:left;}.nh-mkt-t .nh-spark{justify-self:start;}}
 </style>
 <script>
@@ -1472,7 +1497,7 @@ window.TBDisplay = (function () {
     b.classList.toggle('dm-on', o);
     b.setAttribute('aria-pressed', o ? 'true' : 'false');
     b.title = o ? 'Display mode is on — click to show your real figures'
-      : 'Display mode — blurs your balances, P&L, values, share counts, prices you paid and journal stats on Portfolio and Journal, so you can show TradeBoard to someone.';
+      : 'Display mode — blurs your balances, P&L, values, share counts, prices you paid and journal stats on Portfolio and Journal, and hides the equity curve, so you can show TradeBoard to someone.';
   }
   function set(v) {
     root.classList.toggle('tb-privacy', !!v);
@@ -1568,7 +1593,7 @@ window.TBDisplay = (function () {
       <span class="live-dot"></span><span id="live-text">local</span>
     </span>
     <button class="lock-now-btn" id="tb-display-btn" type="button" aria-pressed="false" aria-label="Display mode"
-            title="Display mode — blurs your balances, P&amp;L, values, share counts, prices you paid and journal stats on Portfolio and Journal, so you can show TradeBoard to someone."
+            title="Display mode — blurs your balances, P&amp;L, values, share counts, prices you paid and journal stats on Portfolio and Journal, and hides the equity curve, so you can show TradeBoard to someone."
             onclick="TBDisplay.set(!TBDisplay.on())"></button>
     <button class="lock-now-btn" id="lock-now-btn" title="Lock TradeBoard / manage password"
             onclick="window._tbManageLock && window._tbManageLock()">
@@ -1613,8 +1638,8 @@ window.TBDisplay = (function () {
     <div class="tbj-top">
       <div class="card curve-card">
         <div class="curve-head">
-          <span class="curve-title">Equity Curve</span>
-          <span class="curve-meta" id="jr-curve-meta"></span>
+          <div><span class="curve-title">Equity Curve</span> <span class="curve-meta" id="jr-curve-meta"></span></div>
+          <div class="tbx-seg jr-range" role="group" aria-label="Range" id="jr-curve-range"></div>
         </div>
         <div id="jr-curve-host"></div>
       </div>
@@ -1663,6 +1688,7 @@ window.TBDisplay = (function () {
             <th class="num">Exit</th>
             <th class="num sortable" data-sort="pnl" onclick="TB.jr.sortBy('pnl')">P&amp;L</th>
             <th class="num">Return</th>
+            <th class="num" title="How long the position was held (entry to exit)">Hold</th>
             <th>Tags</th>
             <th>Notes</th>
             <th></th>
@@ -2773,10 +2799,42 @@ TB.pf = {
     const tabs = [["positions", "Positions", positions.length], ["orders", "Open Orders", orders ? orders.length : 0], ["history", "History", history ? history.length : 0], ["activity", "Activity", 0]];
     tabsHost.innerHTML = tabs.map(([id, label, n]) => `<button type="button" role="tab" class="${TB.pf.tab === id ? "on" : ""}" aria-selected="${TB.pf.tab === id}" onclick="TB.pf.setTab('${id}')">${label}${n > 0 ? `<span class="n">${n}</span>` : ""}</button>`).join("");
     const t = TB.pf.tab;
+    TB.pf._dayQuotes(positions);
     tabHost.innerHTML = t === "orders" ? TB.pf._orders(orders) : t === "history" ? TB.pf._history(history) : t === "activity" ? TB.pf._activity(activity) : TB.pf._positions(positions, totalUnreal, mktVal);
     TB.pf.fit();
   },
   _chev: '<svg class="tbi chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+  /* Day % per position from the live quote (TradeHub's, 2026-11-09). Webull's
+     positions often carry no daily change, so a row read "—" while News had the
+     move. Her worker's /market (Yahoo) first, Finnhub's /quotes for anything it
+     lacks, Webull's day_pct only when neither answers. Read at most every 5 min;
+     a position with no quote still shows "—", never a fake 0. */
+  _pq: {}, _pqKey: "", _pqAt: 0, _pqBusy: false,
+  _dayQuotes(positions) {
+    const syms = [...new Set((positions || []).filter(p => p.asset !== "option").map(p => String(p.symbol || "").split(" ")[0].toUpperCase()).filter(Boolean))].sort();
+    const key = syms.join(",");
+    if (!key || TB.pf._pqBusy || (key === TB.pf._pqKey && Date.now() - TB.pf._pqAt < 5 * 60 * 1000)) return;
+    TB.pf._pqBusy = true; TB.pf._pqKey = key; TB.pf._pqAt = Date.now();
+    (async () => {
+      const out = {};
+      try {
+        const r = await fetch(TBN_WORKER + "/market?tickers=" + encodeURIComponent(key));
+        const j = r.ok ? await r.json() : null;
+        for (const [t, q] of Object.entries((j && j.stocks) || {})) if (q && q.c != null && q.dp != null && isFinite(q.dp)) out[t] = q.dp;
+      } catch (e) {}
+      const miss = syms.filter(t => out[t] == null);
+      if (miss.length) {
+        try {
+          const r = await fetch(TBN_WORKER + "/quotes?tickers=" + encodeURIComponent(miss.join(",")));
+          const j = r.ok ? await r.json() : null;
+          for (const [t, q] of Object.entries((j && j.quotes) || {})) if (q && q.c && q.dp != null && isFinite(q.dp)) out[t] = q.dp;
+        } catch (e) {}
+      }
+      const changed = JSON.stringify(out) !== JSON.stringify(TB.pf._pq);
+      TB.pf._pq = out;
+      if (changed) TB.pf.render();
+    })().finally(() => { TB.pf._pqBusy = false; });
+  },
   // Not sent yet by the PC sync (an older wb_sync.py): say where it comes from.
   _notYet(what) { return `<div class="tbt-card tb-pf-w"><div class="tbt-empty">${what} appear after your PC's Webull sync runs (wb_sync.py, every 2 minutes).</div></div>`; },
   _positions(positions, totalUnreal, mktVal) {
@@ -2787,7 +2845,8 @@ TB.pf = {
     const body = rows.map(p => {
       const isOpt = p.asset === "option", mv = Number(p.market_value) || 0, un = Number(p.unrealized) || 0, pct = Number(p.unrealized_pct) || 0;
       const w = mktVal > 0 ? Math.max(0, mv / mktVal * 100) : 0;
-      const dp = p.day_pct != null && isFinite(parseFloat(p.day_pct)) ? parseFloat(p.day_pct) : null;
+      const lq = TB.pf._pq[String(p.symbol || "").split(" ")[0].toUpperCase()];
+      const dp = !isOpt && lq != null ? lq : p.day_pct != null && isFinite(parseFloat(p.day_pct)) ? parseFloat(p.day_pct) : null;
       return `<tr>
         <td class="sym">${isOpt ? '<span class="opt-badge">OPT</span>' : ""}${U.esc(p.symbol)}</td>
         <td class="r">${U.esc(String(p.qty))}${isOpt ? " ct" : ""}</td>
@@ -3097,7 +3156,22 @@ TB.jr = {
       fees: Number(t.fees) || 0,
       tags: Array.isArray(t.tags) ? t.tags : U.parseTags(t.tags),
       notes: t.notes || "",
+      // When the position was opened (wb_sync.py sends it as _entry_date; for a
+      // closed trade `date` is the exit). Kept for the Hold column (TradeHub's,
+      // 2026-11-09); it used to be dropped here.
+      ...((() => { const e = t.entryDate || t._entry_date; return /^\d{4}-\d{2}-\d{2}/.test(e || "") ? { entryDate: String(e).slice(0, 10) } : {}; })()),
     };
+  },
+  // Hold time in days, entry to exit (open: to today). "" when the entry date isn't known.
+  holdLabel(t) {
+    const day = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+    const open = TB.jr.isOpen(t);
+    const a = day(open ? (t.entryDate || t.date) : t.entryDate);
+    if (a == null) return "";
+    const now = new Date(), b = open ? Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) : day(t.date);
+    if (b == null || b < a) return "";
+    const n = Math.round((b - a) / 86400000);
+    return n === 0 ? "same day" : n === 1 ? "1 day" : n + " days";
   },
 
   // ── stats ───────────────────────────────────────────────────────────────────
@@ -3151,11 +3225,31 @@ TB.jr = {
   },
 
   // ── equity curve ─────────────────────────────────────────────────────────────
-  renderCurve(closed) {
+  // TradeHub's ranges (2026-11-09). A range re-bases the curve, so it reads
+  // "P&L over this period"; All is the whole history.
+  RANGES: [["1M", "1M", 30], ["3M", "3M", 91], ["6M", "6M", 182], ["YTD", "YTD", null], ["1Y", "1Y", 365], ["ALL", "All", null]],
+  curveRange: "ALL",
+  setCurveRange(r) { TB.jr.curveRange = r; TB.jr.renderCurve(TB.jr.stats().curve); },
+  renderCurve(closedAll) {
     const host = document.getElementById("jr-curve-host");
     const meta = document.getElementById("jr-curve-meta");
-    if (closed.length === 0) {
+    const rangeEl = document.getElementById("jr-curve-range");
+    const R = TB.jr.RANGES.some(r => r[0] === TB.jr.curveRange) ? TB.jr.curveRange : "ALL";
+    if (rangeEl) rangeEl.innerHTML = TB.jr.RANGES.map(([id, label]) =>
+      `<button type="button" class="${R === id ? "on" : ""}" aria-pressed="${R === id}" onclick="TB.jr.setCurveRange('${id}')">${label}</button>`).join("");
+    if (closedAll.length === 0) {
       host.innerHTML = '<div class="curve-empty">No closed trades yet — the curve fills in as you log exits.</div>';
+      meta.textContent = ""; return;
+    }
+    let closed = closedAll;
+    if (R !== "ALL") {
+      const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const days = (TB.jr.RANGES.find(r => r[0] === R) || [])[2];
+      const from = R === "YTD" ? `${new Date().getFullYear()}-01-01` : iso(new Date(Date.now() - days * 86400000));
+      closed = closedAll.filter(t => (t.date || "") >= from);   // the window starts at zero: P&L over the period
+    }
+    if (closed.length === 0) {
+      host.innerHTML = '<div class="curve-empty">No closed trades in this range yet.</div>';
       meta.textContent = ""; return;
     }
     const pts = [0]; let run = 0;
@@ -3181,8 +3275,35 @@ TB.jr = {
         <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2"
           vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
         <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(run).toFixed(1)}" r="3.5" fill="${color}"/>
-      </svg>`;
+      </svg>
+      <div class="jr-curve-dates"><span>${U.esc(TB.jr._shortDay(closed[0].date))}</span><span>${U.esc(TB.jr._shortDay(closed[closed.length - 1].date))}</span></div>`;
     meta.innerHTML = `<span class="${U.pnClass(run)}">${U.signedMoney(run)}</span> over ${closed.length} closed`;
+    // Hover (TradeHub's crosshair): the nearest trade's date, symbol, its P&L and
+    // the equity after it. Nothing is gated behind it — the table has every point.
+    const svg = host.querySelector("#curve-svg");
+    if (svg) {
+      const tip = document.createElement("div"); tip.className = "jr-curve-tip"; tip.hidden = true;
+      const dot = document.createElement("div"); dot.className = "jr-curve-dot"; dot.hidden = true;
+      host.style.position = "relative"; host.appendChild(dot); host.appendChild(tip);
+      const sgn = v => (v >= 0 ? "+" : "−") + U.money(Math.abs(v));
+      const at = clientX => {
+        const r = svg.getBoundingClientRect(); if (!r.width) return;
+        const i = Math.max(1, Math.min(pts.length - 1, Math.round((clientX - r.left) / r.width * (pts.length - 1))));
+        const t = closed[i - 1], px = x(i) / W * r.width, py = y(pts[i]) / H * r.height;
+        dot.style.left = px + "px"; dot.style.top = py + "px"; dot.style.background = color; dot.hidden = false;
+        tip.innerHTML = `<b class="${U.pnClass(pts[i])}">${sgn(pts[i])}</b><span>${U.esc(TB.jr._shortDay(t.date))} · ${U.esc(t.symbol || "")}</span><span>trade ${sgn(TB.jr.pnl(t) || 0)}</span>`;
+        tip.hidden = false;
+        const tw = tip.offsetWidth || 150;
+        tip.style.left = Math.max(0, Math.min(r.width - tw, px - tw / 2)) + "px";
+        tip.style.top = (py - tip.offsetHeight - 10 >= 0 ? py - tip.offsetHeight - 10 : py + 12) + "px";
+      };
+      const off = () => { tip.hidden = true; dot.hidden = true; };
+      svg.addEventListener("mousemove", e => at(e.clientX));
+      svg.addEventListener("mouseleave", off);
+      svg.addEventListener("touchstart", e => { if (e.touches[0]) at(e.touches[0].clientX); }, { passive: true });
+      svg.addEventListener("touchmove", e => { if (e.touches[0]) at(e.touches[0].clientX); }, { passive: true });
+      svg.addEventListener("touchend", () => setTimeout(off, 1500));
+    }
     // Every point is also a table row (TradeHub's equity table, 2026-11-04).
     let eq = 0;
     const eqPts = closed.map(t => { const v = TB.jr.pnl(t) || 0; eq += v; return { d: t.date, s: t.symbol, v, eq }; });
@@ -3338,6 +3459,12 @@ TB.jr = {
     });
     return out;
   },
+  // "Nov 8" (with the year when it isn't this year) — the curve's dates.
+  _shortDay(k) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(k || ""); if (!m) return "";
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
+  },
   _dayLabel(k) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(k || ""); if (!m) return "No date";
     const d = new Date(+m[1], +m[2] - 1, +m[3]);
@@ -3353,7 +3480,7 @@ TB.jr = {
     // Phone card list is rendered alongside the table; CSS shows one or the other.
     TB.jr._renderCards(rows);
     if (rows.length === 0) {
-      body.innerHTML = `<tr><td colspan="12" class="table-empty">${
+      body.innerHTML = `<tr><td colspan="13" class="table-empty">${
         TB.jr.trades.length === 0 ? "No trades yet.<br>Click “Manual trade” or sync from your broker."
           : "No trades match the current filters."}</td></tr>`;
       return;
@@ -3365,7 +3492,7 @@ TB.jr = {
       const open = TB.jr.isOpen(t), p = TB.jr.pnl(t), pct = TB.jr.pct(t);
       const sel = TB.jr.selected.has(t.id);
       const g = dayHead[t.id];
-      const head = g ? `<tr class="jr-day"><td colspan="12">${TB.jr._dayLabel(g.key)}<span class="jr-day-n">${g.items.length} trade${g.items.length === 1 ? "" : "s"} · net</span>${TB.jr._dayNet(g)}</td></tr>` : "";
+      const head = g ? `<tr class="jr-day"><td colspan="13">${TB.jr._dayLabel(g.key)}<span class="jr-day-n">${g.items.length} trade${g.items.length === 1 ? "" : "s"} · net</span>${TB.jr._dayNet(g)}</td></tr>` : "";
       const sideBadge = t.side === "short" ? '<span class="badge badge-short">Short</span>' : '<span class="badge badge-long">Long</span>';
       const pnlCell = open ? '<span style="color:var(--muted)">—</span>' : `<span class="${U.pnClass(p)}">${U.signedMoney(p)}</span>`;
       const pctCell = open ? '<span class="badge badge-open">Open</span>' : `<span class="${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span>`;
@@ -3381,6 +3508,7 @@ TB.jr = {
         <td class="num mono">${open ? '<span style="color:var(--muted)">—</span>' : U.num(t.exit)}</td>
         <td class="num mono">${pnlCell}</td>
         <td class="num mono">${pctCell}</td>
+        <td class="num">${TB.jr.holdLabel(t) ? U.esc(TB.jr.holdLabel(t)) : '<span style="color:var(--border)">—</span>'}</td>
         <td>${tags}</td>
         <td class="notes-cell" title="${notes}">${notes || '<span style="color:var(--border)">—</span>'}</td>
         <td><div class="row-actions">
@@ -3431,6 +3559,7 @@ TB.jr = {
           <span><b>${U.esc(String(t.qty))}</b> sh</span>
           <span>In <b>${U.num(t.entry)}</b></span>
           ${open ? "" : `<span>Out <b>${U.num(t.exit)}</b></span>`}
+          ${TB.jr.holdLabel(t) ? `<span>Held ${U.esc(TB.jr.holdLabel(t))}</span>` : ""}
         </div>
         ${tags ? `<div class="m-card-tags">${tags}</div>` : ""}
         ${t.notes ? `<div class="m-card-notes">${U.esc(t.notes)}</div>` : ""}
@@ -3524,8 +3653,11 @@ TB.jr = {
     if (!Array.isArray(list)) return { changed: false, n: 0 };
     const incoming = list.map(TB.jr.normalize).filter(t => t.symbol && TB.jr.isBroker(t));
     const current = TB.jr.trades.filter(TB.jr.isBroker);
-    const before = current.map(TB.jr.tradeKey).sort().join("\n");
-    const after = incoming.map(TB.jr.tradeKey).sort().join("\n");
+    // The entry date counts, so trades stored before it was kept pick it up on
+    // the next sync (otherwise identical keys would skip the merge forever).
+    const key = t => TB.jr.tradeKey(t) + "|" + (t.entryDate || "");
+    const before = current.map(key).sort().join("\n");
+    const after = incoming.map(key).sort().join("\n");
     if (before === after) return { changed: false, n: incoming.length };
     TB.jr.trades = TB.jr.trades.filter(t => !TB.jr.isBroker(t)).concat(incoming);
     TB.jr.save();
@@ -4894,6 +5026,27 @@ function tbnAgo(ts) {
 function tbnPct(dp) { return (dp == null || !isFinite(dp)) ? "" : (dp > 0 ? "+" : "") + (+dp).toFixed(2) + "%"; }
 function tbnPrice(c) { return (c == null || !isFinite(c)) ? "" : "$" + (+c).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function tbnMoveColor(dp) { return (dp == null || !isFinite(dp) || dp === 0) ? "var(--muted)" : dp > 0 ? "var(--green)" : "var(--red)"; }
+/* The move a ticker should lead with right now (TradeHub's tbLiveMove, 2026-11-09).
+   Her worker's /market (Yahoo: today's move, pre/after-hours price, sparkline)
+   first, Finnhub's /quotes when Yahoo has nothing. Before the open the
+   pre-market move leads (yesterday's change is old news by then); otherwise
+   today's, with the after-hours move as a second figure. */
+function tbnLiveMove(t) {
+  const N = TB.news, y = N.mq && N.mq[t], f = N.quotes && N.quotes[t];
+  const q = (y && y.c != null && y.dp != null && isFinite(y.dp)) ? y
+    : (f && f.dp != null && isFinite(f.dp)) ? { c: f.c, dp: f.dp, ext: null, points: [] } : null;
+  if (!q) return null;
+  const phase = tbMktState(new Date()).phase;
+  const pre = !!(q.ext && q.ext.kind === "pre" && phase === "pre" && q.ext.dp != null && isFinite(q.ext.dp));
+  const after = !pre && q.ext && q.ext.kind === "post" && q.ext.dp != null && isFinite(q.ext.dp) ? q.ext.dp : null;
+  return { dp: pre ? q.ext.dp : q.dp, pre, after, price: pre ? q.ext.price : q.c, points: Array.isArray(q.points) ? q.points : [] };
+}
+const TBN_INTRADAY_TICK_MS = 15 * 60 * 1000;
+// The regular session, through a quarter hour past the close (holidays and half
+// days from tbMktState) — TradeHub's tbNewsIntradayWindow.
+function tbnIntradayWindow() {
+  try { const st = tbMktState(new Date()); return st.phase === "regular" || (st.phase === "after" && st.t <= st.regClose + 15); } catch (e) { return false; }
+}
 function tbnSig(list) { return (list || []).slice().sort().join(","); }
 // Most recent 6:00 AM on this device's clock, every day (weekends too) — the same
 // single refresh boundary TradeHub uses for its morning news.
@@ -5190,6 +5343,9 @@ TB.news = {
   kicking: false, building: false, timer: null, polls: 0, baseGen: 0,
   notice: "",
   quotes: {}, quotesAt: 0, _qTimer: null,
+  mq: {},               // per-ticker /market data (Yahoo: move, pre/after, sparkline) — tbnLiveMove
+  heldOnly: false,      // the Held chip (this device only, like TradeHub)
+  _intradayTimer: null, _intradayAt: 0,
   rlUsed: 0, rlCooldown: 0, _cdTimer: null,
   sum: { gen: 0, data: null, loading: false, inflight: false, error: "", warmedGen: 0 }, sumOpen: false,
   filtersOpen: false,   // the Impact + Sector panel (this device only, like TradeHub)
@@ -5232,6 +5388,9 @@ TB.news = {
     // tick re-runs the morning check (same cadence as TradeHub's orchestrator).
     let n = 0;
     setInterval(() => { TB.news.renderIfActive(); if (++n % 5 === 0) TB.news._morning(); }, 60000);
+    // Intraday: every 15 min; the first tick waits 90 s so the morning check goes first.
+    const itick = async () => { try { await TB.news._intraday(); } catch (e) {} TB.news._intradayTimer = setTimeout(itick, TBN_INTRADAY_TICK_MS); };
+    TB.news._intradayTimer = setTimeout(itick, 90 * 1000);
     TB.news._cloudInit();
   },
 
@@ -5455,6 +5614,53 @@ TB.news = {
     TB.news._saveLocal();
     TB.news._warmSummary();
     TB.news.renderIfActive();
+    // Deferred: a build applied from refresh() arrives while `kicking` is still
+    // set, which would make the retry skip itself.
+    if (TB.news.degraded && evs.length) { const g = TB.news.generatedAt; setTimeout(() => TB.news._retryRaw(g), 1500); }
+  },
+  /* A raw build (no AI analysis) is retried ONCE with a fresh build (TradeHub's
+     tbRetryRawNews, 2026-11-09). Her worker's own morning retry only covers the
+     6am build; a raw build from Refresh, Force or another device was shown and
+     kept. One retry per raw build, 15 minutes apart, at most 3 a day, and never
+     on top of a build already on its way, so a bad AI day can't drain the 12
+     force refreshes; the retry's own result is accepted, raw or not. */
+  _retryRaw(gen) {
+    try {
+      const N = TB.news, day = new Date().toDateString();
+      if (!N.degraded || (N.generatedAt || 0) !== (gen || 0)) return false;   // a newer build already replaced it
+      let st = null; try { st = JSON.parse(localStorage.getItem("tradeboard_news_raw_retry") || "null"); } catch (e) {}
+      if (!st || st.day !== day) st = { day, n: 0, gens: [], at: 0 };
+      gen = gen || 0;
+      if (st.gens.indexOf(gen) >= 0 || st.n >= 3 || Date.now() - st.at < 15 * 60 * 1000) return false;
+      if (N.building || N.kicking || Date.now() - N._kickedAt < 5 * 60 * 1000) return false;
+      if (TBN_DAILY_LIMIT - N.rlUsed <= 0) return false;
+      st.n++; st.at = Date.now(); st.gens = st.gens.concat([gen]).slice(-10);
+      try { localStorage.setItem("tradeboard_news_raw_retry", JSON.stringify(st)); } catch (e) {}
+      N._kickedAt = Date.now();
+      console.log("[News] raw build (no AI analysis) — retrying once with a fresh build");
+      N._kick(true);
+      return true;
+    } catch (e) { return false; }
+  },
+  /* Intraday news (TradeHub's tbNewsIntradayTick, 2026-11-09): every 15 min while
+     the market is open, ask the worker /news?intraday=1. It rebuilds a feed older
+     than 45 min on the ordinary path (never the 12-a-day force budget); one
+     rebuild serves every device, and a newer build is published like the
+     morning one. Outside the session it is a plain cache read. */
+  async _intraday(force) {
+    const N = TB.news;
+    if (!N._cloud.ready || N.building || N.kicking) return;
+    if (!force && !tbnIntradayWindow()) return;
+    const wl = N.tickers(); if (!wl.length) return;
+    try {
+      const r = await fetch(TBN_WORKER + "/news?intraday=1&tickers=" + encodeURIComponent(wl.join(",")));
+      if (r.status === 202) { N._watch(N.generatedAt || 0); return; }
+      if (!r.ok) return;
+      const j = await r.json().catch(() => null);
+      if (!j) return;
+      if (j.status === "building") { N._watch(N.generatedAt || 0); return; }
+      if (Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > (N.generatedAt || 0)) { N._applyBuild(j); N._publish(); }
+    } catch (e) {}
   },
 
   /* ── Refresh / Force fresh (the buttons) ── */
@@ -5553,13 +5759,20 @@ TB.news = {
   /* ── the market strip (TradeHub's News, 2026-11-03): S&P and Nasdaq futures,
      semiconductors, the 10-year, WTI and Brent, VIX and the dollar, each with
      its move and a sparkline. Her own worker's /market (Yahoo spark, cached
-     2 min there), fetched with the quotes while News is on screen. ── */
+     2 min there), fetched with the quotes while News is on screen.
+     2026-11-09 (TradeHub parity): it also brings each watchlist ticker's price,
+     move, pre/after-hours price and a sparkline (`stocks`), which the movers and
+     cards lead with; Finnhub's /quotes is the fallback (tbnLiveMove). ── */
   async _fetchMarket() {
     try {
-      const r = await fetch(TBN_WORKER + "/market");
+      const wl = TB.news.tickers();
+      const r = await fetch(TBN_WORKER + "/market" + (wl.length ? "?tickers=" + encodeURIComponent(wl.join(",")) : ""));
       if (!r.ok) return;
       const j = await r.json();
-      if (j && j.ok !== false && Array.isArray(j.context) && j.context.length) { TB.news.market = j.context; TB.news.renderIfActive(); }
+      if (!j || j.ok === false) return;
+      if (Array.isArray(j.context) && j.context.length) TB.news.market = j.context;
+      if (j.stocks && typeof j.stocks === "object") TB.news.mq = j.stocks;
+      TB.news.renderIfActive();
     } catch (e) {}
   },
   _spark(points, up) {
@@ -5582,6 +5795,12 @@ TB.news = {
   _held() {
     const d = TB.pf && TB.pf.data ? TB.pf.data() : null;
     return new Set(((d && d.positions) || []).filter(p => Number(p.qty)).map(p => String(p.symbol || "").split(" ")[0].toUpperCase()).filter(Boolean));
+  },
+  // A story is "held" when ANY ticker on it is a position (TradeHub's isHeld):
+  // a card about NVDA that also names a held AMD is her news too.
+  _isHeld(e, held) {
+    const h = held || TB.news._held();
+    return h.has(String(e.primaryTicker || "").toUpperCase()) || (e.additionalTickers || []).some(t => h.has(String(t).toUpperCase()));
   },
   async _fetchRate() {
     try {
@@ -5667,7 +5886,9 @@ TB.news = {
     const N = TB.news, f = N.f;
     const cutoff = Date.now() - f.hours * 3600000;
     const windowed = N.events.filter(e => (e.ts || 0) >= cutoff);
+    const held = N._held();
     const visible = windowed.filter(e => {
+      if (N.heldOnly && !N._isHeld(e, held)) return false;
       if (f.selTickers.length && !(f.selTickers.includes(e.primaryTicker) || (e.additionalTickers || []).some(t => f.selTickers.includes(t)))) return false;
       if (f.selSectors.length && !(e.sectors || []).some(s => f.selSectors.includes(s))) return false;
       if (f.sentFilter !== "all" && ((e.sentiment && e.sentiment.label) || "neutral") !== f.sentFilter) return false;
@@ -5679,7 +5900,12 @@ TB.news = {
       return true;
     });
     if (f.sortBy === "time") visible.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    else visible.sort((a, b) => ((b.impact && b.impact.score) || 0) - ((a.impact && a.impact.score) || 0) || (b.ts || 0) - (a.ts || 0));
+    else {
+      // Impact order puts stories about her positions first (minor ones excepted),
+      // as TradeHub does.
+      const hk = e => (N._isHeld(e, held) && ((e.impact && e.impact.tier) || "minor") !== "minor") ? 1 : 0;
+      visible.sort((a, b) => (hk(b) - hk(a)) || ((b.impact && b.impact.score) || 0) - ((a.impact && a.impact.score) || 0) || (b.ts || 0) - (a.ts || 0));
+    }
     const tickerCounts = new Map(), sectorCounts = new Map(), topBy = {};
     const evSectors = new Set();
     N.events.forEach(e => (e.sectors || []).forEach(s => evSectors.add(s)));
@@ -5695,12 +5921,13 @@ TB.news = {
       critical: tier("critical"), major: tier("major"),
       bull: windowed.filter(e => e.sentiment && e.sentiment.label === "bull").length,
       bear: windowed.filter(e => e.sentiment && e.sentiment.label === "bear").length };
-    const movers = TB.news.tickers().map(t => ({ t, q: N.quotes[t] })).filter(m => m.q && m.q.dp != null && isFinite(m.q.dp))
-      .sort((a, b) => Math.abs(b.q.dp) - Math.abs(a.q.dp)).slice(0, 6);
+    const movers = TB.news.tickers().map(t => ({ t, m: tbnLiveMove(t) })).filter(x => x.m)
+      .sort((a, b) => Math.abs(b.m.dp) - Math.abs(a.m.dp)).slice(0, 6);
     // Ticker chips: the whole watchlist in one sideways strip (as TradeHub);
     // a ticker with nothing in the window is dimmed.
     const tickerChips = TB.news.tickers();
-    return { windowed, visible, counts, tickerCounts, sectorCounts, topBy, movers, tickerChips, sectorChips: [...evSectors].sort() };
+    const heldCount = windowed.filter(e => N._isHeld(e, held)).length;
+    return { windowed, visible, counts, tickerCounts, sectorCounts, topBy, movers, tickerChips, sectorChips: [...evSectors].sort(), held, heldCount };
   },
   _headlines(sources) {
     const seen = new Set(), out = [];
@@ -5769,13 +5996,16 @@ TB.news = {
 
     if (D.movers.length) {
       h += `<div class="nh-sec-t"><span class="tbx-label">Top movers</span>${N.quotesAt ? `<small>quotes ${tbnAgo(N.quotesAt)}</small>` : ""}</div>
-        <div class="nh-movers" data-strip="movers" data-sb-strip="">${D.movers.map(m => {
-          const ev = D.topBy[m.t];
+        <div class="nh-movers" data-strip="movers" data-sb-strip="">${D.movers.map(({ t, m }) => {
+          const ev = D.topBy[t];
           const hl = ev ? ((N._headlines(ev.sources)[0] || {}).headline || ev.summary) : "";
-          const on = f.selTickers.length === 1 && f.selTickers[0] === m.t;
-          return `<button type="button" class="nh-mover${on ? " on" : ""}" data-act="mover" data-t="${U.esc(m.t)}" aria-pressed="${on}">
-            <div class="nh-mover-top"><b>${U.esc(m.t)}</b><span class="mv" style="color:${tbnMoveColor(m.q.dp)}">${m.q.dp > 0 ? "▲" : "▼"} ${tbnPct(m.q.dp)}</span><span class="px">${tbnPrice(m.q.c)}</span></div>
-            <p>${hl ? U.esc(hl) : "No news in the window"}</p></button>`;
+          const on = f.selTickers.length === 1 && f.selTickers[0] === t;
+          // TradeHub's mover: a dot when she holds it, Pre before the open, the
+          // after-hours move and a sparkline under it.
+          const mid = (m.after != null || m.points.length > 1) ? `<div class="nh-mover-mid">${m.after != null ? `<span class="nh-ext" title="After-hours move"><i>After</i><span style="color:${tbnMoveColor(m.after)}">${tbnPct(m.after)}</span></span>` : ""}${N._spark(m.points, m.dp >= 0)}</div>` : "";
+          return `<button type="button" class="nh-mover${on ? " on" : ""}" data-act="mover" data-t="${U.esc(t)}" aria-pressed="${on}">
+            <div class="nh-mover-top"><b>${U.esc(t)}</b>${D.held.has(t) ? `<i class="nh-held-dot" title="You hold this"></i>` : ""}<span class="mv" style="color:${tbnMoveColor(m.dp)}" title="${m.pre ? "Pre-market move" : "Today's move"}">${m.pre ? `<span class="nh-ext"><i>Pre</i></span>` : ""}${m.dp > 0 ? "▲" : "▼"} ${tbnPct(m.dp)}</span><span class="px">${tbnPrice(m.price)}</span></div>
+            ${mid}<p>${hl ? U.esc(hl) : "No news in the window"}</p></button>`;
         }).join("")}</div>`;
     }
 
@@ -5802,18 +6032,20 @@ TB.news = {
       }
       // Tickers: one sideways strip, however long the watchlist. Quiet ones dim.
       h += `<div class="nh-strip" data-strip="tickers" data-sb-strip="">
-        <button type="button" class="nh-chip${f.selTickers.length ? "" : " on"}" data-act="tickall">All tickers</button>
+        <button type="button" class="nh-chip${f.selTickers.length || N.heldOnly ? "" : " on"}" data-act="tickall">All tickers</button>
+        ${D.held.size ? `<button type="button" class="nh-chip${N.heldOnly ? " on" : ""}${!D.heldCount && !N.heldOnly ? " dim" : ""}" data-act="held" aria-pressed="${!!N.heldOnly}" title="Stories about your Webull positions">Held${D.heldCount ? `<span class="n">${D.heldCount}</span>` : ""}</button>` : ""}
         ${D.tickerChips.map(t => { const ct = D.tickerCounts.get(t) || 0, on = f.selTickers.includes(t);
           return `<button type="button" class="nh-chip mono${on ? " on" : ""}${!ct && !on ? " dim" : ""}" data-act="tick" data-v="${U.esc(t)}">${U.esc(t)}${ct ? `<span class="n">${ct}</span>` : ""}</button>`; }).join("")}
       </div>`;
       // What is showing, and every active filter as a removable tag.
-      const hasFilter = f.sentFilter !== "all" || f.impFilter !== "all" || f.selTickers.length || f.selSectors.length;
+      const hasFilter = f.sentFilter !== "all" || f.impFilter !== "all" || f.selTickers.length || f.selSectors.length || N.heldOnly;
       const tag = (label, act, k, v, mono) => `<span class="nh-tag${mono ? " mono" : ""}">${U.esc(label)}<button type="button" data-act="${act}"${k ? ` data-k="${k}"` : ""} data-v="${U.esc(v)}" aria-label="Clear ${U.esc(label)}">${TBICON.x}</button></span>`;
       h += `<div class="nh-results"><span>Showing <b>${D.visible.length}</b> of ${D.windowed.length}</span>
         ${f.sentFilter !== "all" ? tag(TBN_SLABEL[f.sentFilter], "f", "sentFilter", "all") : ""}
         ${f.impFilter !== "all" ? tag(impLabel(f.impFilter), "f", "impFilter", "all") : ""}
         ${f.selSectors.map(s => tag(s, "sec", "", s)).join("")}
         ${f.selTickers.map(t => tag(t, "tick", "", t, true)).join("")}
+        ${N.heldOnly ? tag("Held", "held", "", "1") : ""}
         ${hasFilter ? `<button type="button" class="nh-clear" data-act="clear">Clear all</button>` : ""}</div>`;
     }
 
@@ -5844,7 +6076,7 @@ TB.news = {
     const N = TB.news;
     const tier = (e.impact && e.impact.tier) || "minor", tm = TBN_TIER[tier] || TBN_TIER.minor;
     const sl = (e.sentiment && e.sentiment.label) || "neutral", score = (e.sentiment && e.sentiment.score) || 0;
-    const q = N.quotes[e.primaryTicker], hasPct = q && q.dp != null && isFinite(q.dp);
+    const lm = tbnLiveMove(e.primaryTicker);
     const breaking = Date.now() - (e.ts || 0) < TBN_BREAKING_MS;
     const hls = N._headlines(e.sources), open = N._openHl.has(e.id);
     // The outlets under the summary as one comma-separated line, deduped
@@ -5859,8 +6091,9 @@ TB.news = {
       <div class="nh-ev-top">
         ${breaking ? `<span class="nh-breaking"><i></i>Breaking</span>` : ""}
         <span class="nh-tk">${U.esc(e.primaryTicker || "")}</span>
-        ${N._held().has(String(e.primaryTicker || "").toUpperCase()) ? `<span class="nh-held" title="You hold this">Held</span>` : ""}
-        ${hasPct ? `<span class="nh-move" style="color:${tbnMoveColor(q.dp)}" title="Today's move">${q.dp > 0 ? "▲" : "▼"} ${tbnPct(q.dp)}</span>` : ""}
+        ${N._isHeld(e) ? `<span class="nh-held" title="In your Webull positions">Held</span>` : ""}
+        ${lm ? `<span class="nh-move" style="color:${tbnMoveColor(lm.dp)}" title="${lm.pre ? "Pre-market move" : "Today's move"}">${lm.pre ? `<span class="nh-ext"><i>Pre</i></span>` : ""}${lm.dp > 0 ? "▲" : "▼"} ${tbnPct(lm.dp)}</span>` : ""}
+        ${lm && lm.after != null ? `<span class="nh-ext" title="After-hours move"><i>After</i><span style="color:${tbnMoveColor(lm.after)}">${tbnPct(lm.after)}</span></span>` : ""}
         ${(e.additionalTickers || []).length ? `<span class="nh-alt">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
         <span class="nh-ago">${tbnAgo(e.ts)}</span>
       </div>
@@ -5955,9 +6188,10 @@ TB.news = {
     else if (a === "f") N.setFilter({ [b.dataset.k]: b.dataset.k === "hours" ? +v : v });
     else if (a === "tick") N.setFilter({ selTickers: f.selTickers.includes(v) ? f.selTickers.filter(x => x !== v) : [...f.selTickers, v] });
     else if (a === "sec") N.setFilter({ selSectors: f.selSectors.includes(v) ? f.selSectors.filter(x => x !== v) : [...f.selSectors, v] });
-    else if (a === "tickall") N.setFilter({ selTickers: [] });
+    else if (a === "tickall") { N.heldOnly = false; N.setFilter({ selTickers: [] }); }
+    else if (a === "held") { N.heldOnly = !N.heldOnly; N.render(); }
     else if (a === "secall") N.setFilter({ selSectors: [] });
-    else if (a === "clear") N.setFilter({ selTickers: [], selSectors: [], sentFilter: "all", impFilter: "all" });
+    else if (a === "clear") { N.heldOnly = false; N.setFilter({ selTickers: [], selSectors: [], sentFilter: "all", impFilter: "all" }); }
     else if (a === "mover") { const t = b.dataset.t; const on = f.selTickers.length === 1 && f.selTickers[0] === t; N.setFilter({ selTickers: on ? [] : [t] }); }
     else if (a === "filters") { N.filtersOpen = !N.filtersOpen; N.render(); }
     else if (a === "p-time") N.setFilter({ sortBy: f.sortBy === "time" ? "impact" : "time" });

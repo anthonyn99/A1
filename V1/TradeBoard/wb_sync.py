@@ -527,11 +527,17 @@ def _merge_roundtrips(trades):
             "tags": rows[0]["tags"],
             "notes": f"Auto-imported {round(qty, 4)} {note_kind} "
                      f"({len(rows)} fills). Entry {span}, exit {exit_date}.",
+            "entryDate": eds[0],
         })
 
     out = passthrough + merged
     for t in out:
-        t.pop("_entry_date", None)
+        # The entry date goes to TradeBoard as `entryDate` (its Journal's Hold
+        # column, TradeHub's, 2026-11-09); it used to be dropped here. A merged
+        # row carries its earliest entry.
+        ed = t.pop("_entry_date", None)
+        if ed and "entryDate" not in t:
+            t["entryDate"] = ed
         t.pop("_asset", None)
     return out
 

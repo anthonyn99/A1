@@ -2984,10 +2984,15 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
   let rawCount = 0;
   for (let bi=0; bi<batches.length; bi++){
     for (const ev of batches[bi]){
-      if (enrichedIds.has(ev.id)) continue;     // already AI-enriched
+      if (enrichedIds.has(ev.id)) continue;     // already AI-enriched (or raw-filled)
       if (aiRejectedIds.has(ev.id)) continue;    // AI said off-watchlist → drop
       const primary = ev.candidateTickers?.[0] || '';
       if (!primary || !wlSet.has(primary)) continue;
+      // The omission pass appends its retry batches to `batches`, so an event
+      // that never got a verdict sits in its original batch AND in every retry
+      // batch. Without this, each copy was raw-filled: the same "Raw" card
+      // showed two or three times in a row (newshub-api, 2026-11-06).
+      enrichedIds.add(ev.id);
       const headline = ev.sources?.[0]?.headline || '';
       const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
       enriched.push({
@@ -3108,13 +3113,16 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
 // collected across all windows. Any event the AI didn't cover falls back to raw.
 function finalizeEvents(events, enrichedList, wl){
   const wlSet = new Set(wl);
-  const enriched = [...enrichedList];
-  const enrichedIds = new Set(enriched.map(e => e.id));
+  // A re-delivered aiwin kick appends its window's results a second time, so
+  // keep the first verdict per id (newshub-api's fix, ported 2026-11-09).
+  const enrichedIds = new Set();
+  const enriched = enrichedList.filter(e => !enrichedIds.has(e.id) && enrichedIds.add(e.id));
   let rawCount = 0;
   for (const ev of events){
     if (enrichedIds.has(ev.id)) continue;
     const primary = ev.candidateTickers?.[0] || '';
     if (!primary || !wlSet.has(primary)) continue;
+    enrichedIds.add(ev.id);   // one card per event, whatever the input repeats
     const headline = ev.sources?.[0]?.headline || '';
     const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
     enriched.push({
@@ -4083,16 +4091,24 @@ export default {
 
     if (url.pathname === '/quotes'){
       const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
-      const ckey = 'quotes:' + wlHash(tk);
+      // Cached in the Cache API, not KV: a News tab polls every few minutes, and
+      // a 5-minute quote copy written to KV cost one of the account's 1,000 daily
+      // writes per poll. caches.default costs nothing against any quota.
+      // (newshub-api's fix, ported 2026-11-09.)
+      const cacheReq = new Request('https://tbnews-cache.internal/quotes/' + wlHash(tk));
       if (url.searchParams.get('fresh') !== '1'){
         try {
-          const c = await env.NEWSHUB_CACHE.get(ckey, 'json');
-          if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+          const hit = await caches.default.match(cacheReq);
+          if (hit){ const c = await hit.json(); if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } }); }
         } catch(e){}
       }
       const quotes = await fetchQuotes(tk, env);
       const payload = { quotes, asOf: Date.now() };
-      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: QUOTES_TTL }).catch(()=>{}));
+      // Only a quote set that actually came back is cached, so a Finnhub blip is
+      // not served for five minutes.
+      if (quotes && Object.keys(quotes).length){
+        ctx.waitUntil(caches.default.put(cacheReq, new Response(JSON.stringify(payload), { headers:{ 'Content-Type':'application/json', 'Cache-Control':'max-age=' + QUOTES_TTL } })).catch(()=>{}));
+      }
       return new Response(JSON.stringify({ ok:true, ...payload }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
     }
 
@@ -4738,17 +4754,22 @@ export default {
     // used to pin the feed blank until 10am, with the morning auto-kick and the
     // Refresh button both short-circuiting on it, and only Force fresh (which
     // skips the cache entirely) able to escape. Empty = build again.
-    let cachedRaw = null, cachedHasEvents = false;
+    let cachedRaw = null, cachedHasEvents = false, cachedGen = 0;
     try {
       cachedRaw = await env.NEWSHUB_CACHE.get(cacheKey);
       if (cachedRaw){
-        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; }
+        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; cachedGen = +j.generatedAt || 0; }
         catch(e){ cachedHasEvents = false; }   // unparseable doc counts as failed
       }
     } catch(e){}
 
+    // Intraday refresh (see INTRADAY_REFRESH_MS): during the regular session a
+    // build older than 45 min is rebuilt on the ordinary path below.
+    const intradayDue = url.searchParams.get('intraday') === '1' && cachedHasEvents
+      && isRegularSessionET(Date.now()) && Date.now() - cachedGen > INTRADAY_REFRESH_MS;
+
     // Cache hit with REAL news → return immediately (free, no rate limit).
-    if (!fresh && cachedRaw && cachedHasEvents){
+    if (!fresh && cachedRaw && cachedHasEvents && !intradayDue){
       return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
     }
 
@@ -4896,6 +4917,31 @@ export default {
       { status: 202, headers: { ...cors(), 'Content-Type':'application/json' } });
   }
 };
+
+// ── Intraday news refresh (2026-11-03) ───────────────────────────────────────
+// The feed used to be built once (the 6 AM cron) and then only on demand, so
+// news breaking mid-session never reached TradeHub unless someone pressed
+// Refresh. TradeHub (and TradeBoard, since 2026-11-09) asks /news?intraday=1 every 15
+// minutes while the market is open; a build older than INTRADAY_REFRESH_MS is rebuilt on the ordinary
+// (non-fresh) path — the cheap sources, never the 12-a-day force budget — and
+// the build lock means one rebuild serves every device. Outside the regular
+// session (and on NYSE holidays) intraday=1 is an ordinary cache read.
+const INTRADAY_REFRESH_MS = 45 * 60 * 1000;
+function etClock(ms){
+  const p = new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short' })
+    .formatToParts(new Date(ms)).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  const hh = (+p.hour) % 24;
+  return { date: `${p.year}-${p.month}-${p.day}`, mins: hh * 60 + (+p.minute), weekday: p.weekday };
+}
+function isRegularSessionET(ms){
+  const c = etClock(ms);
+  if (c.weekday === 'Sat' || c.weekday === 'Sun') return false;
+  const { H, HD } = mktHolYear(+c.date.slice(0, 4));
+  if (H[c.date]) return false;
+  const close = HD[c.date] ? 13 * 60 : 16 * 60;
+  // Through a quarter hour past the close, so the closing-bell news lands too.
+  return c.mins >= 9 * 60 + 30 && c.mins <= close + 15;
+}
 
 // ── /market: the market at a glance, and extended-hours stock prices ────────
 // Yahoo Finance's public spark endpoint: one call for many symbols, no key,
