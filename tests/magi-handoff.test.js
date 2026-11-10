@@ -34,7 +34,7 @@ const ROOT = path.join(__dirname, '..');
 const M = require('./moved');
 if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); process.exit(0); }
 const TRADEHUB = M.read('tradehub.html');
-const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
+const MAGI = fs.readFileSync(process.env.MAGI_SRC || path.join(ROOT, 'magi.html'), 'utf8');
 // CRLF-normalised: with core.autocrlf the checkout is CRLF, and the patterns
 // below span lines with \n.
 const LAUNCH = fs.readFileSync(path.join(ROOT, 'tools', 'trading-auto-launch', 'launch.py'), 'utf8').replace(/\r\n/g, '\n');
