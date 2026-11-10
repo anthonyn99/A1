@@ -47,9 +47,11 @@ const worker = {
   const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 250; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(250); } return false; };
   const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath(name), Buffer.from(r.result.data, 'base64')); console.log('  shot ' + shotPath(name)); };
   const nav = (id) => js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent); t&&t.click(); 1`);
-  // Is the visible element whose text matches `re` blurred?
+  // Is the visible element whose text matches `re` blurred? Since 2026-11-10 the
+  // blur is a text-shadow over transparent glyphs (no filter: it lagged scroll).
+  const isBlur = "function(e){var cs=getComputedStyle(e); return cs.color==='rgba(0, 0, 0, 0)'&&cs.textShadow!=='none'&&!/blur/.test(cs.filter);}";
   const blurred = (re) => js(`var re=${re}; var el=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>e.offsetParent&&e.children.length===0&&re.test(e.textContent))[0];
-    if(!el) return 'missing'; for(var n=el;n&&n!==document.body;n=n.parentElement){ if(/blur/.test(getComputedStyle(n).filter)) return true; } return false;`);
+    if(!el) return 'missing'; return (${isBlur})(el);`);
   const btn = () => js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); if(!b) return null;
     var lock=b.nextElementSibling; return {pressed:b.getAttribute('aria-pressed'), nextIsLock:!!lock&&/^tb-lock-btn/.test(lock.id), left:b.getBoundingClientRect().right<=lock.getBoundingClientRect().left+1};`);
 
