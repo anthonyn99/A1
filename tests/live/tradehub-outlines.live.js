@@ -9,7 +9,8 @@
 // .tbp-tools or .tbmd-dir group (the group is the outline), the News pulse
 // cells and the Portfolio / Journal figure cells .tbf (cells of one bordered
 // strip), the rows of the trade form's fills list, the Control prompt rows (a list),
-// Notebook's own controls (Notebook's look), and the app header's LifeHub and
+// Notebook's own controls (Notebook's look), a news card's sources line .nh-outlets
+// (a disclosure row like the headline links it opens, 2026-11-09), and the app header's LifeHub and
 // lock buttons (apphead.js's).
 //
 // Run: node tests/live/tradehub-outlines.live.js [--list]   (TH_PAGE_FILE=<copy> for a copy)
@@ -35,7 +36,7 @@ const worker = { patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'http
   } };
 
 const AUDIT = `
-  const skip = (b) => b.closest('.tb-navtab,.tbtabs,.tbx-seg,.tbp-tools,.tbmd-dir,.nh-pulse,.tbf,.tbmd-legs,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock')
+  const skip = (b) => b.closest('.tb-navtab,.tbtabs,.tbx-seg,.tbp-tools,.tbmd-dir,.nh-pulse,.tbf,.tbmd-legs,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock,.nh-outlets')
     || b.classList.contains('a1-grip') || b.classList.contains('dsort-grip');
   const seen = (b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05; };
   const outlined = (b) => { const s = getComputedStyle(b);
