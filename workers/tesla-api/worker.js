@@ -406,11 +406,12 @@ async function handleVehicle(env, cors, wake) {
     t = { ...t, display_name: liveName };
     await env.TESLA_KV.put(KV_TOKENS, JSON.stringify(t));
   }
-  let wakeTried = false, wakeOk = false;
+  let wakeTried = false, wakeOk = false, wakeInfo = null;
 
   if (state !== 'online' && wake) {
     wakeTried = true;
-    wakeOk = await wakeVehicle(env, t);
+    wakeInfo = await wakeVehicle(env, t);
+    wakeOk = wakeInfo.ok;
     if (wakeOk) state = 'online';
   }
 
@@ -420,7 +421,13 @@ async function handleVehicle(env, cors, wake) {
     body.response = { ...body.response, state: state || 'offline' };
     // Tell the UI the wake was attempted and the car still didn't answer, so
     // it can say so instead of silently repeating stale numbers.
-    if (wakeTried) body.wake_failed = true;
+    if (wakeTried) {
+      body.wake_failed = true;
+      // Tesla's own answer to wake_up (status + error text, no identifiers),
+      // so a refused wake is told apart from a car that is out of signal.
+      body.wake_status = wakeInfo.status;
+      if (wakeInfo.error) body.wake_error = wakeInfo.error;
+    }
     return j(slimVehicle(body, t.display_name), 200, cors);
   }
 
@@ -508,10 +515,13 @@ async function placeLabel(env, lat, lon) {
 // by then it is genuinely unreachable (underground, no signal) and the caller
 // falls back to cache rather than hanging.
 async function wakeVehicle(env, t) {
+  let status = 0, error = null;
   const wake = async () => {
     try {
-      await postJson(`${env.TESLA_API_BASE}/api/1/vehicles/${t.vehicle_id}/wake_up`, t.access_token, {});
-    } catch (e) { /* the poll below is the real check */ }
+      const r = await postJson(`${env.TESLA_API_BASE}/api/1/vehicles/${t.vehicle_id}/wake_up`, t.access_token, {});
+      status = r.status;
+      error = r.ok ? null : String((r.body && (r.body.error_description || r.body.error)) || ('HTTP ' + r.status)).slice(0, 200);
+    } catch (e) { status = -1; error = String(e && e.message || e).slice(0, 200); }
   };
   await wake();
   // ~36s of polling (12 x 3s, ~14 subrequests — well under the 50 cap). A car
@@ -524,9 +534,9 @@ async function wakeVehicle(env, t) {
     const me = list.ok && Array.isArray(list.body.response)
       ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)
       : null;
-    if (me && me.state === 'online') return true;
+    if (me && me.state === 'online') return { ok: true, status, error: null };
   }
-  return false;
+  return { ok: false, status, error };
 }
 
 async function refreshToken(env, t) {
