@@ -180,7 +180,7 @@ const worker = {
   const dayCell = `(function(){ var t=[...document.querySelectorAll('#tradeboard-root table')].find(x=>[...x.querySelectorAll('thead th')].some(h=>h.textContent==='Day')); if(!t) return []; var i=[...t.querySelectorAll('thead th')].findIndex(h=>h.textContent==='Day'); return [...t.querySelectorAll('tbody tr')].map(r=>((r.cells[0]||{}).textContent||'')+' '+((r.cells[i]||{}).textContent||'')); })()`;
   ok('Positions: Day % from the live quote, not a fake +0.00%', await until(`${dayCell}.some(s=>/^NVDA\\b.* \\+2\\.29%$/.test(s))`, 8000),
     await js(`return ${dayCell}.join();`));
-  await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-chip')].find(x=>/^Activity/.test(x.textContent)); b.click(); 1`);
+  await js(`var b=[...document.querySelectorAll('#tradeboard-root button[role=tab]')].find(x=>/^Activity/.test(x.textContent)); b.click(); 1`);
   ok('it loads Webull\'s cash activity', await until(`document.querySelector('.tb-act-table')`, 8000));
   const tiles = () => js(`return [...document.querySelectorAll('.tb-act-tile')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ')`);
   await js(`[...document.querySelectorAll('.tb-act-bar .tbx-seg button')].find(x=>x.textContent==='1Y').click(); 1`); await sleep(300);
@@ -214,7 +214,7 @@ const worker = {
   await js(`window.location.reload(); 1`);
   await until("document.querySelector('.tb-navtab')", 20000);
   await tab('portfolio');
-  await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-chip')].find(x=>/^Activity/.test(x.textContent)); b.click(); 1`);
+  await js(`var b=[...document.querySelectorAll('#tradeboard-root button[role=tab]')].find(x=>/^Activity/.test(x.textContent)); b.click(); 1`);
   ok('Activity says what failed, with a retry', await until(`/did not return account activity/.test((document.querySelector('.tb-act-empty.is-err')||{}).innerText||'') && document.querySelector('.tb-act-empty.is-err button')`, 8000));
   S.activityFails = false;
   await js(`document.querySelector('.tb-act-empty.is-err button').click(); 1`);
