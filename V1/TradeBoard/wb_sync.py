@@ -229,6 +229,34 @@ def _iso_date(ts):
     return str(ts)[:10]
 
 
+def _iso_ts(ts):
+    """A fill time as ISO UTC ('2026-11-05T14:33:02Z'), for the Journal's time and
+    minute-level hold (TradeHub parity, 2026-11-09). Epoch s/ms and ISO strings
+    with a zone are converted; a zone-less string is passed through as Webull
+    sent it (the page reads it as given); nothing usable → None."""
+    if ts is None or ts == "":
+        return None
+    try:
+        s = str(ts).strip()
+        if isinstance(ts, (int, float)) or s.replace(".", "", 1).isdigit():
+            v = float(s)
+            secs = v / 1000 if v > 1e11 else v
+            return datetime.fromtimestamp(secs, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if len(s) >= 16 and s[4] == "-" and s[7] == "-":
+            s2 = s.replace(" ", "T", 1)
+            tail = s2[19:]
+            if s2.endswith("Z") or "+" in tail or "-" in tail:
+                z = s2[:-1] + "+00:00" if s2.endswith("Z") else s2
+                if len(z) >= 5 and z[-5] in "+-" and z[-3] != ":":
+                    z = z[:-2] + ":" + z[-2:]          # +0000 → +00:00
+                dt = datetime.fromisoformat(z)
+                return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return s2[:19]
+    except Exception:
+        return None
+    return None
+
+
 # ── accounts ─────────────────────────────────────────────────────────────────
 def resolve_account_id(trade, cfg):
     if cfg["account_id"]:
@@ -432,6 +460,9 @@ def pair_fifo(fills):
                              f"Entry {entry_date}, exit {f['date']}.",
                     "_entry_date": entry_date,
                     "_asset": asset,
+                    # Fill times: the Journal's time column and minute-level hold.
+                    "entryTime": _iso_ts(lot.get("ts")),
+                    "exitTime": _iso_ts(f.get("ts")),
                 })
 
             lot["fees"] -= lot["fees"] * (matched / lot["qty"]) if lot["qty"] else 0
@@ -458,6 +489,7 @@ def pair_fifo(fills):
                 "price": f["price"],
                 "fees": f["fees"] * (remaining / f["qty"] if f["qty"] else 0),
                 "date": f["date"],
+                "ts": f.get("ts"),
                 "mult": f.get("mult", 1),
                 "asset": f.get("asset", "stock"),
             })
@@ -480,6 +512,7 @@ def pair_fifo(fills):
                 "fees": round(lot["fees"], 2),
                 "tags": tags,
                 "notes": f"Open position opened {lot['date']}.",
+                "entryTime": _iso_ts(lot.get("ts")),
             })
 
     trades = _merge_roundtrips(trades)
@@ -528,6 +561,9 @@ def _merge_roundtrips(trades):
             "notes": f"Auto-imported {round(qty, 4)} {note_kind} "
                      f"({len(rows)} fills). Entry {span}, exit {exit_date}.",
             "entryDate": eds[0],
+            # The first fill in, the last fill out.
+            "entryTime": min((r["entryTime"] for r in rows if r.get("entryTime")), default=None),
+            "exitTime": max((r["exitTime"] for r in rows if r.get("exitTime")), default=None),
         })
 
     out = passthrough + merged
@@ -539,6 +575,9 @@ def _merge_roundtrips(trades):
         if ed and "entryDate" not in t:
             t["entryDate"] = ed
         t.pop("_asset", None)
+        for k in ("entryTime", "exitTime"):
+            if not t.get(k):
+                t.pop(k, None)
     return out
 
 

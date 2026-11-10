@@ -1253,10 +1253,25 @@
     .pf-m .m-card-val, .pf-m .m-card-facts span:nth-child(-n+2) b,
     #pf-tab-host .tbt:not(.tbt-pos) td.r, #pf-tab-host .tb-act-tile b, #pf-tab-host .tb-act-row b,
     #jr-stats .t-val, #jr-curve-meta > span, .tb-eq-tbl td.r, .tb-eq-foot b,
-    #jr-body :is(td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8)),
-    #jr-body td:nth-child(9) > span:not(.badge-open),
-    #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b
+    #jr-body .tbm, #jr-body .jr-res:not(.open),
+    #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b, #jr-cards .jr-res:not(.open)
   ) { filter: blur(.34em); user-select: none; -webkit-user-select: none; }
+  /* ...and nothing under the blur is green or red (2026-11-09): a blurred
+     figure's colour alone said win or loss. Every blurred figure reads in the
+     plain text colour, the Win / Loss / Wash result blurs with them (Open stays:
+     it is not a result), and the stat tiles drop their tints. */
+  html.tb-privacy :is(
+    #pf-hero .v, #pf-hero > div:nth-child(4) .s, #pf-details .v,
+    .tbt-pos :is(td:nth-child(2), td:nth-child(3), td:nth-child(5), td:nth-child(6)),
+    .pf-m .m-card-val, .pf-m .m-card-facts span:nth-child(-n+2) b,
+    #pf-tab-host .tbt:not(.tbt-pos) td.r, #pf-tab-host .tb-act-tile b, #pf-tab-host .tb-act-row b,
+    #jr-stats .t-val, #jr-curve-meta > span, .tb-eq-tbl td.r, .tb-eq-foot b,
+    #jr-body .tbm, #jr-body .jr-res:not(.open),
+    #jr-body .jr-day b, #jr-cards .m-day b, #jr-cards .m-card-val, #jr-cards .m-card-facts b, #jr-cards .jr-res:not(.open)
+  ), html.tb-privacy :is(#pf-hero .v, #pf-details .v, .tbt-pos :is(td:nth-child(5), td:nth-child(6)), .pf-m .m-card-val, #pf-tab-host td.r, #jr-stats .t-val, #jr-curve-meta > span, #jr-cards .m-card-val, .jr-res) * {
+    color: var(--text) !important;
+  }
+  html.tb-privacy .jr-res:not(.open)::before { background: var(--text) !important; }
   /* The equity curve is not drawn at all in display mode (TradeHub, 2026-11-09):
      a blur still shows the trend. Its table goes too (each row's colour gives
      the trend away), and a same-height placeholder takes the curve's place. */
@@ -1434,6 +1449,15 @@
 .jr-curve-tip{position:absolute;pointer-events:none;display:flex;flex-direction:column;gap:2px;min-width:130px;background:var(--bg-slot);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;color:var(--muted);box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:2;}
 .jr-curve-tip b{font-family:var(--mono);font-size:13px;}
 .jr-curve-tip[hidden],.jr-curve-dot[hidden]{display:none;}
+/* TradeHub's Journal columns (2026-11-09), her tokens: the result as a dot
+   and a word, a W / M source badge, quieter totals and hold. */
+.jr-res{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;}
+.jr-res::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+.jr-res.win{color:var(--green);}.jr-res.loss{color:var(--red);}.jr-res.open{color:var(--amber);}.jr-res.wash{color:var(--muted);}
+.jr-src{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border:1px solid var(--border);border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);}
+.jr-src.m{color:var(--text);border-color:var(--accent);}
+#jr-body td.jr-mut{color:var(--muted);}
+#jr-body td.jr-time{color:var(--text-2);white-space:nowrap;}
 .tb-eq-tog{display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:transparent;border:1px solid var(--border);border-radius:999px;color:var(--text-2);font-size:11.5px;font-weight:600;padding:4px 11px;}
 .tb-eq-tog:hover,.tb-eq-tog.on{border-color:var(--accent);color:var(--text);}
 .tb-eq-tog .chev{transition:transform .18s;}
@@ -1680,17 +1704,24 @@ window.TBDisplay = (function () {
         <thead>
           <tr>
             <th style="width:26px;"><input type="checkbox" class="checkbox" id="jr-select-all" onclick="TB.jr.toggleAll(this.checked)"></th>
-            <th class="sortable" data-sort="date" onclick="TB.jr.sortBy('date')">Date</th>
+            <!-- TradeHub's columns (2026-11-09): Time, Symbol, Result, Side, Qty,
+                 Entry, Exit, Ent Tot, Ext Tot, Hold, Realized P&L, P&L %, Setup,
+                 Notes, Src. Her select box and row actions stay either side. -->
+            <th class="sortable" data-sort="date" onclick="TB.jr.sortBy('date')">Time</th>
             <th class="sortable" data-sort="symbol" onclick="TB.jr.sortBy('symbol')">Symbol</th>
+            <th>Result</th>
             <th>Side</th>
             <th class="num sortable" data-sort="qty" onclick="TB.jr.sortBy('qty')">Qty</th>
-            <th class="num">Entry</th>
+            <th class="num sortable" data-sort="entry" onclick="TB.jr.sortBy('entry')">Entry</th>
             <th class="num">Exit</th>
-            <th class="num sortable" data-sort="pnl" onclick="TB.jr.sortBy('pnl')">P&amp;L</th>
-            <th class="num">Return</th>
+            <th class="num">Ent Tot</th>
+            <th class="num">Ext Tot</th>
             <th class="num" title="How long the position was held (entry to exit)">Hold</th>
-            <th>Tags</th>
+            <th class="num sortable" data-sort="pnl" onclick="TB.jr.sortBy('pnl')">Realized P&amp;L</th>
+            <th class="num">P&amp;L %</th>
+            <th>Setup</th>
             <th>Notes</th>
+            <th>Src</th>
             <th></th>
           </tr>
         </thead>
@@ -1873,6 +1904,12 @@ window.TBDisplay = (function () {
       <div class="form-row"><label>Symbol <span class="hint">— required</span></label>
         <input class="form-input mono" id="jr-f-symbol" placeholder="AAPL" style="text-transform:uppercase"></div>
     </div>
+    <!-- Times give the Journal its Time column and a minute-level Hold, as
+         TradeHub's (2026-11-09). Closed sets the trade's day. -->
+    <div class="form-grid">
+      <div class="form-row"><label>Opened <span class="hint">— optional</span></label><input class="form-input mono" type="datetime-local" id="jr-f-opened"></div>
+      <div class="form-row"><label>Closed <span class="hint">— optional</span></label><input class="form-input mono" type="datetime-local" id="jr-f-closed"></div>
+    </div>
     <div class="form-grid-3">
       <div class="form-row"><label>Side</label>
         <select class="select" id="jr-f-form-side" style="width:100%"><option value="long">Long</option><option value="short">Short</option></select></div>
@@ -1894,7 +1931,7 @@ window.TBDisplay = (function () {
     <div class="form-err" id="jr-f-err">Enter a symbol, quantity, and entry price (all numeric).</div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="TB.jr.closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="jr-modal-save" onclick="TB.jr.save()">Log trade</button>
+      <button class="btn btn-primary" id="jr-modal-save" onclick="TB.jr.saveForm()">Log trade</button>
     </div>
   </div>
 </div>
@@ -3160,18 +3197,60 @@ TB.jr = {
       // closed trade `date` is the exit). Kept for the Hold column (TradeHub's,
       // 2026-11-09); it used to be dropped here.
       ...((() => { const e = t.entryDate || t._entry_date; return /^\d{4}-\d{2}-\d{2}/.test(e || "") ? { entryDate: String(e).slice(0, 10) } : {}; })()),
+      // Fill times (wb_sync.py, or the form's Opened / Closed): the time column
+      // and minute-level hold, as TradeHub's (2026-11-09).
+      ...(TB.jr._ms(t.entryTime) != null ? { entryTime: String(t.entryTime) } : {}),
+      ...(TB.jr._ms(t.exitTime) != null ? { exitTime: String(t.exitTime) } : {}),
     };
   },
-  // Hold time in days, entry to exit (open: to today). "" when the entry date isn't known.
+  // An ISO time as the datetime-local field's value (her own clock).
+  _localDT(v) { const n = TB.jr._ms(v); if (n == null) return ""; const d = new Date(n), p = x => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; },
+  _ms(v) { if (!v) return null; const n = Date.parse(v); return isNaN(n) ? null : n; },
+  // When the trade sits on the list: when it closed, else when it opened.
+  _when(t) { return TB.jr._ms(TB.jr.isOpen(t) ? t.entryTime : (t.exitTime || null)); },
+  /* Hold time, TradeHub's way: entry to exit in minutes under an hour, hours
+     under a day, then days. An open trade has none (as TradeHub). Trades from
+     before the sync sent times fall back to whole days (entryDate → date). */
   holdLabel(t) {
+    if (TB.jr.isOpen(t)) return "";
+    const a = TB.jr._ms(t.entryTime), b = TB.jr._ms(t.exitTime);
+    if (a != null && b != null && b >= a) {
+      const mins = Math.floor((b - a) / 60000);
+      if (mins < 60) return mins + " min";
+      if (mins < 1440) return Math.round(mins / 60) + " hr";
+      const d = Math.round(mins / 1440); return d + (d === 1 ? " day" : " days");
+    }
     const day = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
-    const open = TB.jr.isOpen(t);
-    const a = day(open ? (t.entryDate || t.date) : t.entryDate);
-    if (a == null) return "";
-    const now = new Date(), b = open ? Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) : day(t.date);
-    if (b == null || b < a) return "";
-    const n = Math.round((b - a) / 86400000);
+    const x = day(t.entryDate), y = day(t.date);
+    if (x == null || y == null || y < x) return "";
+    const n = Math.round((y - x) / 86400000);
     return n === 0 ? "same day" : n === 1 ? "1 day" : n + " days";
+  },
+  // WIN / LOSS / WASH / OPEN (TradeHub's Result column).
+  result(t) {
+    if (TB.jr.isOpen(t)) return "open";
+    const p = TB.jr.pnl(t);
+    return p > 0 ? "win" : p < 0 ? "loss" : "wash";
+  },
+  // Tags that say where a trade came from, not how it was traded.
+  SYS_TAGS: ["webull", "broker", "open", "option"],
+  setupTags(t) { return (t.tags || []).filter(x => !TB.jr.SYS_TAGS.includes(String(x).toLowerCase())); },
+  // Grouped by day (the date sort) a row shows its time, as TradeHub; otherwise
+  // its date. A trade with no time (logged by date only) shows "—" under its day.
+  timeLabel(t, timeOnly) {
+    const ms = TB.jr._when(t);
+    if (timeOnly) return ms != null ? new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—";
+    if (ms != null) return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t.date || "");
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  },
+  resultBadge(t) {
+    const r = TB.jr.result(t);
+    return `<span class="jr-res ${r}">${{ win: "Win", loss: "Loss", wash: "Wash", open: "Open" }[r]}</span>`;
+  },
+  srcBadge(t) {
+    return TB.jr.isBroker(t) ? '<span class="jr-src" title="From Webull">W</span>' : '<span class="jr-src m" title="Entered or edited by hand">M</span>';
   },
 
   // ── stats ───────────────────────────────────────────────────────────────────
@@ -3345,7 +3424,9 @@ TB.jr = {
     rows.sort((a, b) => {
       let av, bv;
       if (k === "pnl") { av = TB.jr.pnl(a) ?? -Infinity; bv = TB.jr.pnl(b) ?? -Infinity; }
-      else if (k === "qty") { av = a.qty; bv = b.qty; }
+      else if (k === "qty" || k === "entry") { av = Number(a[k]) || 0; bv = Number(b[k]) || 0; }
+      // By day, then by time within it (trades without a time keep the day's end).
+      else if (k === "date") { av = (a.date || "") + "|" + String(TB.jr._when(a) ?? 9e15).padStart(16, "0"); bv = (b.date || "") + "|" + String(TB.jr._when(b) ?? 9e15).padStart(16, "0"); }
       else { av = a[k]; bv = b[k]; }
       if (av < bv) return -1 * dir; if (av > bv) return 1 * dir;
       return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
@@ -3480,7 +3561,7 @@ TB.jr = {
     // Phone card list is rendered alongside the table; CSS shows one or the other.
     TB.jr._renderCards(rows);
     if (rows.length === 0) {
-      body.innerHTML = `<tr><td colspan="13" class="table-empty">${
+      body.innerHTML = `<tr><td colspan="17" class="table-empty">${
         TB.jr.trades.length === 0 ? "No trades yet.<br>Click “Manual trade” or sync from your broker."
           : "No trades match the current filters."}</td></tr>`;
       return;
@@ -3488,29 +3569,34 @@ TB.jr = {
     const byDay = TB.jr.sortKey === "date";
     const dayHead = {};
     if (byDay) TB.jr._dayGroups(rows).forEach(g => { dayHead[g.items[0].id] = g; });
+    const dash = '<span style="color:var(--border)">—</span>';
     body.innerHTML = rows.map(t => {
       const open = TB.jr.isOpen(t), p = TB.jr.pnl(t), pct = TB.jr.pct(t);
       const sel = TB.jr.selected.has(t.id);
       const g = dayHead[t.id];
-      const head = g ? `<tr class="jr-day"><td colspan="13">${TB.jr._dayLabel(g.key)}<span class="jr-day-n">${g.items.length} trade${g.items.length === 1 ? "" : "s"} · net</span>${TB.jr._dayNet(g)}</td></tr>` : "";
+      const head = g ? `<tr class="jr-day"><td colspan="17">${TB.jr._dayLabel(g.key)}<span class="jr-day-n">${g.items.length} trade${g.items.length === 1 ? "" : "s"} · net</span>${TB.jr._dayNet(g)}</td></tr>` : "";
       const sideBadge = t.side === "short" ? '<span class="badge badge-short">Short</span>' : '<span class="badge badge-long">Long</span>';
-      const pnlCell = open ? '<span style="color:var(--muted)">—</span>' : `<span class="${U.pnClass(p)}">${U.signedMoney(p)}</span>`;
-      const pctCell = open ? '<span class="badge badge-open">Open</span>' : `<span class="${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span>`;
-      const tags = (t.tags || []).map(x => `<span class="tag">${U.esc(x)}</span>`).join("") || '<span style="color:var(--border)">—</span>';
+      const qty = Number(t.qty) || 0;
+      const setups = TB.jr.setupTags(t).map(x => `<span class="tag">${U.esc(x)}</span>`).join("") || dash;
       const notes = t.notes ? U.esc(t.notes) : "";
+      const hold = TB.jr.holdLabel(t);
       return head + `<tr data-id="${t.id}" class="${sel ? "sel" : ""}">
         <td><input type="checkbox" class="checkbox" ${sel ? "checked" : ""} onclick="TB.jr.toggleRow('${t.id}', this.checked)"></td>
-        <td class="mono">${U.esc(t.date || "")}</td>
+        <td class="mono jr-time">${U.esc(TB.jr.timeLabel(t, byDay))}</td>
         <td class="sym">${U.esc(t.symbol)}</td>
+        <td>${TB.jr.resultBadge(t)}</td>
         <td>${sideBadge}</td>
-        <td class="num mono">${U.esc(String(t.qty))}</td>
-        <td class="num mono">${U.num(t.entry)}</td>
-        <td class="num mono">${open ? '<span style="color:var(--muted)">—</span>' : U.num(t.exit)}</td>
-        <td class="num mono">${pnlCell}</td>
-        <td class="num mono">${pctCell}</td>
-        <td class="num">${TB.jr.holdLabel(t) ? U.esc(TB.jr.holdLabel(t)) : '<span style="color:var(--border)">—</span>'}</td>
-        <td>${tags}</td>
-        <td class="notes-cell" title="${notes}">${notes || '<span style="color:var(--border)">—</span>'}</td>
+        <td class="num mono"><span class="tbm">${U.esc(String(t.qty))}</span></td>
+        <td class="num mono"><span class="tbm">${U.money(Number(t.entry) || 0)}</span></td>
+        <td class="num mono">${open ? dash : `<span class="tbm">${U.money(Number(t.exit) || 0)}</span>`}</td>
+        <td class="num mono jr-mut"><span class="tbm">${U.money((Number(t.entry) || 0) * qty)}</span></td>
+        <td class="num mono jr-mut">${open ? dash : `<span class="tbm">${U.money((Number(t.exit) || 0) * qty)}</span>`}</td>
+        <td class="num jr-mut">${hold ? U.esc(hold) : dash}</td>
+        <td class="num mono">${open ? dash : `<span class="tbm ${U.pnClass(p)}">${U.signedMoney(p)}</span>`}</td>
+        <td class="num mono">${open ? dash : `<span class="tbm ${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</span>`}</td>
+        <td>${setups}</td>
+        <td class="notes-cell" title="${notes}">${notes || dash}</td>
+        <td>${TB.jr.srcBadge(t)}</td>
         <td><div class="row-actions">
           <button class="btn-icon" title="Edit" aria-label="Edit" onclick="TB.jr.openEdit('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
           <button class="btn-icon danger" title="Delete" aria-label="Delete" onclick="TB.jr.remove('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
@@ -3543,7 +3629,7 @@ TB.jr = {
         ? '<div class="v1" style="color:var(--muted)">—</div><div class="v2"><span class="badge badge-open">Open</span></div>'
         : `<div class="v1 ${U.pnClass(p)}">${U.signedMoney(p)}</div>
            <div class="v2 ${U.pnClass(pct)}">${(pct > 0 ? "+" : "") + U.num(pct, 2)}%</div>`;
-      const tags = (t.tags || []).map(x => `<span class="tag">${U.esc(x)}</span>`).join("");
+      const tags = TB.jr.setupTags(t).map(x => `<span class="tag">${U.esc(x)}</span>`).join("");
       return head + `<div class="m-card ${sel ? "sel" : ""}" data-id="${t.id}">
         <div class="m-card-top">
           <div class="m-card-id">
@@ -3551,15 +3637,17 @@ TB.jr = {
                    onclick="TB.jr.toggleRow('${t.id}', this.checked)">
             <span class="sym">${U.esc(t.symbol)}</span>
             ${sideBadge}
+            ${TB.jr.resultBadge(t)}
+            ${TB.jr.isBroker(t) ? "" : TB.jr.srcBadge(t)}
           </div>
           <div class="m-card-val">${val}</div>
         </div>
         <div class="m-card-facts">
-          <span>${U.esc(t.date || "—")}</span>
+          <span>${U.esc(TB.jr.timeLabel(t, TB.jr.sortKey === "date") === "—" ? (t.date || "—") : TB.jr.timeLabel(t, TB.jr.sortKey === "date"))}</span>
           <span><b>${U.esc(String(t.qty))}</b> sh</span>
-          <span>In <b>${U.num(t.entry)}</b></span>
-          ${open ? "" : `<span>Out <b>${U.num(t.exit)}</b></span>`}
-          ${TB.jr.holdLabel(t) ? `<span>Held ${U.esc(TB.jr.holdLabel(t))}</span>` : ""}
+          <span>In <b>${U.money(Number(t.entry) || 0)}</b></span>
+          ${open ? "" : `<span>Out <b>${U.money(Number(t.exit) || 0)}</b></span>`}
+          ${TB.jr.holdLabel(t) ? `<span>${U.esc(TB.jr.holdLabel(t))}</span>` : ""}
         </div>
         ${tags ? `<div class="m-card-tags">${tags}</div>` : ""}
         ${t.notes ? `<div class="m-card-notes">${U.esc(t.notes)}</div>` : ""}
@@ -3578,6 +3666,7 @@ TB.jr = {
     document.getElementById("jr-modal-save").textContent = "Log trade";
     ["symbol", "qty", "fees", "entry", "exit", "tags", "notes"].forEach(f => document.getElementById("jr-f-" + f).value = "");
     document.getElementById("jr-f-date").value = U.todayISO();
+    document.getElementById("jr-f-opened").value = ""; document.getElementById("jr-f-closed").value = "";
     document.getElementById("jr-f-form-side").value = "long";
     document.getElementById("jr-f-err").classList.remove("show");
     document.getElementById("jr-modal").classList.add("open");
@@ -3589,6 +3678,8 @@ TB.jr = {
     document.getElementById("jr-modal-title").textContent = "Edit trade";
     document.getElementById("jr-modal-save").textContent = "Save changes";
     document.getElementById("jr-f-date").value = t.date || U.todayISO();
+    document.getElementById("jr-f-opened").value = TB.jr._localDT(t.entryTime);
+    document.getElementById("jr-f-closed").value = TB.jr.isOpen(t) ? "" : TB.jr._localDT(t.exitTime);
     document.getElementById("jr-f-symbol").value = t.symbol || "";
     document.getElementById("jr-f-form-side").value = t.side || "long";
     document.getElementById("jr-f-qty").value = t.qty;
@@ -3602,7 +3693,11 @@ TB.jr = {
     document.getElementById("jr-f-symbol").focus();
   },
   closeModal() { document.getElementById("jr-modal").classList.remove("open"); },
-  save() {
+  // The Manual trade form's Save. It was ALSO named save(), so it replaced the
+  // journal's save() (TBStore) in this object: every delete, re-merge, tag and
+  // broker merge ran the form instead and stored nothing, and logging a trade
+  // re-entered itself (2026-11-09).
+  saveForm() {
     const g = id => document.getElementById(id).value;
     const date = g("jr-f-date") || U.todayISO();
     const symbol = g("jr-f-symbol").trim().toUpperCase();
@@ -3615,12 +3710,22 @@ TB.jr = {
     const tags = U.parseTags(g("jr-f-tags"));
     const notes = g("jr-f-notes").trim();
     if (!symbol || !isFinite(qty) || qty <= 0 || !isFinite(entry) || (exitRaw !== "" && !isFinite(exit))) {
-      document.getElementById("jr-f-err").classList.add("show"); return;
+      const er = document.getElementById("jr-f-err"); er.textContent = "Enter a symbol, quantity, and entry price (all numeric)."; er.classList.add("show"); return;
     }
-    const data = { date, symbol, side, qty, fees, entry, exit, tags, notes };
+    const opened = g("jr-f-opened"), closed = exit === null ? "" : g("jr-f-closed");
+    const iso = v => { const n = Date.parse(v); return isNaN(n) ? null : new Date(n).toISOString(); };
+    const entryTime = opened ? iso(opened) : null, exitTime = closed ? iso(closed) : null;
+    if (entryTime && exitTime && Date.parse(exitTime) < Date.parse(entryTime)) { const er = document.getElementById("jr-f-err"); er.textContent = "Closed is before Opened."; er.classList.add("show"); return; }
+    // Closed sets the day the trade sits on; an open trade with an Opened time sits on that day.
+    const day = closed ? closed.slice(0, 10) : (exit === null && opened ? opened.slice(0, 10) : date);
+    const data = { date: day, symbol, side, qty, fees, entry, exit, tags, notes };
+    const timeFields = t => {
+      if (entryTime) { t.entryTime = entryTime; t.entryDate = opened.slice(0, 10); } else { delete t.entryTime; }
+      if (exitTime) t.exitTime = exitTime; else delete t.exitTime;
+    };
     if (TB.jr.editingId) {
-      const t = TB.jr.trades.find(x => x.id === TB.jr.editingId); if (t) Object.assign(t, data);
-    } else { TB.jr.trades.push({ id: U.uid(), ...data }); }
+      const t = TB.jr.trades.find(x => x.id === TB.jr.editingId); if (t) { Object.assign(t, data); timeFields(t); }
+    } else { const t = { id: U.uid(), ...data }; timeFields(t); TB.jr.trades.push(t); }
     TB.jr.save(); TB.jr.render(); TB.jr.closeModal();
     U.toast(TB.jr.editingId ? "Trade updated." : "Trade logged.", "ok");
   },
@@ -3655,7 +3760,7 @@ TB.jr = {
     const current = TB.jr.trades.filter(TB.jr.isBroker);
     // The entry date counts, so trades stored before it was kept pick it up on
     // the next sync (otherwise identical keys would skip the merge forever).
-    const key = t => TB.jr.tradeKey(t) + "|" + (t.entryDate || "");
+    const key = t => TB.jr.tradeKey(t) + "|" + (t.entryDate || "") + "|" + (t.entryTime || "") + "|" + (t.exitTime || "");
     const before = current.map(key).sort().join("\n");
     const after = incoming.map(key).sort().join("\n");
     if (before === after) return { changed: false, n: incoming.length };
@@ -6292,7 +6397,7 @@ TB.nav = {
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") TB.jr.closeModal();
     if (e.key === "Enter" && document.getElementById("jr-modal").classList.contains("open")
-        && e.target.id !== "jr-f-notes" && !e.shiftKey) { e.preventDefault(); TB.jr.save(); }
+        && e.target.id !== "jr-f-notes" && !e.shiftKey) { e.preventDefault(); TB.jr.saveForm(); }
   });
 
   // market clock ticks every second; portfolio refreshes it
