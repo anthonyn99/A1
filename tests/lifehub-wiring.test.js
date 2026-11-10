@@ -286,7 +286,8 @@ console.log('\nIcons');
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
   const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
-    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'V1/wellness.html', studyos: 'V1/studyos.html', shruti: 'Shruti/shruti.html' };
+    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'V1/wellness.html', studyos: 'V1/studyos.html', shruti: 'Shruti/shruti.html',
+    orca: '../ORCA/app/web/templates/base.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
   const favicon = (f) => {
@@ -303,7 +304,11 @@ console.log('\nIcons');
     if (!fs.existsSync(path.join(ROOT, PAGES[k]))) { console.log('  skip ' + k + ' (' + PAGES[k] + ' not here)'); return; }
     ok('LifeHub\'s ' + k + ' icon is ' + PAGES[k] + '\'s favicon', svgs[k] === favicon(PAGES[k]), 'update ICONS.' + k + ' in LifeHub/lifehub.js');
   });
-  ok('every built-in icon is checked (a new one belongs in PAGES)', iconKeys.every((k) => PAGES[k] || k === 'shield-desktop' || k === 'link'), iconKeys.join());
+  ok('every built-in icon is checked (a new one belongs in PAGES)', iconKeys.every((k) => PAGES[k] || k === 'shield-desktop' || k === 'link' || k === 'reserv'), iconKeys.join());
+  // Reserv (Veda's RESERV repo) serves its icon as a file, not a data: link.
+  const rsv = path.join(ROOT, '../RESERV/frontend/public/icon.svg');
+  if (fs.existsSync(rsv)) ok("LifeHub's reserv icon is RESERV's icon.svg", svgs.reserv === fs.readFileSync(rsv, 'utf8').replace(/"/g, "'").replace(/>\s+</g, '><').trim(), 'update ICONS.reserv in LifeHub/lifehub.js');
+  else console.log('  skip reserv (RESERV not here)');
   const wk = read('workers/lifehub-icon/worker.js');
   ok('the icon worker says when it could not read the page', /read: !!html/.test(wk));
   ok('…and LifeHub then reads the page itself, keeping the worker\'s guess as a fallback',
