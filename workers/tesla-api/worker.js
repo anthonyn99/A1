@@ -41,7 +41,8 @@
 //          every time, or the next refresh would fail with invalid_grant).
 //          Cheap /api/1/vehicles list call first to read sleep state WITHOUT
 //          risking a wake; only calls the heavier vehicle_data endpoint when
-//          the car is already online. NEVER calls wake_up — a sleeping car
+//          the car is already online. Calls wake_up ONLY for ?wake=1 (the
+//          panel's refresh button); otherwise a sleeping car
 //          stays asleep and the widget gets the last cached reading with
 //          state:"asleep", which is what backs its own poll interval off to
 //          5 minutes instead of 60 seconds.
