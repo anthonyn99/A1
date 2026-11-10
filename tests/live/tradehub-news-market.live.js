@@ -175,8 +175,11 @@ const worker = {
   console.log('\n3. Portfolio ▸ Activity');
   await tab('portfolio');
   // Webull's positions carry no daily change; Day % comes from the live quote.
-  ok('Positions: Day % from the live quote, not a fake +0.00%', await until(`[...document.querySelectorAll('#tradeboard-root table tbody tr')].some(r=>r.cells[0].textContent==='NVDA'&&r.cells[7].textContent==='+2.29%')`, 8000),
-    await js(`return [...document.querySelectorAll('#tradeboard-root table tbody tr')].map(r=>r.cells[0].textContent+' '+(r.cells[7]||{}).textContent).join();`));
+  // The Day column is found by its header (the 2026-11-04 Portfolio dropped a
+  // column, and the totals row has fewer cells than a position row).
+  const dayCell = `(function(){ var t=[...document.querySelectorAll('#tradeboard-root table')].find(x=>[...x.querySelectorAll('thead th')].some(h=>h.textContent==='Day')); if(!t) return []; var i=[...t.querySelectorAll('thead th')].findIndex(h=>h.textContent==='Day'); return [...t.querySelectorAll('tbody tr')].map(r=>((r.cells[0]||{}).textContent||'')+' '+((r.cells[i]||{}).textContent||'')); })()`;
+  ok('Positions: Day % from the live quote, not a fake +0.00%', await until(`${dayCell}.some(s=>/^NVDA\\b.* \\+2\\.29%$/.test(s))`, 8000),
+    await js(`return ${dayCell}.join();`));
   await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-chip')].find(x=>/^Activity/.test(x.textContent)); b.click(); 1`);
   ok('it loads Webull\'s cash activity', await until(`document.querySelector('.tb-act-table')`, 8000));
   const tiles = () => js(`return [...document.querySelectorAll('.tb-act-tile')].map(t=>t.innerText.replace(/\\s+/g,' ')).join(' | ')`);
