@@ -118,3 +118,73 @@ a ticker in her Webull positions carry a **Held** badge.
 
 `node tests/live/tradeboard-portfolio.live.js` (Portfolio, Journal, the strip,
 390px) and `py -3 tests/wb-portfolio.test.py` (the sync's new reads, offline).
+
+# Parity sweep with TradeHub (2026-11-09)
+
+Tony asked for every feature TradeBoard and TradeHub share to carry the same
+information and the same fixes, both ways. What each program has alone stays
+its own: TradeHub's Catalysts, Analysis, Prompts, Webull Sync button, CSV import
+and journal backups; TradeBoard's Rules checklist, Apps and tag filter.
+
+## TradeBoard got from TradeHub
+
+- **Display mode hides the equity curve**: the curve, its dates, tooltip and
+  table are not drawn; a dashed "Chart hidden in display mode" box keeps the
+  space. A blur still showed the trend.
+- **Equity curve**: 1M / 3M / 6M / YTD / 1Y / All (a range re-bases the curve to
+  P&L over the period), the first and last date under it, and a hover tooltip
+  (equity, date · symbol, that trade's P&L). The table follows the range.
+- **Journal Hold column**: entry to exit in days. `wb_sync.py` now sends each
+  round trip's entry date as `entryDate` (it used to drop `_entry_date`; a
+  merged row carries its earliest). `TB.jr.normalize` keeps it, and
+  `mergeBroker` counts a newly arrived entry date as a change so stored trades
+  pick it up on the next sync.
+- **Portfolio Day %** from the live quote (her worker's `/market`, then
+  `/quotes`) when Webull sends none; Webull's figure is the fallback. Read at
+  most every 5 minutes.
+- **News**: the movers and cards lead with the pre-market move before the open,
+  show the after-hours move and a sparkline (`tbnLiveMove`: Yahoo via `/market
+  ?tickers=`, Finnhub as the fallback); a dot marks a mover she holds; a story is
+  Held when any of its tickers is held; a Held chip filters (with a tag and
+  Clear all); Held stories come first in Impact order (minor ones excepted).
+- **Intraday news**: every 15 minutes in the regular session (through 4:15 PM
+  ET, holidays and half days from `tbMktState`) the page asks
+  `/news?intraday=1`; the worker rebuilds a feed older than 45 minutes on the
+  ordinary path, never the 12-a-day force budget.
+- **Raw-build retry**: a build with no AI analysis is retried once with a fresh
+  build: once per build, 15 minutes apart, at most 3 a day, never while a build
+  is running or with no force refreshes left (`tradeboard_news_raw_retry`).
+
+Her worker (`V1/workers/tradeboard-news`) got newshub-api's fixes: one card per
+event (a re-delivered AI window and the omission retries used to show a story
+two or three times), the intraday rebuild, and `/quotes` cached in the Cache
+API (it spent a KV write on every poll) and only when quotes came back.
+
+## TradeHub got from TradeBoard
+
+- **Journal stats**: Expectancy, Largest win, Largest loss and the current
+  Streak beside win rate, wins, losses, open and profit factor (four across on
+  desktop, so the card keeps the curve's height; blurred in display mode).
+- **Journal filters**: Side (Long / Short) and Source (Webull / Manual / CSV),
+  with Clear.
+
+## Bugs fixed on the way
+
+- TradeHub asked Webull for quotes twice when News and Portfolio asked at the
+  same moment, before either learned Webull has no market data, and kept asking
+  inside the 6-hour back-off whenever two requests overlapped. A second caller
+  now waits for the first answer (`_tbMdProbe`).
+- TradeHub's Hold read "1 days".
+- TradeBoard's hover tooltip box showed empty under the curve (`display:flex`
+  beat the `hidden` attribute).
+- Two stale live tests: `tradehub-news-market` read the Day % by a column index
+  the 2026-11-04 Portfolio had moved, and clicked an Activity chip class that no
+  longer exists; `tradehub-outlines` didn't know about the cards' sources line
+  (`.nh-outlets`, a disclosure row).
+
+## Tests
+
+`node tests/live/tradeboard-parity.live.js` and
+`node tests/live/tradehub-parity.live.js` (both pages, real code, fake workers),
+`node tests/tradeboard-news-parity.test.js` (her worker against newshub-api's
+fixes) and `py -3 tests/wb-portfolio.test.py` (the entry dates).
