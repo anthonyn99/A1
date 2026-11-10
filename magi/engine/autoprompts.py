@@ -332,7 +332,10 @@ async def run_job(job: str, key: str, *, start_run, get_run, is_done, available,
     body = result_body(job, key, prompt, run)
     ok, err = await asyncio.to_thread(push, body)
     return {"ok": ok, "error": err, "run_id": run_id, "units": units, "src": prompt["src"],
-            "responded": responded, "at": int(time.time() * 1000)}
+            "responded": responded, "at": int(time.time() * 1000),
+            # Kept only when the push failed: the next tick re-sends it rather
+            # than asking the council again.
+            **({} if ok else {"pending": body})}
 
 
 _lock = asyncio.Lock()
@@ -353,29 +356,47 @@ async def tick(*, now=None, force: str = "", **engine) -> list[dict]:
             key = n.date().isoformat() if force == "movers" else (n.date() - timedelta(days=(n.weekday() - 5) % 7)).isoformat()
             jobs.append((force, key))
         out = []
+        nowms = int(now.timestamp() * 1000)
         for job, key in jobs:
+            tk = f"{job}:{key}"
+            retry = (state.get("retry") or {}).get(tk, 0)
+            if not force and retry > nowms:
+                continue                   # a failed try waits RETRY_MIN before the next
+            last = (state.get("last") or {}).get(job) or {}
             try:
-                rec = await run_job(job, key, **engine)
+                if last.get("for") == key and last.get("pending"):
+                    # The council answered but the push failed: send that again.
+                    ok, err = await asyncio.to_thread(push, last["pending"])
+                    rec = {**{k: v for k, v in last.items() if k != "pending"}, "ok": ok, "error": err,
+                           "at": int(time.time() * 1000), **({} if ok else {"pending": last["pending"]})}
+                else:
+                    rec = await run_job(job, key, **engine)
             except Exception as e:  # noqa: BLE001
                 rec = {"ok": False, "error": f"{type(e).__name__}: {e}", "at": int(time.time() * 1000)}
-            rec = {"job": job, "for": key, **rec}
+            rec = {**rec, "job": job, "for": key}
             state.setdefault("last", {})[job] = rec
             # Done for that day only when the answer reached TradeHub. A failed
-            # push or an empty council retries on the next tick... at most
-            # MAX_TRIES times per day, so a broken unit cannot loop all evening.
+            # council retries RETRY_MIN later, at most MAX_TRIES councils a day,
+            # so a broken unit cannot spend the accounts all evening. A failed
+            # push alone retries without a council (above), each tick.
             tries = state.setdefault("tries", {})
-            tk = f"{job}:{key}"
-            tries[tk] = tries.get(tk, 0) + 1
-            if rec.get("ok") or tries[tk] >= MAX_TRIES:
+            if not (last.get("for") == key and last.get("pending")):
+                tries[tk] = tries.get(tk, 0) + 1
+            if rec.get("ok") or (tries.get(tk, 0) >= MAX_TRIES and not rec.get("pending")):
                 state.setdefault("done", {})[job] = key
-            # Keep the tries map small.
-            state["tries"] = {k: v for k, v in tries.items() if k.split(":", 1)[1] >= (now.astimezone(ET).date() - timedelta(days=9)).isoformat()}
+            elif not rec.get("pending"):
+                state.setdefault("retry", {})[tk] = nowms + RETRY_MIN * 60000
+            # Keep the maps small.
+            cutoff = (now.astimezone(ET).date() - timedelta(days=9)).isoformat()
+            state["tries"] = {k: v for k, v in tries.items() if k.split(":", 1)[1] >= cutoff}
+            state["retry"] = {k: v for k, v in (state.get("retry") or {}).items() if k.split(":", 1)[1] >= cutoff}
             save_state(state)
-            out.append(rec)
+            out.append({k: v for k, v in rec.items() if k != "pending"})
         return out
 
 
 MAX_TRIES = 3
+RETRY_MIN = 20
 
 
 def status(now=None) -> dict:
