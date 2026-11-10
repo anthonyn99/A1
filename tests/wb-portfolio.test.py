@@ -11,7 +11,7 @@ import importlib.util, json, os, sys, tempfile, time, types
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "..", "V1", "TradeBoard", "wb_sync.py")
+SRC = os.environ.get('WB_SRC') or os.path.join(HERE, "..", "V1", "TradeBoard", "wb_sync.py")
 # The SDK is only on Veda's PC: stand-ins let the module load here.
 for name in ("webull", "webull.core", "webull.core.client", "webull.trade", "webull.trade.trade_client"):
     sys.modules.setdefault(name, types.ModuleType(name))
@@ -98,6 +98,23 @@ many = wb._merge_roundtrips([rt("2026-11-03", 2), rt("2026-10-28", 3)])
 t("fills merged into one exit keep the earliest entry", len(many) == 1 and many[0].get("entryDate") == "2026-10-28" and many[0]["qty"] == 5, many)
 op = wb._merge_roundtrips([{"date": "2026-11-04", "symbol": "AMD", "side": "long", "qty": 1, "entry": 1, "exit": None, "fees": 0, "tags": ["webull"], "notes": ""}])
 t("an open position is untouched (its date is the entry)", op and "entryDate" not in op[0], op)
+
+# Fill times (TradeHub's time column and minute-level hold, 2026-11-09).
+print("journal fill times")
+t("epoch ms → ISO UTC", wb._iso_ts(1762353000000) == "2025-11-05T14:30:00Z", wb._iso_ts(1762353000000))
+t("epoch seconds as a string → ISO UTC", wb._iso_ts("1762353000") == "2025-11-05T14:30:00Z")
+t("ISO with +0000 / Z / offset → UTC", wb._iso_ts("2026-11-05T09:30:00.000-0500") == "2026-11-05T14:30:00Z" and wb._iso_ts("2026-11-05T14:30:00Z") == "2026-11-05T14:30:00Z" and wb._iso_ts("2026-11-05 14:30:00+00:00") == "2026-11-05T14:30:00Z")
+t("a zone-less time passes through; nothing usable → None", wb._iso_ts("2026-11-05 09:30:00") == "2026-11-05T09:30:00" and wb._iso_ts("") is None and wb._iso_ts(None) is None and wb._iso_ts("soon") is None)
+fills = [{"symbol": "NVDA", "side": "buy", "qty": 2, "price": 100.0, "fees": 0, "date": "2026-11-05", "ts": "2026-11-05T14:30:00Z"},
+         {"symbol": "NVDA", "side": "buy", "qty": 3, "price": 101.0, "fees": 0, "date": "2026-11-05", "ts": "2026-11-05T15:00:00Z"},
+         {"symbol": "NVDA", "side": "sell", "qty": 5, "price": 105.0, "fees": 0, "date": "2026-11-05", "ts": "2026-11-05T16:15:00Z"},
+         {"symbol": "AMD", "side": "buy", "qty": 1, "price": 150.0, "fees": 0, "date": "2026-11-06", "ts": "2026-11-06T14:45:00Z"}]
+rows = wb.pair_fifo(fills)
+nv = [r for r in rows if r["symbol"] == "NVDA"]
+t("a round trip carries its first fill in and last fill out", len(nv) == 1 and nv[0].get("entryTime") == "2026-11-05T14:30:00Z" and nv[0].get("exitTime") == "2026-11-05T16:15:00Z", nv)
+amd = [r for r in rows if r["symbol"] == "AMD"]
+t("an open position carries its entry time", amd and amd[0].get("entryTime") == "2026-11-06T14:45:00Z" and "exitTime" not in amd[0], amd)
+t("no internal fields leak out", all("_entry_date" not in r and "_asset" not in r and "ts" not in r for r in rows), rows)
 
 print(f"\n{ok} passed, {fail} failed")
 sys.exit(1 if fail else 0)
