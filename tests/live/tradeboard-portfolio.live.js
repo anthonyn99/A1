@@ -107,7 +107,7 @@ const SEED = { [TBDOC]: { positions: JSON.stringify(positions), trades: JSON.str
   ok('on: remembered on this device, button shows it', await js(`return localStorage.getItem('tradeboard_display_mode')==='1' && document.getElementById('tb-display-btn').getAttribute('aria-pressed')==='true' && document.getElementById('tb-display-btn').classList.contains('dm-on');`));
   await js(`TB.showSection('journal'); 1`); await sleep(400);
   ok('on: journal stats, P&L, entry/exit and day nets blur; symbols do not',
-    await blurred('#jr-stats .t-val') && await blurred('#jr-body tr[data-id] td:nth-child(8)') && await blurred('#jr-body tr[data-id] td:nth-child(6)') && await blurred('#jr-body .jr-day b') && !(await blurred('#jr-body tr[data-id] td.sym')));
+    await blurred('#jr-stats .t-val') && await blurred('#jr-body tr[data-id] td:nth-child(13) .tbm') && await blurred('#jr-body tr[data-id] td:nth-child(7) .tbm') && await blurred('#jr-body .jr-day b') && !(await blurred('#jr-body tr[data-id] td.sym')));
   await shot('display-mode');
   await js(`document.getElementById('tb-display-btn').click(); TB.showSection('portfolio'); 1`); await sleep(200);
   ok('off again: figures readable', !(await blurred('#pf-hero .hero .v')) && await js(`return localStorage.getItem('tradeboard_display_mode')==='0';`));
