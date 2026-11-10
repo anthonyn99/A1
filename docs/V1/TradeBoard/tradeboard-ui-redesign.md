@@ -188,3 +188,36 @@ API (it spent a KV write on every poll) and only when quotes came back.
 `node tests/live/tradehub-parity.live.js` (both pages, real code, fake workers),
 `node tests/tradeboard-news-parity.test.js` (her worker against newshub-api's
 fixes) and `py -3 tests/wb-portfolio.test.py` (the entry dates).
+
+## Second round, same day (2026-11-09)
+
+- **TradeHub's stats** keep Expectancy only; Tony dropped Largest win / loss and
+  the Streak, and the card is back to its two columns (Expectancy takes the
+  last row whole).
+- **TradeBoard's Journal has TradeHub's columns:** Time, Symbol, Result,
+  Side, Qty, Entry, Exit, Ent Tot, Ext Tot, Hold, Realized P&L, P&L %, Setup
+  (her tags, minus webull/broker/open/option), Notes, Src (W / M). Her select box
+  and row actions stay. Sorted by date the rows group by day and show the time;
+  otherwise the date. The phone cards carry the result, time and hold.
+- **Minute-level hold.** `wb_sync.py` sends each round trip's first fill in and
+  last fill out as `entryTime` / `exitTime` (ISO UTC, `_iso_ts`); her Manual
+  trade form has optional **Opened** and **Closed** times. Hold reads as
+  TradeHub's: minutes under an hour, hours under a day, then days; trades from
+  before the times fall back to whole days.
+- **Display mode, both programs:** nothing under the blur is green or red.
+  Every blurred figure turns the plain text colour, the Win / Loss / Wash result
+  blurs with it (Open stays: it is not a result), and TradeHub's win-rate bar
+  turns grey. TradeBoard's blur now follows classes (`.tbm`, `.jr-res`) rather
+  than column positions.
+
+### Bug fixed: TradeBoard's journal never saved
+
+`TB.jr` had **two methods named `save()`**: the journal's store and the Manual
+trade form's Save. The second replaced the first, so every delete, re-merge,
+tag change and broker merge ran the form instead and stored nothing, and
+logging a manual trade called itself until the browser gave up ("Maximum call
+stack size exceeded"). The form's is `saveForm()` now. `tradeboard-parity.live.js`
+logs a trade and deletes it, checking both are stored.
+
+Tests: `tests/live/tradeboard-parity.live.js` (44), `tests/live/tradehub-parity.live.js`,
+`py -3 tests/wb-portfolio.test.py` (fill times).
