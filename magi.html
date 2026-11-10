@@ -26344,6 +26344,15 @@ async function queueDrain(L, gen) {
       attnSet(L.attn, `${L.label} stopped`);
       return;
     }
+    // A council started by hand (or a TradeHub prompt convening) goes first,
+    // and the row waits for it still QUEUED (2026-11-09): marked running
+    // first, it read "RUNNING" with nothing running, counted as finished, and
+    // could not be edited while it waited. Then the front is read again: it
+    // may have been edited, moved or removed meanwhile.
+    if (!code && (S.running || (S.bs && S.bs.busy))) {
+      if (!(await queueCouncilFree(L, gen))) return;
+      continue;
+    }
 
     it.status = "running";
     it.err = null;
