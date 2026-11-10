@@ -93,6 +93,7 @@ const calls = [];
   ok('All: every close (3)', /over 3 closed/.test(await meta()), await meta());
   await js(`[...document.querySelectorAll('#jr-curve-range button')].find(b=>b.textContent==='1M').click(); 1`); await sleep(150);
   ok('1M: only the last month, re-based (NVDA +100, MU −100 → $0.00 over 2)', /\$0\.00/.test(await meta()) && /over 2 closed/.test(await meta()), await meta());
+  ok('the tooltip is not shown until the curve is hovered', await js(`var t=document.querySelector('.jr-curve-tip'), d=document.querySelector('.jr-curve-dot'); return !!t && getComputedStyle(t).display==='none' && getComputedStyle(d).display==='none';`));
   ok('dates sit under the curve', await js(`var d=document.querySelectorAll('.jr-curve-dates span'); return d.length===2 && /\\w{3} \\d+/.test(d[0].textContent);`));
   await js(`var s=document.getElementById('curve-svg').getBoundingClientRect(); document.getElementById('curve-svg').dispatchEvent(new MouseEvent('mousemove',{clientX:s.right-2,clientY:s.top+20,bubbles:true})); 1`);
   ok('hover shows the nearest trade: equity, date · symbol, trade P&L', await js(`var t=document.querySelector('.jr-curve-tip'); return !!t && !t.hidden && /MU/.test(t.textContent) && /trade −\\$100\\.00/.test(t.textContent);`), await js(`var t=document.querySelector('.jr-curve-tip'); return t&&t.textContent;`));
