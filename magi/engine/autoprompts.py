@@ -405,7 +405,8 @@ def status(now=None) -> dict:
     return {
         "enabled": active_profile() == PROFILE,
         "jobs": {j: {"next": next_run(now, j).isoformat(), "done": (st.get("done") or {}).get(j),
-                     "last": (st.get("last") or {}).get(j)} for j in JOBS},
+                     "last": {k: v for k, v in ((st.get("last") or {}).get(j) or {}).items() if k != "pending"}}
+                 for j in JOBS},
     }
 
 
