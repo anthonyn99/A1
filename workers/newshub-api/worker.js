@@ -381,7 +381,7 @@ Return ONLY a JSON array; each element: {"ticker","sector","name","aliases","the
     ? arr.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length>=3&&a.length<=40).slice(0,8)
     : [];
   const out = {};
-  for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash']){
+  for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-3.1-flash-lite']){   // 2.0-flash retired (404)
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
         { method:'POST', headers:{'Content-Type':'application/json'}, body });
@@ -476,7 +476,6 @@ const AI_CHAIN = [
   { provider:'gemini', model:'gemini-3.1-flash-lite' },       // PRIMARY: newest-gen Flash, full 8-event batches in ~4s, HIGHEST free daily quota — carries the load
   { provider:'gemini', model:'gemini-2.5-flash' },            // proven full Flash — strong, ~5s/batch
   { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
-  { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
   { provider:'gemini', model:'gemini-3.5-flash' },            // flagship but slow/thinky here → LAST-RESORT gemini (given extra output budget in geminiBody so it's usable when reached)
   // No NIM entries: NVIDIA retired every llama/mixtral model this chain used
   // (410 Gone since 2026-08-26), and each dead try still spent one of the build's
@@ -1697,7 +1696,10 @@ const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end ask
 // grounding quota) or lets thinking eat the small output budget → empty, so it is
 // DEMOTED to a trailing fallback; lead with the reliable 2.5-flash. (See the News
 // AI_CHAIN note — same lesson applied program-wide.)
-const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash'];
+// gemini-2.0-flash was retired by Google (404 "no longer available", seen in a
+// 2026-11-09 build); gemini-3.1-flash-lite (the news build's primary, highest
+// free quota) took its place.
+const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash'];
 
 // Only these macro releases are accepted (whitelist kills hallucinated junk).
 // [regex, category]. First match wins.
@@ -4366,11 +4368,9 @@ const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
 // what a once-per-build summarization call should be spending on.
 //
 // Every entry below was run against a real 56-event build before being listed
-// (via ?model=&nocache=1) — measured latency in the comments. gemini-2.0-flash is
-// deliberately ABSENT: it is in AI_CHAIN, but it failed this digest twice in a
-// row while /health showed it uncapped, so it cannot handle DIGEST_SCHEMA's
-// nested enum objects. Leaving it in would just spend a dead attempt on the way
-// to a model that works.
+// (via ?model=&nocache=1) — measured latency in the comments. (gemini-2.0-flash
+// was never here: it failed this digest twice in a row, and Google has since
+// retired it.)
 const SUMMARY_CHAIN = [
   { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY ~5.9s — richest synthesis, and analysis only uses it as a fallback so the quotas stay separate
   { provider:'gemini', model:'gemini-3.1-flash-lite' },  // ~4.9s — tight and fast, but shares its quota with the analysis phase's primary
