@@ -105,6 +105,36 @@ const calls = [];
     await js(`var h=[...document.querySelectorAll('#view-journal thead th')].findIndex(x=>x.textContent==='Hold'); return h+' '+[...document.querySelectorAll('#jr-body tr[data-id]')].map(r=>r.dataset.id+':'+(r.children[h]||{}).textContent).join(',');`));
   ok('the sync\'s _entry_date is kept as entryDate by normalize', await js(`return TB.jr.normalize({symbol:'X',qty:1,entry:1,exit:2,date:'2026-11-05',_entry_date:'2026-11-01'}).entryDate==='2026-11-01' && !('entryDate' in TB.jr.normalize({symbol:'X',qty:1,entry:1}));`));
   ok('a trade that only gained an entry date still counts as changed (mergeBroker)', await js(`var keep=TB.jr.trades.slice(); TB.jr.trades=[{id:'z',date:'2026-11-05',symbol:'X',side:'long',qty:1,entry:1,exit:2,fees:0,tags:['webull'],notes:''}]; var r=TB.jr.mergeBroker([{date:'2026-11-05',symbol:'X',side:'long',qty:1,entry:1,exit:2,fees:0,tags:['webull'],notes:'',entryDate:'2026-11-01'}]); var got=TB.jr.trades[0].entryDate; TB.jr.trades=keep; TB.jr.save(); TB.jr.render(); return r.changed===true && got==='2026-11-01';`));
+  // TradeHub's columns, identical (2026-11-09).
+  ok('the journal columns are TradeHub\'s: Time … Src', await js(`return [...document.querySelectorAll('#view-journal thead th')].map(x=>x.textContent.trim()).filter(Boolean).join('|');`)
+    === 'Time|Symbol|Result|Side|Qty|Entry|Exit|Ent Tot|Ext Tot|Hold|Realized P&L|P&L %|Setup|Notes|Src',
+    await js(`return [...document.querySelectorAll('#view-journal thead th')].map(x=>x.textContent.trim()).filter(Boolean).join('|');`));
+  const row = (id) => js(`var hs=[...document.querySelectorAll('#view-journal thead th')].map(x=>x.textContent.trim()); var r=document.querySelector('#jr-body tr[data-id="${id}"]'); var o={}; hs.forEach((h,i)=>{ if(h) o[h]=r.children[i].textContent.trim(); }); return o;`);
+  const r5 = await row('t5'), r3 = await row('t3');
+  ok('a synced trade with fill times: its close time, Hold 45 min', /\d{1,2}:\d{2}\s?(AM|PM)/.test(r5.Time) && r5.Hold === '45 min', JSON.stringify(r5));
+  ok('…Result Win, Ent Tot / Ext Tot = price × qty, Realized P&L, P&L %, Setup without the webull tag, Src W',
+    r5.Result === 'Win' && r5['Ent Tot'] === '$600.00' && r5['Ext Tot'] === '$620.00' && r5['Realized P&L'] === '+$20.00' && r5['P&L %'] === '+3.33%' && r5.Setup === 'scalp' && r5.Src === 'W', JSON.stringify(r5));
+  ok('a trade logged by date only: Time "—", Result Loss, Src M', r3.Time === '—' && r3.Result === 'Loss' && r3.Src === 'M', JSON.stringify(r3));
+  ok('minute-level hold: 45 min, 3 hr, 2 days', await js(`var h=t=>TB.jr.holdLabel(Object.assign({exit:1,entry:1,qty:1},t)); var a='2026-11-05T14:00:00Z'; return h({entryTime:a,exitTime:'2026-11-05T14:45:00Z'})==='45 min' && h({entryTime:a,exitTime:'2026-11-05T17:00:00Z'})==='3 hr' && h({entryTime:a,exitTime:'2026-11-07T14:00:00Z'})==='2 days' && h({entryTime:a,exitTime:'2026-11-06T14:00:00Z'})==='1 day';`));
+  ok('the sync\'s fill times are kept by normalize and count as a change in mergeBroker', await js(`var n=TB.jr.normalize({symbol:'X',qty:1,entry:1,exit:2,date:'2026-11-05',entryTime:'2026-11-05T14:00:00Z',exitTime:'2026-11-05T15:00:00Z'}); var keep=TB.jr.trades.slice(); TB.jr.trades=[{id:'z',date:'2026-11-05',symbol:'X',side:'long',qty:1,entry:1,exit:2,fees:0,tags:['webull'],notes:''}]; var r=TB.jr.mergeBroker([Object.assign({tags:['webull'],side:'long',fees:0,notes:''},n)]); var got=TB.jr.trades[0].exitTime; TB.jr.trades=keep; TB.jr.save(); TB.jr.render(); return n.entryTime==='2026-11-05T14:00:00Z' && r.changed===true && got==='2026-11-05T15:00:00Z';`));
+  // The Manual trade form's Save was also named save(), replacing the journal's
+  // own: nothing was stored, and logging a trade re-entered itself.
+  const stored = () => js(`return (TBStore.get(TBStore.KEYS.trades, []) || []).length;`);
+  const n0 = await stored();
+  await js(`TB.jr.openAdd(); var v=(id,x)=>{document.getElementById(id).value=x;}; v('jr-f-symbol','PLTR'); v('jr-f-qty','3'); v('jr-f-entry','40'); v('jr-f-exit','44'); v('jr-f-opened','2026-11-05T09:30'); v('jr-f-closed','2026-11-05T11:00'); TB.jr.saveForm(); 1`); await sleep(200);
+  ok('Manual trade: logging one adds exactly ONE trade, and it is stored', await stored() === n0 + 1 && await js(`return TB.jr.trades.filter(t=>t.symbol==='PLTR').length===1;`), (await stored()) + ' vs ' + n0);
+  ok('…with its times: 90 minutes held reads 2 hr (TradeHub rounds hours), day = the close day', await js(`var t=TB.jr.trades.find(t=>t.symbol==='PLTR'); return t.date==='2026-11-05' && !!t.entryTime && !!t.exitTime && TB.jr.holdLabel(t)==='2 hr';`), await js(`var t=TB.jr.trades.find(t=>t.symbol==='PLTR'); return JSON.stringify(t)+' '+TB.jr.holdLabel(t);`));
+  await js(`window.confirm=()=>true; TB.jr.remove(TB.jr.trades.find(t=>t.symbol==='PLTR').id); 1`); await sleep(150);
+  ok('Delete is stored too (save() is the journal\'s again)', await stored() === n0 && !(await js(`return (TBStore.get(TBStore.KEYS.trades, [])||[]).some(t=>t.symbol==='PLTR');`)));
+  ok('TB.jr has no method defined twice', await js(`return typeof TB.jr.save==='function' && TB.jr.save.toString().indexOf('TBStore')>=0 && typeof TB.jr.saveForm==='function';`));
+  await js(`document.getElementById('tb-display-btn').click(); 1`); await sleep(200);
+  // Nothing under the blur may say win or loss by its colour (2026-11-09).
+  const textCol = `(function(){var t=document.createElement('span'); t.style.color='var(--text)'; document.body.appendChild(t); var w=getComputedStyle(t).color; t.remove(); return w;})()`;
+  ok('display mode: no blurred journal figure is green or red', await js(`var want=${textCol}; var els=[...document.querySelectorAll('#jr-body .tbm, #jr-stats .t-val, #jr-curve-meta > span, #jr-body .jr-day b')].filter(e=>e.offsetParent); return els.length>5 && els.every(e=>getComputedStyle(e).color===want);`),
+    await js(`var want=${textCol}; return want+' vs '+[...document.querySelectorAll('#jr-body .tbm, #jr-stats .t-val, #jr-curve-meta > span, #jr-body .jr-day b')].filter(e=>e.offsetParent&&getComputedStyle(e).color!==want).slice(0,4).map(e=>e.textContent+':'+getComputedStyle(e).color).join(', ');`));
+  ok('…Win / Loss blur and lose their colour, Open does not blur', await js(`var want=${textCol}; var r=[...document.querySelectorAll('#jr-body .jr-res')]; var res=r.filter(e=>!e.classList.contains('open')); return res.length>=3 && res.every(e=>/blur/.test(getComputedStyle(e).filter) && getComputedStyle(e).color===want);`));
+  await js(`document.getElementById('tb-display-btn').click(); 1`); await sleep(200);
+  ok('display mode off: the colours are back', await js(`var r=document.querySelector('#jr-body .jr-res.loss'); return !!r && getComputedStyle(r).color!==${textCol};`));
   await js(`document.getElementById('tb-display-btn').click(); 1`); await sleep(200);
   const vis = (sel) => js(`var e=document.querySelector(${JSON.stringify(sel)}); return !!e && getComputedStyle(e).display!=='none';`);
   ok('display mode: the curve, its dates and the table toggle are gone', !(await vis('#curve-svg')) && !(await vis('.jr-curve-dates')) && !(await vis('.tb-eq-tog')));
