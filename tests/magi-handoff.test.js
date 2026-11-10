@@ -695,7 +695,7 @@ console.log('\nThe worker round-trips the unit list');
   } };
   const w = new Function(
     lift(WORKER, 'kvGet') + '\n' + lift(WORKER, 'kvPut') + '\n' +
-    lift(WORKER, 'tdAiUrl') + '\n' + lift(WORKER, 'tdMagiUnits') + '\n' +
+    lift(WORKER, 'tdAiUrl') + '\n' + lift(WORKER, 'tdMagiUnits') + '\n' + lift(WORKER, 'tdAutoPrompts') + '\n' +
     lift(WORKER, 'getAnalysisConfig') + '\n' + lift(WORKER, 'setAnalysisConfig') + '\n' +
     'return { getAnalysisConfig, setAnalysisConfig };'
   )();
@@ -718,6 +718,12 @@ console.log('\nThe worker round-trips the unit list');
     kv['td_analysis_prompt'] = JSON.stringify({ name: 'Old', text: 'x', searches: [] });
     const old = await w.getAnalysisConfig(env);
     ok('a pre-MAGI config is not mistaken for one', old.magiUnits.length === 0);
+    // TradeHub's standing prompts (2026-11-09) ride along for Tony's engine.
+    await w.setAnalysisConfig(env, { name: 'Morning', text: 'read SPY', searches: [],
+      auto: { movers: { name: 'Movers', text: ' What moved it? ' }, weekly: { name: 'W', text: '' }, junk: { text: 'x' } } });
+    const au = await w.getAnalysisConfig(env);
+    ok('the standing prompts come back, trimmed; an empty or unknown one is dropped', JSON.stringify(au.auto) === JSON.stringify({ movers: { name: 'Movers', text: 'What moved it?' } }), JSON.stringify(au.auto));
+    ok('a config without them reads as none', JSON.stringify(old.auto) === '{}', JSON.stringify(old.auto));
 
     console.log(`\n  ${pass} passed, ${fail} failed`);
     process.exit(fail ? 1 : 0);
