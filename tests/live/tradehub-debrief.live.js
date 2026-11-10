@@ -136,7 +136,7 @@ const worker = {
   await tab('analysis');
   const btn = await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief'); if(b){b.click();return true;} return false;`);
   ok('Analysis has a Debrief button, and it opens the popup', btn && await until(isOpen, 5000));
-  ok('five tabs: Catalysts (with today\'s count), News Summary, Today's Movers, Next week, Daily Report', (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week|Daily Report', await tabs());
+  ok('five tabs: Catalysts (with today\'s count), News Summary, Today’s Movers, Next week, Daily Report', (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week|Daily Report', await tabs());
   ok('Catalysts shows only today\'s cards, as Catalysts draws them', await until(`document.querySelectorAll('.dbr-cats .cat-card').length>=2`, 6000) &&
     await js(`var t=document.querySelector('.dbr-cats').innerText; return /CPI Report/.test(t)&&/NVDA/.test(t)&&!/\\bMU\\b/.test(t);`), await js(`return (document.querySelector('.dbr-cats')||{}).innerText;`));
   const bd = JSON.parse(await js(`var o=document.querySelector('.dbr').parentElement, cs=getComputedStyle(o); return JSON.stringify({bg:cs.backgroundColor, bf:cs.backdropFilter||cs.webkitBackdropFilter, tag:o.hasAttribute('data-a1-scrim')});`));
@@ -195,7 +195,43 @@ const worker = {
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`); await sleep(300);
   ok('Escape closes it', !(await js(`return !!(${isOpen});`)));
   await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
-  ok('reopened, it is back on the tab it was closed on (MAGI)', await until(isOpen, 5000) && await js(`return (document.querySelector('.dbr-tabs button.on')||{}).textContent==='MAGI';`));
+  ok('reopened, it is back on the tab it was closed on (Daily Report)', await until(isOpen, 5000) && await js(`return (document.querySelector('.dbr-tabs button.on')||{}).textContent==='Daily Report';`));
+
+  console.log('\n1c. The tabs drag into any order (A1Drag), saved here and in the cloud');
+  const tabBox = (k) => js(`var b=document.querySelector('.dbr-tabs button[data-dkey="${k}"]').getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2,left:b.left});`).then(JSON.parse);
+  const ids = () => js(`return [...document.querySelectorAll('.dbr-tabs button')].map(b=>b.dataset.dkey).join(',');`);
+  const mDrag = async (x, y, dx) => {
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + (dx * i) / 16, y, button: 'left', buttons: 1 }); await sleep(16); }
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + dx, y, button: 'left', clickCount: 1 });
+    await sleep(700);
+  };
+  const ORDER1 = ['magi', 'catalysts', 'summary', 'movers', 'weekly'];
+  await dTab('Catalysts');
+  { const a = await tabBox('magi'), b = await tabBox('catalysts'); await mDrag(a.x, a.y, b.left - a.x + 4); }
+  ok('desktop: Daily Report dragged to the front', (await ids()) === ORDER1.join(','), await ids());
+  ok('…the drop does not switch tabs (still on Catalysts)', await js(`return (document.querySelector('.dbr-tabs button.on')||{}).dataset.dkey==='catalysts';`));
+  ok('…kept on this device', await js(`return localStorage.getItem('tb_debrief_order');`) === JSON.stringify(ORDER1));
+  let DD = null;
+  for (let i = 0; i < 30; i++) { await sleep(200); DD = JSON.parse(await js(`return JSON.stringify((__fakeFs.docs['dashboards/tradeboard_dashboard']||{}).debriefTabOrder||null);`)); if (DD) break; }
+  ok('…and synced (dashboards/tradeboard_dashboard.debriefTabOrder)', JSON.stringify(DD) === JSON.stringify(ORDER1), JSON.stringify(DD));
+  await sleep(8500);   // past TradeHub's own-save echo window
+  await js(`__fakeFs.remote('dashboards/tradeboard_dashboard', {debriefTabOrder:['weekly','movers','summary','catalysts','magi']}, {merge:true}); 1`);
+  ok('another device’s order arrives live', await until(`[...document.querySelectorAll('.dbr-tabs button')].map(b=>b.dataset.dkey).join(',')==='weekly,movers,summary,catalysts,magi'`, 4000), await ids());
+  await size(390, 844); await sleep(700);
+  await js(`document.querySelector('.dbr-tabs').scrollLeft=0; 1`); await sleep(200);
+  {
+    const a = await tabBox('movers'), b = await tabBox('weekly'), dx = b.left - a.x + 4;
+    await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: a.x, y: a.y }] }); await sleep(450);
+    for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: a.x + (dx * i) / 16, y: a.y }] }); await sleep(16); }
+    await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await sleep(700);
+  }
+  ok('phone: a held finger drags Today’s Movers to the front', (await ids()) === 'movers,weekly,summary,catalysts,magi', await ids());
+  await size(1440, 1000); await sleep(400);
+  await dTab('Next week');
+  const gap = JSON.parse(await js(`var h=document.querySelector('.dbr-auto-head'), v=document.querySelector('.dbr-auto .nhs-eyebrow'); return JSON.stringify(h&&v?Math.round(v.getBoundingClientRect().top-h.getBoundingClientRect().bottom):null);`));
+  ok('Next week: Verdict sits right under the schedule line (no empty band)', gap !== null && gap <= 20, gap);
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`); await sleep(300);
 
   console.log('\n2. A chat site instead of MAGI');
@@ -204,7 +240,7 @@ const worker = {
   await sleep(2000);
   await tab('analysis');
   await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
-  ok('four tabs: Catalysts, News Summary, Today's Movers, Next week (no Daily Report tab)', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week', await tabs());
+  ok('four tabs: Catalysts, News Summary, Today’s Movers, Next week (no Daily Report tab)', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week', await tabs());
 
   console.log('\n3. The morning');
   await seed();
