@@ -2540,6 +2540,48 @@ async def units_resets_save(request: Request):
     return {"ok": True, "resets_push": await claude_resets.tick(force=True)}
 
 
+# ── TradeHub's standing prompts (engine/autoprompts.py) ─────────────────────
+def _autoprompt_engine() -> dict:
+    """The engine's own functions, handed to autoprompts so it never imports
+    this module: a council is started exactly as POST /api/runs starts one."""
+    async def start_run(question: str, units: list[str]) -> str:
+        res = await create_run(question=question, providers=",".join(units), files=[],
+                               session="", turn=0, context="")
+        return res["run_id"]
+
+    def is_done(run_id: str) -> bool:
+        st = _runs.get(run_id)
+        return st is None or bool(st.get("done"))
+
+    async def get_run_rec(run_id: str):
+        return await db.get_run(run_id)
+
+    def busy() -> bool:
+        return any(not st.get("done") and not st["cancel"].is_set() for st in _runs.values())
+
+    return dict(start_run=start_run, get_run=get_run_rec, is_done=is_done,
+                available=lambda: list(settings.enabled_site_ids()), busy=busy)
+
+
+@app.get("/api/autoprompts")
+async def autoprompts_status():
+    """When each standing prompt runs next and how the last one went."""
+    from .engine import autoprompts
+    return autoprompts.status()
+
+
+@app.post("/api/autoprompts/run")
+async def autoprompts_run(job: str = ""):
+    """Run one now (job=movers|weekly), whatever the clock says."""
+    from .engine import autoprompts
+    if job not in autoprompts.JOBS:
+        raise HTTPException(400, "job must be movers or weekly")
+    if autoprompts.active_profile() != autoprompts.PROFILE:
+        raise HTTPException(404, "TradeHub's prompts run on Tony's engine only.")
+    asyncio.create_task(autoprompts.tick(force=job, **_autoprompt_engine()))
+    return {"ok": True, "started": job}
+
+
 # ── units: choose the model (Phase U4) ──────────────────────────────────────
 def _unit_menu(provider_id: str) -> dict:
     p = build_providers(settings, [provider_id])[0]
