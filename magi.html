@@ -3666,6 +3666,8 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 
 /* A queued task's workspace, and Read or Write. */
 .q-ws { color: var(--txd); }
+/* Where a queued prompt came from (a TradeHub hand-off, 2026-11-09). */
+.q-src { color: var(--txd); font-style: italic; }
 .q-rw.write { color: var(--amber); }
 
 /* Brainstorm: the one control that hides or shows Past sessions, centred
@@ -11532,10 +11534,57 @@ function applyHandoff(h) {
 function onHandoffHash() {
   const h = takeHandoff();
   if (!h) return;
+  // Busy: into MAGI's own queue, where it can be edited, re-targeted or removed.
+  if (handoffToQueue(h)) return;
   if (HANDOFF || HANDOFF_QUEUE.length) HANDOFF_QUEUE.push(h);
   else HANDOFF = h;
   handoffTry();
   noteHandoffQueue();
+}
+
+/* A prompt TradeHub sends while a council is running (or one is already
+ * waiting) becomes a row in MAGI's queue (2026-11-09), not an invisible
+ * "1 prompt queued" line: it shows in the queue drawer, labelled with where it
+ * came from, with the units it was sent with, and it can be edited (text and
+ * units), reordered or removed like any queued prompt. The queue is started
+ * so it convenes by itself: queueDrain waits out the running council first
+ * (queueCouncilFree). Falls back to the old hand-off wait when the queue
+ * cannot take it: another person's prompt (that needs a profile switch), a
+ * fill-only link, no engine or unit list yet, or a full queue. True = queued. */
+function handoffToQueue(h) {
+  if (!(S.running || S.refining || HANDOFF)) return false;
+  if (!h.run || handoffProfileOf(h) !== PROFILE.id) return false;
+  if (!online() || !S.providers.length) return false;
+  const L = QUEUES.council;
+  if (L.items.length >= MAX_QUEUE) return false;
+  const have = new Set(S.providers.map((p) => p.id));
+  let units = h.units.filter((id) => have.has(id));
+  if (!units.length) units = [...S.selected].filter((id) => have.has(id));
+  if (!units.length) return false;
+  L.items.push({
+    id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    q: h.q,
+    units,
+    atts: [],
+    status: "queued",
+    order: queueNextOrder(L),
+    dev: DEVICE_NAME,
+    runId: null,
+    err: null,
+    src: h.src || "tradehub",
+  });
+  queueChanged(L);
+  setErr("refineError", `Queued from ${handoffSrcLabel(h.src)} — it convenes when this council finishes. Edit or remove it in the queue below.`);
+  if (!L.running) queueStart(L);
+  return true;
+}
+/** Where a hand-off came from, in words (the queue row says it too). */
+function handoffSrcLabel(src) {
+  const s = String(src || "").toLowerCase();
+  if (!s || s === "tradehub") return "TradeHub";
+  if (s === "catalysts") return "a Catalysts debrief";
+  if (s === "autolaunch") return "the morning launcher";
+  return src;
 }
 window.addEventListener("hashchange", onHandoffHash);
 
@@ -26623,6 +26672,8 @@ function queueNorm(it) {
     runId: it.runId || null,
     err: it.err || null,
   };
+  // Where it came from (a hand-off from TradeHub), shown on the row.
+  if (it.src) row.src = String(it.src).slice(0, 24);
   if (it.kind === "code") {
     Object.assign(row, {
       kind: "code",
@@ -26769,6 +26820,7 @@ function renderQueue() {
 
     const meta = el("div", "q-meta");
     meta.append(el("span", `q-state ${it.status}`, it.status));
+    if (it.src) meta.append(el("span", "q-src", "from " + handoffSrcLabel(it.src)));
     if (isCode) {
       meta.append(el("span", "q-ws", it.pname || "workspace"));
       const rw = el("span", `q-rw ${it.rw === "write" ? "write" : ""}`,
