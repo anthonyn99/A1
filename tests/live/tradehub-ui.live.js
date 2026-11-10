@@ -58,6 +58,12 @@ const worker = {
     if (/\/quotes\?/.test(req.url)) return { json: { quotes: { NVDA: { c: 182.4, dp: 4.21 }, MU: { c: 101.2, dp: -3.05 }, AMD: { c: 160.1, dp: 0.4 } }, asOf: NOW } };
     if (/\/rate-status/.test(req.url)) return { json: { used: 2, cooldownSec: 0 } };
     if (/\/calendar\?/.test(req.url)) return { json: { events: CAL } };
+    // The official-schedule status the Catalysts note shows (newshub, 2026-11-09).
+    if (/\/macro-schedule/.test(req.url)) return { json: { ok: true, status: { official: { cpi: ['2026'] }, warnings: [
+      { code: 'window-estimated', level: 'warn', text: 'CPI, PPI, jobs report and JOLTS 2027 dates aren\'t published by the agencies yet (waiting on FRED (BLS\'s dates)), so they show as Est.' },
+      { code: 'next-year-pending', level: 'info', text: '2027 schedule not out yet for CPI. It\'s picked up automatically the day it\'s published.' },
+      { code: 'moved', level: 'info', text: 'CPI moved from Dec 10 to Dec 11 on the official schedule (yesterday). Catalysts follows it.' },
+    ] } } };
     return { json: { ok: true } };
   },
 };
@@ -166,6 +172,9 @@ const worker = {
   ok('the debrief ▶ shows exactly when catdebrief.js says the release is out', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(0)}"]'); var card=[...c.querySelectorAll('.cat-card')].find(x=>/CPI Report/.test(x.innerText)); var due=A1Debrief.isDue({kind:'macro',category:'inflation',name:'CPI Report',date:'${day(0)}'},{hh:8,mm:30}); return !!card && !!card.querySelector('.cat-play')===due;`));
   ok('releases out together share ONE card, like TaskHub', await js(`var g=document.querySelector('#tradeboard-root .cat-col[data-date="${day(5)}"] [data-cat-group]'); return !!g && g.getAttribute('data-cat-group')==='2' && /2 releases/.test(g.innerText) && /Jobless Claims/.test(g.innerText) && /Retail Sales/.test(g.innerText);`));
   ok('a future release has no ▶', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(2)}"]'); return !!c && !c.querySelector('.cat-play');`));
+  ok('the macro schedule note: the warning in amber, the notes in a quiet list', await until(`(function(){ var n=[...document.querySelectorAll('#tradeboard-root .tbx-note')]; var w=n.find(x=>x.classList.contains('warn')&&/Macro dates/.test(x.innerText)); var q=n.find(x=>!x.classList.contains('warn')&&x.querySelectorAll('.cat-msnote li').length===2); return !!w && /2027 dates/.test(w.innerText) && !!q && /moved from Dec 10 to Dec 11/.test(q.innerText); })()`, 6000),
+    await js(`return [...document.querySelectorAll('#tradeboard-root .tbx-note')].map(x=>x.className+': '+x.innerText).join(' | ');`));
+  ok('the old "time to hardcode" reminder is gone', await js(`return !/hardcode/i.test(document.querySelector('#tradeboard-root').innerText);`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
   ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length===2 && [...document.querySelectorAll('#tradeboard-root .cat-chip')].every(x=>x.innerText==='Earnings');`), await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length;`));
