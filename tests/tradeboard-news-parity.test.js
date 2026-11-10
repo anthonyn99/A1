@@ -33,12 +33,12 @@ console.log('1. finalizeEvents');
 const fin = fnOf(SRC, 'finalizeEvents');
 ok('her worker defines finalizeEvents', !!fin);
 if (fin) {
-  const sb = { module: { exports: {} }, Math, Set, Array, Date, String };
+  const sb = { module: { exports: {} }, Math, Set, Array, Date, String, impactTier: (sc) => (sc >= 40 ? 'notable' : 'minor') };
   vm.createContext(sb);
   vm.runInContext(fin + '\nmodule.exports = finalizeEvents;', sb);
   const f = sb.module.exports;
   const ev = (id, t) => ({ id, candidateTickers: [t], sources: [{ headline: 'H ' + id }], sourceCount: 1, ts: 1 });
-  const ai = (id, s) => ({ id, primaryTicker: 'NVDA', summary: s, aiAnalyzed: true });
+  const ai = (id, s) => ({ id, primaryTicker: 'NVDA', summary: s, aiAnalyzed: true, impact: { score: 60, tier: 'major' }, ts: 1 });
   let out;
   try { out = f([ev('a', 'NVDA'), ev('b', 'NVDA'), ev('b', 'NVDA')], [ai('a', 'first'), ai('a', 'second')], ['NVDA']); } catch (e) { out = { err: e.message }; }
   const list = Array.isArray(out) ? out : (out && (out.events || out.enriched)) || [];
