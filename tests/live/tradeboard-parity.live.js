@@ -40,6 +40,9 @@ const trades = [
   { id: 't1', date: day(200), symbol: 'TSLA', side: 'long', qty: 10, entry: 100, exit: 110, fees: 0, tags: ['webull'], notes: '', entryDate: day(203) },
   { id: 't2', date: day(10), symbol: 'NVDA', side: 'long', qty: 10, entry: 180, exit: 190, fees: 0, tags: ['webull'], notes: '', entryDate: day(15) },
   { id: 't3', date: day(2), symbol: 'MU', side: 'long', qty: 20, entry: 105, exit: 100, fees: 0, tags: [], notes: '' },
+  // A sync trade with fill times (wb_sync.py since 2026-11-09): 45 minutes held.
+  { id: 't5', date: day(2), symbol: 'AMD', side: 'long', qty: 4, entry: 150, exit: 155, fees: 0, tags: ['webull', 'scalp'], notes: '', entryDate: day(2),
+    entryTime: new Date(NOW - 2 * 86400000 - 3 * 3600000).toISOString(), exitTime: new Date(NOW - 2 * 86400000 - 3 * 3600000 + 45 * 60000).toISOString() },
 ];
 const SEED = { [TBDOC]: { positions: JSON.stringify(positions), trades: JSON.stringify(trades), rulesDaily: JSON.stringify({ lastCompleted: null, enabled: false }),
   watchlist: JSON.stringify(['NVDA', 'AMD', 'MU']), _updated: NOW } };
