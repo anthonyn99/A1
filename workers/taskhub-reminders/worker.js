@@ -240,6 +240,15 @@ export default {
       }
     }
 
+    // Tony's MAGI engine posts TradeHub's standing prompts' answers (handleMagiAuto).
+    if (path === '/magi-auto') {
+      try {
+        return await handleMagiAuto(request, env, origin);
+      } catch (e) {
+        return json({ ok: false, error: e.message || 'server error' }, origin, 500);
+      }
+    }
+
     // MAGI engines push Claude's reset times (see handleClaudeResets).
     if (path === '/claude-resets') {
       try {
@@ -338,6 +347,58 @@ export default {
     })());
   }
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRADEHUB'S STANDING PROMPTS — POST /magi-auto  (from Tony's MAGI engine)
+//
+//  The engine runs two prompts on a schedule (magi/engine/autoprompts.py):
+//  today's market movers after every close, next week's catalysts on
+//  Saturday. It posts each finished run here; TradeHub's Analysis ▸ Debrief
+//  reads it from dashboards/tb_debrief_auto:
+//
+//    movers / weekly        the run as JSON text ({job, for, name, run,
+//                           answers, synthesis}): one field each, so writing
+//                           one never touches the other, and a stored run
+//                           stays until the next one of its kind replaces it
+//    moversAt / weeklyAt    when it arrived (ms)
+//
+//  Same auth as /claude-resets: the engine's MAGI API token against the one
+//  the console publishes in dashboards/magi. Tony's only (TradeHub is his).
+// ══════════════════════════════════════════════════════════════════════════
+const MAGI_AUTO_JOBS = new Set(['movers', 'weekly']);
+const MAGI_AUTO_MAX = 900 * 1024;     // a Firestore document holds 1 MiB
+
+async function handleMagiAuto(request, env, origin) {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, origin, 405);
+  let body;
+  try { body = await request.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, origin, 400); }
+  const profile = String((body && body.profile) || '');
+  if (profile !== 'tony') return json({ ok: false, error: 'unknown profile' }, origin, 400);
+  const job = String((body && body.job) || '');
+  if (!MAGI_AUTO_JOBS.has(job)) return json({ ok: false, error: 'unknown job' }, origin, 400);
+  const run = body && body.body;
+  if (!run || typeof run !== 'object' || run.job !== job || !Array.isArray(run.answers))
+    return json({ ok: false, error: 'bad body' }, origin, 400);
+  const text = JSON.stringify(run);
+  if (text.length > MAGI_AUTO_MAX) return json({ ok: false, error: 'too large' }, origin, 413);
+
+  const aT   = await getGoogleAccessToken(env);
+  const base = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const ah   = { 'Authorization': `Bearer ${aT}`, 'Content-Type': 'application/json' };
+  const given = String(body.token || '');
+  let tok = await magiTokenFor(profile, base, ah, false);
+  if (!tokensMatch(tok, given)) tok = await magiTokenFor(profile, base, ah, true);
+  if (!tok || !tokensMatch(tok, given)) return json({ ok: false, error: 'unauthorized' }, origin, 401);
+
+  const at = Date.now();
+  const url = `${base}/dashboards/tb_debrief_auto?updateMask.fieldPaths=${job}&updateMask.fieldPaths=${job}At`;
+  const r = await fetch(url, {
+    method: 'PATCH', headers: ah,
+    body: JSON.stringify({ fields: { [job]: { stringValue: text }, [`${job}At`]: { integerValue: String(at) } } }),
+  });
+  if (!r.ok) return json({ ok: false, error: `firestore ${r.status}` }, origin, 502);
+  return json({ ok: true, job, at, bytes: text.length }, origin);
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  CLAUDE RESETS — POST /claude-resets  (from a MAGI engine)
