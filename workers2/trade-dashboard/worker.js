@@ -245,8 +245,23 @@ async function getAnalysisConfig(env){
                 MISSING aiUrl as "use ChatGPT, as always" but an EMPTY one as the
                 explicit "None" destination. Coercing the old shape to '' would
                 silently stop the morning launch opening any AI tab. */
-             aiUrl:(p.aiUrl===undefined||p.aiUrl===null)?undefined:tdAiUrl(p.aiUrl) };
+             aiUrl:(p.aiUrl===undefined||p.aiUrl===null)?undefined:tdAiUrl(p.aiUrl),
+             auto:tdAutoPrompts(p.auto) };
   return null;
+}
+/* TradeHub's two standing prompts (2026-11-09): today's market movers and
+   next week's catalysts, found by name in its prompt list and run on a
+   schedule by Tony's MAGI engine (magi/engine/autoprompts.py), which reads
+   them here. Each {name, text}; a missing one makes the engine use its own
+   copy, so a renamed prompt never stops the schedule. */
+function tdAutoPrompts(a){
+  const out={};
+  for(const k of ['movers','weekly']){
+    const v=a&&a[k];
+    const text=String(v&&v.text||'').trim();
+    if(text) out[k]={ name:String(v.name||'').slice(0,80), text:text.slice(0,16000) };
+  }
+  return out;
 }
 async function setAnalysisConfig(env, p){
   const text=String(p&&p.text||'').trim(); if(!text) return false;
@@ -256,7 +271,7 @@ async function setAnalysisConfig(env, p){
      aiUrl must not be recorded as having chosen "None". */
   const aiUrl=(p&&p.aiUrl!==undefined&&p.aiUrl!==null)?tdAiUrl(p.aiUrl):undefined;
   await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,16000), searches,
-    aiUrl, magiUnits:tdMagiUnits(p&&p.magiUnits), updatedAt:Date.now() });
+    aiUrl, magiUnits:tdMagiUnits(p&&p.magiUnits), auto:tdAutoPrompts(p&&p.auto), updatedAt:Date.now() });
   return true;
 }
 
@@ -359,7 +374,7 @@ async function handle(request, env, ctx){
   if(path==='/analysis-config'&&method==='GET'){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
-    return json({ok:true,name:p.name,text:p.text,searches:p.searches,aiUrl:p.aiUrl,magiUnits:p.magiUnits},200,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches,aiUrl:p.aiUrl,magiUnits:p.magiUnits,auto:p.auto},200,request);
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;
