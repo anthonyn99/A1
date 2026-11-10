@@ -8148,7 +8148,10 @@ const cells = (line) => (line.match(TABLE_ROW)?.[1] ?? line).split("|").map((c) 
  *  browser.
  */
 const INLINE_RE = new RegExp([
-  "\\\\(?<esc>[\\\\`*_{}\\[\\]()#+\\-.!|~>$<])",                    // \* -> *
+  // Any ASCII punctuation, as markdown defines a backslash escape: the engine
+  // escapes what a chat page showed literally, and "\/", "\:", "\=" ... showed
+  // their backslash when only a few were listed here (2026-11-09).
+  "\\\\(?<esc>[!\"#$%&'()*+,\\-./:;<=>?@\\[\\\\\\]^_`{|}~])",       // \* -> *
   "(?<tick>`+)(?<code>[\\s\\S]+?)\\k<tick>",                         // code
   "<!--[\\s\\S]*?-->",                                               // comment: hidden
   "<br\\s*\\/?>",                                                    // <br>
@@ -8340,11 +8343,16 @@ const CODE_LANGS = new Set(("python py javascript js typescript ts jsx tsx json 
  *  "**Oil above $100:**", 2026-10-14). The engine no longer escapes a pair;
  *  answers saved before that are repaired here. Code blocks are left alone. */
 const ESC_BOLD = /\\\*\\\*(?=[^\s*\\])([^*\n]{0,200}?[^\s*\\])\\\*\\\*/g;
+/* "\1. Iran ..." is a numbered line the engine marked as not-a-list with the
+ *  backslash before the DIGIT, which no markdown reads as an escape, so the
+ *  backslash showed (2026-11-09). The engine now writes "1\. "; answers saved
+ *  before that are repaired to the same here. */
+const ESC_NUM = /^(\s*)\\(\d{1,9})([.)])(?=\s)/;
 function unescapeBold(lines) {
   let fence = false;
   return lines.map((l) => {
     if (MD.fence.test(l)) { fence = !fence; return l; }
-    return fence ? l : l.replace(ESC_BOLD, "**$1**");
+    return fence ? l : l.replace(ESC_BOLD, "**$1**").replace(ESC_NUM, "$1$2\\$3");
   });
 }
 
