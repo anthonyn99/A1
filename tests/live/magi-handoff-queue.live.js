@@ -77,6 +77,9 @@ const link = (q, units) => {
   ok('the message says where to edit it', /Queued from TradeHub/.test(await evalJs(c, '$("refineError").textContent')));
   ok('nothing ran over the running council', await evalJs(c, 'window.__runs.length') === 0);
   ok('the queue is running (waiting for the council)', await evalJs(c, 'QUEUES.council.running === true'));
+  await sleep(600);
+  ok('…and while it waits both rows still read QUEUED, editable (not "running")', await evalJs(c, 'queueSorted(QUEUES.council).every(r => r.status === "queued") && [...$("queueRows").querySelectorAll(".q-row")].every(r => !r.querySelector(".q-act").disabled) && /2 waiting/.test($("queueCount").textContent)'),
+    await evalJs(c, 'JSON.stringify(queueSorted(QUEUES.council).map(r => r.status)) + " " + $("queueCount").textContent'));
   await shot(c, 'mhq-1-queued');
 
   console.log('\nEdit, re-target, remove');
