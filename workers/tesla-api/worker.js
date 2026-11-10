@@ -511,7 +511,7 @@ async function placeLabel(env, lat, lon) {
 // Wake a sleeping car and wait for it to answer. wake_up returns immediately
 // with state:"asleep"; the car needs a few seconds to actually come up, so the
 // vehicles list is polled until it flips to online. A Model 3 typically takes
-// 5–15s. Bounded well under the Worker request budget — if it hasn't answered
+// 5–15s; an offline one 45s+. Bounded well under the Worker request budget — if it hasn't answered
 // by then it is genuinely unreachable (underground, no signal) and the caller
 // falls back to cache rather than hanging.
 async function wakeVehicle(env, t) {
@@ -524,12 +524,14 @@ async function wakeVehicle(env, t) {
     } catch (e) { status = -1; error = String(e && e.message || e).slice(0, 200); }
   };
   await wake();
-  // ~36s of polling (12 x 3s, ~14 subrequests — well under the 50 cap). A car
-  // that was fully offline (doors open, no sleep yet) can take 20s+ to answer,
-  // and the first wake_up is sometimes dropped, so it is re-sent halfway.
-  for (let i = 0; i < 12; i++) {
-    if (i === 6) await wake();
-    await new Promise(r => setTimeout(r, 3000));
+  // ~60s of polling (15 x 4s, ~20 subrequests — well under the 50 cap). A car
+  // that is "offline" rather than asleep took ~45s to answer on 2026-11-09
+  // (the old 36s window always gave up first), and the first wake_up is
+  // sometimes dropped, so it is re-sent along the way. If it still isn't up,
+  // the widget keeps checking (without re-waking) for two more minutes.
+  for (let i = 0; i < 15; i++) {
+    if (i === 5 || i === 10) await wake();
+    await new Promise(r => setTimeout(r, 4000));
     const list = await getJson(`${env.TESLA_API_BASE}/api/1/vehicles`, t.access_token);
     const me = list.ok && Array.isArray(list.body.response)
       ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)

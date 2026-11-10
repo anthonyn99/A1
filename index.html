@@ -4746,6 +4746,13 @@ function load(force,wake){
   inflight=fetch(url,{headers:{Accept:'application/json'},cache:'no-store'})
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
     .then(function(j){
+      // Tesla took the wake (200) but the car wasn't up inside the worker's
+      // window. A fully offline car (not just asleep) can take 1–2 minutes,
+      // so keep asking — without re-waking — before saying "no answer".
+      if(wake&&j&&j.wake_failed&&j.wake_status===200)return settleWake(j,Date.now()+WAKE_SETTLE_MS);
+      return j;
+    })
+    .then(function(j){
       var m=normalize(j);
       if(!m)throw new Error('Unrecognised vehicle data');
       // The car was asked to wake and still didn't answer — genuinely out of
@@ -4760,6 +4767,18 @@ function load(force,wake){
       return null;
     });
   return inflight;
+}
+var WAKE_SETTLE_MS=2*60*1000,WAKE_SETTLE_STEP=10*1000;
+function settleWake(last,deadline){
+  if(Date.now()>=deadline)return Promise.resolve(last);
+  return new Promise(function(r){setTimeout(r,WAKE_SETTLE_STEP);})
+    .then(function(){return fetch(CFG.endpoint,{headers:{Accept:'application/json'},cache:'no-store'});})
+    .then(function(r){return r.ok?r.json():null;},function(){return null;})
+    .then(function(j){
+      var st=j&&j.response&&j.response.state;
+      if(st==='online')return j;            // up — this is the fresh reading
+      return settleWake(j||last,deadline);
+    });
 }
 // An offline/asleep car reports no TPMS at all, which used to blank the Tires
 // section. Keep the last pressures it did report and show them marked stale.
