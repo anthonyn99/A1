@@ -1,6 +1,6 @@
 // newshub's morning pre-warm begins at 6 AM Mountain all year (2026-11-02). A UTC
 // cron cannot follow daylight saving, so the one trigger fires at 12:00 AND 13:00
-// UTC (and at :10 and :20 of each, one build per tick) and scheduled() builds
+// UTC (and at :10, :20 and :30 of each, one job per tick) and scheduled() builds
 // only on the runs that are 6 AM in America/Denver.
 // Until then it was 12:00 UTC alone: 6 AM in summer but 5 AM all winter.
 //
@@ -27,7 +27,7 @@ ok('worker.js defines isCronBuildHour', !!m);
 const isCronBuildHour = m && new Function(m[0] + '\nreturn isCronBuildHour;')();
 
 console.log('\nThe trigger');
-ok('wrangler.toml fires at :00, :10 and :20 of 12:00 and 13:00 UTC from ONE cron expression', /^crons = \["0,10,20 12,13 \* \* \*"\]$/m.test(TOML), (TOML.match(/^crons.*$/m) || [])[0]);
+ok('wrangler.toml fires at :00, :10, :20 and :30 of 12:00 and 13:00 UTC from ONE cron expression', /^crons = \["0,10,20,30 12,13 \* \* \*"\]$/m.test(TOML), (TOML.match(/^crons.*$/m) || [])[0]);
 const sched = SRC.slice(SRC.indexOf('async scheduled(event, env, ctx){'));
 ok('scheduled() returns before any work unless it is the 6 AM run', /^async scheduled\(event, env, ctx\)\{\n(\s*\/\/.*\n)*\s*if \(!isCronBuildHour\(event\.scheduledTime\)\) return;/.test(sched));
 

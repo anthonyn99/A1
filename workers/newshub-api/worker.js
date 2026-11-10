@@ -1691,7 +1691,7 @@ const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
 // While the lock is held, /calendar answers 202 "building" (or a STALE hit) and the
 // client polls / retries on its next tick instead of competing. Auto-expires, so a
 // cron that dies mid-flight can't wedge the endpoint.
-const CAL_CRON_LOCK_TTL = 600;      // 10 min — covers the 06:20 calendar build + its one retry
+const CAL_CRON_LOCK_TTL = 600;      // 10 min — covers the 06:30 calendar build + its one retry
 const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
 // Grounded-search calendar. gemini-3.5-flash is a thinking model that 429s (low
 // grounding quota) or lets thinking eat the small output budget → empty, so it is
@@ -1750,67 +1750,45 @@ function macroImportance(name){
 }
 
 // ── AUTHORITATIVE macro release calendar ─────────────────────────────────────
-// Hardcoded from OFFICIAL published schedules (BLS, BEA, Federal Reserve) so
-// dates are CONCRETE and correct — never AI-guessed. This is the source of truth;
-// grounded Gemini is only a supplement for anything not covered here.
-// Sources:
-//   CPI/PPI/Jobs → bls.gov/schedule  •  PCE/GDP → bea.gov + PFEI 2026 schedule
-//   FOMC → federalreserve.gov  (decision day = 2nd day of each meeting)
-// Each entry: 'YYYY-MM-DD': releases that day. `m` = reference-month label helper.
-// NOTE: maintained for 2026; update when the agencies publish 2027.
-const MACRO_RELEASES_2026 = {
-  // Employment Situation / Jobs report (NFP) — BLS
+// Since 2026-11-09 the official schedules are READ, not typed in. Once a day (the
+// 06:30 cron tick, refreshMacroSchedule) the worker fetches each agency's own
+// published calendar, checks it, and keeps the result in KV (MS_KEY):
+//   CPI, PPI, jobs, JOLTS → FRED's release calendar (the St. Louis Fed mirrors
+//                           BLS's schedule; bls.gov refuses automated readers)
+//   PCE, GDP              → BEA's calendar feed (.ics), FRED as the cross-check
+//   Retail sales          → Census's indicator calendar, FRED as the cross-check
+//   FOMC                  → federalreserve.gov's meeting calendar
+//   ECB                   → the ECB's Governing Council calendar
+// A year counts as OFFICIAL for a release only when its list is complete and
+// passes the sanity checks in msCheckList. An official year's dates win over any
+// AI answer; a year with no official list yet falls back to grounded Gemini,
+// flagged "(approx)" (Est. in Catalysts). Nothing here needs a person each year:
+// when an agency publishes next year, the next daily read picks it up, and a date
+// an agency moves is followed within a day. macroScheduleStatus says what is not
+// official yet or not answering, and TradeHub's Catalysts shows it.
+//
+// MACRO_BUILTIN is the last fallback, used for a year the feed has never
+// completed (e.g. KV lost). It is the 2026 table that used to be the only source;
+// it is NOT maintained any more. Note its Jan-Mar 2026 PPI/PCE/GDP/retail dates are
+// the pre-shutdown originals, which the agencies moved; the feed has the real ones.
+// S&P Global's Flash PMI has no calendar a worker may read (pmi.spglobal.com
+// refuses automated readers), so it is built-in for 2026 and AI-estimated after.
+const MACRO_BUILTIN = {
   jobs: ['2026-01-09','2026-02-11','2026-03-06','2026-04-03','2026-05-08','2026-06-05','2026-07-02','2026-08-07','2026-09-04','2026-10-02','2026-11-06','2026-12-04'],
-  // CPI — BLS
   cpi:  ['2026-01-13','2026-02-13','2026-03-11','2026-04-10','2026-05-12','2026-06-10','2026-07-14','2026-08-12','2026-09-11','2026-10-14','2026-11-10','2026-12-10'],
-  // PPI — BLS (official 2026 dates per OMB PFEI schedule / bls.gov/schedule)
   ppi:  ['2026-01-15','2026-02-19','2026-03-12','2026-04-14','2026-05-14','2026-06-11','2026-07-15','2026-08-13','2026-09-10','2026-10-15','2026-11-13','2026-12-15'],
-  // Personal Income & Outlays = PCE — BEA (PFEI 2026)
   pce:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
-  // GDP — BEA (advance/2nd/3rd estimates, PFEI 2026)
   gdp:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
-  // Retail Sales — Census Advance Monthly Retail (official 2026 dates per OMB PFEI)
   retail: ['2026-01-16','2026-02-17','2026-03-16','2026-04-15','2026-05-15','2026-06-16','2026-07-16','2026-08-14','2026-09-16','2026-10-15','2026-11-17','2026-12-16'],
-  // FOMC rate decision (2nd day of meeting) — Federal Reserve
   fomc: ['2026-01-28','2026-03-18','2026-04-29','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-09'],
-  // JOLTS (Job Openings & Labor Turnover) — BLS. Released ~10am ET, reports the
-  // month from ~2 months prior. 2026 schedule is irregular (shutdown-shifted in
-  // H1); forward dates confirmed via BLS/TradingCalendar. Past months left sparse
-  // since only the forward 30-day window is ever surfaced.
   jolts: ['2026-02-03','2026-05-05','2026-06-02','2026-06-30','2026-08-04','2026-09-01','2026-09-29','2026-11-03','2026-12-01'],
-  // S&P Global US Flash PMI (Manufacturing + Services + Composite) — the EARLIEST
-  // read on the CURRENT month's economy (~3 wks before ISM covers it). Official
-  // S&P Global Market Intelligence release-dates schedule (pmi.spglobal.com). The
-  // release day-of-week VARIES month to month (no fixed rule), so dates are
-  // hardcoded and cross-checked against multiple calendars.
+  // S&P Global US Flash PMI: the release weekday varies month to month (no rule).
   flashpmi: ['2026-01-23','2026-02-20','2026-03-24','2026-04-23','2026-05-21','2026-06-23','2026-07-24','2026-08-21','2026-09-23','2026-10-23','2026-11-23','2026-12-16'],
+  // ECB monetary-policy decision days (Day 2 of each meeting).
+  ecb: ['2026-07-23','2026-09-10','2026-10-29','2026-12-17',
+        '2027-02-04','2027-03-18','2027-04-29','2027-06-10','2027-07-22','2027-09-09','2027-10-28','2027-12-16'],
 };
 const MON_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-// Set of years we have hardcoded (auto-derived from the table above, so adding a
-// new year's dates anywhere in MACRO_RELEASES_2026 automatically marks that year
-// as "trusted" — no other code to touch). Years NOT in this set fall back to AI.
-const HARDCODED_YEARS = new Set(
-  Object.values(MACRO_RELEASES_2026).flat().map(d => String(d).slice(0,4))
-);
-
-// ── Non-US central bank + marquee Fed events ─────────────────────────────────
-// Kept in SEPARATE tables (NOT inside MACRO_RELEASES_2026) on purpose: that
-// object auto-derives HARDCODED_YEARS, which gates the grounded-AI fallback for
-// the US series. ECB spans 2026–2027; letting 2027 leak into HARDCODED_YEARS
-// would mark 2027 "trusted" and DROP the AI fallback for every not-yet-hardcoded
-// 2027 US release (CPI, jobs, FOMC…). These tables are emitted directly by
-// authoritativeMacro regardless of HARDCODED_YEARS, so they never affect it.
-//
-// ECB Governing Council MONETARY POLICY meeting decision days (the 2nd/final day,
-// when the rate is announced at 14:15 CET). 8 meetings/year, ~6 weeks apart.
-// Source: ECB press calendar (ecb.europa.eu/press/calendars). Non-US, but a major
-// driver of US rates, USD and global risk sentiment. Maintained by year.
-const ECB_DECISIONS = [
-  // 2026 — forward only (H1 meetings already passed; only a 30-day window surfaces)
-  '2026-07-23','2026-09-10','2026-10-29','2026-12-17',
-  // 2027 — full year, per the ECB's published calendar
-  '2027-02-04','2027-03-18','2027-04-29','2027-06-10','2027-07-22','2027-09-09','2027-10-28','2027-12-16',
-];
 // Marquee, pre-scheduled Fed-Chair events with FIXED dates that reliably move
 // markets — distinct from ad-hoc FOMC-member speeches (grounded Gemini supplies
 // those best-effort). The FOMC press conference (where the Chair speaks) is
@@ -1818,13 +1796,566 @@ const ECB_DECISIONS = [
 //   • Jackson Hole = Fed Chair keynote day (Fri) of the KC Fed symposium.
 //   • Testimony = semiannual Monetary Policy Report to Congress (House + Senate).
 // NOTE: the Fed Chair from May 2026 is Warsh (not Powell) — names kept generic.
-// Maintained by year; testimony dates are set ~2 wks ahead by the committees, so
-// only confirmed ones are listed and future years fall back to grounded AI.
+// Testimony dates are set ~2 wks ahead by the committees and no agency publishes
+// them as a calendar, so only confirmed ones are listed and other years fall back
+// to grounded AI.
 const FED_CHAIR_EVENTS = [
   { date:'2026-07-14', name:'Fed Chair Semiannual Testimony (House)' },
   { date:'2026-07-15', name:'Fed Chair Semiannual Testimony (Senate)' },
   { date:'2026-08-28', name:'Jackson Hole Symposium — Fed Chair Keynote' },
 ];
+
+// ══ MACRO SCHEDULE FEED ═══════════════════════════════════════════════════════
+const MS_KEY = 'macro:sched:v1';
+// Honest identification: these are public calendars read once a day.
+const MS_UA = 'A1-Catalysts/1.0 (+https://newshub-api.av1.workers.dev; reads official release calendars once a day)';
+const MS_FETCH_TIMEOUT = 15000;
+const MS_CHANGE_KEEP_DAYS = 14;     // how long a "this date moved" note is kept
+const MS_CHANGE_WARN_DAYS = 7;      // ...and shown
+const MS_STALE_DAYS = 2;            // the daily check missing two days running
+const MS_SOURCE_DOWN_DAYS = 3;      // a source failing three days running
+const MS_REFRESH_MIN_GAP = 3600 * 1000;   // /macro-schedule?refresh=1 at most hourly
+// primary: who publishes the schedule. fred: FRED release id (rid), the
+// cross-check (or the only machine-readable copy, for BLS's releases).
+// perYear: the fewest releases a complete year can have. Monthly releases come
+// 12 times a year; shutdown catch-up years have MORE, never fewer than 11 (JOLTS
+// 2026 had 12 on 9 distinct months), so the floor is 11 plus first/last-month
+// bounds (msCheckList). FOMC and the ECB meet 8 times a year.
+const MS_SERIES = {
+  cpi:    { label:'CPI',          primary:'fred',   fred:10,  perYear:11, monthly:true },
+  ppi:    { label:'PPI',          primary:'fred',   fred:46,  perYear:11, monthly:true },
+  jobs:   { label:'jobs report',  primary:'fred',   fred:50,  perYear:11, monthly:true },
+  jolts:  { label:'JOLTS',        primary:'fred',   fred:192, perYear:11, monthly:true },
+  pce:    { label:'PCE',          primary:'bea',    fred:54,  perYear:11, monthly:true },
+  gdp:    { label:'GDP',          primary:'bea',    fred:53,  perYear:11, monthly:true },
+  retail: { label:'retail sales', primary:'census', fred:9,   perYear:11, monthly:true },
+  fomc:   { label:'FOMC',         primary:'fed',              perYear:8,  monthly:false },
+  ecb:    { label:'ECB',          primary:'ecb',              perYear:8,  monthly:false, nonUS:true },
+};
+const MS_SOURCE_NAMES = { fred:'FRED (St. Louis Fed)', bea:'BEA', census:'Census', fed:'the Federal Reserve', ecb:'the ECB' };
+// Who a missing year is waiting on, in the words the warning uses.
+const MS_AWAIT = { fred:"FRED (BLS's dates)", bea:'BEA', census:'Census', fed:'the Fed', ecb:'the ECB' };
+const MS_MONTH_IDX = Object.fromEntries(MON_NAMES.map((m, i) => [m.toLowerCase(), i + 1]));
+
+function msIso(y, m, d){ return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function msValidIso(y, m, d){ const t = new Date(Date.UTC(y, m - 1, d)); return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d; }
+// An instant as a New York calendar date (ICS times are UTC).
+function msEtDate(ms){
+  return new Intl.DateTimeFormat('en-CA', { timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date(ms));
+}
+function msDecode(s){
+  return String(s).replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&#0?39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+}
+
+// ── Parsers. Each returns { rows:[{date, ref?}], err? } or, for multi-series
+//    sources, { by:{series:[rows]} }. A parser that finds nothing returns an
+//    empty list: the caller treats "page answered but nothing parsed" as a
+//    format change, not as "no releases".
+
+// FRED's per-release calendar page (fred.stlouisfed.org/releases/calendar?rid=N&y=Y):
+// a bold date header, then one row per release that day, each linking
+// /release?rid=N. Dates and links are paired in document order, so styling
+// changes don't matter. Only rows for the asked rid and year count.
+function msParseFred(html, rid, year){
+  const rows = [];
+  const re = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+([A-Z][a-z]+)\s+(\d{1,2}),\s+(\d{4})|href="\/release\?rid=(\d+)"/g;
+  let cur = null, m;
+  while ((m = re.exec(html))){
+    if (m[1]){
+      const mo = MS_MONTH_IDX[m[2].toLowerCase()], y = +m[4], d = +m[3];
+      cur = (mo && msValidIso(y, mo, d)) ? msIso(y, mo, d) : null;
+    } else if (cur && +m[5] === rid && cur.slice(0,4) === String(year)){
+      rows.push({ date: cur });
+    }
+  }
+  // "Releases 1 - 50 of 73": a paged list is not the whole year.
+  const pg = /Releases\s+\d+\s*-\s*(\d+)\s+of\s+(\d+)/.exec(html);
+  return { rows: msUniqRows(rows), truncated: !!(pg && +pg[2] > +pg[1]) };
+}
+
+// BEA's calendar feed: RFC 5545, folded lines, UTC times. GDP rows are the
+// national quarterly estimates only ("GDP (Advance Estimate), 3rd Quarter 2026",
+// "Gross Domestic Product, 3rd Quarter 2025 (Updated Estimate)"), never GDP by
+// state/county/industry. ref carries BEA's own period so the label is right even
+// when a release covers two months (shutdown catch-ups).
+function msParseBea(ics){
+  const text = String(ics).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '');
+  const by = { pce: [], gdp: [] };
+  for (const ev of text.split('BEGIN:VEVENT').slice(1)){
+    const sm = /\nSUMMARY[^:\n]*:([^\n]*)/.exec('\n' + ev);
+    const dm = /\nDTSTART([^:\n]*):(\d{8})(T(\d{6})(Z?))?/.exec('\n' + ev);
+    if (!sm || !dm) continue;
+    const sum = sm[1].replace(/\\([,;\\])/g, '$1').replace(/\\n/gi, ' ').trim();
+    const ds = dm[2];
+    let date;
+    if (dm[3] && dm[5] === 'Z'){
+      const t = Date.UTC(+ds.slice(0,4), +ds.slice(4,6) - 1, +ds.slice(6,8), +dm[4].slice(0,2), +dm[4].slice(2,4));
+      date = msEtDate(t);
+    } else {
+      date = `${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`; // local (America/New_York per the feed) or all-day
+    }
+    let mm;
+    if ((mm = /^Personal Income and Outlays,\s*(.+)$/i.exec(sum))){
+      const ref = mm[1].replace(/\s*\d{4}\s*$/, '').trim();
+      by.pce.push({ date, ref });
+    } else if (/^(GDP|Gross Domestic Product)\b/i.test(sum) && !/\bby (State|County|Industry|Metro)/i.test(sum.split(',')[0]) && (mm = /(1st|2nd|3rd|4th) Quarter(?: and Year)? (\d{4})/i.exec(sum))){
+      by.gdp.push({ date, ref: `Q${mm[1][0]} ${mm[2]}` });
+    }
+  }
+  return { by: { pce: msUniqRows(by.pce), gdp: msUniqRows(by.gdp) } };
+}
+
+// Census's economic-indicator calendar: a table whose date cell carries a sortable
+// key (YYYYMMDDHHMM, Eastern) and whose last column is the period covered.
+function msParseCensus(html){
+  const rows = [];
+  for (const tr of String(html).split(/<tr\b/i).slice(1)){
+    if (!/Advance Monthly Sales for Retail/i.test(tr)) continue;
+    const k = /sorttable_customkey="(\d{4})(\d{2})(\d{2})/.exec(tr);
+    let date = null;
+    if (k && msValidIso(+k[1], +k[2], +k[3])) date = msIso(+k[1], +k[2], +k[3]);
+    if (!date){
+      const t = /([A-Z][a-z]+)\s+(\d{1,2}),\s+(\d{4})/.exec(tr.replace(/<[^>]+>/g, ' '));
+      const mo = t && MS_MONTH_IDX[t[1].toLowerCase()];
+      if (mo && msValidIso(+t[3], mo, +t[2])) date = msIso(+t[3], mo, +t[2]);
+    }
+    if (!date) continue;
+    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(c => msDecode(c[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim());
+    const per = cells.find(c => /^[A-Z][a-z]+ \d{4}$/.test(c) && MS_MONTH_IDX[c.split(' ')[0].toLowerCase()]);
+    rows.push(per ? { date, ref: per.split(' ')[0] } : { date });
+  }
+  return { rows: msUniqRows(rows) };
+}
+
+// federalreserve.gov's FOMC calendar: one panel per year ("2027 FOMC Meetings"),
+// each meeting a month cell ("January", "Apr/May") and a date cell ("27-28",
+// "16-17*", "30-1"). The decision is announced on the meeting's LAST day. A cell
+// without a range ("22 (notation vote)") is not a scheduled meeting.
+function msParseFomc(html){
+  const out = [];
+  const parts = String(html).split(/(\d{4}) FOMC Meetings/);
+  for (let i = 1; i + 1 < parts.length; i += 2){
+    const year = +parts[i], body = parts[i + 1];
+    const re = /fomc-meeting__month[^>]*>\s*(?:<strong>)?\s*([A-Za-z]+(?:\/[A-Za-z]+)?)\s*(?:<\/strong>)?[\s\S]*?fomc-meeting__date[^>]*>\s*([^<]*)</g;
+    let m;
+    while ((m = re.exec(body))){
+      const months = m[1].split('/').map(s => msMonthOf(s));
+      const dm = /^(\d{1,2})\s*-\s*(\d{1,2})\*?\s*$/.exec(m[2].trim());
+      if (!dm || !months[0]) continue;
+      const a = +dm[1], b = +dm[2];
+      let mo = months[months.length - 1];
+      if (months.length === 1 && b < a) mo = months[0] + 1;        // "30-1" under a single month
+      let y = year;
+      if (mo > 12){ mo -= 12; y += 1; }
+      if (msValidIso(y, mo, b)) out.push({ date: msIso(y, mo, b) });
+    }
+  }
+  return { rows: msUniqRows(out) };
+}
+function msMonthOf(s){
+  const k = String(s).trim().toLowerCase();
+  if (MS_MONTH_IDX[k]) return MS_MONTH_IDX[k];
+  const i = MON_NAMES.findIndex(n => n.toLowerCase().startsWith(k.slice(0, 3)) && k.length >= 3);
+  return i >= 0 ? i + 1 : 0;
+}
+
+// The ECB's Governing Council calendar: <dt>DD/MM/YYYY</dt><dd>description</dd>.
+// The rate decision is the monetary-policy meeting's final day: "(Day 2)" or the
+// one "followed by press conference". Non-monetary meetings never count.
+function msParseEcb(html){
+  const rows = [];
+  const re = /<dt[^>]*>\s*(\d{2})\/(\d{2})\/(\d{4})\s*<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/gi;
+  let m;
+  while ((m = re.exec(String(html)))){
+    const desc = msDecode(m[4].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    if (!/monetary policy meeting/i.test(desc) || /non-monetary/i.test(desc)) continue;
+    if (!/day 2|press conference/i.test(desc)) continue;
+    const d = +m[1], mo = +m[2], y = +m[3];
+    if (msValidIso(y, mo, d)) rows.push({ date: msIso(y, mo, d) });
+  }
+  return { rows: msUniqRows(rows) };
+}
+
+function msUniqRows(rows){
+  const seen = new Map();
+  for (const r of rows) if (r && r.date && !seen.has(r.date)) seen.set(r.date, r);
+  return [...seen.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ── Checks. A list is accepted for a year only when it is believable:
+//   • every date is in that year, on a weekday, and (US releases) not a federal
+//     holiday — agencies never release on one;
+//   • monthly: at least 11 releases, none piled 3+ into one month, starting by
+//     February and running into November (so a half-loaded page can't pass);
+//   • FOMC/ECB: at least 8 decisions, at least 3 weeks apart.
+// Returns { ok, reason }.
+function msCheckList(series, year, dates){
+  const spec = MS_SERIES[series];
+  if (!spec) return { ok:false, reason:'unknown series' };
+  const ys = String(year);
+  const hol = spec.nonUS ? new Set() : fedHolidaySet(+year);
+  for (const d of dates){
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d.slice(0,4) !== ys) return { ok:false, reason:`${d} is not in ${ys}` };
+    const w = isoDow(d);
+    if (w === 0 || w === 6) return { ok:false, reason:`${d} falls on a weekend` };
+    if (hol.has(d)) return { ok:false, reason:`${d} is a federal holiday` };
+  }
+  if (dates.length < spec.perYear) return { ok:false, reason:`only ${dates.length} dates (a full year has at least ${spec.perYear})`, short:true };
+  if (spec.monthly){
+    const per = {};
+    for (const d of dates){ const k = d.slice(5,7); per[k] = (per[k] || 0) + 1; if (per[k] > 2) return { ok:false, reason:`3 or more releases in ${MON_NAMES[+k-1]}` }; }
+    const months = dates.map(d => +d.slice(5,7));
+    if (Math.min(...months) > 2 || Math.max(...months) < 11) return { ok:false, reason:'the list does not run from early in the year to the end', short:true };
+  } else {
+    for (let i = 1; i < dates.length; i++){
+      if (dayGapIso(dates[i-1], dates[i]) < 21) return { ok:false, reason:`${dates[i-1]} and ${dates[i]} are under 3 weeks apart` };
+    }
+  }
+  return { ok:true };
+}
+function dayGapIso(a, b){ return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000); }
+
+// ── Merge one run into the stored record.
+// fetched: { sources:{name:{ok, err}}, lists:{ series:{ year:{ primary:[rows]|null,
+//            fred:[rows]|null } } } }   (null = that source did not answer)
+// A series-year is replaced only by a list that passes msCheckList. The past part
+// of a year comes from the new list where it has one, else from the stored list
+// (Census and the ECB only list what is still ahead). A list that fails keeps the
+// stored one and files an issue. Returns the new record.
+function msMergeRun(prev, fetched, nowMs){
+  const today = msEtDate(nowMs);
+  const rec = {
+    v: 1,
+    checkedAt: nowMs,
+    sources: {},
+    series: {},
+    changes: ((prev && prev.changes) || []).filter(c => nowMs - c.at < MS_CHANGE_KEEP_DAYS * 86400000),
+    issues: [],
+  };
+  // Source health carries over: okAt is the last time it answered usefully.
+  for (const name of Object.keys(MS_SOURCE_NAMES)){
+    const was = (prev && prev.sources && prev.sources[name]) || {};
+    const now = fetched.sources[name];
+    rec.sources[name] = now && now.ok
+      ? { okAt: nowMs, at: nowMs }
+      : { okAt: was.okAt || null, at: nowMs, err: (now && now.err) || 'not fetched' };
+  }
+  const prevSeries = (prev && prev.series) || {};
+  for (const series of Object.keys(MS_SERIES)){
+    const spec = MS_SERIES[series];
+    rec.series[series] = {};
+    const years = new Set([...Object.keys(prevSeries[series] || {}), ...Object.keys((fetched.lists[series]) || {})]);
+    for (const year of [...years].sort()){
+      const old = (prevSeries[series] || {})[year] || null;
+      const got = ((fetched.lists[series]) || {})[year] || {};
+      // Fill a list's missing past from the stored one (sources that list only
+      // what is ahead), then check it.
+      const fill = (rows) => {
+        if (!rows || !rows.length) return null;
+        const have = new Set(rows.map(r => r.date));
+        const first = rows[0].date;
+        const past = old ? old.dates.filter(d => d < first && d < today && !have.has(d)).map(d => ({ date:d, ref:(old.refs || {})[d] })) : [];
+        return msUniqRows([...past, ...rows]);
+      };
+      const cand = [];
+      if (spec.primary !== 'fred' && got.primary) cand.push({ src: spec.primary, rows: fill(got.primary) });
+      if (spec.fred && got.fred) cand.push({ src: 'fred', rows: fill(got.fred) });
+      let chosen = null;
+      const verdicts = [];
+      for (const c of cand){
+        if (!c.rows) { verdicts.push({ src:c.src, ok:false, reason:'no dates listed', short:true, empty:true }); continue; }
+        const v = msCheckList(series, year, c.rows.map(r => r.date));
+        verdicts.push({ src:c.src, ...v });
+        if (v.ok && !chosen) chosen = c;
+      }
+      // Agency vs FRED: when both are complete, a future date only one lists is
+      // worth a look (the agency's list is used).
+      const okC = cand.filter((c, i) => verdicts[i].ok);
+      if (okC.length === 2){
+        const a = new Set(okC[0].rows.map(r => r.date).filter(d => d >= today));
+        const b = new Set(okC[1].rows.map(r => r.date).filter(d => d >= today));
+        const onlyA = [...a].filter(d => !b.has(d)), onlyB = [...b].filter(d => !a.has(d));
+        if (onlyA.length || onlyB.length) rec.issues.push({ code:'mismatch', series, year, [okC[0].src]: onlyA, [okC[1].src]: onlyB });
+      }
+      if (chosen){
+        const dates = chosen.rows.map(r => r.date);
+        const refs = {};
+        for (const r of chosen.rows) if (r.ref) refs[r.date] = r.ref;
+        // FRED rows carry no period; keep BEA/Census periods learnt earlier for the
+        // same dates.
+        if (old && old.refs) for (const d of dates) if (!refs[d] && old.refs[d]) refs[d] = old.refs[d];
+        rec.series[series][year] = { dates, refs, src: chosen.src, at: nowMs };
+        if (old){
+          const before = old.dates.filter(d => d >= today), after = dates.filter(d => d >= today);
+          const removed = before.filter(d => !after.includes(d)), added = after.filter(d => !before.includes(d));
+          if (removed.length || added.length) rec.changes.push({ series, year, removed, added, at: nowMs });
+        }
+      } else {
+        if (old) rec.series[series][year] = old;
+        // A source that answered with something unbelievable is an issue. An
+        // empty answer for a year nobody has published yet is not: that is the
+        // normal state of next year until the agencies publish it.
+        for (const v of verdicts){
+          if (v.ok) continue;
+          if (v.empty) continue;
+          if (v.short && !old) { rec.issues.push({ code:'incomplete', series, year, src:v.src, reason:v.reason }); continue; }
+          rec.issues.push({ code: v.short ? 'shrank' : 'rejected', series, year, src:v.src, reason:v.reason });
+        }
+      }
+    }
+    // Drop years long past (keep last year for January's look-back).
+    const minYear = +today.slice(0,4) - 1;
+    for (const y of Object.keys(rec.series[series])) if (+y < minYear) delete rec.series[series][y];
+  }
+  return rec;
+}
+
+// Fetch every source for the years that matter (this year and next) and merge.
+// ~19 subrequests (FRED: one page per release per year), well inside one cron
+// invocation's 50. Never throws: a failed source is recorded on the record.
+async function msFetchAll(nowMs, fetchImpl){
+  const f = fetchImpl || fetch;
+  const today = msEtDate(nowMs);
+  const Y = +today.slice(0,4);
+  const years = [Y, Y + 1];
+  const get = async (url) => {
+    const r = await f(url, { headers: { 'User-Agent': MS_UA, 'Accept': 'text/html,text/calendar,*/*' }, signal: AbortSignal.timeout(MS_FETCH_TIMEOUT) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.text();
+  };
+  const sources = {};
+  const lists = {};
+  const put = (series, year, which, rows) => {
+    lists[series] = lists[series] || {};
+    lists[series][year] = lists[series][year] || {};
+    lists[series][year][which] = rows;
+  };
+  const byYear = (rows, y) => rows.filter(r => r.date.slice(0,4) === String(y));
+
+  const tasks = [];
+  // FRED: every release with a rid, both years.
+  const fredJobs = [];
+  for (const [series, spec] of Object.entries(MS_SERIES)) if (spec.fred) for (const y of years) fredJobs.push({ series, rid: spec.fred, y });
+  tasks.push((async () => {
+    let okCur = 0, errs = [];
+    await Promise.all(fredJobs.map(async (j) => {
+      try {
+        const html = await get(`https://fred.stlouisfed.org/releases/calendar?rid=${j.rid}&y=${j.y}`);
+        const p = msParseFred(html, j.rid, j.y);
+        if (p.truncated){ errs.push(`rid ${j.rid} ${j.y}: paged list`); return; }
+        put(j.series, j.y, 'fred', p.rows);
+        if (j.y === Y && p.rows.length) okCur++;
+        if (j.y === Y && !p.rows.length) errs.push(`rid ${j.rid} ${j.y}: no dates found (page format changed?)`);
+      } catch(e){ errs.push(`rid ${j.rid} ${j.y}: ${e.message}`); }
+    }));
+    // FRED answered usefully when every current-year page parsed. Next year's
+    // pages are legitimately empty until the agencies publish.
+    const curPages = fredJobs.filter(j => j.y === Y).length;
+    sources.fred = okCur === curPages ? { ok:true } : { ok:false, err: errs.slice(0, 3).join('; ') || 'no dates found' };
+  })());
+  tasks.push((async () => {
+    try {
+      const p = msParseBea(await get('https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ics'));
+      for (const y of years){ put('pce', y, 'primary', byYear(p.by.pce, y)); put('gdp', y, 'primary', byYear(p.by.gdp, y)); }
+      const cur = byYear(p.by.pce, Y).length + byYear(p.by.gdp, Y).length;
+      sources.bea = cur ? { ok:true } : { ok:false, err:'no GDP/PCE dates found (feed format changed?)' };
+    } catch(e){ sources.bea = { ok:false, err:e.message }; }
+  })());
+  tasks.push((async () => {
+    try {
+      const p = msParseCensus(await get('https://www.census.gov/economic-indicators/calendar-listview.html'));
+      for (const y of years) put('retail', y, 'primary', byYear(p.rows, y));
+      sources.census = p.rows.length ? { ok:true } : { ok:false, err:'no retail-sales dates found (page format changed?)' };
+    } catch(e){ sources.census = { ok:false, err:e.message }; }
+  })());
+  tasks.push((async () => {
+    try {
+      const p = msParseFomc(await get('https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm'));
+      for (const y of years) put('fomc', y, 'primary', byYear(p.rows, y));
+      sources.fed = byYear(p.rows, Y).length ? { ok:true } : { ok:false, err:'no meetings found for this year (page format changed?)' };
+    } catch(e){ sources.fed = { ok:false, err:e.message }; }
+  })());
+  tasks.push((async () => {
+    try {
+      const p = msParseEcb(await get('https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html'));
+      for (const y of years) put('ecb', y, 'primary', byYear(p.rows, y));
+      sources.ecb = p.rows.length ? { ok:true } : { ok:false, err:'no rate decisions found (page format changed?)' };
+    } catch(e){ sources.ecb = { ok:false, err:e.message }; }
+  })());
+  await Promise.all(tasks);
+  return { sources, lists };
+}
+
+async function loadMacroSchedule(env){
+  try { return JSON.parse(await env.NEWSHUB_CACHE.get(MS_KEY) || 'null'); } catch(e){ return null; }
+}
+// The daily read. One KV read, ~19 fetches, one KV write.
+async function refreshMacroSchedule(env, nowMs, fetchImpl){
+  const now = nowMs || Date.now();
+  const prev = await loadMacroSchedule(env);
+  const fetched = await msFetchAll(now, fetchImpl);
+  const rec = msMergeRun(prev, fetched, now);
+  await env.NEWSHUB_CACHE.put(MS_KEY, JSON.stringify(rec));
+  return rec;
+}
+
+// ── Which dates to use. For each release and year: the feed's official list if
+//    it has one, else the built-in table's (2026), else none (AI fills in, Est.).
+function msYearsOf(series, rec){
+  const out = {};
+  for (const d of (MACRO_BUILTIN[series] || [])){ const y = d.slice(0,4); (out[y] = out[y] || { dates:[], refs:{}, src:'builtin' }).dates.push(d); }
+  const fed = rec && rec.series && rec.series[series];
+  if (fed) for (const [y, v] of Object.entries(fed)) if (v && Array.isArray(v.dates) && v.dates.length) out[y] = { dates: v.dates, refs: v.refs || {}, src: v.src };
+  return out;
+}
+function msOfficial(series, year, rec){ return !!msYearsOf(series, rec)[String(year)]; }
+function msDatesOf(series, rec){
+  const out = [];
+  for (const v of Object.values(msYearsOf(series, rec))) for (const d of v.dates) out.push({ date:d, ref:v.refs[d] || null });
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// What an AI-sourced macro name is, so its year can be checked against the
+// official lists. null = not a release we schedule (housing, durable goods,
+// speeches...), which AI supplies every year.
+function macroSeriesOf(name){
+  const n = String(name || '');
+  if (/jackson hole/i.test(n)) return 'jackson';
+  if (/semiannual|monetary policy report|humphrey/i.test(n)) return 'testimony';
+  if (/speech|remarks|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/i.test(n)) return null;
+  if (/\becb\b|european central bank/i.test(n)) return 'ecb';
+  if (/minutes/i.test(n) && /\bfomc\b|\bfed\b|federal reserve/i.test(n)) return 'minutes';
+  if (/flash pmi|s&p global flash/i.test(n)) return 'flashpmi';
+  if (/chicago pmi|chicago business/i.test(n)) return 'chicago';
+  if (/\bism\b/i.test(n)) return 'ism';
+  if (/\badp\b/i.test(n)) return 'adp';
+  if (/jobless claims|initial claims|continuing claims/i.test(n)) return 'claims';
+  if (/\bjolts\b|job openings|labor turnover/i.test(n)) return 'jolts';
+  if (/nonfarm|non-farm|\bnfp\b|jobs report|employment situation|payroll/i.test(n)) return 'jobs';
+  if (/\bppi\b|producer price/i.test(n)) return 'ppi';
+  if (/\bcpi\b|consumer price/i.test(n)) return 'cpi';
+  if (/\bpce\b|personal consumption|personal income/i.test(n)) return 'pce';
+  if (/\bgdp\b|gross domestic/i.test(n)) return 'gdp';
+  if (/retail sales/i.test(n)) return 'retail';
+  if (/consumer confidence/i.test(n)) return 'confidence';
+  if (/michigan|consumer sentiment/i.test(n)) return 'michigan';
+  if (/\bfomc\b|rate decision|fed(eral)? funds|interest rate decision/i.test(n)) return 'fomc';
+  return null;
+}
+// Is this release on this date already supplied exactly (official list or rule)?
+function macroCovered(series, date, rec){
+  const y = date.slice(0,4);
+  switch (series){
+    case null: case undefined: return false;
+    case 'ism': case 'chicago': case 'confidence': case 'michigan': case 'claims': return true;   // rules (computedMacro)
+    case 'adp': return msOfficial('jobs', y, rec);
+    case 'minutes': return msOfficial('fomc', addDaysIso(date, -21).slice(0,4), rec);
+    case 'flashpmi': return msOfficial('flashpmi', y, rec);
+    case 'jackson': return FED_CHAIR_EVENTS.some(e => e.date.slice(0,4) === y && /jackson/i.test(e.name));
+    case 'testimony': return FED_CHAIR_EVENTS.some(e => e.date.slice(0,4) === y && /testimony/i.test(e.name));
+    default: return MS_SERIES[series] ? msOfficial(series, y, rec) : false;
+  }
+}
+// Every release that has a schedule (official or rule). An AI event of one of
+// these in a year without an official list is shown, flagged (approx).
+const MS_SCHEDULED = new Set([...Object.keys(MS_SERIES), 'flashpmi', 'adp', 'minutes', 'jackson', 'testimony']);
+
+// ── What Catalysts should say. Pure: the record, the time, and the window.
+// Returns { warnings:[{code, level:'warn'|'info', text}], official:{series:[years]},
+//           checkedAt }. Every case that can leave a date wrong or estimated is
+// covered; tests/newshub-macro-schedule.test.js walks each one.
+function macroScheduleStatus(rec, nowMs, windowDays){
+  const today = msEtDate(nowMs);
+  const Y = +today.slice(0,4), M = +today.slice(5,7), D = +today.slice(8,10);
+  const toD = addDaysIso(today, windowDays || 30);
+  const warnings = [];
+  const fmtDay = (d) => `${MON_NAMES[+d.slice(5,7)-1].slice(0,3)} ${+d.slice(8,10)}`;
+  const label = (s) => (MS_SERIES[s] || {}).label || s;
+  const list = (arr) => arr.length <= 1 ? arr.join('') : arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
+  const ago = (ms) => { const d = Math.floor((nowMs - ms) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
+
+  // 1. The daily check itself.
+  if (!rec){
+    warnings.push({ code:'feed-missing', level:'warn', text:"The daily check of the official release calendars hasn't run yet, so dates come from the built-in 2026 table and AI estimates." });
+  } else if (nowMs - rec.checkedAt > MS_STALE_DAYS * 86400000){
+    warnings.push({ code:'feed-stale', level:'warn', text:`The official release calendars were last checked ${ago(rec.checkedAt)} — the daily 6:20 AM (Mountain) check isn't running, so a moved date could be missed.` });
+  }
+  // 2. Each source. Down = its LAST attempt failed and it hasn't answered for
+  //    3 days. (When the whole check stopped running, 1. says so; every source
+  //    looking "old" then is not five more problems.)
+  if (rec) for (const [name, s] of Object.entries(rec.sources || {})){
+    if (!s || !s.err) continue;
+    const down = !s.okAt || nowMs - s.okAt > MS_SOURCE_DOWN_DAYS * 86400000;
+    if (!down) continue;
+    const since = s.okAt ? `since ${fmtDay(msEtDate(s.okAt))}` : 'on any check yet';
+    warnings.push({ code:'source-down', level:'warn', source:name, text:`${MS_SOURCE_NAMES[name] || name}'s calendar hasn't answered ${since}${s.err ? ` (${s.err})` : ''}; its last good dates are still used.` });
+  }
+  // 3. Releases in the next 30 days with no official date (shown as Est.).
+  const yearsInWindow = [...new Set([today.slice(0,4), toD.slice(0,4)])];
+  const official = {};
+  for (const s of Object.keys(MS_SERIES)) official[s] = Object.keys(msYearsOf(s, rec)).sort();
+  for (const y of yearsInWindow){
+    // Only the part of the window inside year y matters.
+    const from = y === today.slice(0,4) ? today : `${y}-01-01`;
+    const to = y === toD.slice(0,4) ? toD : `${y}-12-31`;
+    const missing = Object.keys(MS_SERIES).filter(s => !official[s].includes(y) && msExpectedIn(s, from, to));
+    if (missing.length) warnings.push({ code:'window-estimated', level:'warn', year:y, series:missing,
+      text:`${list(missing.map(label))} ${y} ${missing.length === 1 ? 'date isn\'t' : 'dates aren\'t'} published by the agencies yet (waiting on ${list([...new Set(missing.map(s => MS_AWAIT[MS_SERIES[s].primary]))])}), so ${missing.length === 1 ? 'it shows' : 'they show'} as Est. AI estimates until the official list arrives — that switch is automatic.` });
+  }
+  // 4. Next year, from mid-November: which lists are still to come. A note, for
+  //    each release until 3. takes it over as a warning (its window reaches the
+  //    first day that release could fall on).
+  if ((M === 11 && D >= 15) || M === 12){
+    const ny = String(Y + 1);
+    const warned = new Set(warnings.filter(w => w.code === 'window-estimated' && w.year === ny).flatMap(w => w.series));
+    const missing = Object.keys(MS_SERIES).filter(s => !official[s].includes(ny) && !warned.has(s));
+    if (missing.length) warnings.push({ code:'next-year-pending', level:'info', year:ny, series:missing,
+      text:`${ny} schedule not out yet for ${list(missing.map(label))} (waiting on ${list([...new Set(missing.map(s => MS_AWAIT[MS_SERIES[s].primary]))])}). It's picked up automatically the day it's published.` });
+  }
+  // 5. What the last run found wrong.
+  if (rec) for (const i of (rec.issues || [])){
+    if (i.code === 'mismatch'){
+      // The agency's list is the one used, so this cannot leave a date wrong; it
+      // is a note, and only for dates in the window. FRED also lists revision
+      // days the agency files separately (retail sales' annual revision, e.g.
+      // Apr 25 2025), which would otherwise show up every year.
+      const parts = Object.entries(i).filter(([k, v]) => Array.isArray(v)).map(([k, v]) => [k, v.filter(d => d >= today && d <= toD)]).filter(([, v]) => v.length)
+        .map(([k, v]) => `${MS_SOURCE_NAMES[k] || k} alone lists ${list(v.map(fmtDay))}`);
+      if (parts.length) warnings.push({ code:'mismatch', level:'info', series:i.series, text:`${label(i.series)} ${i.year}: the agency and FRED disagree — ${parts.join('; ')}. The agency's date is used.` });
+    } else if (i.code === 'shrank'){
+      warnings.push({ code:'shrank', level:'warn', series:i.series, text:`${label(i.series)} ${i.year}: ${MS_SOURCE_NAMES[i.src] || i.src} now lists ${i.reason.replace(/^only /, 'only ')} — a release may have been postponed. The previous schedule is kept; check the agency's site.` });
+    } else if (i.code === 'rejected'){
+      warnings.push({ code:'rejected', level:'warn', series:i.series, text:`${label(i.series)} ${i.year}: ${MS_SOURCE_NAMES[i.src] || i.src}'s list was not used (${i.reason}).` });
+    } else if (i.code === 'incomplete' && !official[i.series].includes(String(i.year)) && (+i.year === Y || (+i.year === Y + 1 && M >= 10))){
+      // Only while that year has no official list from anywhere (the built-in
+      // table covers 2026's ECB, whose page lists only what is still ahead).
+      warnings.push({ code:'incomplete', level:'info', series:i.series, text:`${label(i.series)} ${i.year}: ${MS_SOURCE_NAMES[i.src] || i.src} lists part of the year so far (${i.reason}); waiting for the full list.` });
+    }
+  }
+  // 6. Official dates that moved in the past week (still ahead).
+  if (rec) for (const c of (rec.changes || [])){
+    if (nowMs - c.at > MS_CHANGE_WARN_DAYS * 86400000) continue;
+    const removed = (c.removed || []).filter(d => d >= today), added = (c.added || []).filter(d => d >= today);
+    if (!removed.length && !added.length) continue;
+    let what;
+    if (removed.length === 1 && added.length === 1) what = `moved from ${fmtDay(removed[0])} to ${fmtDay(added[0])}`;
+    else what = [removed.length ? `${list(removed.map(fmtDay))} dropped` : '', added.length ? `${list(added.map(fmtDay))} added` : ''].filter(Boolean).join(', ');
+    warnings.push({ code:'moved', level:'info', series:c.series, text:`${label(c.series)} ${what} on the official schedule (${ago(c.at)}). Catalysts follows it.` });
+  }
+  // Each text reads as a sentence (labels like "jobs report" and "the ECB" lead some).
+  for (const w of warnings) w.text = w.text.charAt(0).toUpperCase() + w.text.slice(1);
+  return { warnings, official, checkedAt: rec ? rec.checkedAt : null };
+}
+// Could this release fall between from and to (same year)? Without the year's
+// list nobody knows the dates, so this errs towards warning: any stretch of the
+// year counts once it reaches the earliest day that release has ever come out
+// (monthly ones by the 5th of January — JOLTS/jobs; FOMC and the ECB never meet
+// before the 20th of January).
+function msExpectedIn(series, from, to){
+  const y = from.slice(0,4);
+  return to >= (MS_SERIES[series].monthly ? `${y}-01-05` : `${y}-01-20`);
+}
+
 // Reference month label: most reports cover the PRIOR month; GDP covers a quarter.
 function prevMonthLabel(dateStr){
   const m = parseInt(dateStr.slice(5,7),10) - 1; // 0-based this month
@@ -1852,7 +2383,10 @@ const _fedHolCache = {};
 function fedHolidaySet(Y){
   if (_fedHolCache[Y]) return _fedHolCache[Y];
   const s = new Set();
-  const ny = mktObserve(Y,1,1,false); if (ny) s.add(ny);          // New Year's Day
+  // New Year's Day. On a Saturday it is observed on Friday Dec 31 of the year
+  // BEFORE (mktObserve can't express that: it returned "YYYY-01-00"), so that
+  // year's set carries it (last line) and this one has nothing for Jan 1.
+  if (mktDow(Y,1,1) !== 6) s.add(mktObserve(Y,1,1,false));
   s.add(mktIso(Y,1,  mktNthDow(Y,1,1,3)));                         // MLK — 3rd Mon Jan
   s.add(mktIso(Y,2,  mktNthDow(Y,2,1,3)));                         // Washington — 3rd Mon Feb
   s.add(mktIso(Y,5,  mktLastDow(Y,5,1)));                          // Memorial — last Mon May
@@ -1863,70 +2397,115 @@ function fedHolidaySet(Y){
   s.add(mktObserve(Y,11,11,false));                               // Veterans Day
   s.add(mktIso(Y,11, mktNthDow(Y,11,4,4)));                        // Thanksgiving — 4th Thu Nov
   s.add(mktObserve(Y,12,25,false));                               // Christmas Day
+  if (mktDow(Y+1,1,1) === 6) s.add(mktIso(Y,12,31));               // next New Year's, observed Dec 31
   return (_fedHolCache[Y] = s);
 }
 function isFedBiz(Y,M,d,hol){ const w = mktDow(Y,M,d); return w>=1 && w<=5 && !hol.has(mktIso(Y,M,d)); }
 function nthBusinessDay(Y,M,n){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); let c=0; for (let d=1; d<=dim; d++){ if (isFedBiz(Y,M,d,hol) && ++c===n) return mktIso(Y,M,d); } return null; }
 function lastBusinessDay(Y,M){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); for (let d=dim; d>=1; d--){ if (isFedBiz(Y,M,d,hol)) return mktIso(Y,M,d); } return null; }
 
-// Rule-based macro releases that follow a fixed scheduling rule (so they're exact
-// by construction — no hand-maintained date table needed). Only emitted for years
-// we treat as hardcoded (matches the CPI/jobs table); 2027+ falls back to grounded
-// Gemini + the "hardcode next year" banner, same as the rest of the calendar.
-function computedMacro(fromD, toD){
+// Rule-based macro releases that follow a fixed scheduling rule, so they're exact
+// by construction for every year. ADP and FOMC Minutes hang off the official
+// jobs/FOMC dates, so they exist exactly where those do.
+function computedMacro(fromD, toD, rec){
   const out = [];
   const inWin = d => d && d >= fromD && d <= toD;
-  const add = (date, name, category) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category }); };
+  const add = (date, name, category, series) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category, series }); };
   const y0 = +fromD.slice(0,4), y1 = +toD.slice(0,4);
   for (let Y=y0; Y<=y1; Y++){
-    if (!HARDCODED_YEARS.has(String(Y))) continue;
     const m0 = (Y===y0) ? +fromD.slice(5,7) : 1;
     const m1 = (Y===y1) ? +toD.slice(5,7)   : 12;
     for (let M=m0; M<=m1; M++){
       const lbl = MON_NAMES[M-1];
       const prevLbl = MON_NAMES[(M+10)%12];
-      add(nthBusinessDay(Y,M,1), `${prevLbl} ISM Manufacturing PMI`, 'growth');  // 1st business day
-      add(nthBusinessDay(Y,M,3), `${prevLbl} ISM Services PMI`,      'growth');  // 3rd business day
-      add(mktIso(Y,M,mktLastDow(Y,M,2)), `${lbl} Consumer Confidence`, 'sentiment'); // last Tue
-      add(mktIso(Y,M,mktNthDow(Y,M,5,2)), `${lbl} Michigan Sentiment (Prelim)`, 'sentiment'); // 2nd Fri
-      add(mktIso(Y,M,mktLastDow(Y,M,5)),  `${lbl} Michigan Sentiment (Final)`,  'sentiment'); // last Fri
-      add(lastBusinessDay(Y,M), `${lbl} Chicago PMI`, 'growth'); // last business day
+      add(nthBusinessDay(Y,M,1), `${prevLbl} ISM Manufacturing PMI`, 'growth', 'ism');  // 1st business day
+      add(nthBusinessDay(Y,M,3), `${prevLbl} ISM Services PMI`,      'growth', 'ism');  // 3rd business day
+      add(mktIso(Y,M,mktLastDow(Y,M,2)), `${lbl} Consumer Confidence`, 'sentiment', 'confidence'); // last Tue
+      add(mktIso(Y,M,mktNthDow(Y,M,5,2)), `${lbl} Michigan Sentiment (Prelim)`, 'sentiment', 'michigan'); // 2nd Fri
+      add(mktIso(Y,M,mktLastDow(Y,M,5)),  `${lbl} Michigan Sentiment (Final)`,  'sentiment', 'michigan'); // last Fri
+      add(lastBusinessDay(Y,M), `${lbl} Chicago PMI`, 'growth', 'chicago'); // last business day
     }
   }
   // ADP National Employment — the Wednesday immediately preceding each NFP
   // (usually 2 days before a Friday NFP; 1 day before in holiday-shifted weeks).
-  for (const d of MACRO_RELEASES_2026.jobs){ let adp = addDaysIso(d, -1); while (isoDow(adp) !== 3) adp = addDaysIso(adp, -1); add(adp, `${prevMonthLabel(d)} ADP Employment`, 'jobs'); }
+  for (const { date:d, ref } of msDatesOf('jobs', rec)){ let adp = addDaysIso(d, -1); while (isoDow(adp) !== 3) adp = addDaysIso(adp, -1); add(adp, `${ref || prevMonthLabel(d)} ADP Employment`, 'jobs', 'adp'); }
   // FOMC Minutes — released exactly 3 weeks after each rate decision (a Wednesday).
-  for (const d of MACRO_RELEASES_2026.fomc){ add(addDaysIso(d, 21), 'FOMC Minutes', 'fed'); }
-  // Initial Jobless Claims — every Thursday in the window.
-  for (let d = fromD; d <= toD; d = addDaysIso(d, 1)){ if (isoDow(d)===4) add(d, 'Initial Jobless Claims', 'jobs'); }
+  for (const { date:d } of msDatesOf('fomc', rec)){ add(addDaysIso(d, 21), 'FOMC Minutes', 'fed', 'minutes'); }
+  // Initial Jobless Claims — Thursdays; the Labor Department moves the release to
+  // the day before when Thursday is a federal holiday (Thanksgiving, a Thursday
+  // Christmas / New Year's / July 4th / Juneteenth / Veterans Day).
+  for (let d = fromD; d <= toD; d = addDaysIso(d, 1)){
+    if (isoDow(d) !== 4) continue;
+    let rel = d;
+    while (fedHolidaySet(+rel.slice(0,4)).has(rel) || isoDow(rel) === 0 || isoDow(rel) === 6) rel = addDaysIso(rel, -1);
+    add(rel, 'Initial Jobless Claims', 'jobs', 'claims');
+  }
   return out;
 }
 
-// Build authoritative events that fall within [fromD, toD].
-function authoritativeMacro(fromD, toD){
+// Build authoritative events that fall within [fromD, toD]. rec = the stored
+// schedule (loadMacroSchedule); null falls back to the built-in table.
+function authoritativeMacro(fromD, toD, rec){
   const out = [];
   const inWin = d => d >= fromD && d <= toD;
-  const add = (date, name, category) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category }); };
-  for (const d of MACRO_RELEASES_2026.jobs)   add(d, `${prevMonthLabel(d)} Jobs Report (NFP)`, 'jobs');
-  for (const d of MACRO_RELEASES_2026.cpi)    add(d, `${prevMonthLabel(d)} CPI Report`, 'inflation');
-  for (const d of MACRO_RELEASES_2026.ppi)    add(d, `${prevMonthLabel(d)} PPI Report`, 'inflation');
-  for (const d of MACRO_RELEASES_2026.pce)    add(d, `${prevMonthLabel(d)} PCE Report`, 'inflation');
-  for (const d of MACRO_RELEASES_2026.gdp)    add(d, `${gdpQuarterLabel(d)} GDP`, 'growth');
-  for (const d of MACRO_RELEASES_2026.retail) add(d, `${prevMonthLabel(d)} Retail Sales`, 'growth');
-  for (const d of MACRO_RELEASES_2026.fomc)   add(d, 'FOMC Rate Decision', 'fed');
+  const add = (date, name, category, series) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category, series }); };
+  // BEA/Census name the period themselves (a shutdown catch-up PCE covered
+  // "October and November"); FRED rows don't, so the usual prior-month rule.
+  for (const { date:d, ref } of msDatesOf('jobs', rec))   add(d, `${ref || prevMonthLabel(d)} Jobs Report (NFP)`, 'jobs', 'jobs');
+  for (const { date:d, ref } of msDatesOf('cpi', rec))    add(d, `${ref || prevMonthLabel(d)} CPI Report`, 'inflation', 'cpi');
+  for (const { date:d, ref } of msDatesOf('ppi', rec))    add(d, `${ref || prevMonthLabel(d)} PPI Report`, 'inflation', 'ppi');
+  for (const { date:d, ref } of msDatesOf('pce', rec))    add(d, `${ref || prevMonthLabel(d)} PCE Report`, 'inflation', 'pce');
+  for (const { date:d, ref } of msDatesOf('gdp', rec))    add(d, `${ref || gdpQuarterLabel(d)} GDP`, 'growth', 'gdp');
+  for (const { date:d, ref } of msDatesOf('retail', rec)) add(d, `${ref || prevMonthLabel(d)} Retail Sales`, 'growth', 'retail');
+  for (const { date:d } of msDatesOf('fomc', rec))        add(d, 'FOMC Rate Decision', 'fed', 'fomc');
   // JOLTS — released ~5-6 weeks after its reference month; label that month.
-  for (const d of MACRO_RELEASES_2026.jolts)  add(d, `${MON_NAMES[+addDaysIso(d,-38).slice(5,7)-1]} JOLTS Job Openings`, 'jobs');
+  for (const { date:d } of msDatesOf('jolts', rec))       add(d, `${MON_NAMES[+addDaysIso(d,-38).slice(5,7)-1]} JOLTS Job Openings`, 'jobs', 'jolts');
   // Flash PMI reports the CURRENT month (preliminary), so label with the RELEASE month.
-  for (const d of MACRO_RELEASES_2026.flashpmi) add(d, `${MON_NAMES[+d.slice(5,7)-1]} S&P Global Flash PMI`, 'growth');
-  // ECB rate decisions (non-US) and marquee Fed-Chair events — own tables, emitted
-  // directly (see the note by ECB_DECISIONS on why they're not in the US table).
-  for (const d of ECB_DECISIONS)              add(d, 'ECB Rate Decision', 'ecb');
-  for (const e of FED_CHAIR_EVENTS)           add(e.date, e.name, 'fed');
+  for (const { date:d } of msDatesOf('flashpmi', rec))    add(d, `${MON_NAMES[+d.slice(5,7)-1]} S&P Global Flash PMI`, 'growth', 'flashpmi');
+  // ECB rate decisions (non-US) and marquee Fed-Chair events.
+  for (const { date:d } of msDatesOf('ecb', rec))         add(d, 'ECB Rate Decision', 'ecb', 'ecb');
+  for (const e of FED_CHAIR_EVENTS)                      add(e.date, e.name, 'fed', /jackson/i.test(e.name) ? 'jackson' : 'testimony');
   // Rule-based releases (ISM, Consumer Confidence, Michigan, Chicago PMI, ADP,
   // FOMC Minutes, jobless claims) — computed, exact by construction.
-  out.push(...computedMacro(fromD, toD));
+  out.push(...computedMacro(fromD, toD, rec));
   return out;
+}
+
+// AI (grounded Gemini) macro next to the authoritative list. For every release
+// that has a schedule (official list or rule), AI's version is DROPPED in a year
+// that schedule covers (the real date wins) and KEPT, flagged "(approx)", in a
+// year it doesn't yet (e.g. next year before the agency publishes) — so the
+// calendar still has the release, visibly not yet verified. Releases nobody
+// schedules (durable goods, housing, home sales, trade balance, speeches) come
+// from AI every year, unflagged. Returns the AI events to add.
+function mergeAiMacro(authMacro, aiMacro, rec){
+  const authKey = new Set(authMacro.map(e => e.category + '|' + e.date));
+  const extra = [];
+  for (const e of (aiMacro || [])){
+    const series = macroSeriesOf(e.name);
+    if (macroCovered(series, e.date, rec)) continue;
+    // Already covered exactly. Keyed by category+date, which is right for data
+    // releases (one CPI per day) but wrong for speakers: officials talk ON macro
+    // days, so an FOMC Minutes or rate-decision entry would swallow every Fed
+    // speech sharing that date. Speaker events are exempt from the collision.
+    const isSpeaker = /speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/i.test(e.name);
+    if (!isSpeaker && authKey.has(e.category + '|' + e.date)) continue;
+    if (series && MS_SCHEDULED.has(series)) {
+      extra.push({ ...e, series, approx: true, name: /\(approx\)/i.test(e.name) ? e.name : (e.name + ' (approx)') });
+    } else {
+      extra.push(e);
+    }
+  }
+  return extra;
+}
+// { series: [years with an official list] } for every scheduled release; ADP and
+// FOMC Minutes follow the jobs and FOMC lists they are derived from.
+function macroOfficialYears(rec){
+  const o = {};
+  for (const s of [...Object.keys(MS_SERIES), 'flashpmi']) o[s] = Object.keys(msYearsOf(s, rec)).sort();
+  o.adp = o.jobs;
+  o.minutes = o.fomc;
+  return o;
 }
 
 // Today / +N days as YYYY-MM-DD in America/New_York (worker runs UTC).
@@ -2534,9 +3113,11 @@ async function buildCalendar(wl, env, days, diag){
   const fromD = etDateStr(0);
   const toD   = etDateStr(Math.min(days, CAL_DAYS_MAX));
 
-  // 1) AUTHORITATIVE macro from hardcoded official schedules (CONCRETE dates).
-  const authMacro = authoritativeMacro(fromD, toD);
-  diag && diag.push('authoritative macro: ' + authMacro.length + ' events');
+  // 1) AUTHORITATIVE macro from the official schedules (the daily feed, see
+  //    refreshMacroSchedule; the built-in 2026 table only where it has nothing).
+  const sched = await loadMacroSchedule(env);
+  const authMacro = authoritativeMacro(fromD, toD, sched);
+  diag && diag.push('authoritative macro: ' + authMacro.length + ' events (schedule ' + (sched ? 'checked ' + new Date(sched.checkedAt).toISOString() : 'missing: built-in table') + ')');
 
   // 2) Earnings from THREE independent sources — Finnhub + Nasdaq + AlphaVantage —
   //    plus Gemini macro (supplement only). Nasdaq covers foreign ADRs (TSM, BABA,
@@ -2615,37 +3196,12 @@ async function buildCalendar(wl, env, days, diag){
     .filter(([, d]) => dayDiff(fromD, d) <= 14)
     .map(([t, d]) => { const ev = { kind:'earnings', ticker:t, name:`${t} Earnings`, date:d, category:'earnings', when:null, epsEst:null, confirmed:true, sources:['ai'], reported:true }; return { ...ev, id: calEventId(ev) }; });
 
-  // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
-  //    (see HARDCODED_YEARS). For those years, AI guesses of hardcoded release
-  //    types are DROPPED (real date wins). For years we DON'T hardcode yet (e.g.
-  //    2027+), we KEEP the AI's macro so the calendar still works automatically —
-  //    but we flag those as approximate so they're visibly not-yet-verified.
-  // Release types we provide authoritatively (hardcoded dates OR computed rules).
-  // AI versions of these are dropped in hardcoded years so our exact ones win.
-  // NOT listed (so AI's real-dated versions survive): durable goods, housing
-  // starts/permits, home sales, trade balance — those have no fixed rule and
-  // aren't hardcoded, so grounded Gemini supplies them.
-  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales|\bjolts\b|job openings|\badp\b|\bism\b|chicago pmi|chicago business|consumer confidence|consumer sentiment|michigan|jobless claims|initial claims|flash pmi|s&p global flash|jackson hole|semiannual|monetary policy report/i;
-  const authKey = new Set(authMacro.map(e => e.category + '|' + e.date));
-  const extraMacro = [];
-  for (const e of aiMacro){
-    const yr = e.date.slice(0,4);
-    const yearIsHardcoded = HARDCODED_YEARS.has(yr);
-    // For a hardcoded year, drop AI's version of any release type we hardcode.
-    if (yearIsHardcoded && HARDCODED_NAME.test(e.name)) continue;
-    // Already covered exactly. Keyed by category+date, which is right for data
-    // releases (one CPI per day) but wrong for speakers: officials talk ON macro
-    // days, so an FOMC Minutes or rate-decision entry would swallow every Fed
-    // speech sharing that date. Speaker events are exempt from the collision.
-    const isSpeaker = /speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/i.test(e.name);
-    if (!isSpeaker && authKey.has(e.category + '|' + e.date)) continue;
-    // Flag AI-sourced events in non-hardcoded years as approximate.
-    if (!yearIsHardcoded && HARDCODED_NAME.test(e.name)) {
-      extraMacro.push({ ...e, approx: true, name: /\(approx\)/i.test(e.name) ? e.name : (e.name + ' (approx)') });
-    } else {
-      extraMacro.push(e); // durable goods / housing / home sales / trade — AI-sourced every year
-    }
-  }
+  // 3) Merge: authoritative wins (mergeAiMacro). Which years each scheduled
+  //    release is official for rides on coverage: TradeHub's merge uses it to
+  //    retire published estimates and dates the official schedule no longer has.
+  const extraMacro = mergeAiMacro(authMacro, aiMacro, sched);
+  cov.macroOfficial = macroOfficialYears(sched);
+  cov.macroWindow = [fromD, toD];
 
   const macro = [...authMacro, ...extraMacro];
   // 4) Market holidays / half-days in-window — so Catalysts + both TaskHubs show
@@ -2655,7 +3211,7 @@ async function buildCalendar(wl, env, days, diag){
     .map(ev => ({ ...ev, id: calEventId(ev), ...(ev.kind === 'macro' ? { importance: macroImportance(ev.name) } : {}) }))
     .sort((a,b) => a.date.localeCompare(b.date));
   // DEGRADED means "do not trust this build enough to cache it or overwrite a good
-  // one". Macro is generated from a HARDCODED release schedule, so it shows up even
+  // one". Macro comes from the stored official schedule, so it shows up even
   // when every network call failed — which is why `!events.length` alone was a
   // useless health check: a run where Finnhub was rate-limited, Nasdaq's 8s scan
   // aborted and AlphaVantage was out of quota still returned a full-looking macro
@@ -4327,16 +4883,19 @@ export default {
     // subrequests: news spends ~44-48, so the calendar after it was starved every
     // single morning (Cloudflare analytics: the 6am run used exactly 50, every day
     // 11-02..11-09), and the news build had nothing left for a retry. So the cron
-    // expression fires at :00, :10 and :20 of the 6 AM hour, and each tick is its
-    // own invocation with its own 50:
+    // expression fires at :00, :10, :20 and :30 of the 6 AM hour, and each tick is
+    // its own invocation with its own 50:
     //   06:00  news build
     //   06:10  news rebuild, only if the 06:00 build came back raw/empty
-    //   06:20  Catalysts calendar, unless TradeHub already built a healthy one
+    //   06:20  read the official release calendars (refreshMacroSchedule, ~19
+    //          fetches), so the calendar built next uses today's schedule
+    //   06:30  Catalysts calendar, unless TradeHub already built a healthy one
     // Ten minutes apart also keeps Finnhub's 60/min cap out of the picture.
     const minute = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((async () => {
       if (minute < 10){ await cronPrewarmNews(env, ctx); return; }
       if (minute < 20){ await cronRetryNews(env, ctx).catch(e => console.error('Cron news retry failed:', e.message)); return; }
+      if (minute < 30){ await refreshMacroSchedule(env).catch(e => console.error('Cron macro schedule failed:', e.message)); return; }
       try {
         const { wl } = await resolveCronWatchlist(env);
         const calKey = `cal:v2:${wlHash(wl)}:${etDateStr(0)}:30`;
@@ -4858,6 +5417,43 @@ export default {
       const diag = [];
       const answers = await fetchEarningsAI(tk, env, etDateStr(0), diag, EARN_AI_MAX_CALLS).catch(e => { diag.push('EXC '+e.message); return {}; });
       return new Response(JSON.stringify({ ok:true, answers, diag }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /macro-schedule — what the official-schedule feed knows and what Catalysts
+    // should warn about (macroScheduleStatus). One KV read, cached 5 min in the
+    // Cache API (free). ?refresh=1 reads the agencies now, at most once an hour
+    // (the 06:20 cron does it daily); ?full=1 adds every stored date.
+    if (url.pathname === '/macro-schedule'){
+      const jsonH = { ...cors(), 'Content-Type':'application/json' };
+      const full = url.searchParams.get('full') === '1';
+      const wantRefresh = url.searchParams.get('refresh') === '1';
+      const cacheReq = new Request('https://newshub-cache.internal/macro-schedule' + (full ? '/full' : ''));
+      if (!wantRefresh){
+        try { const hit = await caches.default.match(cacheReq); if (hit) return new Response(await hit.text(), { headers:{ ...jsonH, 'X-Cache':'HIT' } }); } catch(e){}
+      }
+      let rec = await loadMacroSchedule(env);
+      let refreshed = false, refreshNote = null;
+      if (wantRefresh){
+        if (rec && Date.now() - rec.checkedAt < MS_REFRESH_MIN_GAP){
+          refreshNote = 'checked ' + Math.round((Date.now() - rec.checkedAt) / 60000) + ' min ago; refresh allowed once an hour';
+        } else {
+          try { rec = await refreshMacroSchedule(env); refreshed = true; }
+          catch(e){ refreshNote = 'refresh failed: ' + e.message; }
+        }
+      }
+      const status = macroScheduleStatus(rec, Date.now(), 30);
+      const years = {};
+      if (rec) for (const [s, ys] of Object.entries(rec.series || {})){
+        years[s] = {};
+        for (const [y, v] of Object.entries(ys)) years[s][y] = { n: v.dates.length, src: v.src, first: v.dates[0], last: v.dates[v.dates.length - 1], ...(full ? { dates: v.dates, refs: v.refs } : {}) };
+      }
+      const body = JSON.stringify({ ok:true, refreshed, refreshNote, status,
+        checkedAt: rec ? rec.checkedAt : null, sources: rec ? rec.sources : null, years,
+        issues: rec ? rec.issues : [], changes: rec ? rec.changes : [] });
+      // Bust both cached variants after a refresh so the next read sees it.
+      if (refreshed){ ctx.waitUntil(Promise.all(['', '/full'].map(p => caches.default.delete(new Request('https://newshub-cache.internal/macro-schedule' + p)))).catch(()=>{})); }
+      else ctx.waitUntil(caches.default.put(cacheReq, new Response(body, { headers:{ 'Content-Type':'application/json', 'Cache-Control':'max-age=300' } })).catch(()=>{}));
+      return new Response(body, { headers: jsonH });
     }
 
     if (url.pathname === '/calendar'){
