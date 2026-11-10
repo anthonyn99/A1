@@ -2477,6 +2477,34 @@ in that path at all.
 machine above; it also fails if TradeHub offers a unit `selectors.yaml` does
 not have.
 
+### Sent while a council runs: a row in the queue (2026-11-09)
+
+A question that arrives while a council is running (or one is already waiting)
+becomes a row in **the prompt queue** (`handoffToQueue`), not an invisible
+"1 prompt queued" line. It shows in the queue drawer labelled *from TradeHub*
+(or *from a Catalysts debrief*, *from the morning launcher*), carries the units
+it was sent with (minus any this engine lacks; none left, the units ticked
+here), and can be edited (text and units), reordered or removed like any queued
+prompt. The queue is started so it convenes by itself: `queueDrain` waits out
+the running council first, and the row stays **queued** (editable, counted as
+waiting) while it waits. Before, a waiting row was marked running first and
+read RUNNING with nothing running. The old wait (`HANDOFF_QUEUE`) is kept for
+what the queue cannot take: a prompt for the other person (it needs a profile
+switch), a fill-only link, no engine or unit list yet, a full queue. Tests:
+`tests/magi-handoff.test.js`, `tests/live/magi-handoff-queue.live.js`.
+
+### Escapes in answers render as the character (2026-11-09)
+
+The engine escapes text a chat page showed literally, so markdown does not
+restyle it. Two gaps showed as stray backslashes. A numbered line that is not a
+list was written with the backslash before the digit, which no markdown reads
+as an escape; the engine now puts it before the dot, and the console repairs
+answers saved the old way. And only a few punctuation escapes were read, so a
+backslash before `/`, `:` and others stayed visible. Every ASCII punctuation
+escape now renders as the bare character, in MAGI and in TradeHub's Markdown
+(Debrief, Playbook). Tests: `tests/magi-md-escapes.test.js`,
+`magi/tests/test_markdown.py`, A1-Priv `tests/tradehub-md-escapes.test.js`.
+
 ## Copying a result
 
 Every surface that finishes with something worth keeping carries the same
