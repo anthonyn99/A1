@@ -136,7 +136,7 @@ const worker = {
   await tab('analysis');
   const btn = await js(`var b=[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief'); if(b){b.click();return true;} return false;`);
   ok('Analysis has a Debrief button, and it opens the popup', btn && await until(isOpen, 5000));
-  ok('five tabs: Catalysts (with today\'s count), News Summary, Movers, Next week, MAGI', (await tabs()) === 'Catalysts3|News Summary|Movers|Next week|MAGI', await tabs());
+  ok('five tabs: Catalysts (with today\'s count), News Summary, Today's Movers, Next week, Daily Report', (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week|Daily Report', await tabs());
   ok('Catalysts shows only today\'s cards, as Catalysts draws them', await until(`document.querySelectorAll('.dbr-cats .cat-card').length>=2`, 6000) &&
     await js(`var t=document.querySelector('.dbr-cats').innerText; return /CPI Report/.test(t)&&/NVDA/.test(t)&&!/\\bMU\\b/.test(t);`), await js(`return (document.querySelector('.dbr-cats')||{}).innerText;`));
   const bd = JSON.parse(await js(`var o=document.querySelector('.dbr').parentElement, cs=getComputedStyle(o); return JSON.stringify({bg:cs.backgroundColor, bf:cs.backdropFilter||cs.webkitBackdropFilter, tag:o.hasAttribute('data-a1-scrim')});`));
@@ -145,7 +145,7 @@ const worker = {
   await dTab('News Summary');
   ok('News Summary shows the latest build\'s digest', await until(`(document.querySelector('.dbr .nhs-headline')||{}).textContent===${JSON.stringify(SUMMARY.headline)}`, 6000));
   await shot('debrief-desktop-summary');
-  await dTab('MAGI');
+  await dTab('Daily Report');
   ok('MAGI shows the council\'s verdict, copied from the synced run', await until(`/Lean long/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'')`, 6000));
   const m = JSON.parse(await js(`var q=s=>document.querySelector(s); return JSON.stringify({meta:q('.dbr-magi-meta').innerText, table:!!q('.dbr-magi .dbr-doc table'), units:[...document.querySelectorAll('.dbr-unit summary')].map(s=>s.innerText.replace(/\\s+/g,' '))});`));
   ok('…with who answered and who synthesised it, as MAGI says it', /2 of 3 units responded · synthesised by Claude/.test(m.meta) && /52s/.test(m.meta), m.meta);
@@ -157,7 +157,7 @@ const worker = {
   await shot('debrief-desktop-magi');
 
   console.log('\n1b. Movers and Next week (run by MAGI\'s engine)');
-  await dTab('Movers');
+  await dTab('Today’s Movers');
   ok('Movers shows the engine\'s run as MAGI gave it: the verdict', await until(`/Iran de-escalation/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'')`, 6000));
   const mv = JSON.parse(await js(`var q=s=>document.querySelector(s); return JSON.stringify({head:q('.dbr-auto-head').innerText, doc:q('.dbr-magi .dbr-doc').innerText, units:[...document.querySelectorAll('.dbr-unit summary')].map(s=>s.innerText.replace(/\\s+/g,' ')), meta:q('.dbr-magi-meta').innerText});`));
   ok('…under its title, the day it covers and its schedule', /market movers/.test(mv.head) && /Runs automatically after every close, at 5 PM ET/.test(mv.head) && /next /.test(mv.head), mv.head);
@@ -175,16 +175,16 @@ const worker = {
   await shot('debrief-desktop-weekly');
   const ac = POSTS.filter((x) => /\/analysis-config/.test(x.url)).map((x) => { try { return JSON.parse(x.body); } catch (e) { return {}; } }).pop() || {};
   ok('TradeHub pushes the two standing prompts with the Analysis config, found by name', !!(ac.auto && ac.auto.movers && /moved the market/.test(ac.auto.movers.text) && ac.auto.weekly && /Weekly Trading Catalyst/.test(ac.auto.weekly.text) && ac.text === PROMPT), JSON.stringify(ac.auto));
-  await dTab('MAGI');
+  await dTab('Daily Report');
 
   for (const [w, h, tag] of [[820, 1180, 'tablet'], [390, 844, 'phone']]) {
     await size(w, h); await sleep(600);
-    for (const t of ['Catalysts', 'News Summary', 'Movers', 'Next week', 'MAGI']) {
+    for (const t of ['Catalysts', 'News Summary', 'Today’s Movers', 'Next week', 'Daily Report']) {
       await dTab(t);
       const r = JSON.parse(await js(`var card=document.querySelector('.dbr').getBoundingClientRect(); return JSON.stringify({w:card.width, vw:innerWidth, side:document.documentElement.scrollWidth>innerWidth+1,
         out:[...document.querySelectorAll('.dbr *')].filter(e=>{var b=e.getBoundingClientRect(); return b.width&&b.right>card.right+1&&!e.closest('table')&&!e.closest('.dbr-tabs');}).map(e=>e.className||e.tagName).slice(0,4)});`));
       ok(`${tag} · ${t}: fits, nothing pokes out`, !r.side && !r.out.length && (tag !== 'phone' || Math.abs(r.w - r.vw) <= 1), JSON.stringify(r));
-      await shot(`debrief-${tag}-${t.toLowerCase().replace(' ', '-')}`);
+      await shot(`debrief-${tag}-${t.toLowerCase().replace(/[^a-z]+/g, '-')}`);
     }
     if (tag === 'phone') {
       const tb = JSON.parse(await js(`var r=document.querySelector('.dbr-tabs'); return JSON.stringify({scroll:r.scrollWidth>r.clientWidth, oneRow:[...r.children].every(b=>b.getBoundingClientRect().height<48)});`));
@@ -204,7 +204,7 @@ const worker = {
   await sleep(2000);
   await tab('analysis');
   await js(`[...document.querySelectorAll('#tradeboard-root .ana-page .tbx-actions button')].find(x=>x.textContent.trim()==='Debrief').click(); 1`);
-  ok('four tabs: Catalysts, News Summary, Movers, Next week (no MAGI tab)', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary|Movers|Next week', await tabs());
+  ok('four tabs: Catalysts, News Summary, Today's Movers, Next week (no Daily Report tab)', await until(isOpen, 5000) && (await tabs()) === 'Catalysts3|News Summary|Today’s Movers|Next week', await tabs());
 
   console.log('\n3. The morning');
   await seed();
@@ -221,7 +221,7 @@ const worker = {
   ok('MAGI not back yet: it waits (no popup, no tab switch)', !(await js(`return !!(${isOpen}) || !!(${onAnalysis});`)));
   await js(`__fakeFs.remote('dashboards/magi', { runs: [${JSON.stringify(ROW)}] }); 1`);
   ok('the run lands: Analysis with the Debrief open, on its own', await until(`${onAnalysis} && ${isOpen}`, 10000));
-  await dTab('MAGI');
+  await dTab('Daily Report');
   ok('…with MAGI\'s answer in it', await until(`/Lean long/.test((document.querySelector('.dbr-magi .dbr-doc')||{}).innerText||'')`, 6000));
 
   await seed();
