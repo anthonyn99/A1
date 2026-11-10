@@ -115,7 +115,7 @@ const worker = {
     ok('it is still on after a reload', (await btn()).pressed === 'true' && await js(`return document.documentElement.classList.contains('tb-privacy')`));
     await js(`[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent).click(); 1`); await sleep(300);
     await nav('journal'); await sleep(500);
-    ok('off again: nothing is blurred', (await blurred('/^\\$407\\.00$/')) === false && await js(`return ![...document.querySelectorAll('.tb-money')].some(e=>/blur/.test(getComputedStyle(e).filter))`));
+    ok('off again: nothing is blurred', (await blurred('/^\\$407\\.00$/')) === false && await js(`return ![...document.querySelectorAll('.tb-money')].some(e=>getComputedStyle(e).textShadow!=='none'||getComputedStyle(e).color==='rgba(0, 0, 0, 0)')`));
     await nav('portfolio'); await sleep(800);
     await shot(`th-display-${label}-market-strip`);
   }
