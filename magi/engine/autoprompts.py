@@ -176,11 +176,13 @@ def due(now: datetime, state: dict) -> list[tuple[str, str]]:
         if not is_trading_day(d):
             continue
         start = close_et(d) + timedelta(minutes=MOVERS_DELAY_MIN)
+        if start > n:
+            continue                       # today's run is still ahead: look at the day before
         nxt = d + timedelta(days=1)
         end = datetime(nxt.year, nxt.month, nxt.day, MOVERS_LAST_HOUR, 0, tzinfo=ET)
-        if start <= n < end and done.get("movers") != d.isoformat():
+        if n < end and done.get("movers") != d.isoformat():
             out.append(("movers", d.isoformat()))
-        break                              # only the most recent trading day counts
+        break                              # only the most recent trading day that has closed counts
 
     # weekly: from Saturday 10:00 ET until Monday 4 AM ET, keyed by that Saturday.
     sat = n.date() - timedelta(days=(n.weekday() - 5) % 7)

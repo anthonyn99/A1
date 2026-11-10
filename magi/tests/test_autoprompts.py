@@ -62,7 +62,7 @@ def test_movers_on_a_half_day_and_never_on_a_holiday_or_weekend():
     assert ap.due(at(2026, 11, 27, 14, 0), {}) == [("movers", "2026-11-27")]
     assert ap.due(at(2026, 11, 27, 13, 59), {}) == []
     assert ap.due(at(2026, 11, 26, 18, 0), {}) == []          # Thanksgiving
-    assert ap.due(at(2026, 11, 15, 18, 0), {}) == []          # Sunday
+    assert [j for j in ap.due(at(2026, 11, 15, 18, 0), {}) if j[0] == "movers"] == []   # Sunday (weekly is due then)
 
 
 def test_weekly_saturday_10am_until_monday_4am():
