@@ -1,9 +1,9 @@
 // TradeHub ⇄ TradeBoard parity (2026-11-09). What TradeHub got from Veda's
 // TradeBoard that day, on the real tradehub.html (TH_PAGE_FILE serves a copy)
 // with a fake Firestore and fake workers:
-//   · Journal stats: Expectancy, Largest win, Largest loss and the current
-//     Streak beside the win rate, wins, losses, open and profit factor, four
-//     across; all of them blurred in display mode
+//   · Journal stats: Expectancy beside the win rate, wins, losses, open and
+//     profit factor, two across as before (largest win/loss and the streak
+//     were dropped the same day); display mode: nothing blurred is green/red
 //   · Journal filters: Side (Long/Short) and Source (Webull/Manual/CSV), with
 //     Clear
 // Screenshots: %TEMP%/magi-live-shots/thpar-*.png.
@@ -61,17 +61,15 @@ const JOURNAL = { savedAt: NOW - 86400000,
   if (!(await until("document.querySelector('.tb-navtab')", 20000))) { console.log('TradeHub did not render'); process.exit(1); }
   await sleep(600);
   await nav('journal');
-  await until(`document.querySelectorAll('.tbf-j > *').length >= 9`, 10000);
+  await until(`document.querySelectorAll('.tbf-j > *').length >= 6`, 10000);
 
   console.log('\nJournal stats');
   const cell = (label) => js(`var c=[...document.querySelectorAll('.tbf-j > *')].find(x=>(x.querySelector('.k')||{}).textContent===${JSON.stringify(label)}); return c ? c.querySelector('.v').textContent : null;`);
-  ok('nine figures: win rate, then wins, losses, open, profit factor, expectancy, largest win/loss, streak',
-    await js(`return [...document.querySelectorAll('.tbf-j > * .k')].map(x=>x.textContent).join('|');`) === 'Win rate|Wins|Losses|Open|Profit factor|Expectancy|Largest win|Largest loss|Streak',
+  ok('six figures: win rate, wins, losses, open, profit factor, expectancy (no largest win/loss, no streak)',
+    await js(`return [...document.querySelectorAll('.tbf-j > * .k')].map(x=>x.textContent).join('|');`) === 'Win rate|Wins|Losses|Open|Profit factor|Expectancy',
     await js(`return [...document.querySelectorAll('.tbf-j > * .k')].map(x=>x.textContent).join('|');`));
   ok('Expectancy = net ÷ closed (+100 −50 +30 +20 = +100 over 4 → $25.00)', /\$25\.00/.test(await cell('Expectancy') || ''), await cell('Expectancy'));
-  ok('Largest win $100.00, largest loss −$50.00', /\$100\.00/.test(await cell('Largest win') || '') && /-?\$50\.00|−\$50\.00/.test(await cell('Largest loss') || ''), (await cell('Largest win')) + ' / ' + (await cell('Largest loss')));
-  ok('Streak: the two most recent closes won → 2 W', (await cell('Streak')) === '2 W', await cell('Streak'));
-  ok('four across on desktop', await js(`return getComputedStyle(document.querySelector('.tbf-j')).gridTemplateColumns.split(' ').length===4;`));
+  ok('two across on desktop, as before; Expectancy takes the last row whole', await js(`var g=document.querySelector('.tbf-j'); var e=[...g.children].pop(); return getComputedStyle(g).gridTemplateColumns.split(' ').length===2 && e.getBoundingClientRect().width > g.getBoundingClientRect().width*0.9;`));
   ok('the stats card is no taller than the curve beside it', await js(`var s=document.querySelector('.tbf-j').getBoundingClientRect(), t=document.querySelector('.tbj-top > .tb-card').getBoundingClientRect(); return s.height <= t.height + 2;`),
     await js(`return document.querySelector('.tbf-j').getBoundingClientRect().height+' vs '+document.querySelector('.tbj-top > .tb-card').getBoundingClientRect().height;`));
   await shot('journal');
@@ -93,8 +91,16 @@ const JOURNAL = { savedAt: NOW - 86400000,
 
   console.log('\nDisplay mode');
   await js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); b.click(); return 1;`); await sleep(300);
-  ok('the new figures blur too', await js(`return ['Expectancy','Largest win','Largest loss','Streak'].every(l=>{var c=[...document.querySelectorAll('.tbf-j > *')].find(x=>(x.querySelector('.k')||{}).textContent===l); var v=c&&c.querySelector('.tb-money'); return !!v && /blur/.test(getComputedStyle(v).filter);});`));
+  ok('Expectancy blurs too', await js(`var c=[...document.querySelectorAll('.tbf-j > *')].find(x=>(x.querySelector('.k')||{}).textContent==='Expectancy'); var v=c&&c.querySelector('.tb-money'); return !!v && /blur/.test(getComputedStyle(v).filter);`));
+  // Nothing under the blur may say win or loss by its colour (2026-11-09).
+  const textCol = `(function(){var t=document.createElement('span'); t.style.color='var(--tx)'; document.querySelector('#tradeboard-root').appendChild(t); var w=getComputedStyle(t).color; t.remove(); return w;})()`;
+  ok('no blurred figure is green or red: each reads in the text colour', await js(`var want=${textCol}; return [...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent).every(e=>getComputedStyle(e).color===want);`),
+    await js(`var want=${textCol}; return want+' vs '+[...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent&&getComputedStyle(e).color!==want).slice(0,4).map(e=>e.textContent+':'+getComputedStyle(e).color).join(', ');`));
+  ok('Win / Loss results blur and lose their colour', await js(`var want=${textCol}; var r=[...document.querySelectorAll('.tbj-st')].filter(e=>/^(win|loss)$/i.test(e.textContent)); return r.length===4 && r.every(e=>/blur/.test(getComputedStyle(e).filter) && getComputedStyle(e).color===want);`));
+  ok('the win-rate bar is one grey, not green and red', await js(`var b=[...document.querySelectorAll('.tbf-split b')]; return b.length===2 && getComputedStyle(b[0]).backgroundColor===getComputedStyle(b[1]).backgroundColor;`));
+  await shot('journal-display');
   await js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); b.click(); return 1;`); await sleep(200);
+  ok('display mode off: the colours are back', await js(`var r=[...document.querySelectorAll('.tbj-st')].find(e=>/^loss$/i.test(e.textContent)); return !!r && getComputedStyle(r).color!==${textCol};`));
 
   console.log('\nPhone');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
