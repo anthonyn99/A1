@@ -50,7 +50,9 @@ const link = (q, units) => {
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: STUB });
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await c.send('Page.navigate', { url: URL }); await sleep(2500);
-  await evalJs(c, 'localStorage.clear(); sessionStorage.clear(); localStorage.setItem(lsKey("mode"), "deliberation"); return 1;');
+  // Storage is NOT cleared: it holds the engine's address, and the cloud lookup
+  // that would find it again is blocked by the stub.
+  await evalJs(c, 'sessionStorage.clear(); localStorage.setItem(lsKey("mode"), "deliberation"); return 1;');
   await c.send('Page.navigate', { url: URL });
   ok('engine online', await waitFor(c, 'online()', 25000));
   await evalJs(c, '$("navNew").click(); return 1;');
