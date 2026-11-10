@@ -1479,6 +1479,8 @@
     // Automatic, or a built-in icon that no longer exists: the program's own.
     var auto = !ic || ic === 'auto' || (key && !ICONS[key]);
     if (auto) key = a1IconFor(a.url) || localIconFor(a.url);
+    // These three are always their own mark, even if the tile stored a site icon.
+    else if (hostedIconFor(a.url)) key = hostedIconFor(a.url);
     if (key && ICONS[key]) { d.innerHTML = ICONS[key]; return d; }
     var cands = [];
     if (/^https?:\/\//i.test(ic) || /^data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]/i.test(ic)) cands.push(ic);
