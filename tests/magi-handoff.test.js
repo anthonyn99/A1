@@ -228,7 +228,9 @@ console.log('\nTradeHub keeps the two kinds of destination apart');
 // drops it, a run in flight drops it, a reload runs it twice.
 function consoleFor(opts) {
   const o = Object.assign({ hash: '', locked: false, lockDecided: true, online: true, providers: ['chatgpt', 'claude', 'gemini'], running: false, mode: 'deliberation', profile: 'tony' }, opts);
-  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [], mode: o.mode, modeAtStart: null, adopted: [] };
+  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [], mode: o.mode, modeAtStart: null, adopted: [], qchanged: 0, qstart: 0 };
+  // MAGI's queue (the council lane), recorded rather than run.
+  const QUEUES = { council: { items: [], running: false } };
   const PROFILE = { id: o.profile };
   // The reload a profile switch performs, recorded instead of performed.
   const adoptHandoffProfile = (h) => { calls.adopted.push(h.p); return true; };
@@ -247,8 +249,10 @@ function consoleFor(opts) {
   const env = new Function(
     'location', 'history', 'S', 'LOCK', '$', 'online', 'autosize', 'saveUnitPicks',
     'renderUnitChips', 'setView', 'updateEnabled', 'setErr', 'start', 'calls', 'setMode',
-    'PROFILE', 'adoptHandoffProfile',
+    'PROFILE', 'adoptHandoffProfile', 'QUEUES', 'queueChanged', 'queueStart',
     'const MAGI_PROFILES = { tony: {}, veda: {} };\n' +
+    'const MAX_QUEUE = 100, DEVICE_NAME = "pc";\n' +
+    'const queueNextOrder = (L) => L.items.length + 1;\n' +
     'const HANDOFF_PROFILE = "tony";\n' +
     (/const handoffProfileOf = [^\n]+/.exec(MAGI) || [''])[0] + '\n' +
     lift(MAGI, 'b64uDecode') + '\n' +
@@ -259,6 +263,8 @@ function consoleFor(opts) {
     lift(MAGI, 'handoffTry') + '\n' +
     lift(MAGI, 'noteHandoffQueue') + '\n' +
     lift(MAGI, 'onHandoffHash') + '\n' +
+    lift(MAGI, 'handoffToQueue') + '\n' +
+    lift(MAGI, 'handoffSrcLabel') + '\n' +
     lift(MAGI, 'fillHandoff') + '\n' +
     lift(MAGI, 'applyHandoff') + '\n' +
     'HANDOFF = takeHandoff();\n' +
@@ -268,9 +274,10 @@ function consoleFor(opts) {
     () => { calls.saved++; }, () => { calls.rendered++; },
     (v) => calls.views.push(v), () => {}, (id, msg) => { calls.err = msg; },
     () => { calls.start++; calls.modeAtStart = calls.mode; }, calls,
-    (m) => { calls.mode = m; }, PROFILE, adoptHandoffProfile
+    (m) => { calls.mode = m; }, PROFILE, adoptHandoffProfile,
+    QUEUES, () => { calls.qchanged++; }, (L) => { calls.qstart++; L.running = true; }
   );
-  return { env, calls, loc, els, S, LOCK, o, PROFILE };
+  return { env, calls, loc, els, S, LOCK, o, PROFILE, QUEUES };
 }
 
 const LINK = encode.tbMagiLink('Morning read on SPY', ['claude', 'gemini']);
