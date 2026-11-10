@@ -1455,9 +1455,14 @@
     { re: /^https?:\/\/reserv\.vedapatel05\.workers\.dev(?=[\/?#]|$)/i, key: 'reserv' },
     { re: /^https?:\/\/tradeboard\.vedapatel05\.workers\.dev\/studyos(?=[\/?#]|$)/i, key: 'studyos' }
   ];
-  function a1IconFor(url) {
+  function hostedIconFor(url) {
     for (var i = 0; i < HOSTED_ICONS.length; i++) if (HOSTED_ICONS[i].re.test(String(url || ''))) return HOSTED_ICONS[i].key;
-    var m =/\/([a-z0-9_-]+)\.html?(?:[?#]|$)/i.exec(String(url || ''));
+    return '';
+  }
+  function a1IconFor(url) {
+    var hk = hostedIconFor(url);
+    if (hk) return hk;
+    var m = /\/([a-z0-9_-]+)\.html?(?:[?#]|$)/i.exec(String(url || ''));
     if (!m || !ICONS[m[1].toLowerCase()]) return '';
     var k = destKey(url);
     return (k.indexOf(destKey(BASE)) === 0 || k.indexOf(destKey(PRIV)) === 0) ? m[1].toLowerCase() : '';
