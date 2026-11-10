@@ -299,9 +299,10 @@ section('No new Firestore document, listener or read');
 const paths = (SRC.match(/^\s*const TB_[A-Z_]+_PATH\s*=\s*"[^"]+"/gm) || []).length;
 check('no trash document was added', !/tradeboard_trash/.test(SRC),
       paths + ' TradeHub document paths, unchanged');
-// 9 = the 8 standing listeners + the Debrief's on-demand MAGI watch
-// (_fbWatchMagi, 2026-11-03), attached only while the Debrief needs it.
-check('no new snapshot listener was added', (SRC.match(/onSnapshot\(/g) || []).length === 9,
+// 10 = the 8 standing listeners + the Debrief's on-demand watches: the MAGI
+// answer (_fbWatchMagi, 2026-11-03) and the standing prompts' answers
+// (_fbWatchDebriefAuto, 2026-11-09), attached only while the Debrief needs them.
+check('no new snapshot listener was added', (SRC.match(/onSnapshot\(/g) || []).length === 10,
       'the trash syncs on the listeners the watchlist and prompts already have (the Playbook\'s went with it to Notebook)');
 
 section('The auto-purge does not cost a write when nothing expired');

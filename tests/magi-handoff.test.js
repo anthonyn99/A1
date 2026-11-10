@@ -211,7 +211,7 @@ console.log('\nTradeHub keeps the two kinds of destination apart');
     /site\.magi\)return \/\\\/magi\\\.html/.test(isAi), isAi.split('\n')[3]);
   ok('the MAGI entry claims no hosts, so it cannot swallow an A1 search',
     /\{id:'magi',[^}]*hosts:\[\], magi:true\}/.test(TRADEHUB));
-  ok('the morning push carries the units', /magiUnits\}\)\}\)/.test(TRADEHUB) || /aiUrl,magiUnits\}/.test(TRADEHUB));
+  ok('the morning push carries the units', /magiUnits\}\)\}\)/.test(TRADEHUB) || /aiUrl,magiUnits(,auto)?\}/.test(TRADEHUB));
   ok('the worker stores them', /magiUnits:tdMagiUnits\(/.test(WORKER));
   ok('the worker hands them back', /magiUnits:p\.magiUnits/.test(WORKER));
   ok('the launcher only treats it as MAGI when BOTH agree',
