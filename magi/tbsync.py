@@ -74,9 +74,9 @@ def _kill(pid: int) -> None:
 def _start(folder: Path, exe: str | None) -> None:
     detached = getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
     breakaway = getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0x01000000)
-    subprocess.Popen([_pythonw(exe), str(folder / "wb_boot.py")], cwd=str(folder),
-                     creationflags=detached | breakaway | proc.NO_WINDOW,
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc.popen([_pythonw(exe), str(folder / "wb_boot.py")], cwd=str(folder),
+               creationflags=detached | breakaway | proc.NO_WINDOW,
+               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def tick(now: float | None = None, procs=None, kill=None, start=None) -> str:
