@@ -36,11 +36,17 @@ function fakeDb() {
     },
     async run() {
       if (/^INSERT INTO usage/.test(sql)) { const k = args[0] + '|' + args[1]; usage.set(k, (usage.get(k) || 0) + args[2]); return {}; }
+      // The cap row: only the skip window and the reason change.
+      if (/^INSERT INTO provider_health/.test(sql) && /SET skip_until = excluded\.skip_until, detail/.test(sql)) {
+        const old = health.get(args[0]);
+        health.set(args[0], old ? { ...old, skip_until: args[3], detail: args[1] } : { provider: args[0], ok: 1, detail: args[1], at: args[2], ok_at: null, fails: 0, skip_until: args[3] });
+        return {};
+      }
       if (/^INSERT INTO provider_health/.test(sql)) {
         const old = health.get(args[0]);
-        const okNow = args[1] === 1, at = args[5];
-        const fails = okNow ? 0 : old ? (old.fails || 0) + 1 : 1;
-        const skip = args[8] != null ? args[8] : okNow ? null : old && fails >= 3 ? at + SKIP : old ? old.skip_until : null;
+        const okNow = args[1] === 1, at = args[5], inc = args[7];
+        const fails = okNow ? 0 : old ? (old.fails || 0) + inc : inc;
+        const skip = okNow ? null : old ? (fails >= 3 ? at + SKIP : old.skip_until) : args[8];
         health.set(args[0], { provider: args[0], ok: args[1], status: args[2], latency_ms: args[3], detail: args[4], at, ok_at: args[6] == null ? ((old && old.ok_at) || null) : args[6], fails, skip_until: skip });
         return {};
       }
@@ -50,7 +56,8 @@ function fakeDb() {
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  return { prepare: (sql) => stmt(sql), batch: async (list) => { for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections };
+  return db;
 }
 
 /* ── the outside world, played here ─────────────────────────────────────── */
