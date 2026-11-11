@@ -253,7 +253,7 @@ globalThis.fetch = async (url, init = {}) => {
   ok('Public.com\'s access token and account are fetched once and kept', W.count('access-tokens') === 1 && W.count('/trading/account') === 1 && W.count('/marketdata/acct1/quotes') === 2);
   r = await call(env, '/usage', { key: GOOD });
   const pubH = r.body.health.find((x) => x.provider === 'public');
-  ok('each provider's answer times are kept (last 15) and /usage gives their median', JSON.parse(env.DB.kv.get('lat:public')).length === 4 && Number.isFinite(pubH.median_ms));
+  ok('each provider\'s answer times are kept (last 15) and /usage gives their median', JSON.parse(env.DB.kv.get('lat:public')).length === 4 && Number.isFinite(pubH.median_ms));
   ok('every call was counted in the ledger', env.DB.usage.get(Wk.day() + '|public') === 4 && env.DB.usage.get(Wk.day() + '|alpaca') === 2);
 
   console.log('\nStream keys');
