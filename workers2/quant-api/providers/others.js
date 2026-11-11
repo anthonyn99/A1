@@ -3,16 +3,27 @@
 // Public.com is a brokerage: only its token exchange, account lookup and
 // market-data quotes are called here, never anything that trades.
 import { call, noteBad, ProviderError, BARS_TIMEOUT } from '../lib/net.js';
-import { bar, dailyStamp } from '../lib/bars.js';
+import { bar } from '../lib/bars.js';
+import { nyMidnight } from '../lib/time.js';
 
 /* ── Finnhub: one call per symbol (free: 60 a minute) ─────────────────────── */
+// At most 10 symbols a request, and 50 calls a minute per worker instance
+// (best effort: instances do not share this count; the daily cap still holds).
+let fhMinute = { m: 0, n: 0 };
 export const finnhub = {
   has: (env) => !!env.FINNHUB_KEY,
   canQuote: (s) => /^[A-Z][A-Z0-9.]{0,9}$/.test(s),
-  MAX_PER_REQUEST: 30,
+  MAX_PER_REQUEST: 10,
+  PER_MINUTE: 50,
+  reset() { fhMinute = { m: 0, n: 0 }; },
   async quotes(L, env, syms, now) {
     const out = {};
-    const list = syms.filter(this.canQuote).slice(0, this.MAX_PER_REQUEST);
+    const m = Math.floor(now / 60_000);
+    if (fhMinute.m !== m) fhMinute = { m, n: 0 };
+    const room = Math.max(0, Math.min(this.MAX_PER_REQUEST, this.PER_MINUTE - fhMinute.n));
+    if (!room) throw new ProviderError('finnhub', 'at its per-minute limit');
+    const list = syms.filter(this.canQuote).slice(0, room);
+    fhMinute.n += list.length;
     await Promise.all(list.map(async (s) => {
       try {
         const j = await call(L, 'finnhub', `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(s)}&token=${encodeURIComponent(env.FINNHUB_KEY)}`);
@@ -48,10 +59,16 @@ export const publicCom = {
   async quotes(L, env, syms, now) {
     const list = syms.filter(this.canQuote);
     if (!list.length) return {};
-    const s = await this.session(L, env, now);
-    const j = await call(L, 'public', `${PUB}/userapigateway/marketdata/${encodeURIComponent(s.accountId)}/quotes`, {
-      method: 'POST', headers: { authorization: 'Bearer ' + s.token, 'content-type': 'application/json' },
-      body: JSON.stringify({ instruments: list.map((symbol) => ({ symbol, type: 'EQUITY' })) }) });
+    const ask = async () => {
+      const s = await this.session(L, env, now);
+      return call(L, 'public', `${PUB}/userapigateway/marketdata/${encodeURIComponent(s.accountId)}/quotes`, {
+        method: 'POST', headers: { authorization: 'Bearer ' + s.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ instruments: list.map((symbol) => ({ symbol, type: 'EQUITY' })) }) });
+    };
+    let j;
+    // A refused token (revoked, expired early): forget it and get a new one, once.
+    try { j = await ask(); }
+    catch (e) { if (!(e instanceof ProviderError) || ![401, 403].includes(e.status)) throw e; pubToken = null; j = await ask(); }
     const out = {};
     for (const q of (j && j.quotes) || []) {
       const sym = q && q.instrument && q.instrument.symbol;
@@ -81,7 +98,8 @@ export const tiingo = {
     let f = 1;
     for (let i = j.length - 1; i >= 0; i--) {
       const r = j[i];
-      const b = bar(dailyStamp(Date.parse(r.date)), r.open / f, r.high / f, r.low / f, r.close / f, Math.round(r.volume * f));
+      // Tiingo dates the day at 00:00 UTC (the evening before, in New York): use the date itself.
+      const b = bar(nyMidnight(String(r.date).slice(0, 10)),r.open / f, r.high / f, r.low / f, r.close / f, Math.round(r.volume * f));
       if (b) out.push(adj ? b : bar(b.t, r.open, r.high, r.low, r.close, r.volume));
       if (adj && r.splitFactor > 0 && r.splitFactor !== 1) f *= r.splitFactor;
     }
