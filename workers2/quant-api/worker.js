@@ -20,7 +20,7 @@
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
 // heard, realtime and delayMs, so it can turn STALE by time alone.
-import { CAPS, Ledger, day } from './lib/ledger.js';
+import { CAPS, Ledger, day, readLatency, median } from './lib/ledger.js';
 import { getQuotes, getBars, parseSymbols } from './lib/data.js';
 import { TFS, INTRADAY } from './lib/bars.js';
 import { marketHours, nyMonthStart } from './lib/time.js';
@@ -87,12 +87,14 @@ async function usage(env) {
   const d = day();
   const rows = (await env.DB.prepare('SELECT service, n FROM usage WHERE day = ? ORDER BY service').bind(d).all()).results || [];
   const health = (await env.DB.prepare('SELECT * FROM provider_health ORDER BY provider').all()).results || [];
+  const lat = await readLatency(env);
+  for (const h of health) h.median_ms = median(lat[h.provider]);
   return json({
     ok: true, day: d, now: Date.now(),
     usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })),
     health,
     caps: CAPS,
-    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env) },
+    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), groq: !!env.GROQ_KEY },
   });
 }
 

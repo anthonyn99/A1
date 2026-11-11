@@ -21,6 +21,21 @@ export const CAPS = {
 export const SKIP_MS = 5 * 60_000;
 export const FAILS_TO_SKIP = 3;
 
+export const LAT_SAMPLES = 15;
+
+/** The last LAT_SAMPLES answer times of each provider: { provider: [ms…] } (meta rows `lat:<provider>`). */
+export async function readLatency(env) {
+  const out = {};
+  const rows = (await env.DB.prepare("SELECT k, v FROM meta WHERE k LIKE 'lat:%'").all()).results || [];
+  for (const r of rows) { try { const a = JSON.parse(r.v); if (Array.isArray(a)) out[r.k.slice(4)] = a; } catch (e) {} }
+  return out;
+}
+export function median(xs) {
+  if (!xs || !xs.length) return null;
+  const s = xs.slice().sort((a, b) => a - b), n = s.length;
+  return n % 2 ? s[(n - 1) / 2] : Math.round((s[n / 2 - 1] + s[n / 2]) / 2);
+}
+
 export const day = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 const capOf = (service) => CAPS[service.split(':')[0]];
 
@@ -63,15 +78,17 @@ function healthStmt(env, provider, ok, status, latencyMs, detail, now, skipUntil
 export class Ledger {
   static async load(env, now = Date.now()) {
     const L = new Ledger(env, now);
-    const [u, h] = await Promise.all([
+    const [u, h, lat] = await Promise.all([
       env.DB.prepare('SELECT service, n FROM usage WHERE day = ?').bind(day(now)).all(),
       env.DB.prepare('SELECT * FROM provider_health').all(),
+      readLatency(env),
     ]);
     for (const r of (u && u.results) || []) L.used[r.service] = r.n;
     for (const r of (h && h.results) || []) L.health[r.provider] = r;
+    L.lat = lat;
     return L;
   }
-  constructor(env, now) { this.env = env; this.now = now; this.used = {}; this.health = {}; this.queue = []; }
+  constructor(env, now) { this.env = env; this.now = now; this.used = {}; this.health = {}; this.lat = {}; this.latDirty = new Set(); this.queue = []; }
   /** Why `provider` may not be asked now, or '' when it may. */
   blocked(provider) {
     const h = this.health[provider];
@@ -98,8 +115,17 @@ export class Ledger {
     const fails = ok ? 0 : (h.fails || 0) + 1;
     this.health[provider] = Object.assign({}, h, { ok: ok ? 1 : 0, fails, skip_until: ok ? null : fails >= FAILS_TO_SKIP ? this.now + SKIP_MS : h.skip_until });
     this.queue.push(healthStmt(this.env, provider, ok, status, latencyMs, detail, this.now));
+    if (ok && Number.isFinite(latencyMs)) {
+      this.lat[provider] = (this.lat[provider] || []).concat(Math.round(latencyMs)).slice(-LAT_SAMPLES);
+      this.latDirty.add(provider);
+    }
   }
   async flush() {
+    for (const p of this.latDirty) {
+      this.queue.push(this.env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
+        .bind('lat:' + p, JSON.stringify(this.lat[p]), this.now));
+    }
+    this.latDirty.clear();
     const q = this.queue; this.queue = [];
     if (!q.length) return;
     if (this.env.DB.batch) await this.env.DB.batch(q);
