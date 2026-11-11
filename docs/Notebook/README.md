@@ -239,6 +239,14 @@ instance with `Notebook.attach(key, container)` and sets it aside, hidden and
 still running, with `Notebook.detach(key)`. Both return `false` when nothing is
 mounted under `key` yet, so `attach` doubles as "is it mounted?".
 
+A mount takes a moment (the engines are fetched), and the host's `container`
+may be gone by the time the instance is built (a tab switched mid-mount). An
+instance whose container has left the page is built set aside, as `detach`
+leaves it, so the host must **always `attach` once the mount resolves**, into
+the container that is on screen then, never assume it landed in the one it
+passed. A mount that fails is forgotten, so calling `mount` again retries it
+(2026-11-11; before, the Playbook stayed empty until TradeHub was reloaded).
+
 ### How an instance works
 
 `apps/myjournal.js` is written for key `tj`. For any other key, `notebook.js` fetches it
