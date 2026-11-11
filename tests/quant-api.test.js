@@ -122,7 +122,7 @@ globalThis.fetch = async (url, init = {}) => {
     return res({ chart: { result: [{ timestamp: ts.map((t) => Math.floor(t / 1000)), indicators: { quote: [{ open: base, high: base.map((x) => x + 1), low: base.map((x) => x - 1), close: base.map((x) => x + 0.5), volume: base.map(() => 500) }] },
       events: { splits: { s1: { date: Math.floor(Date.UTC(2014, 5, 9, 13, 30) / 1000), numerator: 7, denominator: 1 } } } }] } });
   }
-  if (p === 'tiingo') return res([{ date: '2015-01-02T00:00:00Z', open: 10, high: 11, low: 9, close: 10.5, volume: 100, splitFactor: 1 }]);
+  if (p === 'tiingo') return res([{ date: (q.get('startDate') === '2024-01-01' ? '2024-01-02' : q.get('startDate')) + 'T00:00:00.000Z', open: 10, high: 11, low: 9, close: 10.5, volume: 100, splitFactor: 1 }]);
   return res({ error: 'unknown ' + u }, 404);
 };
 
@@ -358,8 +358,16 @@ globalThis.fetch = async (url, init = {}) => {
   const raw = await call(env, '/bars?symbol=NVDA&tf=1d&from=2014-06-01&to=2014-06-20&adj=0', { key: GOOD });
   const before = (x) => x.body.bars.find((b) => T.nyDate(b.t) === '2014-06-06'), after = (x) => x.body.bars.find((b) => T.nyDate(b.t) === '2014-06-10');
   ok('raw bars (adj=0) undo the split before it, and leave bars after it alone', Math.abs(before(raw).c / before(adj).c - 7) < 1e-9 && after(raw).c === after(adj).c);
-  ok('closed history is cacheable for good; the open month is not', adj.headers.get('cache-control').includes('immutable')
-    && !(await call(env, `/bars?symbol=NVDA&tf=1d&from=${NOW - 5 * DAY}`, { key: GOOD })).headers.get('cache-control').includes('immutable'));
+  ok('closed RAW history is cacheable for good', raw.headers.get('cache-control').includes('immutable'));
+  ok('closed split-adjusted history only for a day (a split re-adjusts it)', adj.headers.get('cache-control') === 'public, max-age=86400');
+  ok('the open month is never kept long', !(await call(env, `/bars?symbol=NVDA&tf=1d&from=${NOW - 5 * DAY}`, { key: GOOD })).headers.get('cache-control').includes('immutable'));
+  W.reset(); W.down.add('alpaca'); W.down.add('yahoo');
+  r = await call(env, '/bars?symbol=NVDA&tf=1d&from=2024-01-01&to=2024-01-31', { key: GOOD });
+  ok('Tiingo\'s bars land on their own date (it stamps 00:00 UTC, the evening before in New York)', r.body.bars.length === 1 && T.nyDate(r.body.bars[0].t) === '2024-01-02' && T.nyClock(r.body.bars[0].t).minutes === 0);
+  W.reset(); W.down.add('alpaca');
+  r = await call(env, `/bars?symbol=NVDA&tf=5m&from=${NOW - 90 * DAY}`, { key: GOOD });
+  ok('a clipped 5-minute range asks Yahoo once, never with period1 = period2', r.status === 200
+    && W.calls.filter((u) => u.includes('/chart/')).every((u) => { const q = new URL(u).searchParams; return Number(q.get('period2')) > Number(q.get('period1')); }));
 
   console.log('\nThe worker\'s bar helpers');
   ok('New York midnight in winter and summer', T.nyMidnight('2026-01-15') === Date.UTC(2026, 0, 15, 5) && T.nyMidnight('2026-07-15') === Date.UTC(2026, 6, 15, 4));
