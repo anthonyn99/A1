@@ -1,0 +1,16 @@
+{
+  "name": "quant-api",
+  "version": "1.0.0",
+  "main": "worker.js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail",
+    "migrate": "wrangler d1 migrations apply quant --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

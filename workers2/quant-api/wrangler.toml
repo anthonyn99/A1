@@ -1,0 +1,24 @@
+name = "quant-api"
+# TradeHub Quant's worker (A1-Priv docs/TradeHub/quant-plan.md). Deploys to
+# Cloudflare "My Account 2" (av1-2.workers.dev) via
+# .github/workflows/deploy-workers2.yml; no account_id here on purpose.
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# NO KV, on purpose: KV writes (1,000 a day per account) are the limit that has
+# bitten this suite before. Everything this worker stores is in D1.
+[[d1_databases]]
+binding = "DB"
+database_name = "quant"
+database_id = "25323b25-f012-4320-85f3-2f1de7a0881c"
+migrations_dir = "migrations"
+
+# No cron yet. The alert check (market hours only) arrives with the Alerts
+# phase, after a free cron slot on this account is confirmed.
+
+# Secrets (wrangler secret put <NAME>, with CLOUDFLARE_ACCOUNT_ID = account 2):
+#   ALLOWED_KEYS   comma-separated SHA-256 hex of the Orca keys that may call
+#                  this worker. Unset = every request but /health is refused.
+#   FINNHUB_KEY    market data (the same service newshub-api uses on account 1)
+# Added by later phases: ALPACA_KEY, ALPACA_SECRET, PUBLIC_KEY, GEMINI_KEY,
+# GROQ_KEY, PUSH_SECRET.
