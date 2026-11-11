@@ -283,10 +283,20 @@ globalThis.fetch = async (url, init = {}) => {
   env.DB.health.set('alpaca', { provider: 'alpaca', ok: 0, fails: 2, at: 1, skip_until: null });
   env.DB.usage.set(Wk.day() + '|alpaca', Wk.CAPS.alpaca);
   await call(env, '/quotes?symbols=NVDA', { key: GOOD });
-  const capped = env.DB.health.get('alpaca');
-  ok('reaching the cap opens the skip window without adding a failure', capped.fails === 2 && capped.skip_until > Date.now() && /cap/.test(capped.detail));
-  r = await call(env, '/usage', { key: GOOD });
-  ok('...so it still reads "at its cap", not "failing"', (await (async () => { const L = await (await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'ledger.js')).href)).Ledger.load(env); return L.blocked('alpaca'); })()).startsWith('at its cap'));
+  ok('a provider at its cap is passed over without adding a failure', env.DB.health.get('alpaca').fails === 2 && W.count('alpaca') === 0);
+  const LG = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'ledger.js')).href);
+  let led = await LG.Ledger.load(env);
+  ok('...and reads "at its daily cap", not "failing"', led.blocked('alpaca') === 'at its daily cap');
+  env = fullEnv();
+  env.DB.health.set('tiingo', { provider: 'tiingo', ok: 0, fails: 2, at: 1, skip_until: null });
+  env.DB.usage.set(Wk.day() + '|tiingo', Wk.CAPS.tiingo - 1);
+  led = await LG.Ledger.load(env);
+  ok('a batch of calls that would pass the cap is refused', led.spend('tiingo', 5) === false);
+  await led.flush();
+  const th = env.DB.health.get('tiingo');
+  ok('...the skip window opens, the failure count stays where it was', th.fails === 2 && th.skip_until > Date.now() && /cap/.test(th.detail));
+  led = await LG.Ledger.load(env);
+  ok('...and the skip reads "at its cap"', led.blocked('tiingo').startsWith('at its cap'));
 
   console.log('\nStream keys');
   env = fullEnv();
