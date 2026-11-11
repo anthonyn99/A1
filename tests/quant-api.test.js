@@ -263,6 +263,31 @@ globalThis.fetch = async (url, init = {}) => {
   ok('each provider\'s answer times are kept (last 15) and /usage gives their median', JSON.parse(env.DB.kv.get('lat:public')).length === 4 && Number.isFinite(pubH.median_ms));
   ok('every call was counted in the ledger', env.DB.usage.get(Wk.day() + '|public') === 4 && env.DB.usage.get(Wk.day() + '|alpaca') === 2);
 
+  W.reset(); W.down.add('alpaca'); W.status.public = 401;
+  r = await call(env, '/quotes?symbols=NVDA', { key: GOOD });
+  ok('Public.com refuses its token (401): a new token is fetched and the quote asked again', r.body.quotes.NVDA.provider === 'public'
+    && W.count('access-tokens') === 1 && W.count('/marketdata/acct1/quotes') === 2);
+
+  console.log('\nOne row per provider, and a cap is not a failure');
+  W.reset(); PO.finnhub.reset(); env = fullEnv(); W.down.add('alpaca'); W.down.add('public');
+  const syms25 = Array.from({ length: 25 }, (_, i) => 'F' + String.fromCharCode(65 + i));
+  r = await call(env, '/quotes?symbols=' + syms25.join(','), { key: GOOD });
+  ok('Finnhub answers at most 10 symbols a request (free: 60 calls a minute); Yahoo takes the rest', W.count('finnhub') === 10
+    && Object.values(r.body.quotes).filter((x) => x.provider === 'finnhub').length === 10 && Object.values(r.body.quotes).filter((x) => x.provider === 'yahoo').length === 15);
+  const lastBatch = env.DB.batches[env.DB.batches.length - 1];
+  ok('...and those 10 calls are written as one usage row and one health row (not 20)', env.DB.usage.get(Wk.day() + '|finnhub') === 10 && lastBatch <= 4 * 2 + 2, lastBatch);
+  for (let i = 0; i < 4; i++) await call(env, '/quotes?symbols=' + syms25.slice(0, 10).join(','), { key: GOOD });
+  r = await call(env, '/quotes?symbols=ZZ', { key: GOOD });
+  ok('past 50 Finnhub calls in a minute, the instance stops asking it', W.count('finnhub') === 50 && r.body.tried.some((t) => t.provider === 'finnhub' && /per-minute/.test(t.error)));
+  W.reset(); PO.finnhub.reset(); env = fullEnv();
+  env.DB.health.set('alpaca', { provider: 'alpaca', ok: 0, fails: 2, at: 1, skip_until: null });
+  env.DB.usage.set(Wk.day() + '|alpaca', Wk.CAPS.alpaca);
+  await call(env, '/quotes?symbols=NVDA', { key: GOOD });
+  const capped = env.DB.health.get('alpaca');
+  ok('reaching the cap opens the skip window without adding a failure', capped.fails === 2 && capped.skip_until > Date.now() && /cap/.test(capped.detail));
+  r = await call(env, '/usage', { key: GOOD });
+  ok('...so it still reads "at its cap", not "failing"', (await (async () => { const L = await (await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'ledger.js')).href)).Ledger.load(env); return L.blocked('alpaca'); })()).startsWith('at its cap'));
+
   console.log('\nStream keys');
   env = fullEnv();
   r = await call(env, '/stream-keys');
