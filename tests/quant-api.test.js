@@ -17,7 +17,7 @@ const ok = (name, cond, extra) => {
 
 // The statements the worker uses, over plain maps.
 function fakeDb() {
-  const usage = new Map(), health = new Map(), meta = new Map(), corrections = [];
+  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), corrections = [];
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
@@ -30,6 +30,7 @@ function fakeDb() {
     async all() {
       if (/FROM usage WHERE day = \?/.test(sql)) return { results: [...usage].filter(([k]) => k.startsWith(args[0] + '|')).map(([k, n]) => ({ service: k.split('|')[1], n })).sort((a, b) => a.service.localeCompare(b.service)) };
       if (/FROM provider_health/.test(sql)) return { results: [...health.values()].map((h) => ({ ...h })) };
+      if (/FROM meta WHERE k LIKE/.test(sql)) return { results: [...kv].filter(([k]) => k.startsWith('lat:')).map(([k, v]) => ({ k, v })) };
       if (/FROM corrections/.test(sql)) return { results: corrections.slice().reverse().slice(0, args[0]) };
       throw new Error('fakeDb.all: ' + sql);
     },
@@ -43,12 +44,13 @@ function fakeDb() {
         health.set(args[0], { provider: args[0], ok: args[1], status: args[2], latency_ms: args[3], detail: args[4], at, ok_at: args[6] == null ? ((old && old.ok_at) || null) : args[6], fails, skip_until: skip });
         return {};
       }
+      if (/^INSERT INTO meta/.test(sql)) { kv.set(args[0], args[1]); return {}; }
       if (/^INSERT INTO bars_meta/.test(sql)) { meta.set(args[0] + '|' + args[1], { first_t: args[2], last_t: args[3], provider: args[4] }); return {}; }
       if (/^INSERT INTO corrections/.test(sql)) { corrections.push({ id: corrections.length + 1, at: args[0], kind: args[1], symbol: args[2], field: args[3], old_v: args[4], new_v: args[5], source: args[6], note: args[7] }); return {}; }
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  return { prepare: (sql) => stmt(sql), batch: async (list) => { for (const s of list) await s.run(); return []; }, usage, health, meta, corrections };
+  return { prepare: (sql) => stmt(sql), batch: async (list) => { for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections };
 }
 
 /* ── the outside world, played here ─────────────────────────────────────── */
@@ -249,6 +251,9 @@ globalThis.fetch = async (url, init = {}) => {
   await call(env, '/quotes?symbols=NVDA', { key: GOOD });
   await call(env, '/quotes?symbols=AMD', { key: GOOD });
   ok('Public.com\'s access token and account are fetched once and kept', W.count('access-tokens') === 1 && W.count('/trading/account') === 1 && W.count('/marketdata/acct1/quotes') === 2);
+  r = await call(env, '/usage', { key: GOOD });
+  const pubH = r.body.health.find((x) => x.provider === 'public');
+  ok('each provider's answer times are kept (last 15) and /usage gives their median', JSON.parse(env.DB.kv.get('lat:public')).length === 4 && Number.isFinite(pubH.median_ms));
   ok('every call was counted in the ledger', env.DB.usage.get(Wk.day() + '|public') === 4 && env.DB.usage.get(Wk.day() + '|alpaca') === 2);
 
   console.log('\nStream keys');
