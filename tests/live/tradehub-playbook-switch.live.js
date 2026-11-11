@@ -83,7 +83,7 @@ const worker = {
 
   console.log('\nHopping between tabs, fast');
   await boot();
-  for (const t of ['playbook', 'news', 'playbook', 'journal', 'playbook', 'control', 'playbook', 'catalysts']) { await go(t); await sleep(60); }
+  for (const t of ['playbook', 'news', 'playbook', 'journal', 'playbook', 'prompt', 'playbook', 'catalysts']) { await go(t); await sleep(60); }
   await go('playbook');
   ok('the Playbook is there at the end', await until(shown, 15000));
   ok('one Playbook, not two', await js(`return document.querySelectorAll('[id="pb-root"]').length === 1;`));
@@ -93,15 +93,16 @@ const worker = {
 
   console.log("\nControl's prompt editor, left as it starts to open");
   await boot();
-  await go('control');
-  ok('Control shows a prompt with Edit', await until(`[...document.querySelectorAll('#tradeboard-root button')].some(b=>/^\\s*edit\\s*$/i.test(b.textContent)&&b.offsetParent)`, 10000));
+  const EDIT = `[...document.querySelectorAll('#tradeboard-root .ctl-pr-bar button')].find(b=>b.offsetParent&&b.innerText.trim()==='EDIT')`;
+  await go('prompt');
+  ok('Control shows a prompt with Edit', await until(EDIT, 10000));
   await leaveWhenMountBegins('prm', 'journal');
-  await js(`var b=[...document.querySelectorAll('#tradeboard-root button')].find(b=>/^\\s*edit\\s*$/i.test(b.textContent)&&b.offsetParent); if(b) b.click(); 1`);
+  await js(`var b=${EDIT}; if(b) b.click(); 1`);
   ok('Control was left while the editor was mounting', await until('window.__left === 1', 8000));
   await sleep(4000);
-  await go('control');
+  await go('prompt');
   await sleep(800);
-  await js(`var b=[...document.querySelectorAll('#tradeboard-root button')].find(b=>/^\\s*edit\\s*$/i.test(b.textContent)&&b.offsetParent); if(b) b.click(); 1`);
+  await js(`var b=${EDIT}; if(b) b.click(); 1`);
   ok('back in Control, Edit opens the editor', await until(`(function(){ var r=document.getElementById('prm-root'), h=document.querySelector('#tradeboard-root .tb-pr-host'); return !!(r && h && h.contains(r)); })()`, 15000),
     await js(`var h=document.querySelector('#tradeboard-root .tb-pr-host'); return 'host: ' + (h ? h.innerHTML.slice(0,120) : 'none') + ' | root: ' + !!document.getElementById('prm-root');`));
 

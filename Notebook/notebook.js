@@ -561,7 +561,18 @@ window.Notebook = {
     // Always an array, and the app keeps this one, so Notebook.pin reaches it.
     cfg.pinned = Array.isArray(cfg.pinned) ? cfg.pinned : [];
     cfg.features = Object.assign({ ourjournal: false, locks: false, sidebar: true }, cfg.features || {});
-    return (cfg._ready = instantiate(cfg).then(function (r) { addDone(cfg); return r; }));
+    // A mount that failed (offline, a file that never arrived) leaves nothing
+    // behind, so the host's retry starts clean. It used to stay recorded with
+    // its failed promise, and every later mount() got that same failure back
+    // until the page was reloaded.
+    var self = this;
+    return (cfg._ready = instantiate(cfg).then(function (r) { addDone(cfg); return r; }, function (e) {
+      if (self.mounts[cfg.key] === cfg) delete self.mounts[cfg.key];
+      [].forEach.call(document.querySelectorAll('[data-notebook="' + cfg.key + '"]'), function (n) { n.remove(); });
+      var root = document.getElementById(cfg.key + '-root');
+      if (root) root.remove();
+      throw e;
+    }));
   },
   // Move a mounted instance into `container` (a host that re-renders its own
   // markup, e.g. TradeHub's React tab), or set it aside, hidden and still
