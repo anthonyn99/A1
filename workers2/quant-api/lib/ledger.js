@@ -53,27 +53,37 @@ export async function spend(env, service, n = 1) {
 }
 const UPSERT_USAGE = 'INSERT INTO usage (day, service, n) VALUES (?, ?, ?) ON CONFLICT (day, service) DO UPDATE SET n = n + excluded.n';
 
+
 /** Record how a provider just answered (one write). Three failures in a row
  *  open the skip window; an answer closes it. */
 export async function noteHealth(env, provider, ok, status, latencyMs, detail, now = Date.now()) {
-  await healthStmt(env, provider, ok, status, latencyMs, detail, now).run();
+  await healthStmt(env, provider, ok, status, latencyMs, detail, now, ok ? 0 : 1).run();
 }
-function healthStmt(env, provider, ok, status, latencyMs, detail, now, skipUntil) {
+/** One provider's health row after a request: its LAST answer, with `failInc`
+ *  failures added to the run of failures (0 when the last answer was good). */
+function healthStmt(env, provider, ok, status, latencyMs, detail, now, failInc) {
   return env.DB.prepare('INSERT INTO provider_health (provider, ok, status, latency_ms, detail, at, ok_at, fails, skip_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) '
     + 'ON CONFLICT (provider) DO UPDATE SET ok = excluded.ok, status = excluded.status, latency_ms = excluded.latency_ms, detail = excluded.detail, at = excluded.at, '
     + 'ok_at = COALESCE(excluded.ok_at, provider_health.ok_at), '
-    + 'fails = CASE WHEN excluded.ok = 1 THEN 0 ELSE provider_health.fails + 1 END, '
-    + 'skip_until = CASE WHEN excluded.skip_until IS NOT NULL THEN excluded.skip_until WHEN excluded.ok = 1 THEN NULL '
-    + `WHEN provider_health.fails + 1 >= ${FAILS_TO_SKIP} THEN excluded.at + ${SKIP_MS} ELSE provider_health.skip_until END`)
+    + 'fails = CASE WHEN excluded.ok = 1 THEN 0 ELSE provider_health.fails + excluded.fails END, '
+    + 'skip_until = CASE WHEN excluded.ok = 1 THEN NULL '
+    + `WHEN provider_health.fails + excluded.fails >= ${FAILS_TO_SKIP} THEN excluded.at + ${SKIP_MS} ELSE provider_health.skip_until END`)
     .bind(provider, ok ? 1 : 0, status == null ? null : status, latencyMs == null ? null : Math.round(latencyMs),
-      ok ? null : String(detail || '').slice(0, 200), now, ok ? now : null, ok ? 0 : 1, skipUntil == null ? null : skipUntil);
+      ok ? null : String(detail || '').slice(0, 200), now, ok ? now : null, ok ? 0 : failInc,
+      !ok && failInc >= FAILS_TO_SKIP ? now + SKIP_MS : null);
+}
+/** A provider reached its cap: skip it for SKIP_MS without calling that a failure. */
+function capStmt(env, provider, now) {
+  return env.DB.prepare('INSERT INTO provider_health (provider, ok, status, latency_ms, detail, at, ok_at, fails, skip_until) VALUES (?, 1, NULL, NULL, ?, ?, NULL, 0, ?) '
+    + 'ON CONFLICT (provider) DO UPDATE SET skip_until = excluded.skip_until, detail = excluded.detail')
+    .bind(provider, 'at its daily cap', now, now + SKIP_MS);
 }
 
 /**
- * One request's view of the ledger: today's usage and every provider's health
- * read once (two reads), the writes queued and sent together at the end
- * (`flush`, one D1 batch), so a request touching three providers costs two
- * reads and one round trip of writes.
+ * One request's view of the ledger: today's usage, every provider's health and
+ * answer times read once (three reads); the writes gathered and sent together
+ * at the end (`flush`, one D1 batch) with ONE row per provider touched, however
+ * many calls it took (Finnhub answers one symbol a call).
  */
 export class Ledger {
   static async load(env, now = Date.now()) {
@@ -88,11 +98,16 @@ export class Ledger {
     L.lat = lat;
     return L;
   }
-  constructor(env, now) { this.env = env; this.now = now; this.used = {}; this.health = {}; this.lat = {}; this.latDirty = new Set(); this.queue = []; }
+  constructor(env, now) {
+    this.env = env; this.now = now; this.used = {}; this.health = {}; this.lat = {};
+    this.spent = {};      // provider -> calls this request
+    this.last = {};       // provider -> { ok, status, latencyMs, detail, failTail }
+    this.capped = new Set();
+  }
   /** Why `provider` may not be asked now, or '' when it may. */
   blocked(provider) {
     const h = this.health[provider];
-    if (h && h.skip_until && h.skip_until > this.now) return (h.fails >= FAILS_TO_SKIP ? 'failing' : 'at its cap') + ', skipped until ' + new Date(h.skip_until).toISOString();
+    if (h && h.skip_until && h.skip_until > this.now) return ((h.fails || 0) >= FAILS_TO_SKIP ? 'failing' : 'at its cap') + ', skipped until ' + new Date(h.skip_until).toISOString();
     const cap = capOf(provider);
     if (cap && (this.used[provider] || 0) >= cap) return 'at its daily cap';
     return '';
@@ -102,31 +117,37 @@ export class Ledger {
   spend(provider, n = 1) {
     const cap = capOf(provider);
     if (cap && (this.used[provider] || 0) + n > cap) {
-      this.health[provider] = Object.assign({}, this.health[provider], { skip_until: this.now + SKIP_MS });
-      this.queue.push(healthStmt(this.env, provider, false, null, null, 'at its daily cap', this.now, this.now + SKIP_MS));
+      this.health[provider] = Object.assign({ fails: 0 }, this.health[provider], { skip_until: this.now + SKIP_MS });
+      this.capped.add(provider);
       return false;
     }
     this.used[provider] = (this.used[provider] || 0) + n;
-    this.queue.push(this.env.DB.prepare(UPSERT_USAGE).bind(day(this.now), provider, n));
+    this.spent[provider] = (this.spent[provider] || 0) + n;
     return true;
   }
   note(provider, ok, status, latencyMs, detail) {
     const h = this.health[provider] || { fails: 0 };
     const fails = ok ? 0 : (h.fails || 0) + 1;
     this.health[provider] = Object.assign({}, h, { ok: ok ? 1 : 0, fails, skip_until: ok ? null : fails >= FAILS_TO_SKIP ? this.now + SKIP_MS : h.skip_until });
-    this.queue.push(healthStmt(this.env, provider, ok, status, latencyMs, detail, this.now));
+    const prev = this.last[provider];
+    this.last[provider] = { ok, status, latencyMs, detail, failTail: ok ? 0 : ((prev && prev.failTail) || 0) + 1 };
     if (ok && Number.isFinite(latencyMs)) {
       this.lat[provider] = (this.lat[provider] || []).concat(Math.round(latencyMs)).slice(-LAT_SAMPLES);
-      this.latDirty.add(provider);
+      this.last[provider].lat = true;
     }
   }
   async flush() {
-    for (const p of this.latDirty) {
-      this.queue.push(this.env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
-        .bind('lat:' + p, JSON.stringify(this.lat[p]), this.now));
+    const q = [];
+    for (const [p, n] of Object.entries(this.spent)) q.push(this.env.DB.prepare(UPSERT_USAGE).bind(day(this.now), p, n));
+    for (const [p, x] of Object.entries(this.last)) {
+      q.push(healthStmt(this.env, p, x.ok, x.status, x.latencyMs, x.detail, this.now, x.failTail));
+      if (x.lat) {
+        q.push(this.env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
+          .bind('lat:' + p, JSON.stringify(this.lat[p]), this.now));
+      }
     }
-    this.latDirty.clear();
-    const q = this.queue; this.queue = [];
+    for (const p of this.capped) if (!this.last[p]) q.push(capStmt(this.env, p, this.now));
+    this.spent = {}; this.last = {}; this.capped.clear();
     if (!q.length) return;
     if (this.env.DB.batch) await this.env.DB.batch(q);
     else for (const s of q) await s.run();
