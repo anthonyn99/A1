@@ -68,7 +68,8 @@ export async function bars(L, env, sym, tf, from, to, adj, now) {
   if (from > to) return Object.assign([], { clipped });
   const step = reach ? reach[1] : Infinity;
   const parts = [], splits = [];
-  for (let a = from; a <= to; a += step) {
+  // Never a zero-width last request (period1 = period2), which Yahoo refuses.
+  for (let a = from; a < to || a === from; a += step) {
     const p = await chart(L, sym, tf, a, Math.min(to, a + step));
     parts.push(p.bars); splits.push(...p.splits);
   }
