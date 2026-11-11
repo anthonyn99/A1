@@ -475,6 +475,14 @@ function addDone(cfg) {
   });
 }
 
+// Where an instance waits, hidden and still running, while its host has no
+// place for it (detach, or a container that left the page during the mount).
+function parkBox() {
+  var park = document.getElementById('nb-park');
+  if (!park) { park = document.createElement('div'); park.id = 'nb-park'; park.style.display = 'none'; document.body.appendChild(park); }
+  return park;
+}
+
 function instantiate(cfg) {
   var K = cfg.key, spec = SPEC[cfg.app];
   if (cfg.app === 'brainstorm') vedaFonts();
@@ -488,11 +496,17 @@ function instantiate(cfg) {
       st.textContent = instanceSheet(t[0], t.slice(3), cfg);
       document.head.appendChild(st);
       // The app builds its markup right before its own script element, so the
-      // element goes where the markup should: the host's container.
+      // element goes where the markup should: the host's container. The engines
+      // above took a moment to arrive, and a host that re-renders (TradeHub's
+      // React tabs) may have dropped that container meanwhile: a script put in
+      // an element that is off the page never runs, so nothing was ever built
+      // and only a reload brought the instance back. Off the page, it is built
+      // set aside instead (as detach leaves it), and the host attaches it.
       var el = document.createElement('script');
       el.setAttribute('data-notebook', K);
       el.text = rewriteApp(t[1], cfg) + '\n//# sourceURL=' + BASE + spec.js + '#' + K;
-      (cfg.container || document.body).appendChild(el);
+      var box = cfg.container || document.body;
+      (document.contains(box) ? box : parkBox()).appendChild(el);
       var store = (0, eval)(rewrite(storeSource(t[2], cfg), cfg) + '\n//# sourceURL=' + BASE + 'core/fb.js#' + K);
       return hostFirestore().then(function (h) {
         window.Notebook.fb.addStore(K, store, hostF(h));
@@ -562,8 +576,7 @@ window.Notebook = {
   detach: function (key) {
     var root = document.getElementById(key + '-root');
     if (!root || !this.mounts[key]) return false;
-    var park = document.getElementById('nb-park');
-    if (!park) { park = document.createElement('div'); park.id = 'nb-park'; park.style.display = 'none'; document.body.appendChild(park); }
+    var park = parkBox();
     if (root.parentNode !== park) park.appendChild(root);
     return true;
   },
