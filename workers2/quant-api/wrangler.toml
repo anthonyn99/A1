@@ -20,5 +20,9 @@ migrations_dir = "migrations"
 #   ALLOWED_KEYS   comma-separated SHA-256 hex of the Orca keys that may call
 #                  this worker. Unset = every request but /health is refused.
 #   FINNHUB_KEY    market data (the same service newshub-api uses on account 1)
-# Added by later phases: ALPACA_KEY, ALPACA_SECRET, PUBLIC_KEY, GEMINI_KEY,
-# GROQ_KEY, PUSH_SECRET.
+#   GROQ_KEY       Neo Quant's fast AI lane
+# Read by the data gateway when set (each source is skipped without its key):
+#   ALPACA_KEY, ALPACA_SECRET   Alpaca PAPER key (market data only; it cannot trade money)
+#   PUBLIC_KEY                  Public.com API secret (PUBLIC_ACCOUNT_ID optional)
+#   TIINGO_KEY                  the second source for daily history
+# Added by later phases: GEMINI_KEY, PUSH_SECRET.
