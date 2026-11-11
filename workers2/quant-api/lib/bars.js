@@ -54,7 +54,8 @@ export function weekKey(t) {
 export const monthKey = (t) => nyMidnight(nyDate(t).slice(0, 8) + '01');
 export function fourHourKey(t) {
   const c = nyClock(t);
-  const start = Math.max(240, 240 + Math.floor((c.minutes - 240) / 240) * 240);
+  // Anything outside 04:00-20:00 (overnight prints) joins the nearest bucket of its day.
+  const start = Math.min(960, Math.max(240, 240 + Math.floor((c.minutes - 240) / 240) * 240));
   return nyMidnight(c.date) + start * 60_000;
 }
 /** Bars of `base` turned into `tf` (only the pairs in BASE_TF). */
