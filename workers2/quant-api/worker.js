@@ -138,7 +138,9 @@ async function bars(env, url, ctx) {
   if (from > to) throw fail(400, 'from is after to');
   if (MAX_SPAN[tf] && to - from > MAX_SPAN[tf]) throw fail(400, `at most ${Math.round(MAX_SPAN[tf] / DAY)} days of ${tf} bars a request`);
   const adj = q.get('adj') !== '0';
-  // A range that ends before this New York month began never changes again.
+  // A range that ends before this New York month began never changes again,
+  // raw. Split-adjusted history changes the day a split happens, so it is
+  // kept for a day only.
   const closed = to < nyMonthStart(now);
   const key = `https://quant-api.cache/bars?s=${symbol}&tf=${tf}&from=${from}&to=${to}&adj=${adj ? 1 : 0}`;
   if (closed) { const hit = await cacheGet(key); if (hit) return hit; }
@@ -148,7 +150,8 @@ async function bars(env, url, ctx) {
   finally { await later(ctx, L.flush()); }
   if (!out) throw fail(503, 'no provider answered', { tried: [] });
   out.known = await noteHistory(env, symbol, tf, out, now);
-  const cc = closed && out.complete ? 'public, max-age=31536000, immutable' : 'public, max-age=' + (marketHours(now) ? 15 : 300);
+  const cc = !(closed && out.complete) ? 'public, max-age=' + (marketHours(now) ? 15 : 300)
+    : adj ? 'public, max-age=86400' : 'public, max-age=31536000, immutable';
   const r = json({ ok: true, ...out }, 200, { 'cache-control': cc });
   if (closed && out.complete) await later(ctx, cachePut(key, r.clone()));
   return r;
