@@ -97,7 +97,8 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
     if (!parts.some((p) => p.bars)) return null;
   }
   const ok = parts.filter((p) => p.bars);
-  const bars = within(toTimeframe(mergeBars(...ok.map((p) => p.bars)), tf), from, to);
+  // Trim the base bars first, so a week or month that began before `from` still comes out.
+  const bars = toTimeframe(within(mergeBars(...ok.map((p) => p.bars)), from, to), tf);
   return {
     symbol: sym, tf, bars,
     provider: [...new Set(ok.map((p) => p.provider))].join('+'),
