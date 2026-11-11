@@ -91,12 +91,15 @@ const JOURNAL = { savedAt: NOW - 86400000,
 
   console.log('\nDisplay mode');
   await js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); b.click(); return 1;`); await sleep(300);
-  ok('Expectancy blurs too', await js(`var c=[...document.querySelectorAll('.tbf-j > *')].find(x=>(x.querySelector('.k')||{}).textContent==='Expectancy'); var v=c&&c.querySelector('.tb-money'); return !!v && /blur/.test(getComputedStyle(v).filter);`));
+  // Since 2026-11-10 the blur is a text-shadow in the text colour over
+  // transparent glyphs (no filter: it lagged scroll), as tradehub-display-mode pins.
   // Nothing under the blur may say win or loss by its colour (2026-11-09).
   const textCol = `(function(){var t=document.createElement('span'); t.style.color='var(--tx)'; document.querySelector('#tradeboard-root').appendChild(t); var w=getComputedStyle(t).color; t.remove(); return w;})()`;
-  ok('no blurred figure is green or red: each reads in the text colour', await js(`var want=${textCol}; return [...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent).every(e=>getComputedStyle(e).color===want);`),
-    await js(`var want=${textCol}; return want+' vs '+[...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent&&getComputedStyle(e).color!==want).slice(0,4).map(e=>e.textContent+':'+getComputedStyle(e).color).join(', ');`));
-  ok('Win / Loss results blur and lose their colour', await js(`var want=${textCol}; var r=[...document.querySelectorAll('.tbj-st')].filter(e=>/^(win|loss)$/i.test(e.textContent)); return r.length===4 && r.every(e=>/blur/.test(getComputedStyle(e).filter) && getComputedStyle(e).color===want);`));
+  const blurredIn = `function(e,want){var cs=getComputedStyle(e); return cs.color==='rgba(0, 0, 0, 0)' && cs.textShadow.indexOf(want)===0;}`;
+  ok('Expectancy blurs too', await js(`var want=${textCol}, isB=${blurredIn}; var c=[...document.querySelectorAll('.tbf-j > *')].find(x=>(x.querySelector('.k')||{}).textContent==='Expectancy'); var v=c&&c.querySelector('.tb-money'); return !!v && isB(v,want);`));
+  ok('no blurred figure is green or red: each blurs in the text colour', await js(`var want=${textCol}, isB=${blurredIn}; return [...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent&&e.tagName!=='INPUT'&&e.textContent.trim()).every(e=>isB(e,want));`),
+    await js(`var want=${textCol}, isB=${blurredIn}; return want+' vs '+[...document.querySelectorAll('#tradeboard-root .tb-money')].filter(e=>e.offsetParent&&e.tagName!=='INPUT'&&e.textContent.trim()&&!isB(e,want)).slice(0,4).map(e=>e.textContent+':'+getComputedStyle(e).color+' / '+getComputedStyle(e).textShadow).join(', ');`));
+  ok('Win / Loss results blur and lose their colour', await js(`var want=${textCol}, isB=${blurredIn}; var r=[...document.querySelectorAll('.tbj-st')].filter(e=>/^(win|loss)$/i.test(e.textContent)); return r.length===4 && r.every(e=>isB(e,want));`));
   ok('the win-rate bar is one grey, not green and red', await js(`var b=[...document.querySelectorAll('.tbf-split b')]; return b.length===2 && getComputedStyle(b[0]).backgroundColor===getComputedStyle(b[1]).backgroundColor;`));
   await shot('journal-display');
   await js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); b.click(); return 1;`); await sleep(200);
