@@ -7,34 +7,36 @@
 // ALLOWED_KEYS), so the key itself is never stored here, and with no
 // ALLOWED_KEYS set every route but /health is refused.
 //
-// Routes (Phase 0)
-//   GET /health            { ok, db, time }         no key needed
-//   GET /whoami   (key)    { ok }                   proves the key is accepted
-//   GET /usage    (key)    { day, usage: [{service, n, cap}], health: [...] }
+// Routes
+//   GET  /health                   { ok, db, time }                        no key needed
+//   GET  /whoami                   { ok }
+//   GET  /usage                    today's calls per service with caps, provider health, which keys are set
+//   GET  /quotes?symbols=A,B       { quotes: {SYM: Quote}, asOf, missing, tried }   max 60; 503 when nobody answered
+//   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried }
+//   GET  /stream-keys              { alpaca: {key, secret}, finnhub: {key} }   the page's two live streams
+//   GET  /corrections?limit=50     the data doctor's log, newest first
+//   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
 //
-// Budgets: every call to an outside service goes through spend(), which counts
-// it in D1 and refuses once the service's daily cap is reached. Caps sit far
-// under each free tier (docs/TradeHub/quant-plan.md, "No usage spikes").
+// Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
+// never sends a freshness label: the page works it out from provider, t,
+// heard, realtime and delayMs, so it can turn STALE by time alone.
+import { CAPS, Ledger, day } from './lib/ledger.js';
+import { getQuotes, getBars, parseSymbols } from './lib/data.js';
+import { TFS, INTRADAY } from './lib/bars.js';
+import { marketHours, nyMonthStart } from './lib/time.js';
+import * as alpaca from './providers/alpaca.js';
+import { finnhub, publicCom, tiingo } from './providers/others.js';
+
+export { CAPS, spend, noteHealth, day } from './lib/ledger.js';
 
 const ORIGINS = [
   /^https:\/\/a1-priv\.av1\.workers\.dev$/,
   /^https:\/\/anthonyn99\.github\.io$/,
   /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/,
 ];
-
-// Daily caps per outside service (calls a day). A service not listed has none.
-export const CAPS = {
-  finnhub: 20000,   // free: 60 a minute
-  alpaca: 30000,    // free: 200 a minute
-  public: 5000,
-  yahoo: 5000,
-  cboe: 500,
-  fred: 400,        // free: 1,000 a day
-  sec: 2000,
-  alphavantage: 20, // free: 25 a day
-  tiingo: 400,
-  groq: 800,        // free: about 1,000 a day
-};
+const DAY = 86400_000;
+// The widest span one /bars request may ask for, per timeframe.
+export const MAX_SPAN = { '1m': 45 * DAY, '5m': 400 * DAY, '15m': 400 * DAY, '30m': 400 * DAY, '1h': 2200 * DAY, '4h': 2200 * DAY };
 
 export default {
   async fetch(req, env, ctx) {
@@ -42,15 +44,16 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     try {
       const r = await route(req, env, new URL(req.url), ctx);
-      for (const [k, v] of Object.entries(cors)) r.headers.set(k, v);
-      return r;
+      const out = new Response(r.body, r);   // a cached response's headers are immutable
+      for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
+      return out;
     } catch (e) {
-      return json({ ok: false, error: e.message || String(e) }, e.status || 500, cors);
+      return json({ ok: false, error: e.message || String(e), ...(e.extra || {}) }, e.status || 500, cors);
     }
   },
 };
 
-async function route(req, env, url) {
+async function route(req, env, url, ctx) {
   const p = url.pathname.replace(/\/+$/, '') || '/';
   const m = req.method;
   if (m === 'GET' && (p === '/' || p === '/health')) {
@@ -60,13 +63,121 @@ async function route(req, env, url) {
   }
   await auth(req, env);
   if (m === 'GET' && p === '/whoami') return json({ ok: true });
-  if (m === 'GET' && p === '/usage') {
-    const d = day();
-    const rows = (await env.DB.prepare('SELECT service, n FROM usage WHERE day = ? ORDER BY service').bind(d).all()).results || [];
-    const health = (await env.DB.prepare('SELECT provider, ok, status, latency_ms, detail, at, ok_at FROM provider_health ORDER BY provider').all()).results || [];
-    return json({ ok: true, day: d, usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })), health });
+  if (m === 'GET' && p === '/usage') return usage(env);
+  if (m === 'GET' && p === '/quotes') return quotes(env, url, ctx);
+  if (m === 'GET' && p === '/bars') return bars(env, url, ctx);
+  if (m === 'GET' && p === '/stream-keys') {
+    return json({
+      ok: true,
+      alpaca: alpaca.has(env) ? { key: env.ALPACA_KEY, secret: env.ALPACA_SECRET } : null,
+      finnhub: finnhub.has(env) ? { key: env.FINNHUB_KEY } : null,
+    });
   }
+  if (p === '/corrections' && m === 'GET') {
+    const n = Math.max(1, Math.min(200, Number(url.searchParams.get('limit')) || 50));
+    const rows = (await env.DB.prepare('SELECT * FROM corrections ORDER BY at DESC, id DESC LIMIT ?').bind(n).all()).results || [];
+    return json({ ok: true, corrections: rows });
+  }
+  if (p === '/corrections' && m === 'POST') return addCorrections(env, req);
   throw fail(404, 'no such route');
+}
+
+/* ── /usage ─────────────────────────────────────────────────────────────── */
+async function usage(env) {
+  const d = day();
+  const rows = (await env.DB.prepare('SELECT service, n FROM usage WHERE day = ? ORDER BY service').bind(d).all()).results || [];
+  const health = (await env.DB.prepare('SELECT * FROM provider_health ORDER BY provider').all()).results || [];
+  return json({
+    ok: true, day: d, now: Date.now(),
+    usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })),
+    health,
+    caps: CAPS,
+    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env) },
+  });
+}
+
+/* ── /quotes ────────────────────────────────────────────────────────────── */
+async function quotes(env, url, ctx) {
+  const syms = parseSymbols(url.searchParams.get('symbols'));
+  if (!syms.length) throw fail(400, 'symbols= is needed');
+  const now = Date.now();
+  const ttl = marketHours(now) ? 2 : 60;
+  const key = 'https://quant-api.cache/quotes?s=' + [...syms].sort().join(',');
+  const hit = await cacheGet(key);
+  if (hit) return hit;
+  const L = await Ledger.load(env, now);
+  let out;
+  try { out = await getQuotes(L, env, syms, now); }
+  finally { await later(ctx, L.flush()); }
+  if (!Object.keys(out.quotes).length) throw fail(503, 'no provider answered', { tried: out.tried, missing: out.missing });
+  const r = json({ ok: true, quotes: out.quotes, asOf: now, missing: out.missing, tried: out.tried }, 200, { 'cache-control': 'public, max-age=' + ttl });
+  await later(ctx, cachePut(key, r.clone()));
+  return r;
+}
+
+/* ── /bars ──────────────────────────────────────────────────────────────── */
+/** A time from the query: ms since 1970, or YYYY-MM-DD (UTC). */
+function when(v, d) {
+  if (v == null || v === '') return d;
+  if (/^\d+$/.test(v)) return Number(v);
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) throw fail(400, 'not a time: ' + v);
+  return t;
+}
+async function bars(env, url, ctx) {
+  const q = url.searchParams;
+  const symbol = parseSymbols(q.get('symbol'))[0];
+  const tf = q.get('tf') || '1d';
+  if (!symbol) throw fail(400, 'symbol= is needed');
+  if (!TFS.includes(tf)) throw fail(400, 'tf must be one of ' + TFS.join(' '));
+  const now = Date.now();
+  const to = Math.min(when(q.get('to'), now), now);
+  const from = Math.max(0, when(q.get('from'), to - (INTRADAY.has(tf) ? 5 * DAY : 365 * DAY)));
+  if (from > to) throw fail(400, 'from is after to');
+  if (MAX_SPAN[tf] && to - from > MAX_SPAN[tf]) throw fail(400, `at most ${Math.round(MAX_SPAN[tf] / DAY)} days of ${tf} bars a request`);
+  const adj = q.get('adj') !== '0';
+  // A range that ends before this New York month began never changes again.
+  const closed = to < nyMonthStart(now);
+  const key = `https://quant-api.cache/bars?s=${symbol}&tf=${tf}&from=${from}&to=${to}&adj=${adj ? 1 : 0}`;
+  if (closed) { const hit = await cacheGet(key); if (hit) return hit; }
+  const L = await Ledger.load(env, now);
+  let out;
+  try { out = await getBars(L, env, symbol, tf, from, to, adj, now); }
+  finally { await later(ctx, L.flush()); }
+  if (!out) throw fail(503, 'no provider answered', { tried: [] });
+  out.known = await noteHistory(env, symbol, tf, out, now);
+  const cc = closed && out.complete ? 'public, max-age=31536000, immutable' : 'public, max-age=' + (marketHours(now) ? 15 : 300);
+  const r = json({ ok: true, ...out }, 200, { 'cache-control': cc });
+  if (closed && out.complete) await later(ctx, cachePut(key, r.clone()));
+  return r;
+}
+/** bars_meta: widen what is known of this symbol's history; one read, a write only when it grew. */
+async function noteHistory(env, symbol, tf, out, now) {
+  const row = await env.DB.prepare('SELECT first_t, last_t FROM bars_meta WHERE symbol = ? AND tf = ?').bind(symbol, tf).first();
+  if (!out.bars.length) return row || null;
+  const first = out.bars[0].t, last = out.bars[out.bars.length - 1].t;
+  const next = { first_t: row && row.first_t != null ? Math.min(row.first_t, first) : first, last_t: row && row.last_t != null ? Math.max(row.last_t, last) : last };
+  if (!row || next.first_t !== row.first_t || next.last_t !== row.last_t) {
+    await env.DB.prepare('INSERT INTO bars_meta (symbol, tf, first_t, last_t, provider, at) VALUES (?, ?, ?, ?, ?, ?) '
+      + 'ON CONFLICT (symbol, tf) DO UPDATE SET first_t = excluded.first_t, last_t = excluded.last_t, provider = excluded.provider, at = excluded.at')
+      .bind(symbol, tf, next.first_t, next.last_t, out.provider, now).run();
+  }
+  return next;
+}
+
+/* ── /corrections ───────────────────────────────────────────────────────── */
+async function addCorrections(env, req) {
+  let body;
+  try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  const items = Array.isArray(body && body.items) ? body.items : [];
+  if (!items.length) throw fail(400, 'items is empty');
+  if (items.length > 50) throw fail(400, 'at most 50 items a call');
+  const s = (v, n) => (v == null ? null : String(v).slice(0, n));
+  const now = Date.now();
+  const stmts = items.map((it) => env.DB.prepare('INSERT INTO corrections (at, kind, symbol, field, old_v, new_v, source, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(Number.isFinite(it.at) ? it.at : now, s(it.kind, 20) || 'quote', s(it.symbol, 16), s(it.field, 40), s(it.old_v, 80), s(it.new_v, 80), s(it.source, 40), s(it.note, 200)));
+  if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
+  return json({ ok: true, added: items.length });
 }
 
 /* ── who may call ───────────────────────────────────────────────────────── */
@@ -92,33 +203,17 @@ function same(a, b) {
   return d === 0;
 }
 
-/* ── the budget ledger ──────────────────────────────────────────────────── */
-export const day = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
-/** Count one call to `service` today. Resolves false (and counts nothing)
- *  when the service is at its cap, so the caller moves to the next source. */
-export async function spend(env, service, n = 1) {
-  const cap = CAPS[service.split(':')[0]];
-  const d = day();
-  if (cap) {
-    const row = await env.DB.prepare('SELECT n FROM usage WHERE day = ? AND service = ?').bind(d, service).first();
-    if (row && row.n + n > cap) return false;
-  }
-  await env.DB.prepare('INSERT INTO usage (day, service, n) VALUES (?, ?, ?) ON CONFLICT (day, service) DO UPDATE SET n = n + excluded.n').bind(d, service, n).run();
-  return true;
-}
-/** Record how a provider just answered. */
-export async function noteHealth(env, provider, ok, status, latencyMs, detail) {
-  const now = Date.now();
-  await env.DB.prepare('INSERT INTO provider_health (provider, ok, status, latency_ms, detail, at, ok_at) VALUES (?, ?, ?, ?, ?, ?, ?) '
-    + 'ON CONFLICT (provider) DO UPDATE SET ok = excluded.ok, status = excluded.status, latency_ms = excluded.latency_ms, detail = excluded.detail, at = excluded.at, ok_at = COALESCE(excluded.ok_at, provider_health.ok_at)')
-    .bind(provider, ok ? 1 : 0, status == null ? null : status, latencyMs == null ? null : Math.round(latencyMs), ok ? null : String(detail || '').slice(0, 200), now, ok ? now : null).run();
-}
-
 /* ── small helpers ──────────────────────────────────────────────────────── */
-function fail(status, message) { return Object.assign(new Error(message), { status }); }
+function fail(status, message, extra) { return Object.assign(new Error(message), { status, extra }); }
 function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers } });
 }
+// The edge cache (absent outside Cloudflare, e.g. in the tests).
+const edge = () => (typeof caches !== 'undefined' && caches.default) || null;
+async function cacheGet(key) { const c = edge(); return c ? (await c.match(key)) || null : null; }
+async function cachePut(key, r) { const c = edge(); if (c) await c.put(key, r); }
+/** Run `p` after the answer when the runtime allows it, else wait for it. */
+async function later(ctx, p) { if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p; }
 function corsHeaders(req) {
   const o = req.headers.get('origin') || '';
   if (!ORIGINS.some((re) => re.test(o))) return { vary: 'Origin' };
