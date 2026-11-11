@@ -89,6 +89,14 @@
   private repo"): follow
   [docs/A1-Priv/a1-priv-move-plan.md](docs/A1-Priv/a1-priv-move-plan.md), section "Moving
   another program later".
+- **TradeHub Quant / Neo Quant** ("continue Quant", "next Quant phase", the
+  AI quant, Market / Charts / Scanner / Neo Quant tabs): TradeHub is in
+  A1-Priv, and so is the plan. Read §0 of
+  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` and build
+  exactly the phase it names, one phase per session. A1 holds its worker
+  (`workers2/quant-api`, account 2, D1 only, no KV), the worker's test
+  (`tests/quant-api.test.js`) and the live tests (`tests/live/tradehub-quant-*`,
+  `tradehub-playbook-switch`).
 - **Every doc, plan and README goes in [docs/](docs/)**, whatever project it
   is for (a project's own subfolder there if it has several). Only this file,
   `.claude/skills/` and the root `README.md` stay outside it.
