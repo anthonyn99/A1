@@ -1619,7 +1619,7 @@ SENTIMENT — judge it for each stock on its own, the way that stock will trade 
 - Rivals often move OPPOSITE to the subject. Never call a story neutral because it is good for one name and bad for another — give each its own sign.
 - Never soften to neutral with a mitigating clause ("despite strong demand", "long-term intact"). The near-term trade decides.
 - Clearly BEARISH for the subject: CEO/founder ousted, pushed out or a sudden departure; board turmoil; accounting problems, restatements, probes, subpoenas, lawsuits with teeth; guidance cut, miss, profit warning; downgrade or PT cut; lost customer or contract; export ban or sanction hitting it; deal doubt that hurts it; dilution, big insider selling; production halts, recalls, outages.
-- Clearly BULLISH for the subject: beat-and-raise, upgrade or PT raise, big contract or customer win, approval, buyback or dividend hike, deal that lifts it, shortage or price hike it sells into.
+- Clearly BULLISH for the subject: beat-and-raise, upgrade or PT raise, big contract or customer win, approval, buyback or dividend hike, large insider or CEO buying, deal that lifts it, shortage or price hike it sells into.
 - An acquirer paying a rich price is usually bear for the acquirer and bull for the target.
 - neutral ONLY when the stock has no plausible near-term direction from this news (routine filings, previews with no new facts, already-priced events).
 - score magnitude: 0.7-1.0 thesis-changing (CEO ouster, fraud, guidance shock, transformative deal); 0.4-0.7 material; 0.15-0.4 mild. A neutral is 0.
@@ -3738,11 +3738,11 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
         enriched.push({
           id: ev.id,
           primaryTicker: themedCand,
-          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet),
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet, ai.summary),
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'macro',
           summary: ai.summary || (ev.sources?.[0]?.headline || ''),
-          ...aiSentiment(ai, themedCand, mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet)),
+          ...aiSentiment(ai, themedCand, mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet, ai.summary)),
           impact: { score: floor, tier: impactTier(floor) },
           relevanceConfidence: ai.relevanceConfidence ?? 0.6,
           ts: ev.ts,
@@ -3768,11 +3768,11 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
       enriched.push({
         id: ev.id,
         primaryTicker: primaryTicker,
-        additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet),
+        additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet, ai.summary),
         sectors: (ai.sectors||[]).filter(Boolean),
         eventType: ai.eventType || 'other',
         summary: ai.summary || '',
-        ...aiSentiment(ai, primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet)),
+        ...aiSentiment(ai, primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet, ai.summary)),
         impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
         relevanceConfidence: ai.relevanceConfidence ?? 1,
         ts: ev.ts,
@@ -3898,11 +3898,11 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
         enriched.push({
           id: ev.id,
           primaryTicker: ai.primaryTicker,
-          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet),
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet, ai.summary),
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'other',
           summary: ai.summary || '',
-          ...aiSentiment(ai, ai.primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet)),
+          ...aiSentiment(ai, ai.primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet, ai.summary)),
           impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
           relevanceConfidence: ai.relevanceConfidence ?? 1,
           ts: ev.ts,
@@ -3990,13 +3990,30 @@ function aiSentiment(ai, primary, addl){
 // is how "Marvell's deal with Google" shipped tagged GOOGL-only while the summary
 // discussed MRVL. candidateTickers is scanner-derived (mentionedTickers() reads the
 // real article text), so union the two and let the scanner backstop the model.
-function mergeAddlTickers(aiAddl, ev, primary, wlSet){
-  const out = [];
+//
+// But the union must not tag a story with every company its article body
+// mentions: "Nvidia's board explores replacing Jensen Huang" shipped with 17
+// additional tickers (2026-11-12) because the piece ran through the market.
+// When we have the story's own words (its headlines + the AI summary), a name
+// the story itself states is kept; a name only the body or the model brought
+// in is kept just while the list stays short (ADDL_UNSTATED_MAX).
+const ADDL_MAX = 8, ADDL_UNSTATED_MAX = 3;
+function mergeAddlTickers(aiAddl, ev, primary, wlSet, aiSummary){
+  const all = [];
   const seen = new Set([primary]);
   for (const t of [...(aiAddl||[]), ...((ev && ev.candidateTickers)||[])]){
     const u = (t||'').toUpperCase();
     if (!u || seen.has(u) || !wlSet.has(u)) continue;
-    seen.add(u); out.push(u);
+    seen.add(u); all.push(u);
+  }
+  const text = [aiSummary || '', ...(((ev && ev.sources) || []).map(s => s && s.headline || ''))].join(' . ').trim();
+  if (!text) return all;
+  const stated = new Set(mentionedTickers(text, all));
+  const aiSet = new Set((aiAddl||[]).map(t => (t||'').toUpperCase()));
+  const out = all.filter(t => stated.has(t)).slice(0, ADDL_MAX);
+  for (const t of all){
+    if (out.length >= ADDL_UNSTATED_MAX || out.length >= ADDL_MAX) break;
+    if (!stated.has(t) && aiSet.has(t)) out.push(t);
   }
   return out;
 }
