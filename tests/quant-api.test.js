@@ -17,7 +17,8 @@ const ok = (name, cond, extra) => {
 
 // The statements the worker uses, over plain maps.
 function fakeDb() {
-  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), corrections = [];
+  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), corrections = [], snapshots = new Map();
+  const newest = (rows) => rows.sort((a, b) => b.due - a.due)[0] || null;
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
@@ -25,6 +26,10 @@ function fakeDb() {
       if (/^SELECT 1/.test(sql)) return { one: 1 };
       if (/FROM usage WHERE day = \? AND service = \?/.test(sql)) { const n = usage.get(args[0] + '|' + args[1]); return n == null ? null : { n }; }
       if (/FROM bars_meta/.test(sql)) return meta.get(args[0] + '|' + args[1]) || null;
+      if (/FROM meta WHERE k = 'watchlist'/.test(sql)) return kv.has('watchlist') ? { v: kv.get('watchlist'), at: 1 } : null;
+      if (/FROM snapshots WHERE day = \? AND slot = \?/.test(sql)) return snapshots.get(args[0] + '|' + args[1]) || null;
+      if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
+      if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
       throw new Error('fakeDb.first: ' + sql);
     },
     async all() {
@@ -52,11 +57,12 @@ function fakeDb() {
       }
       if (/^INSERT INTO meta/.test(sql)) { kv.set(args[0], args[1]); return {}; }
       if (/^INSERT INTO bars_meta/.test(sql)) { meta.set(args[0] + '|' + args[1], { first_t: args[2], last_t: args[3], provider: args[4] }); return {}; }
+      if (/^INSERT INTO snapshots/.test(sql)) { snapshots.set(args[0] + '|' + args[1], { day: args[0], slot: args[1], due: args[2], at: args[3], by: args[4], body: args[5] }); return {}; }
       if (/^INSERT INTO corrections/.test(sql)) { corrections.push({ id: corrections.length + 1, at: args[0], kind: args[1], symbol: args[2], field: args[3], old_v: args[4], new_v: args[5], source: args[6], note: args[7] }); return {}; }
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections, snapshots };
   return db;
 }
 
@@ -386,6 +392,46 @@ globalThis.fetch = async (url, init = {}) => {
   ok('the log reads back, newest first', r.status === 200 && r.body.corrections.length === 1 && r.body.corrections[0].symbol === 'NVDA');
   r = await call(env, '/corrections', { method: 'POST', body: { items: [{ kind: 'quote' }] } });
   ok('writing corrections needs the key', r.status === 401);
+
+  console.log('\nThe market snapshot');
+  env = fullEnv();
+  const snap = (o) => Object.assign({ v: 1, day: '2026-11-10', slot: 'close', due: Date.parse('2026-11-10T21:10:00Z'), at: Date.parse('2026-11-10T21:12:00Z'), by: 'runner', rows: { SPY: { c: 600 } }, regime: { label: 'Constructive', parts: {} } }, o);
+  r = await call(env, '/snapshot', { key: GOOD });
+  ok('no snapshot yet: null, not an error', r.status === 200 && r.body.snapshot === null && r.body.watchlist === null);
+  r = await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap() } });
+  ok('a snapshot is kept under its day and slot, in one write', r.status === 200 && r.body.slot === 'close' && env.DB.snapshots.size === 1);
+  await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ slot: 'nightly', due: Date.parse('2026-11-11T01:30:00Z'), by: 'page', rows: { SPY: { c: 601 } } }) } });
+  await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ day: '2026-11-11', slot: 'premarket', due: Date.parse('2026-11-11T13:30:00Z'), rows: { SPY: { c: 602 } } }) } });
+  r = await call(env, '/snapshot?day=2026-11-10', { key: GOOD });
+  ok('day= gives the newest slot of that day', r.body.snapshot.slot === 'nightly' && r.body.snapshot.rows.SPY.c === 601 && r.body.snapshot.by === 'page');
+  r = await call(env, '/snapshot?day=2026-11-10&slot=close', { key: GOOD });
+  ok('day= and slot= give exactly that one', r.body.snapshot.slot === 'close' && r.body.snapshot.rows.SPY.c === 600);
+  r = await call(env, '/snapshot?day=2026-11-11&slot=midday', { key: GOOD });
+  ok('...or null when that slot was never built', r.status === 200 && r.body.snapshot === null);
+  r = await call(env, '/snapshot?day=2026-11-14', { key: GOOD });
+  ok('a day with no build of its own shows the newest before it', r.body.snapshot.day === '2026-11-11' && r.body.snapshot.slot === 'premarket');
+  r = await call(env, '/snapshot', { key: GOOD });
+  ok('no day: the newest of all', r.body.snapshot.rows.SPY.c === 602);
+  await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ rows: { SPY: { c: 599 } } }) } });
+  r = await call(env, '/snapshot?day=2026-11-10&slot=close', { key: GOOD });
+  ok('a second build of a slot replaces the first', env.DB.snapshots.size === 3 && r.body.snapshot.rows.SPY.c === 599);
+  const refused = [];
+  for (const bad of [{ day: 'today' }, { slot: 'lunch' }, { rows: null }, { regime: null }, { due: 'x' }, { due: Date.now() + 3600000 }]) {
+    refused.push((await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap(bad) } })).status);
+  }
+  ok('a wrong day, slot, shape or a slot not yet due is refused', refused.every((x) => x === 400), refused.join());
+  r = await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ pad: 'x'.repeat(Wk.SNAPSHOT_MAX) }) } });
+  ok('a snapshot over the size limit: 413', r.status === 413 && env.DB.snapshots.size === 3);
+  r = await call(env, '/snapshot?day=nope', { key: GOOD });
+  ok('a day that is not a date: 400', r.status === 400);
+  r = await call(env, '/snapshot', { method: 'POST', body: { snapshot: snap() } });
+  ok('writing a snapshot needs the key', r.status === 401);
+  r = await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['nvda', 'AMD', 'NVDA', 'not a symbol!', 'BRK.B'] } });
+  ok('the watchlist is kept, cleaned', r.status === 200 && r.body.symbols.join() === 'NVDA,AMD,BRK.B');
+  r = await call(env, '/snapshot', { key: GOOD });
+  ok('...and comes back with the snapshot, for the runner', r.body.watchlist.join() === 'NVDA,AMD,BRK.B');
+  r = await call(env, '/watchlist', { key: GOOD, method: 'POST', body: {} });
+  ok('a watchlist with no symbols list: 400', r.status === 400);
 
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
