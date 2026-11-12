@@ -1620,6 +1620,23 @@ async function markModelBlocked(env, model, ctx){
   } catch(e){}
 }
 
+// Sentiment is judged PER TICKER. One label per story used to be the only
+// verdict, so "Nvidia's board explores replacing its CEO; traders rotate into
+// AMD" came back NEUTRAL: bearish NVDA and bullish AMD averaged to nothing, and
+// the Summary then called the NVDA point neutral too (2026-11-12). The overall
+// sentiment is now the SUBJECT's, and every other ticker gets its own.
+const SENTIMENT_RULES = `
+SENTIMENT — judge it for each stock on its own, the way that stock will trade on this news:
+- sentiment / sentimentScore = the direction for primaryTicker. tickerSentiments = one entry for primaryTicker (same verdict) and one for EVERY additionalTicker, each judged for that stock alone.
+- Rivals often move OPPOSITE to the subject. Never call a story neutral because it is good for one name and bad for another — give each its own sign.
+- Never soften to neutral with a mitigating clause ("despite strong demand", "long-term intact"). The near-term trade decides.
+- Clearly BEARISH for the subject: CEO/founder ousted, pushed out or a sudden departure; board turmoil; accounting problems, restatements, probes, subpoenas, lawsuits with teeth; guidance cut, miss, profit warning; downgrade or PT cut; lost customer or contract; export ban or sanction hitting it; deal doubt that hurts it; dilution, big insider selling; production halts, recalls, outages.
+- Clearly BULLISH for the subject: beat-and-raise, upgrade or PT raise, big contract or customer win, approval, buyback or dividend hike, deal that lifts it, shortage or price hike it sells into.
+- An acquirer paying a rich price is usually bear for the acquirer and bull for the target.
+- neutral ONLY when the stock has no plausible near-term direction from this news (routine filings, previews with no new facts, already-priced events).
+- score magnitude: 0.7-1.0 thesis-changing (CEO ouster, fraud, guidance shock, transformative deal); 0.4-0.7 material; 0.15-0.4 mild. A neutral is 0.
+`;
+
 function buildGeminiPrompt(events, wl, sectors){
   wl = wl || WATCHLIST; sectors = sectors || SECTORS;
   return `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${wl.join(', ')}.
@@ -1637,12 +1654,14 @@ RULES:
 5. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
 6. Be INCLUSIVE — minor relevant article (impactScore 10-20) is better than dropping it.
 7. SCORE BY REAL MARKET IMPACT, not by whether the company is named. A sector-wide supply/pricing/policy shift that is actively moving the stock is major-to-critical (impactScore 70-95), even if our company is not in the headline. Do not under-score industry news just because it is indirect.
-
+8. primaryTicker is the story's SUBJECT — the company whose own board, CEO, earnings, guidance, deal, product, lawsuit or rating it is. A rival that merely benefits is an additionalTicker, never the primary. "Nvidia's board explores replacing Jensen Huang; traders rotate into AMD" → primaryTicker NVDA, additionalTickers [AMD].
+${SENTIMENT_RULES}
 SUMMARY FORMAT — 2-3 concise sentences, trader-focused:
-(1) What happened — key numbers, price targets, % moves, dollar amounts.
-(2) Why it matters + near-term price direction (e.g. "+2-5% pop", "modest pressure", "neutral until earnings").
+(1) What happened — lead with the subject company; key numbers, price targets, % moves, dollar amounts.
+(2) Why it matters + near-term price direction for the subject (e.g. "+2-5% pop", "modest pressure", "neutral until earnings"), and for any additional ticker that moves the other way, say so.
+The summary's stated direction MUST agree with sentiment.
 
-Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
+Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, tickerSentiments, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
 
 CRITICAL: Return EXACTLY one object for EVERY event id below — never skip or omit any. If an event is irrelevant, still include it with primaryTicker "NONE". The array length MUST equal the number of events provided.
 
@@ -1668,11 +1687,14 @@ function buildNIMPrompt(events, wl, sectors){
   return `Watchlist: ${wl.join(', ')}
 Sector map: ${Object.entries(sectors).map(([t,s])=>`${t}=${s}`).join(', ')}
 
-Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news is RELEVANT even when it names none of the watchlist companies — a rival's capex cut, a supply glut/shortage, a commodity move, or an export control drives our names directly. If candidateTickers (TICKERS) is non-empty, primaryTicker MUST be one of them unless there is zero connection; only use "NONE" for true off-watchlist noise. Score by REAL market impact: a sector-wide shift actively moving the stock is major-to-critical (70-95) even if indirect. For EACH event output one JSON object with EXACTLY these fields:
+Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news is RELEVANT even when it names none of the watchlist companies — a rival's capex cut, a supply glut/shortage, a commodity move, or an export control drives our names directly. If candidateTickers (TICKERS) is non-empty, primaryTicker MUST be one of them unless there is zero connection; only use "NONE" for true off-watchlist noise. Score by REAL market impact: a sector-wide shift actively moving the stock is major-to-critical (70-95) even if indirect. primaryTicker is the story's SUBJECT (whose CEO/board/earnings/deal/rating it is), not a rival that benefits.
+${SENTIMENT_RULES}
+For EACH event output one JSON object with EXACTLY these fields:
 - id: the EVENT_ID string
 - summary: 2-3 concise sentences — (1) what happened with key numbers/PTs, (2) why it matters + near-term price direction
-- sentiment: "bull", "neutral", or "bear"
-- sentimentScore: number from -1.0 to 1.0
+- sentiment: "bull", "neutral", or "bear" — the direction for primaryTicker (the subject company)
+- sentimentScore: number from -1.0 to 1.0, same sign as sentiment
+- tickerSentiments: array of {ticker, sentiment, score} — one for primaryTicker and one for EACH additionalTicker, each judged for that stock alone
 - impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
 - eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
 - primaryTicker: the single most relevant watchlist ticker, or "NONE"
@@ -2470,6 +2492,11 @@ function geminiBody(model, prompt){
           summary:              { type: 'STRING' },
           sentiment:            { type: 'STRING', enum: ['bull','neutral','bear'] },
           sentimentScore:       { type: 'NUMBER' },
+          tickerSentiments:     { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+            ticker:    { type: 'STRING' },
+            sentiment: { type: 'STRING', enum: ['bull','neutral','bear'] },
+            score:     { type: 'NUMBER' },
+          }, required: ['ticker','sentiment'] } },
           impactScore:          { type: 'INTEGER' },
           eventType:            { type: 'STRING' },
           primaryTicker:        { type: 'STRING' },
@@ -2935,7 +2962,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'macro',
           summary: ai.summary || (ev.sources?.[0]?.headline || ''),
-          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          ...aiSentiment(ai, themedCand, mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet)),
           impact: { score: floor, tier: impactTier(floor) },
           relevanceConfidence: ai.relevanceConfidence ?? 0.6,
           ts: ev.ts,
@@ -2965,7 +2992,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
         sectors: (ai.sectors||[]).filter(Boolean),
         eventType: ai.eventType || 'other',
         summary: ai.summary || '',
-        sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+        ...aiSentiment(ai, primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet)),
         impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
         relevanceConfidence: ai.relevanceConfidence ?? 1,
         ts: ev.ts,
@@ -3095,7 +3122,7 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'other',
           summary: ai.summary || '',
-          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          ...aiSentiment(ai, ai.primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet)),
           impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
           relevanceConfidence: ai.relevanceConfidence ?? 1,
           ts: ev.ts,
@@ -3140,6 +3167,42 @@ function finalizeEvents(events, enrichedList, wl){
   enriched.sort((a,b) => b.impact.score - a.impact.score || b.ts - a.ts);
   const degraded = enriched.length > 0 && rawCount > enriched.length / 2;
   return { events: enriched, degraded };
+}
+
+// Turn the model's sentiment into { sentiment, tickerSentiment } for one event.
+// tickerSentiment maps each tagged ticker to its OWN { label, score }; the
+// event's sentiment is always the primary (subject) ticker's. Guards, all seen
+// in real output:
+//  - a label and score that disagree: "neutral" with -0.5 is a bear call the
+//    model talked itself out of, so a clear score (|s| >= 0.25) sets the label;
+//    a bull/bear label with a 0 or opposite-signed score gets a matching sign.
+//  - primaryTicker replaced by the hallucination fallback: the model's overall
+//    verdict was for ANOTHER ticker, so the new primary uses its own entry, or
+//    neutral if the model gave it none.
+//  - an overall "neutral" next to a signed entry for the same primary is the old
+//    averaging habit (bear subject + bull rival = neutral) — the entry wins.
+function cleanSent(label, score){
+  let sc = typeof score === 'number' && isFinite(score) ? Math.max(-1, Math.min(1, score)) : 0;
+  let lb = (label === 'bull' || label === 'bear') ? label : 'neutral';
+  if (lb === 'neutral' && Math.abs(sc) >= 0.25) lb = sc > 0 ? 'bull' : 'bear';
+  if (lb === 'bull' && sc <= 0) sc = sc < 0 ? -sc : 0.3;
+  if (lb === 'bear' && sc >= 0) sc = sc > 0 ? -sc : -0.3;
+  if (lb === 'neutral') sc = Math.max(-0.2, Math.min(0.2, sc));
+  return { label: lb, score: Math.round(sc * 100) / 100 };
+}
+function aiSentiment(ai, primary, addl){
+  const per = {};
+  for (const t of (Array.isArray(ai.tickerSentiments) ? ai.tickerSentiments : [])){
+    const k = String((t && t.ticker) || '').toUpperCase();
+    if (k && !per[k]) per[k] = cleanSent(t.sentiment, t.score);
+  }
+  let overall = cleanSent(ai.sentiment, ai.sentimentScore);
+  const own = per[primary];
+  if (String(ai.primaryTicker || '').toUpperCase() !== primary) overall = own || { label:'neutral', score:0 };
+  else if (own && overall.label === 'neutral' && own.label !== 'neutral') overall = own;
+  const tickerSentiment = { [primary]: overall };
+  for (const t of (addl || [])) if (per[t]) tickerSentiment[t] = per[t];
+  return { sentiment: overall, tickerSentiment };
 }
 
 // The AI's additionalTickers alone is not enough. It routinely names a second
@@ -3611,8 +3674,11 @@ const DIGEST_SCHEMA = {
     keyPoints: { type:'ARRAY', items:{ type:'OBJECT', properties:{
       text:    { type:'STRING' },
       stance:  { type:'STRING', enum:['bull','bear','neutral'] },
-      tickers: { type:'ARRAY', items:{ type:'STRING' } },
-    }, required:['text','stance'] } },
+      tickerStances: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+        ticker: { type:'STRING' },
+        stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      }, required:['ticker','stance'] } },
+    }, required:['text','stance','tickerStances'] } },
     tickers:   { type:'ARRAY', items:{ type:'OBJECT', properties:{
       ticker: { type:'STRING' },
       stance: { type:'STRING', enum:['bull','bear','neutral'] },
@@ -3633,22 +3699,39 @@ const DIGEST_SCHEMA = {
 // urls, no source lists — none of that changes the market read, and all of it
 // would multiply the token count. Highest-impact first so a truncating model
 // still sees what matters.
+// Each ticker carries its OWN verdict (tickerSentiment), subject first, so the
+// digest can't blur "bad for NVDA, good for AMD" into one neutral point.
+// Builds from before 2026-11-12 have no tickerSentiment: the subject gets the
+// event's sentiment and the rest are listed bare.
+function evTickerSents(e){
+  const ts = (e && e.tickerSentiment) || {};
+  const out = [];
+  const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean);
+  tks.forEach((t, i) => {
+    const s = ts[t] || (i === 0 ? e.sentiment : null);
+    out.push({ ticker: t, label: s ? (s.label || 'neutral') : null, score: s && typeof s.score === 'number' ? s.score : 0, subject: i === 0 });
+  });
+  return out;
+}
 function buildDigestPrompt(events, wl){
+  const now = Date.now();
   const rows = events
     .slice()
     .sort((a,b) => (b.impact?.score||0) - (a.impact?.score||0))
     .map(e => {
-      const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean).join('+');
-      const s = e.sentiment || {};
-      const sc = typeof s.score === 'number' ? (s.score > 0 ? '+' : '') + s.score.toFixed(2) : '';
-      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${s.label||'neutral'}${sc} ${e.eventType||''} :: ${e.summary||''}`;
+      const tks = evTickerSents(e).map(t => t.label
+        ? `${t.ticker} ${t.label}${t.label === 'neutral' ? '' : (t.score > 0 ? '+' : '') + t.score.toFixed(2)}`
+        : t.ticker).join(' | ');
+      const age = e.ts ? Math.max(0, Math.round((now - e.ts) / 3600000)) + 'h' : '';
+      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${e.eventType||''} ${age} :: ${e.summary||''}`;
     })
     .join('\n');
 
   return `You are a senior sell-side analyst writing the morning market read for ONE trader who holds/watches this exact list: ${wl.join(', ')}.
 
 Below are ${events.length} already-analyzed news events from the last 72 hours. Each line is:
-[tickers] impactTier/impactScore sentiment±score eventType :: summary
+[SUBJECT stance±score | OTHER stance±score ...] impactTier/impactScore eventType age :: summary
+The FIRST ticker is the story's subject (whose CEO, board, earnings, deal or rating it is). Every ticker has its own stance — the same story is often bearish for the subject and bullish for a rival.
 
 EVENTS
 ${rows}
@@ -3658,6 +3741,10 @@ Write a concise, decision-useful digest of THIS news. Rules:
 - Be specific and quantitative. Keep the real numbers ($96.2B, -1.96%, 12.9B deal) — they are why this is worth reading.
 - Weight by impactScore. Critical/major events drive the read; minor ones only matter if several point the same way.
 - "stance" is that item's directional read for the trader: bull, bear, or neutral. Judge it, do not average it.
+- A key point's stance is its SUBJECT's stance. Its tickerStances list the subject FIRST, then each other name with its OWN stance. "Nvidia's board explores replacing its CEO; AMD gains on rotation" is a BEAR point with tickerStances [NVDA bear, AMD bull] — never neutral because the effects split across names.
+- Never soften a clearly directional event to neutral with a "despite" clause. A CEO ouster, probe, guidance cut or downgrade is bearish for its subject; a beat-and-raise, upgrade or big win is bullish.
+- A ticker's stance in "tickers" must agree with that ticker's own stances in the events above, weighted by impact; a critical event dominates minor ones.
+- Weight fresh news over stale: a 4h-old critical event outranks a 60h-old one.
 - Only name tickers that actually appear above.
 - No hedging filler, no "investors should consult", no restating these instructions.
 
@@ -3665,7 +3752,7 @@ Fields:
 - headline: ONE sentence, under 110 chars — the single most important thing in this news.
 - tone / toneScore: the net read across everything. toneScore is -1 (max bearish) to 1 (max bullish).
 - overview: 2-3 sentences. The narrative tying the biggest stories together.
-- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail.
+- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail, naming its subject company first.
 - tickers: only names with news that MOVES them (max 8), ordered by importance. note = one clause, under 90 chars.
 - themes: 2-4 cross-cutting narratives (e.g. "AI capex cycle", "memory pricing"). note = one clause.
 - risks: 2-3 concrete things that could go wrong, drawn from this news.
@@ -3737,7 +3824,7 @@ async function callNimDigest(model, prompt, env){
       model,
       messages: [
         { role:'system', content:'You are a senior sell-side analyst. Respond with a single valid JSON object only — no markdown, no code fences, no explanation.' },
-        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickers}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
+        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickerStances: [{ticker, stance}] with the subject first}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
       ],
       temperature: 0.3, max_tokens: 3000, stream: false,
     }),
@@ -3765,10 +3852,15 @@ function normalizeDigest(d){
     tone:      (d.tone === 'bull' || d.tone === 'bear') ? d.tone : 'mixed',
     toneScore: typeof d.toneScore === 'number' ? Math.max(-1, Math.min(1, d.toneScore)) : 0,
     overview:  str(d.overview, 900),
-    keyPoints: arr(d.keyPoints).slice(0,8).map(k => ({
-      text: str(k && k.text, 400), stance: stance(k && k.stance),
-      tickers: arr(k && k.tickers).slice(0,6).map(t => String(t||'').toUpperCase()).filter(Boolean),
-    })).filter(k => k.text),
+    keyPoints: arr(d.keyPoints).slice(0,8).map(k => {
+      // tickerStances is the shape since 2026-11-12; `tickers` (plain strings) is
+      // kept beside it for older clients and filled from it.
+      let ts = arr(k && k.tickerStances).map(t => ({ ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance) }));
+      if (!ts.length) ts = arr(k && k.tickers).map(t => ({ ticker: String(t||'').toUpperCase(), stance: 'neutral' }));
+      const seen = new Set();
+      ts = ts.filter(t => t.ticker && !seen.has(t.ticker) && seen.add(t.ticker)).slice(0,6);
+      return { text: str(k && k.text, 400), stance: stance(k && k.stance), tickerStances: ts, tickers: ts.map(t => t.ticker) };
+    }).filter(k => k.text),
     tickers:   arr(d.tickers).slice(0,10).map(t => ({
       ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance), note: str(t && t.note, 200),
     })).filter(t => t.ticker),
@@ -3782,6 +3874,39 @@ function normalizeDigest(d){
   // a failed generation so the chain advances to the next model.
   if (!out.headline && !out.overview && !out.keyPoints.length) return null;
   return out;
+}
+
+// Hold the digest's stances to the per-ticker verdicts it was given. The model
+// still writes the read; this only stops it labelling a ticker "neutral" when
+// that ticker's own news clearly points one way (the NVDA CEO story, 2026-11-12),
+// or the opposite way when the evidence is overwhelming.
+//   net(t) = impact-weighted mean of t's own scores (subject 1x, others 0.6x).
+function reconcileDigest(d, events){
+  const acc = {};
+  for (const e of (events || [])){
+    if (e.aiAnalyzed === false) continue;
+    const w0 = Math.max(5, (e.impact && e.impact.score) || 0);
+    for (const t of evTickerSents(e)){
+      if (!t.label) continue;
+      const w = w0 * (t.subject ? 1 : 0.6);
+      const a = acc[t.ticker] || (acc[t.ticker] = { w:0, s:0 });
+      a.w += w; a.s += w * t.score;
+    }
+  }
+  const net = t => acc[t] && acc[t].w ? acc[t].s / acc[t].w : 0;
+  const sign = v => v > 0 ? 'bull' : 'bear';
+  const fix = (cur, n, neutralAt) => {
+    if (cur === 'neutral' && Math.abs(n) >= neutralAt) return sign(n);
+    if (cur !== 'neutral' && Math.abs(n) >= 0.6 && sign(n) !== cur) return sign(n);
+    return cur;
+  };
+  d.tickers.forEach(t => { t.stance = fix(t.stance, net(t.ticker), 0.3); });
+  d.keyPoints.forEach(k => {
+    k.tickerStances.forEach(t => { if (t.stance === 'neutral' && Math.abs(net(t.ticker)) >= 0.4) t.stance = sign(net(t.ticker)); });
+    const subj = k.tickerStances[0];
+    if (k.stance === 'neutral' && subj && subj.stance !== 'neutral') k.stance = subj.stance;
+  });
+  return d;
 }
 
 // Walk the chain until a model returns something usable. `only` pins a single
@@ -3806,6 +3931,7 @@ async function generateDigest(events, wl, env, only){
     } catch(e){ console.warn(`[digest] ${entry.model} threw:`, e.message); }
     const d = normalizeDigest(raw);
     if (d){
+      reconcileDigest(d, events);
       d.model = entry.model;
       d.ms = Date.now() - t0;
       console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);
