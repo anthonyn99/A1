@@ -4452,8 +4452,11 @@ const DIGEST_SCHEMA = {
     keyPoints: { type:'ARRAY', items:{ type:'OBJECT', properties:{
       text:    { type:'STRING' },
       stance:  { type:'STRING', enum:['bull','bear','neutral'] },
-      tickers: { type:'ARRAY', items:{ type:'STRING' } },
-    }, required:['text','stance'] } },
+      tickerStances: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+        ticker: { type:'STRING' },
+        stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      }, required:['ticker','stance'] } },
+    }, required:['text','stance','tickerStances'] } },
     tickers:   { type:'ARRAY', items:{ type:'OBJECT', properties:{
       ticker: { type:'STRING' },
       stance: { type:'STRING', enum:['bull','bear','neutral'] },
@@ -4474,22 +4477,39 @@ const DIGEST_SCHEMA = {
 // urls, no source lists — none of that changes the market read, and all of it
 // would multiply the token count. Highest-impact first so a truncating model
 // still sees what matters.
+// Each ticker carries its OWN verdict (tickerSentiment), subject first, so the
+// digest can't blur "bad for NVDA, good for AMD" into one neutral point.
+// Builds from before 2026-11-12 have no tickerSentiment: the subject gets the
+// event's sentiment and the rest are listed bare.
+function evTickerSents(e){
+  const ts = (e && e.tickerSentiment) || {};
+  const out = [];
+  const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean);
+  tks.forEach((t, i) => {
+    const s = ts[t] || (i === 0 ? e.sentiment : null);
+    out.push({ ticker: t, label: s ? (s.label || 'neutral') : null, score: s && typeof s.score === 'number' ? s.score : 0, subject: i === 0 });
+  });
+  return out;
+}
 function buildDigestPrompt(events, wl){
+  const now = Date.now();
   const rows = events
     .slice()
     .sort((a,b) => (b.impact?.score||0) - (a.impact?.score||0))
     .map(e => {
-      const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean).join('+');
-      const s = e.sentiment || {};
-      const sc = typeof s.score === 'number' ? (s.score > 0 ? '+' : '') + s.score.toFixed(2) : '';
-      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${s.label||'neutral'}${sc} ${e.eventType||''} :: ${e.summary||''}`;
+      const tks = evTickerSents(e).map(t => t.label
+        ? `${t.ticker} ${t.label}${t.label === 'neutral' ? '' : (t.score > 0 ? '+' : '') + t.score.toFixed(2)}`
+        : t.ticker).join(' | ');
+      const age = e.ts ? Math.max(0, Math.round((now - e.ts) / 3600000)) + 'h' : '';
+      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${e.eventType||''} ${age} :: ${e.summary||''}`;
     })
     .join('\n');
 
   return `You are a senior sell-side analyst writing the morning market read for ONE trader who holds/watches this exact list: ${wl.join(', ')}.
 
 Below are ${events.length} already-analyzed news events from the last 72 hours. Each line is:
-[tickers] impactTier/impactScore sentiment±score eventType :: summary
+[SUBJECT stance±score | OTHER stance±score ...] impactTier/impactScore eventType age :: summary
+The FIRST ticker is the story's subject (whose CEO, board, earnings, deal or rating it is). Every ticker has its own stance — the same story is often bearish for the subject and bullish for a rival.
 
 EVENTS
 ${rows}
@@ -4499,6 +4519,10 @@ Write a concise, decision-useful digest of THIS news. Rules:
 - Be specific and quantitative. Keep the real numbers ($96.2B, -1.96%, 12.9B deal) — they are why this is worth reading.
 - Weight by impactScore. Critical/major events drive the read; minor ones only matter if several point the same way.
 - "stance" is that item's directional read for the trader: bull, bear, or neutral. Judge it, do not average it.
+- A key point's stance is its SUBJECT's stance. Its tickerStances list the subject FIRST, then each other name with its OWN stance. "Nvidia's board explores replacing its CEO; AMD gains on rotation" is a BEAR point with tickerStances [NVDA bear, AMD bull] — never neutral because the effects split across names.
+- Never soften a clearly directional event to neutral with a "despite" clause. A CEO ouster, probe, guidance cut or downgrade is bearish for its subject; a beat-and-raise, upgrade or big win is bullish.
+- A ticker's stance in "tickers" must agree with that ticker's own stances in the events above, weighted by impact; a critical event dominates minor ones.
+- Weight fresh news over stale: a 4h-old critical event outranks a 60h-old one.
 - Only name tickers that actually appear above.
 - No hedging filler, no "investors should consult", no restating these instructions.
 
@@ -4506,7 +4530,7 @@ Fields:
 - headline: ONE sentence, under 110 chars — the single most important thing in this news.
 - tone / toneScore: the net read across everything. toneScore is -1 (max bearish) to 1 (max bullish).
 - overview: 2-3 sentences. The narrative tying the biggest stories together.
-- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail.
+- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail, naming its subject company first.
 - tickers: only names with news that MOVES them (max 8), ordered by importance. note = one clause, under 90 chars.
 - themes: 2-4 cross-cutting narratives (e.g. "AI capex cycle", "memory pricing"). note = one clause.
 - risks: 2-3 concrete things that could go wrong, drawn from this news.
@@ -4578,7 +4602,7 @@ async function callNimDigest(model, prompt, env){
       model,
       messages: [
         { role:'system', content:'You are a senior sell-side analyst. Respond with a single valid JSON object only — no markdown, no code fences, no explanation.' },
-        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickers}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
+        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickerStances: [{ticker, stance}] with the subject first}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
       ],
       temperature: 0.3, max_tokens: 3000, stream: false,
     }),
@@ -4606,10 +4630,15 @@ function normalizeDigest(d){
     tone:      (d.tone === 'bull' || d.tone === 'bear') ? d.tone : 'mixed',
     toneScore: typeof d.toneScore === 'number' ? Math.max(-1, Math.min(1, d.toneScore)) : 0,
     overview:  str(d.overview, 900),
-    keyPoints: arr(d.keyPoints).slice(0,8).map(k => ({
-      text: str(k && k.text, 400), stance: stance(k && k.stance),
-      tickers: arr(k && k.tickers).slice(0,6).map(t => String(t||'').toUpperCase()).filter(Boolean),
-    })).filter(k => k.text),
+    keyPoints: arr(d.keyPoints).slice(0,8).map(k => {
+      // tickerStances is the shape since 2026-11-12; `tickers` (plain strings) is
+      // kept beside it for older clients and filled from it.
+      let ts = arr(k && k.tickerStances).map(t => ({ ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance) }));
+      if (!ts.length) ts = arr(k && k.tickers).map(t => ({ ticker: String(t||'').toUpperCase(), stance: 'neutral' }));
+      const seen = new Set();
+      ts = ts.filter(t => t.ticker && !seen.has(t.ticker) && seen.add(t.ticker)).slice(0,6);
+      return { text: str(k && k.text, 400), stance: stance(k && k.stance), tickerStances: ts, tickers: ts.map(t => t.ticker) };
+    }).filter(k => k.text),
     tickers:   arr(d.tickers).slice(0,10).map(t => ({
       ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance), note: str(t && t.note, 200),
     })).filter(t => t.ticker),
@@ -4623,6 +4652,39 @@ function normalizeDigest(d){
   // a failed generation so the chain advances to the next model.
   if (!out.headline && !out.overview && !out.keyPoints.length) return null;
   return out;
+}
+
+// Hold the digest's stances to the per-ticker verdicts it was given. The model
+// still writes the read; this only stops it labelling a ticker "neutral" when
+// that ticker's own news clearly points one way (the NVDA CEO story, 2026-11-12),
+// or the opposite way when the evidence is overwhelming.
+//   net(t) = impact-weighted mean of t's own scores (subject 1x, others 0.6x).
+function reconcileDigest(d, events){
+  const acc = {};
+  for (const e of (events || [])){
+    if (e.aiAnalyzed === false) continue;
+    const w0 = Math.max(5, (e.impact && e.impact.score) || 0);
+    for (const t of evTickerSents(e)){
+      if (!t.label) continue;
+      const w = w0 * (t.subject ? 1 : 0.6);
+      const a = acc[t.ticker] || (acc[t.ticker] = { w:0, s:0 });
+      a.w += w; a.s += w * t.score;
+    }
+  }
+  const net = t => acc[t] && acc[t].w ? acc[t].s / acc[t].w : 0;
+  const sign = v => v > 0 ? 'bull' : 'bear';
+  const fix = (cur, n, neutralAt) => {
+    if (cur === 'neutral' && Math.abs(n) >= neutralAt) return sign(n);
+    if (cur !== 'neutral' && Math.abs(n) >= 0.6 && sign(n) !== cur) return sign(n);
+    return cur;
+  };
+  d.tickers.forEach(t => { t.stance = fix(t.stance, net(t.ticker), 0.3); });
+  d.keyPoints.forEach(k => {
+    k.tickerStances.forEach(t => { if (t.stance === 'neutral' && Math.abs(net(t.ticker)) >= 0.4) t.stance = sign(net(t.ticker)); });
+    const subj = k.tickerStances[0];
+    if (k.stance === 'neutral' && subj && subj.stance !== 'neutral') k.stance = subj.stance;
+  });
+  return d;
 }
 
 // Walk the chain until a model returns something usable. `only` pins a single
@@ -4647,6 +4709,7 @@ async function generateDigest(events, wl, env, only){
     } catch(e){ console.warn(`[digest] ${entry.model} threw:`, e.message); }
     const d = normalizeDigest(raw);
     if (d){
+      reconcileDigest(d, events);
       d.model = entry.model;
       d.ms = Date.now() - t0;
       console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);
