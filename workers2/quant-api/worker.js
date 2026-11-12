@@ -16,6 +16,9 @@
 //   GET  /stream-keys              { alpaca: {key, secret}, finnhub: {key} }   the page's two live streams
 //   GET  /corrections?limit=50     the data doctor's log, newest first
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
+//   GET  /snapshot?day[&slot]      { snapshot, watchlist }  the newest market snapshot up to that New York day
+//   POST /snapshot                 { snapshot }  kept under its (day, slot); from the runner or the page
+//   POST /watchlist                { symbols }   the watchlist the runner builds the snapshot for
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -79,7 +82,68 @@ async function route(req, env, url, ctx) {
     return json({ ok: true, corrections: rows });
   }
   if (p === '/corrections' && m === 'POST') return addCorrections(env, req);
+  if (p === '/snapshot' && m === 'GET') return getSnapshot(env, url);
+  if (p === '/snapshot' && m === 'POST') return putSnapshot(env, req);
+  if (p === '/watchlist' && m === 'POST') return putWatchlist(env, req);
   throw fail(404, 'no such route');
+}
+
+/* ── /snapshot, /watchlist ──────────────────────────────────────────────── */
+export const SLOT_NAMES = ['premarket', 'open30', 'midday', 'close', 'nightly'];
+export const SNAPSHOT_MAX = 300_000;   // bytes of JSON one snapshot may be
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** The watchlist the page last sent (meta row `watchlist`), or null. */
+async function readWatchlist(env) {
+  const row = await env.DB.prepare("SELECT v, at FROM meta WHERE k = 'watchlist'").first();
+  if (!row) return null;
+  try { const a = JSON.parse(row.v); return Array.isArray(a) ? { symbols: a, at: row.at } : null; } catch (e) { return null; }
+}
+/** GET /snapshot?day=YYYY-MM-DD[&slot=]: the newest snapshot of that New York
+ *  day or any day before it (so a morning with no build yet still shows last
+ *  night's); with slot=, exactly that one or null. No day = the newest of all. */
+async function getSnapshot(env, url) {
+  const day = url.searchParams.get('day') || '', slot = url.searchParams.get('slot') || '';
+  if (day && !DAY_RE.test(day)) throw fail(400, 'day must be YYYY-MM-DD');
+  if (slot && !SLOT_NAMES.includes(slot)) throw fail(400, 'slot must be one of ' + SLOT_NAMES.join(' '));
+  if (slot && !day) throw fail(400, 'slot= needs day=');
+  const row = slot ? await env.DB.prepare('SELECT * FROM snapshots WHERE day = ? AND slot = ?').bind(day, slot).first()
+    : day ? await env.DB.prepare('SELECT * FROM snapshots WHERE day <= ? ORDER BY due DESC LIMIT 1').bind(day).first()
+      : await env.DB.prepare('SELECT * FROM snapshots ORDER BY due DESC LIMIT 1').first();
+  let snapshot = null;
+  if (row) { try { snapshot = JSON.parse(row.body); } catch (e) {} }
+  const wl = await readWatchlist(env);
+  return json({ ok: true, snapshot, watchlist: wl ? wl.symbols : null, watchlistAt: wl ? wl.at : null });
+}
+/** POST /snapshot { snapshot }: keep it under its (day, slot). One write. */
+async function putSnapshot(env, req) {
+  let text;
+  try { text = await req.text(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  if (text.length > SNAPSHOT_MAX + 100) throw fail(413, 'a snapshot may be at most ' + SNAPSHOT_MAX + ' bytes');
+  let body;
+  try { body = JSON.parse(text); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  const s = body && body.snapshot;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) throw fail(400, 'snapshot is needed');
+  if (!DAY_RE.test(s.day || '')) throw fail(400, 'snapshot.day must be YYYY-MM-DD');
+  if (!SLOT_NAMES.includes(s.slot)) throw fail(400, 'snapshot.slot must be one of ' + SLOT_NAMES.join(' '));
+  if (!Number.isFinite(s.due) || !Number.isFinite(s.at) || !s.rows || typeof s.rows !== 'object' || !s.regime) throw fail(400, 'snapshot needs due, at, rows and regime');
+  const now = Date.now();
+  if (s.due > now + 60_000) throw fail(400, 'that slot is not due yet');
+  const out = JSON.stringify(s);
+  if (out.length > SNAPSHOT_MAX) throw fail(413, 'a snapshot may be at most ' + SNAPSHOT_MAX + ' bytes');
+  await env.DB.prepare('INSERT INTO snapshots (day, slot, due, at, by, body) VALUES (?, ?, ?, ?, ?, ?) '
+    + 'ON CONFLICT (day, slot) DO UPDATE SET due = excluded.due, at = excluded.at, by = excluded.by, body = excluded.body')
+    .bind(s.day, s.slot, Math.round(s.due), now, s.by === 'runner' ? 'runner' : 'page', out).run();
+  return json({ ok: true, day: s.day, slot: s.slot });
+}
+/** POST /watchlist { symbols }: what the runner should include (meta row `watchlist`). */
+async function putWatchlist(env, req) {
+  let body;
+  try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  if (!Array.isArray(body && body.symbols)) throw fail(400, 'symbols is needed');
+  const syms = parseSymbols(body.symbols.slice(0, 200).join(','));
+  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
+    .bind('watchlist', JSON.stringify(syms), Date.now()).run();
+  return json({ ok: true, symbols: syms });
 }
 
 /* ── /usage ─────────────────────────────────────────────────────────────── */
