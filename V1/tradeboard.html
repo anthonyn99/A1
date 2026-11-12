@@ -767,6 +767,7 @@
   .nh-tk { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--accent-hover); }
   .nh-move { font-family: var(--mono); font-size: 12px; }
   .nh-alt { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .nh-alt-s { font-style: normal; font-size: 9px; margin-left: 2px; }
   .nh-ago { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
   .nh-breaking { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.08em; color: var(--amber); }
@@ -844,7 +845,9 @@
     border-radius: 6px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; flex-shrink: 0; }
   .nhs-st i { font-style: normal; font-size: 8px; line-height: 1; }
   .nhs-tk { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--bg-slot);
-    border: 1px solid var(--border-soft); font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--accent-hover); }
+    border: 1px solid var(--border-soft); font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--tk, var(--accent-hover)); gap: 3px; }
+  .nhs-tk i { font-style: normal; font-size: 8px; }
+  .nhs-tk.subj { border-color: var(--tk, var(--border-soft)); }
   .nhs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
   .nhs-grid-wide { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
   .nhs-card { background: var(--bg-slot); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 13px 15px 14px;
@@ -5987,8 +5990,15 @@ TB.news = {
     TB.news.renderIfActive();
   },
   renderIfActive() { if (TB.news.active()) TB.news.render(); },
+  // Sentiment is per ticker since 2026-11-12 (same as TradeHub): one story is
+  // often bearish for its subject and bullish for a rival. e.sentiment is the
+  // subject's (primaryTicker), e.tickerSentiment[T] is T's own. With exactly one
+  // ticker picked, the feed reads every story from that ticker's side.
+  _sentFor(e, t) { return (t && e.tickerSentiment && e.tickerSentiment[t]) || e.sentiment || { label: "neutral", score: 0 }; },
+  _focusTk() { const f = TB.news.f; return f.selTickers.length === 1 ? f.selTickers[0] : null; },
   _derive() {
     const N = TB.news, f = N.f;
+    const focus = N._focusTk();
     const cutoff = Date.now() - f.hours * 3600000;
     const windowed = N.events.filter(e => (e.ts || 0) >= cutoff);
     const held = N._held();
@@ -5996,7 +6006,7 @@ TB.news = {
       if (N.heldOnly && !N._isHeld(e, held)) return false;
       if (f.selTickers.length && !(f.selTickers.includes(e.primaryTicker) || (e.additionalTickers || []).some(t => f.selTickers.includes(t)))) return false;
       if (f.selSectors.length && !(e.sectors || []).some(s => f.selSectors.includes(s))) return false;
-      if (f.sentFilter !== "all" && ((e.sentiment && e.sentiment.label) || "neutral") !== f.sentFilter) return false;
+      if (f.sentFilter !== "all" && (N._sentFor(e, focus).label || "neutral") !== f.sentFilter) return false;
       const tier = (e.impact && e.impact.tier) || "minor";
       if (f.impFilter === "critical" && tier !== "critical") return false;
       if (f.impFilter === "major" && !["critical", "major"].includes(tier)) return false;
@@ -6024,8 +6034,8 @@ TB.news = {
     const tier = t => windowed.filter(e => e.impact && e.impact.tier === t).length;
     const counts = { total: windowed.length, breaking: windowed.filter(e => (e.ts || 0) >= Date.now() - TBN_BREAKING_MS).length,
       critical: tier("critical"), major: tier("major"),
-      bull: windowed.filter(e => e.sentiment && e.sentiment.label === "bull").length,
-      bear: windowed.filter(e => e.sentiment && e.sentiment.label === "bear").length };
+      bull: windowed.filter(e => N._sentFor(e, focus).label === "bull").length,
+      bear: windowed.filter(e => N._sentFor(e, focus).label === "bear").length };
     const movers = TB.news.tickers().map(t => ({ t, m: tbnLiveMove(t) })).filter(x => x.m)
       .sort((a, b) => Math.abs(b.m.dp) - Math.abs(a.m.dp)).slice(0, 6);
     // Ticker chips: the whole watchlist in one sideways strip (as TradeHub);
@@ -6180,7 +6190,11 @@ TB.news = {
   _eventCard(e) {
     const N = TB.news;
     const tier = (e.impact && e.impact.tier) || "minor", tm = TBN_TIER[tier] || TBN_TIER.minor;
-    const sl = (e.sentiment && e.sentiment.label) || "neutral", score = (e.sentiment && e.sentiment.score) || 0;
+    const ft = N._focusTk();
+    const sOwn = ft && ft !== e.primaryTicker && e.tickerSentiment && e.tickerSentiment[ft] ? ft : null;
+    const sv = N._sentFor(e, sOwn);
+    const sl = sv.label || "neutral", score = sv.score || 0;
+    const tkSent = e.tickerSentiment || {};
     const lm = tbnLiveMove(e.primaryTicker);
     const breaking = Date.now() - (e.ts || 0) < TBN_BREAKING_MS;
     const hls = N._headlines(e.sources), open = N._openHl.has(e.id);
@@ -6199,7 +6213,7 @@ TB.news = {
         ${N._isHeld(e) ? `<span class="nh-held" title="In your Webull positions">Held</span>` : ""}
         ${lm ? `<span class="nh-move" style="color:${tbnMoveColor(lm.dp)}" title="${lm.pre ? "Pre-market move" : "Today's move"}">${lm.pre ? `<span class="nh-ext"><i>Pre</i></span>` : ""}${lm.dp > 0 ? "▲" : "▼"} ${tbnPct(lm.dp)}</span>` : ""}
         ${lm && lm.after != null ? `<span class="nh-ext" title="After-hours move"><i>After</i><span style="color:${tbnMoveColor(lm.after)}">${tbnPct(lm.after)}</span></span>` : ""}
-        ${(e.additionalTickers || []).length ? `<span class="nh-alt">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
+        ${(e.additionalTickers || []).length ? `<span class="nh-alt">+ ${e.additionalTickers.map(t => { const ts = tkSent[t], g = ts && (ts.label === "bull" ? "▲" : ts.label === "bear" ? "▼" : ""); return g ? `<span title="${TBN_SLABEL[ts.label]} for ${U.esc(t)}">${U.esc(t)}<i class="nh-alt-s" style="color:${ts.label === "bull" ? "var(--green)" : "var(--red)"}">${g}</i></span>` : U.esc(t); }).join(" · ")}</span>` : ""}
         <span class="nh-ago">${tbnAgo(e.ts)}</span>
       </div>
       <div class="nh-sum">${U.esc(e.summary || "")}</div>
@@ -6210,7 +6224,7 @@ TB.news = {
       <div class="nh-ev-foot">
         <div class="nh-tags">
           ${tier !== "minor" ? `<span class="nh-pill" style="--c:${tm.c}">${tm.label}${e.impact && e.impact.score ? `<small>${U.esc(e.impact.score)}</small>` : ""}</span>` : ""}
-          <span class="nh-pill" style="--c:${sentColor}">${TBN_SLABEL[sl] || U.esc(sl)}${score ? `<small>${(score > 0 ? "+" : "") + (+score).toFixed(2)}</small>` : ""}</span>
+          <span class="nh-pill" style="--c:${sentColor}"${sOwn ? ` title="For ${U.esc(sOwn)}. For ${U.esc(e.primaryTicker)}: ${TBN_SLABEL[N._sentFor(e, null).label] || "Neutral"}"` : ""}>${sOwn ? `<b style="margin-right:4px">${U.esc(sOwn)}</b>` : ""}${TBN_SLABEL[sl] || U.esc(sl)}${score ? `<small>${(score > 0 ? "+" : "") + (+score).toFixed(2)}</small>` : ""}</span>
           ${e.eventType && e.eventType !== "other" ? `<span class="nh-pill cap">${U.esc(e.eventType)}</span>` : ""}
           ${(e.sectors || []).length ? `<span class="nh-pill" style="--c:var(--muted)">${U.esc(e.sectors[0])}</span>` : ""}
           ${e.aiAnalyzed === false ? `<span class="nh-pill" style="--c:var(--amber)" title="Not analyzed: a raw headline">Raw</span>` : ""}
@@ -6258,7 +6272,7 @@ TB.news = {
         ${has(data.keyPoints) ? sec("Key points", data.keyPoints.length, `<ol class="nhs-points">${data.keyPoints.map((k, i) => `<li class="nhs-pt">
           <span class="nhs-pt-n" style="color:${stance(k.stance)}">${pad2(i + 1)}</span>
           <div class="nhs-pt-b"><div class="nhs-pt-t">${U.esc(k.text)}</div>
-            <div class="nhs-pt-f">${stTag(k.stance)}${(k.tickers || []).map(t => `<span class="nhs-tk">${U.esc(t)}</span>`).join("")}</div></div></li>`).join("")}</ol>`) : ""}
+            <div class="nhs-pt-f">${stTag(k.stance)}${(has(k.tickerStances) ? k.tickerStances : (k.tickers || []).map(t => ({ ticker: t, stance: null }))).map((t, j) => { const g = t.stance === "bull" ? "▲" : t.stance === "bear" ? "▼" : ""; return `<span class="nhs-tk${j === 0 && has(k.tickerStances) ? " subj" : ""}"${g ? ` style="--tk:${stance(t.stance)}" title="${t.stance === "bull" ? "Bullish" : "Bearish"} for ${U.esc(t.ticker)}${j === 0 ? " (the subject)" : ""}"` : ""}>${U.esc(t.ticker)}${g ? `<i aria-hidden="true">${g}</i>` : ""}</span>`; }).join("")}</div></div></li>`).join("")}</ol>`) : ""}
         ${has(data.tickers) ? sec("By ticker", data.tickers.length, `<div class="nhs-grid">${data.tickers.map(t => `<div class="nhs-card">
           <div class="nhs-card-h"><span class="nhs-sym" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span>${stTag(t.stance)}</div>
           <div class="nhs-card-n">${U.esc(t.note)}</div></div>`).join("")}</div>`) : ""}
