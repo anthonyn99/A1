@@ -24,8 +24,9 @@ const ok = (n, c, extra) => { if (c) { pass++; console.log('  ok   ' + n); } els
 
 function load(rel) {
   const src = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n').replace(/export default \{[\s\S]*$/, '');
-  return new Function(`${src}\nreturn { cleanSent, aiSentiment, buildDigestPrompt, buildGeminiPrompt, normalizeDigest, reconcileDigest, geminiBody, DIGEST_SCHEMA };`)();
+  return new Function(`${src}\nreturn { cleanSent, aiSentiment, buildDigestPrompt, buildGeminiPrompt, normalizeDigest, reconcileDigest, geminiBody, DIGEST_SCHEMA, mergeAddlTickers };`)();
 }
+const WL = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PLTR','NVDA','MRVL','CRDO','TSLA','SPCX','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA','TSM','SKHY'];
 
 for (const rel of ['workers/newshub-api/worker.js', 'V1/workers/tradeboard-news/worker.js']) {
   console.log('\n' + rel);
@@ -84,6 +85,16 @@ for (const rel of ['workers/newshub-api/worker.js', 'V1/workers/tradeboard-news/
   ok('a neutral ticker with clearly bearish news becomes bear', d.tickers[0].stance === 'bear', d.tickers);
   ok('legacy point with a neutral subject picks up the ticker\'s own net', d.keyPoints[1].stance === 'bear', d.keyPoints[1]);
   ok('a bull call that agrees with its news is left alone', d.tickers[1].stance === 'bull');
+
+  // The live 2026-11-12 card: the CEO story carried 17 additional tickers
+  // because the article body ran through the whole market.
+  const wlSet = new Set(WL);
+  const ceoEv = { candidateTickers: ['NVDA','AAPL','AMD','MRVL','CRDO','TSLA','SPCX','GOOGL','MSFT','AMZN','SKHY','INTC','MU','BABA','SNDK','WDC','WMT','TSM'],
+    sources: [{ headline: "Nvidia's board explores replacing CEO Jensen Huang, report says" }] };
+  const addl = W.mergeAddlTickers([], ceoEv, 'NVDA', wlSet, "Nvidia's board is exploring a replacement for CEO Jensen Huang; traders rotate into AMD.");
+  ok('a story keeps only the names it states', addl.join() === 'AMD', addl);
+  const addl2 = W.mergeAddlTickers(['TSM', 'MU', 'WDC', 'SNDK'], ceoEv, 'NVDA', wlSet, "Nvidia's board explores replacing its CEO; AMD gains.");
+  ok('model-only names are capped while the list is short', addl2[0] === 'AMD' && addl2.length === 3, addl2);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
