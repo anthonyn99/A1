@@ -3742,7 +3742,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'macro',
           summary: ai.summary || (ev.sources?.[0]?.headline || ''),
-          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          ...aiSentiment(ai, themedCand, mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet)),
           impact: { score: floor, tier: impactTier(floor) },
           relevanceConfidence: ai.relevanceConfidence ?? 0.6,
           ts: ev.ts,
@@ -3772,7 +3772,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
         sectors: (ai.sectors||[]).filter(Boolean),
         eventType: ai.eventType || 'other',
         summary: ai.summary || '',
-        sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+        ...aiSentiment(ai, primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet)),
         impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
         relevanceConfidence: ai.relevanceConfidence ?? 1,
         ts: ev.ts,
@@ -3902,7 +3902,7 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'other',
           summary: ai.summary || '',
-          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          ...aiSentiment(ai, ai.primaryTicker, mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet)),
           impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
           relevanceConfidence: ai.relevanceConfidence ?? 1,
           ts: ev.ts,
@@ -3947,6 +3947,42 @@ function finalizeEvents(events, enrichedList, wl){
   enriched.sort((a,b) => b.impact.score - a.impact.score || b.ts - a.ts);
   const degraded = enriched.length > 0 && rawCount > enriched.length / 2;
   return { events: enriched, degraded };
+}
+
+// Turn the model's sentiment into { sentiment, tickerSentiment } for one event.
+// tickerSentiment maps each tagged ticker to its OWN { label, score }; the
+// event's sentiment is always the primary (subject) ticker's. Guards, all seen
+// in real output:
+//  - a label and score that disagree: "neutral" with -0.5 is a bear call the
+//    model talked itself out of, so a clear score (|s| >= 0.25) sets the label;
+//    a bull/bear label with a 0 or opposite-signed score gets a matching sign.
+//  - primaryTicker replaced by the hallucination fallback: the model's overall
+//    verdict was for ANOTHER ticker, so the new primary uses its own entry, or
+//    neutral if the model gave it none.
+//  - an overall "neutral" next to a signed entry for the same primary is the old
+//    averaging habit (bear subject + bull rival = neutral) — the entry wins.
+function cleanSent(label, score){
+  let sc = typeof score === 'number' && isFinite(score) ? Math.max(-1, Math.min(1, score)) : 0;
+  let lb = (label === 'bull' || label === 'bear') ? label : 'neutral';
+  if (lb === 'neutral' && Math.abs(sc) >= 0.25) lb = sc > 0 ? 'bull' : 'bear';
+  if (lb === 'bull' && sc <= 0) sc = sc < 0 ? -sc : 0.3;
+  if (lb === 'bear' && sc >= 0) sc = sc > 0 ? -sc : -0.3;
+  if (lb === 'neutral') sc = Math.max(-0.2, Math.min(0.2, sc));
+  return { label: lb, score: Math.round(sc * 100) / 100 };
+}
+function aiSentiment(ai, primary, addl){
+  const per = {};
+  for (const t of (Array.isArray(ai.tickerSentiments) ? ai.tickerSentiments : [])){
+    const k = String((t && t.ticker) || '').toUpperCase();
+    if (k && !per[k]) per[k] = cleanSent(t.sentiment, t.score);
+  }
+  let overall = cleanSent(ai.sentiment, ai.sentimentScore);
+  const own = per[primary];
+  if (String(ai.primaryTicker || '').toUpperCase() !== primary) overall = own || { label:'neutral', score:0 };
+  else if (own && overall.label === 'neutral' && own.label !== 'neutral') overall = own;
+  const tickerSentiment = { [primary]: overall };
+  for (const t of (addl || [])) if (per[t]) tickerSentiment[t] = per[t];
+  return { sentiment: overall, tickerSentiment };
 }
 
 // The AI's additionalTickers alone is not enough. It routinely names a second
