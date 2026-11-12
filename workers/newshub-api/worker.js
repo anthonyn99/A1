@@ -1608,6 +1608,23 @@ async function markModelBlocked(env, model, ctx){
   } catch(e){}
 }
 
+// Sentiment is judged PER TICKER. One label per story used to be the only
+// verdict, so "Nvidia's board explores replacing its CEO; traders rotate into
+// AMD" came back NEUTRAL: bearish NVDA and bullish AMD averaged to nothing, and
+// the Summary then called the NVDA point neutral too (2026-11-12). The overall
+// sentiment is now the SUBJECT's, and every other ticker gets its own.
+const SENTIMENT_RULES = `
+SENTIMENT — judge it for each stock on its own, the way that stock will trade on this news:
+- sentiment / sentimentScore = the direction for primaryTicker. tickerSentiments = one entry for primaryTicker (same verdict) and one for EVERY additionalTicker, each judged for that stock alone.
+- Rivals often move OPPOSITE to the subject. Never call a story neutral because it is good for one name and bad for another — give each its own sign.
+- Never soften to neutral with a mitigating clause ("despite strong demand", "long-term intact"). The near-term trade decides.
+- Clearly BEARISH for the subject: CEO/founder ousted, pushed out or a sudden departure; board turmoil; accounting problems, restatements, probes, subpoenas, lawsuits with teeth; guidance cut, miss, profit warning; downgrade or PT cut; lost customer or contract; export ban or sanction hitting it; deal doubt that hurts it; dilution, big insider selling; production halts, recalls, outages.
+- Clearly BULLISH for the subject: beat-and-raise, upgrade or PT raise, big contract or customer win, approval, buyback or dividend hike, deal that lifts it, shortage or price hike it sells into.
+- An acquirer paying a rich price is usually bear for the acquirer and bull for the target.
+- neutral ONLY when the stock has no plausible near-term direction from this news (routine filings, previews with no new facts, already-priced events).
+- score magnitude: 0.7-1.0 thesis-changing (CEO ouster, fraud, guidance shock, transformative deal); 0.4-0.7 material; 0.15-0.4 mild. A neutral is 0.
+`;
+
 function buildGeminiPrompt(events, wl, sectors){
   wl = wl || WATCHLIST; sectors = sectors || SECTORS;
   return `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${wl.join(', ')}.
@@ -1625,12 +1642,14 @@ RULES:
 5. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
 6. Be INCLUSIVE — minor relevant article (impactScore 10-20) is better than dropping it.
 7. SCORE BY REAL MARKET IMPACT, not by whether the company is named. A sector-wide supply/pricing/policy shift that is actively moving the stock is major-to-critical (impactScore 70-95), even if our company is not in the headline. Do not under-score industry news just because it is indirect.
-
+8. primaryTicker is the story's SUBJECT — the company whose own board, CEO, earnings, guidance, deal, product, lawsuit or rating it is. A rival that merely benefits is an additionalTicker, never the primary. "Nvidia's board explores replacing Jensen Huang; traders rotate into AMD" → primaryTicker NVDA, additionalTickers [AMD].
+${SENTIMENT_RULES}
 SUMMARY FORMAT — 2-3 concise sentences, trader-focused:
-(1) What happened — key numbers, price targets, % moves, dollar amounts.
-(2) Why it matters + near-term price direction (e.g. "+2-5% pop", "modest pressure", "neutral until earnings").
+(1) What happened — lead with the subject company; key numbers, price targets, % moves, dollar amounts.
+(2) Why it matters + near-term price direction for the subject (e.g. "+2-5% pop", "modest pressure", "neutral until earnings"), and for any additional ticker that moves the other way, say so.
+The summary's stated direction MUST agree with sentiment.
 
-Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
+Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, tickerSentiments, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
 
 CRITICAL: Return EXACTLY one object for EVERY event id below — never skip or omit any. If an event is irrelevant, still include it with primaryTicker "NONE". The array length MUST equal the number of events provided.
 
@@ -1656,11 +1675,14 @@ function buildNIMPrompt(events, wl, sectors){
   return `Watchlist: ${wl.join(', ')}
 Sector map: ${Object.entries(sectors).map(([t,s])=>`${t}=${s}`).join(', ')}
 
-Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news is RELEVANT even when it names none of the watchlist companies — a rival's capex cut, a supply glut/shortage, a commodity move, or an export control drives our names directly. If candidateTickers (TICKERS) is non-empty, primaryTicker MUST be one of them unless there is zero connection; only use "NONE" for true off-watchlist noise. Score by REAL market impact: a sector-wide shift actively moving the stock is major-to-critical (70-95) even if indirect. For EACH event output one JSON object with EXACTLY these fields:
+Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news is RELEVANT even when it names none of the watchlist companies — a rival's capex cut, a supply glut/shortage, a commodity move, or an export control drives our names directly. If candidateTickers (TICKERS) is non-empty, primaryTicker MUST be one of them unless there is zero connection; only use "NONE" for true off-watchlist noise. Score by REAL market impact: a sector-wide shift actively moving the stock is major-to-critical (70-95) even if indirect. primaryTicker is the story's SUBJECT (whose CEO/board/earnings/deal/rating it is), not a rival that benefits.
+${SENTIMENT_RULES}
+For EACH event output one JSON object with EXACTLY these fields:
 - id: the EVENT_ID string
 - summary: 2-3 concise sentences — (1) what happened with key numbers/PTs, (2) why it matters + near-term price direction
-- sentiment: "bull", "neutral", or "bear"
-- sentimentScore: number from -1.0 to 1.0
+- sentiment: "bull", "neutral", or "bear" — the direction for primaryTicker (the subject company)
+- sentimentScore: number from -1.0 to 1.0, same sign as sentiment
+- tickerSentiments: array of {ticker, sentiment, score} — one for primaryTicker and one for EACH additionalTicker, each judged for that stock alone
 - impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
 - eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
 - primaryTicker: the single most relevant watchlist ticker, or "NONE"
@@ -3250,6 +3272,11 @@ function geminiBody(model, prompt){
           summary:              { type: 'STRING' },
           sentiment:            { type: 'STRING', enum: ['bull','neutral','bear'] },
           sentimentScore:       { type: 'NUMBER' },
+          tickerSentiments:     { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+            ticker:    { type: 'STRING' },
+            sentiment: { type: 'STRING', enum: ['bull','neutral','bear'] },
+            score:     { type: 'NUMBER' },
+          }, required: ['ticker','sentiment'] } },
           impactScore:          { type: 'INTEGER' },
           eventType:            { type: 'STRING' },
           primaryTicker:        { type: 'STRING' },
