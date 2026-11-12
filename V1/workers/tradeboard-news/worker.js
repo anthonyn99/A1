@@ -1627,7 +1627,7 @@ async function markModelBlocked(env, model, ctx){
 // sentiment is now the SUBJECT's, and every other ticker gets its own.
 const SENTIMENT_RULES = `
 SENTIMENT — judge it for each stock on its own, the way that stock will trade on this news:
-- sentiment / sentimentScore = the direction for primaryTicker. tickerSentiments = one entry for primaryTicker (same verdict) and one for EVERY additionalTicker, each judged for that stock alone.
+- sentiment / sentimentScore = the direction for primaryTicker. tickerSentiments = one entry for EVERY additionalTicker, each judged for that stock alone (empty when there are none; the primary's verdict is sentiment itself).
 - Rivals often move OPPOSITE to the subject. Never call a story neutral because it is good for one name and bad for another — give each its own sign.
 - Never soften to neutral with a mitigating clause ("despite strong demand", "long-term intact"). The near-term trade decides.
 - Clearly BEARISH for the subject: CEO/founder ousted, pushed out or a sudden departure; board turmoil; accounting problems, restatements, probes, subpoenas, lawsuits with teeth; guidance cut, miss, profit warning; downgrade or PT cut; lost customer or contract; export ban or sanction hitting it; deal doubt that hurts it; dilution, big insider selling; production halts, recalls, outages.
@@ -1694,7 +1694,7 @@ For EACH event output one JSON object with EXACTLY these fields:
 - summary: 2-3 concise sentences — (1) what happened with key numbers/PTs, (2) why it matters + near-term price direction
 - sentiment: "bull", "neutral", or "bear" — the direction for primaryTicker (the subject company)
 - sentimentScore: number from -1.0 to 1.0, same sign as sentiment
-- tickerSentiments: array of {ticker, sentiment, score} — one for primaryTicker and one for EACH additionalTicker, each judged for that stock alone
+- tickerSentiments: array of {ticker, sentiment, score} — one for EACH additionalTicker, each judged for that stock alone ([] when there are none)
 - impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
 - eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
 - primaryTicker: the single most relevant watchlist ticker, or "NONE"
