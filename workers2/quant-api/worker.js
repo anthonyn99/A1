@@ -140,7 +140,7 @@ async function putWatchlist(env, req) {
   let body;
   try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
   if (!Array.isArray(body && body.symbols)) throw fail(400, 'symbols is needed');
-  const syms = parseSymbols(body.symbols.slice(0, 200).join(','));
+  const syms = [...new Set(body.symbols.map((x) => String(x).toUpperCase().trim()))].filter((x) => /^\^?[A-Z0-9][A-Z0-9.\-=]{0,14}$/.test(x)).slice(0, 200);
   await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
     .bind('watchlist', JSON.stringify(syms), Date.now()).run();
   return json({ ok: true, symbols: syms });
