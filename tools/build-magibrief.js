@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+/**
+ * Builds Shared/magibrief.js from magi.html.
+ *
+ * WHY THIS FILE EXISTS
+ * MAGI draws an answer two ways, Brief (briefBody: a headline, cards, key
+ * points) and Text (verdictBody: the plain reading view). TradeHub's Debrief
+ * shows MAGI's answers and must look and behave exactly like MAGI. A
+ * hand-made copy of ~900 lines of renderer and ~600 of CSS would drift from
+ * MAGI the first time either changed, so nothing is copied by hand: this
+ * script cuts the renderer and its CSS out of magi.html, verbatim, and wraps
+ * them as window.MagiBrief. magi.html stays the one source.
+ *
+ * tests/magibrief.test.js fails when Shared/magibrief.js is not what this
+ * script makes from the current magi.html, so a MAGI change is one
+ * `node tools/build-magibrief.js` away from reaching TradeHub.
+ *
+ * The cut is by markers in magi.html (named below). A marker that moves or
+ * disappears stops the build with its name, never a silent half cut.
+ *
+ * Run: node tools/build-magibrief.js          (writes Shared/magibrief.js)
+ *      node tools/build-magibrief.js --check  (exit 1 if it is stale)
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const SRC = path.join(ROOT, 'magi.html');
+const OUT = path.join(ROOT, 'Shared', 'magibrief.js');
+
+function cut(text, startMarker, endMarker, label) {
+  const a = text.indexOf(startMarker);
+  if (a < 0) throw new Error(`magibrief: start marker for ${label} not found in magi.html: ${startMarker}`);
+  const b = text.indexOf(endMarker, a + startMarker.length);
+  if (b < 0) throw new Error(`magibrief: end marker for ${label} not found in magi.html: ${endMarker}`);
+  return text.slice(a, b);
+}
+
+function line(text, re, label) {
+  const m = text.match(re);
+  if (!m) throw new Error(`magibrief: ${label} not found in magi.html`);
+  return m[0];
+}
+
+/* Every selector gets the host's scope in front ("__SCOPE__ .br-hero"), so the
+   rules reach only what MagiBrief draws and outrank a host's own id-scoped
+   rules the same way they do there. Comments go first; @media / @container
+   blocks are scoped inside. */
+function scopeCss(css) {
+  css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  let out = '', i = 0;
+  const n = css.length;
+  const readBlock = (from) => {        // from = index after '{'; returns index of matching '}'
+    let d = 1, j = from;
+    while (j < n && d) { if (css[j] === '{') d++; else if (css[j] === '}') d--; j++; }
+    return j - 1;
+  };
+  const splitSel = (s) => {
+    const parts = []; let depth = 0, cur = '';
+    for (const ch of s) {
+      if (ch === '(') depth++; else if (ch === ')') depth--;
+      if (ch === ',' && !depth) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    parts.push(cur);
+    return parts.map((p) => p.trim()).filter(Boolean);
+  };
+  while (i < n) {
+    const open = css.indexOf('{', i);
+    if (open < 0) break;
+    const head = css.slice(i, open).trim();
+    const close = readBlock(open + 1);
+    const body = css.slice(open + 1, close);
+    if (head.startsWith('@media') || head.startsWith('@container') || head.startsWith('@supports')) {
+      out += `${head}{${scopeCss(body)}}\n`;
+    } else if (head.startsWith('@')) {
+      out += `${head}{${body}}\n`;
+    } else if (head) {
+      const sel = splitSel(head).map((s) => (s.startsWith(':root') ? s.replace(/^:root\S*\s*/, '__SCOPE__ ') : `__SCOPE__ ${s}`)).join(',');
+      out += `${sel}{${body.trim().replace(/\s*\n\s*/g, ' ')}}\n`;
+    }
+    i = close + 1;
+  }
+  return out;
+}
+
+function build() {
+  const html = fs.readFileSync(SRC, 'utf8').replace(/\r\n/g, '\n');
+
+  // ── the renderer: markdown -> blocks -> Text (verdictBody) / Brief (briefBody)
+  const js = cut(html, '/* ══ verdict rendering', '/* ══ copying a result', 'the renderer');
+  const iconFn = cut(html, 'const ICON = (body, extra) =>', 'const IC = {', 'ICON');
+  const icons = ['help', 'copy', 'tick'].map((k) => line(html, new RegExp(`^  ${k}:\\s+ICON\\(.*\\),$`, 'm'), `IC.${k}`).trim());
+
+  // ── its CSS: the answer body, then the brief, then the copy button
+  const cssBody = cut(html, '.verdict-body {\n  padding: 22px', '/* ── failure callout', 'the answer CSS');
+  const cssBrief = cut(html, '/* ══ BRIEF VIEW', '/* ══ TYPE', 'the brief CSS');
+  const cssCopy = cut(html, '.copybtn {\n  margin-left: auto;', '/* Under a finished answer', 'the copy button CSS');
+  // The TYPE section sets these faces on a mixed selector list; the answer's
+  // share of it, restated.
+  const cssType = `
+.verdict-body code { font-family: var(--font-mono); }
+.v-table { font-family: var(--font); font-weight: 500; font-variant-numeric: tabular-nums; }
+.v-h, .verdict-body .sec { font-family: var(--font-display); }
+.verdict-body p, .verdict-body .v-list li { line-height: 1.65; }`;
+  const css = scopeCss(cssBody + '\n' + cssBrief + '\n' + cssCopy + '\n' + cssType);
+
+  return `/* Shared/magibrief.js -- GENERATED by tools/build-magibrief.js from magi.html.
+   DO NOT EDIT: change magi.html, then run \`node tools/build-magibrief.js\`
+   (tests/magibrief.test.js fails while this file is stale).
+
+   MAGI's two ways of drawing an answer, for any program that shows one:
+     MagiBrief.brief(md)  -> the Brief view (MAGI's briefBody)
+     MagiBrief.text(md)   -> the Text view (MAGI's verdictBody)
+     MagiBrief.render(md, view)  -> whichever view is named
+   The Brief / Text choice is MAGI's own: remembered on this device under
+   MAGI's key, one choice for every answer on the page.
+     MagiBrief.view()           'brief' | 'text'
+     MagiBrief.setView(v)       saves it and fires 'magibrief:view' on window
+   The look: MagiBrief.install(scope) adds MAGI's CSS once, every rule under
+   \`scope\` (e.g. '#tradeboard-root .mb'). The host defines MAGI's tokens on
+   that scope: --bg --s1 --s2 --s3 --bd --bdl --tx --txd --txm --ac --acl
+   --acd --grn --red --amber --gold --font --font-display --font-mono.
+   Contract: docs/Shared/magibrief.md. */
+(function () {
+  'use strict';
+  if (window.MagiBrief) return;
+
+  const el = (tag, cls, txt) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt != null) n.textContent = txt;
+    return n;
+  };
+  ${iconFn.trim()}
+  const IC = {
+    ${icons.join('\n    ')}
+  };
+  const icSpan = (cls, name) => { const n = el("span", cls); n.innerHTML = IC[name] || ""; return n; };
+  // The host's scrollbar.js draws every scroller's bar.
+  const attachScrollbar = () => {};
+  // A code block's Copy: the code exactly as it stands.
+  function copyButton(payload, { label = "Copy", cls = "" } = {}) {
+    const b = el("button", \`copybtn \${cls}\`.trim());
+    b.type = "button";
+    const ico = icSpan("", "copy");
+    const txt = el("span", null, label);
+    b.append(ico, txt);
+    let reset = 0;
+    b.onclick = async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const { md = "" } = (typeof payload === "function" ? payload() : { md: String(payload ?? "") }) || {};
+      const text = String(md || "").replace(/\\s+$/, "");
+      if (!text) return;
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+      clearTimeout(reset);
+      b.classList.toggle("done", ok);
+      ico.innerHTML = IC[ok ? "tick" : "copy"];
+      txt.textContent = ok ? "Copied" : "Press Ctrl+C";
+      reset = setTimeout(() => { b.classList.remove("done"); ico.innerHTML = IC.copy; txt.textContent = label; }, 1600);
+    };
+    return b;
+  }
+
+  /* ════════ from magi.html, verbatim ════════ */
+${js}
+  /* ════════ end of magi.html ════════ */
+
+  const CSS = ${JSON.stringify(css)};
+  const installed = new Set();
+  function install(scope) {
+    scope = String(scope || '.mb');
+    if (installed.has(scope)) return;
+    installed.add(scope);
+    const st = document.createElement('style');
+    st.setAttribute('data-magibrief', scope);
+    st.textContent = CSS.split('__SCOPE__').join(scope);
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  window.MagiBrief = {
+    install,
+    brief: (md) => briefBody(md),
+    text: (md) => verdictBody(md),
+    render: (md, view) => ((view || VERDICT_VIEW.get()) === 'text' ? verdictBody(md) : briefBody(md)),
+    view: () => VERDICT_VIEW.get(),
+    setView(v) {
+      v = v === 'text' ? 'text' : 'brief';
+      VERDICT_VIEW.set(v);
+      try { window.dispatchEvent(new CustomEvent('magibrief:view', { detail: v })); } catch {}
+    },
+  };
+})();
+`;
+}
+
+const out = build();
+if (process.argv.includes('--check')) {
+  const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n') : '';
+  if (cur !== out) { console.error('Shared/magibrief.js is stale: run node tools/build-magibrief.js'); process.exit(1); }
+  console.log('Shared/magibrief.js matches magi.html');
+} else {
+  fs.writeFileSync(OUT, out);
+  console.log('wrote Shared/magibrief.js (' + out.length + ' bytes)');
+}
+module.exports = { build };
