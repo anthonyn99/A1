@@ -107,6 +107,19 @@ const PAGE_SETUP = `(() => {
   window.WebSocket = FakeWS;
 })();`;
 
+/** A Journal document with `n` closed two-leg trades, one a day going back
+ *  (for speed tests: Tony's real Journal has hundreds). */
+function bigJournal(n = 800, now = CLOCK) {
+  const doc = { savedAt: now - 3600000 }, syms = ['NVDA', 'AMD', 'TSLA', 'PLTR', 'MU', 'AAPL', 'META', 'AMZN', 'SOFI', 'COIN'];
+  for (let i = 0; i < n; i++) {
+    const t0 = now - (i * 0.9 + 1) * 86400000, px = 50 + (i * 7) % 300, q = 1 + (i % 9), long = i % 7 !== 0;
+    doc['t_' + i] = { id: String(i), source: i % 5 ? 'webull' : 'manual', ticker: syms[i % syms.length], createdAt: t0, status: 'CLOSED', notes: 'note ' + i,
+      legs: [{ id: 'a' + i, action: long ? 'BUY' : 'SELL', datetime: new Date(t0).toISOString(), qty: q, price: px, fee: 0.12 },
+        { id: 'b' + i, action: long ? 'SELL' : 'BUY', datetime: new Date(t0 + 3600000).toISOString(), qty: q, price: +(px * (1 + ((i % 11) - 5) / 100)).toFixed(2), fee: 0.12 }] };
+  }
+  return doc;
+}
+
 /** Helpers bound to a connected page `c`. */
 function driver(c) {
   const js = (e) => evalJs(c, e);
@@ -139,4 +152,4 @@ function driver(c) {
   return { js, until, size, boot, tab, shot };
 }
 
-module.exports = { quantApi, driver, PAGE_SETUP, FIXTURE, CLOCK, WATCHLIST, KEY, ORIGIN, URL };
+module.exports = { quantApi, driver, bigJournal, PAGE_SETUP, FIXTURE, CLOCK, WATCHLIST, KEY, ORIGIN, URL };

@@ -72,6 +72,15 @@ const ok = (name, cond, extra) => {
     ok('tickers are links, not buttons', await js(`return document.querySelectorAll('[data-mk] a[data-ticker]').length > 20 && !document.querySelector('[data-mk] button[data-ticker]');`));
     const cap = JSON.parse(await js(`var r=document.getElementById('tradeboard-root').getBoundingClientRect(), m=document.querySelector('[data-mk]').getBoundingClientRect(); return JSON.stringify({ w:r.width, in:m.left>=r.left&&m.right<=r.right+0.5, sw:document.documentElement.scrollWidth, iw:innerWidth });`));
     ok('inside the 2000 px cap, with no sideways scroll', cap.w <= 2000 && cap.in && cap.sw <= cap.iw, JSON.stringify(cap));
+    const leak = JSON.parse(await js(`var out=[]; document.querySelectorAll('.lay-card .lay-body').forEach(function(b){ var th=b.querySelector('.mk-table th'); if(!th||b.scrollHeight<=b.clientHeight) return;
+        b.scrollTop=Math.min(150,b.scrollHeight-b.clientHeight); var r=b.getBoundingClientRect(), t=th.getBoundingClientRect();
+        for (var y=r.top+0.5; y<t.bottom-1; y+=2) { var e=document.elementFromPoint(r.left+r.width/2, y); if(e && b.contains(e) && !e.closest('thead')) { out.push(b.parentNode.dataset.card+' at +'+Math.round(y-r.top)+'px: '+(e.textContent||'').trim().slice(0,20)); break; } }
+        if (t.top > r.top + 0.5) out.push(b.parentNode.dataset.card+': header '+Math.round(t.top-r.top)+'px below the top'); b.scrollTop=0; }); return JSON.stringify(out);`));
+    ok('scrolled, no row shows above a table header: it sits flush at the top', leak.length === 0, leak.join(' | '));
+    const grip = JSON.parse(await js(`var out=[]; document.querySelectorAll('.lay-grid > .lay-card:not(.is-collapsed)').forEach(function(c){ var g=c.querySelector('.a1-grip'), b=c.querySelector('.lay-body'); if(!g||!b) return;
+        var gr=g.getBoundingClientRect(), br=b.getBoundingClientRect(); var strokes={ l:gr.right-18, t:gr.bottom-18, r:gr.right-7, b:gr.bottom-7 };
+        if (strokes.t < br.bottom && strokes.l < br.right) out.push(c.dataset.card); }); return JSON.stringify(out);`));
+    ok('the resize grip sits in its own strip, never over a card\'s content', grip.length === 0, grip.join());
     await js(`document.querySelector('.lay-card[data-card="streaks"] .lay-body').scrollTop=0; document.querySelector('.tb-scroll-visible').scrollTop=0; 1`); await sleep(200);
 
     if (w === 1280) {

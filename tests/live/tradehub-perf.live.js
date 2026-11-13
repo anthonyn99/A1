@@ -7,13 +7,15 @@
 //      50 ms and frames stay at or above 55 a second
 //   3. the same at 4x CPU throttle (a phone), with relaxed limits:
 //      a switch under 450 ms, no task over 200 ms, 30 frames a second
-//   4. the tab change animates transform and opacity only
+//   4. a tab change is a quick settle, transform only: nothing fades, and a
+//      click on the tab already open plays nothing at all
+//   5. an 800-trade Journal opens in under 150 ms and still draws every row
 //
 // PERF_SECONDS shortens the scripted minute while working on the test.
 // Run: node tests/live/tradehub-perf.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+const { quantApi, driver, bigJournal, PAGE_SETUP } = require('./quant-mock.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -62,8 +64,8 @@ const PROBE = `(() => {
   const median = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
   await size(1280, 900);
-  await boot({ quant: true });
-  ok('the motion module is loaded and the app is marked', await until(`window.tbMotion && document.querySelector('.tbq-on')`, 10000));
+  await boot({ quant: true, docs: { 'dashboards/tradeboard_journal': bigJournal(800) } });
+  ok('the app is marked for Quant\'s motion', await until(`document.querySelector('.tbq-on')`, 10000));
   ok('long tasks can be observed here', !(await js(`return !!window.__perf.unsupported;`)));
   // Visit every tab once so each has loaded what it loads on first open.
   for (const id of TABS) { await js(`return window.__switch('${id}');`); await sleep(900); }
@@ -120,8 +122,14 @@ const PROBE = `(() => {
       var t = a.effect && a.effect.target; var pe = a.effect && a.effect.pseudoElement; out.push({ on: pe || (t && (t.className||t.tagName)) || '', props: Object.keys(props), ms: a.effect.getComputedTiming().duration }); });
     return JSON.stringify(out);`));
   const moving = anim.filter((a) => /view-transition|tbq|tb-fade-in/.test(String(a.on)));
-  ok('a tab change is animating', moving.length > 0, JSON.stringify(anim).slice(0, 300));
-  ok('...transform and opacity only, never longer than 300 ms', moving.every((a) => a.props.every((p) => p === 'transform' || p === 'opacity') && a.ms <= 300), JSON.stringify(moving));
+  ok('a tab change settles into place', moving.length > 0, JSON.stringify(anim).slice(0, 300));
+  ok('...with a transform only, nothing fading, in under 200 ms', moving.every((a) => a.props.length && a.props.every((p) => p === 'transform') && a.ms <= 200), JSON.stringify(moving));
+  ok('...and no view transition', !anim.some((a) => /view-transition/.test(String(a.on))));
+  await sleep(400);
+  const again = JSON.parse(await js(`var b = [...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(function(x){return x.offsetParent;}); var first = document.querySelector('.tbq-pane > *'); b.click(); b.click();
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+    return JSON.stringify({ same: document.querySelector('.tbq-pane > *') === first, anims: document.getAnimations().filter(function(a){ return /tbq|tb-fade-in/.test(String(a.animationName||'') + ' ' + String((a.effect.target && a.effect.target.className) || '')); }).length });`));
+  ok('clicking the tab already open redraws nothing and plays nothing', again.same && again.anims === 0, JSON.stringify(again));
   await sleep(500);
   await c.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   const calm = JSON.parse(await js(`var b = [...document.querySelectorAll('.tb-navtab[data-navid="market"]')].find(function(x){return x.offsetParent;}); b.click();
@@ -129,6 +137,18 @@ const PROBE = `(() => {
     return JSON.stringify(document.getAnimations().map(function(a){ var k=a.effect.getKeyframes(); var p={}; k.forEach(function(f){ Object.keys(f).forEach(function(x){ p[x]=1; }); }); return { t: !!p.transform, ms: a.effect.getComputedTiming().duration, on: String(a.effect.pseudoElement || (a.effect.target && a.effect.target.className) || '') }; }).filter(function(a){ return /view-transition|tbq|tb-fade-in|lay-card/.test(a.on); }));`));
   ok('with "reduce motion" nothing slides: at most a 120 ms fade', calm.every((a) => !a.t && a.ms <= 120), JSON.stringify(calm));
   await c.send('Emulation.setEmulatedMedia', { features: [] });
+
+  console.log('\nThe Journal, 800 trades');
+  await js(`return window.__switch('portfolio');`); await sleep(500);
+  const jt = [];
+  for (let i = 0; i < 3; i++) { jt.push(await js(`return window.__switch('journal');`)); await sleep(1500); await js(`return window.__switch('portfolio');`); await sleep(400); }
+  console.log('    Journal on screen (ms): ' + jt.map(Math.round).join(', '));
+  ok('it is on screen in under 150 ms', Math.max(...jt) < 150, jt.join());
+  await js(`window.__perf.long.length = 0; window.__perf.on = true; 1`);
+  await js(`return window.__switch('journal');`);
+  ok('...and draws all 800 rows within two seconds', await until(`document.querySelectorAll('.tbj-tbl tbody tr:not(.tbj-day)').length === 800`, 2000), await js(`return document.querySelectorAll('.tbj-tbl tbody tr:not(.tbj-day)').length;`));
+  const jl = JSON.parse(await js(`window.__perf.on = false; return JSON.stringify(window.__perf.long.map(function(x){return x.ms;}));`));
+  ok('...without a main-thread task over 100 ms while it fills in', jl.every((x) => x <= 100), jl.join());
 
   console.log('\nSide effects');
   ok('no page errors', errs.length === 0, errs.join(' | '));
