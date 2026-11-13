@@ -87,6 +87,13 @@ if (brief) {
 }
 if (text) t('Text: answer column + notes/confidence aside', text.querySelector('.v-main') && text.querySelector('.v-aside'));
 
+// A minus after a bold lead is the number's sign, not a separator; a spaced
+// hyphen still is one.
+const signs = MB.brief('### Movers\n1. **TSLA** -2.4% after a delivery cut\n2. **NVDA** +3.1% on orders\n3. **AMD** - beat on revenue');
+const bodies = [...signs.querySelectorAll('.br-point-body')].map((b) => b.textContent.trim());
+t('"**TSLA** -2.4%" keeps its minus; "**AMD** - beat" drops the separator',
+  bodies[0] === '-2.4% after a delivery cut' && bodies[1] === '+3.1% on orders' && bodies[2] === 'beat on revenue', JSON.stringify(bodies));
+
 // A model's markup never becomes markup.
 const evil = MB.brief('Hello <img src=x onerror=alert(1)> and <script>alert(2)</script> [x](javascript:alert(3))');
 t('no HTML injection', !evil.querySelector('img,script') && !evil.querySelector('a[href^="javascript"]'));
