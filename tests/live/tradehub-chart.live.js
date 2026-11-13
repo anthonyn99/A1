@@ -130,6 +130,18 @@ const CH = `${TAB}.active()`;
     ok('a fast mouse drag moves the chart and stops where it is let go (no glide)', atRelease.from < fn - 301 - 5 && Math.abs(later.from - atRelease.from) < 0.01, JSON.stringify({ atRelease, later })); }
   await js(`${CH}.fit(); return 1;`);
   await sleep(300);
+  // Pressing a level again and again centres on it without squeezing the chart (Tony, 2026-11-13).
+  const span = async () => JSON.parse(await js(`var r=${CH}.chart().priceScale('right').getVisibleRange(); return JSON.stringify(r ? r.to - r.from : null);`));
+  await js(`document.querySelector('[data-ch-levels] [data-ch-level]').click(); return 1;`);
+  await sleep(200);
+  const s1 = await span();
+  for (let k = 0; k < 4; k++) { await js(`document.querySelector('[data-ch-levels] [data-ch-level]').click(); return 1;`); await sleep(120); }
+  const s5 = await span();
+  ok('pressing a level five times keeps the price span (no squeezing)', s1 > 0 && Math.abs(s5 - s1) / s1 < 0.01, JSON.stringify({ s1, s5 }));
+  ok('...centring moved the price axis, so the Live button shows', await frontShown());
+  await js(`document.querySelector('[data-ch-main] [data-ch-front]').click(); return 1;`);
+  await sleep(500);
+  ok('...Live fits the prices again and hides itself', await js(`return ${CH}.chart().priceScale('right').options().autoScale === true;`) && !(await frontShown()));
   await js(`document.querySelector('[data-ch-main] [data-ch-box]').focus(); 1`);
   const w0 = (await info()).view;
   await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: '+', text: '+' }); await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: '+' });
