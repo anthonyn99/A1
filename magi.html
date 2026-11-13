@@ -19483,6 +19483,7 @@ function unitPickBox(id) {
   ref.title = (u.models_at
     ? `List read from your account ${docAgo(u.models_at)}. `
     : "List as MAGI last saw this site. ") +
+    "MAGI re-reads it by itself every Monday at 4 AM (or the first moment after, if the PC was off). " +
     "Click to open this unit's site now (signed in as you, nothing sent) and read the models your account is offered.";
   ref.onclick = () => unitRefreshModels(id);
   box.append(ref);

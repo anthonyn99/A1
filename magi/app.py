@@ -163,9 +163,17 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_LIMIT_WATCH"):
         from .engine import limit_watch as _limit_watch
         capwatch = asyncio.create_task(_limit_watch.auto_loop(settings, build_providers))
+    # Every unit's model list (and Code Mode's Claude and Codex catalogs),
+    # re-read Monday 4 AM local, or at the first moment after (engine/model_refresh.py).
+    modelref = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_MODEL_REFRESH"):
+        from .engine import model_refresh as _model_refresh
+        modelref = asyncio.create_task(_model_refresh.auto_loop(settings, build_providers))
     try:
         yield
     finally:
+        if modelref:
+            modelref.cancel()
         if capwatch:
             capwatch.cancel()
         if auto_update:
