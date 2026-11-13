@@ -140,6 +140,5 @@ function seed(id, verdict, o = {}) {
 
   ok('no uncaught errors', !errs.length, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
-  await c.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
