@@ -152,7 +152,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analogs' && two.desktop.hidden.length === 0 && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
 
   console.log('\nNo snapshot stored: the page builds it');
-  api.state.snapshot = null; api.asked.length = 0; api.posted.snapshots.length = 0; api.posted.watchlists.length = 0; api.state.watchlist = null;
+  api.state.snapshot = null; api.asked.length = 0; api.posted.claims = 0; api.posted.snapshots.length = 0; api.posted.watchlists.length = 0; api.state.watchlist = null;
   await boot({ quant: true });
   ok('the morning check starts the build with no click', await until(`1`, 100) && await (async () => { for (let i = 0; i < 300; i++) { if (api.posted.snapshots.length) return true; await sleep(200); } return false; })(), paths().slice(0, 12).join());
   const built = api.posted.snapshots[0] || {};
@@ -161,6 +161,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   const barCalls = paths().filter((p) => p === '/bars').length;
   ok('...from daily bars, at most two requests a symbol', barCalls >= 110 && barCalls <= 2 * (118 + WATCHLIST.length), barCalls);
   ok('...posted once, and the watchlist sent for the runner', api.posted.snapshots.length === 1 && api.posted.watchlists.length === 1 && api.posted.watchlists[0].length === WATCHLIST.length);
+  ok('...after claiming the slot, so no other device builds it too', api.posted.claims === 1, api.posted.claims);
   ok('the morning is then marked done', await until(`localStorage.getItem('tb_morning_market_slot')`, 8000));
   const n0 = api.asked.length;
   await tab('market');
