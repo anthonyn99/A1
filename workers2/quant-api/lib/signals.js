@@ -7,7 +7,8 @@
 //   POST /signals { signals: [Signal] }     at most 100 a call; a signal whose id
 //        is already stored is left exactly as it is (no write); at most 600 NEW
 //        signals stored in any 24 hours
-//   POST /grades  { grades: [{ id, status, done, r, taken, triggeredAt, closedAt, mfe, mae, bars }] }
+//   POST /grades  { grades: [{ id, status, done, r, taken, triggeredAt, closedAt, mfe, mae, bars, m1?, m3?, m6? }] }
+//        (horizon 'invest', Phase 7: accumulation tranches, graded at 1, 3 and 6 months)
 //        at most 200 a call; a finished grade is never changed again
 //
 // The page sends at most one batch a minute and only what is new, so a full
