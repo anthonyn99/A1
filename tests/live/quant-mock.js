@@ -41,7 +41,8 @@ function walkIntraday(sym, tf, from, to) {
     const d = new Date(t - 5 * 3600e3), dow = d.getUTCDay(), m = d.getUTCHours() * 60 + d.getUTCMinutes();
     if (dow === 0 || dow === 6 || m < 240 || m >= 1200) continue;
     const o = c; c = Math.max(2, c * (1 + (rnd() - 0.5) * 0.004));
-    if (t >= from) out.push({ t, o: +o.toFixed(4), h: +(Math.max(o, c) * 1.001).toFixed(4), l: +(Math.min(o, c) * 0.999).toFixed(4), c: +c.toFixed(4), v: Math.round(1e4 * (0.5 + rnd()) * (m >= 570 && m < 960 ? 5 : 1)) });
+    const v = Math.round(1e4 * (0.5 + rnd()) * (m >= 570 && m < 960 ? 5 : 1));   // drawn every bar, so the walk is the same whatever the window
+    if (t >= from) out.push({ t, o: +o.toFixed(4), h: +(Math.max(o, c) * 1.001).toFixed(4), l: +(Math.min(o, c) * 0.999).toFixed(4), c: +c.toFixed(4), v });
   }
   return out;
 }
