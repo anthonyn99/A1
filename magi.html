@@ -8811,9 +8811,11 @@ const VERDICT_VIEW = {
   set: (v) => { try { localStorage.setItem("magi.verdict.view", v); } catch {} },
 };
 
-/** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise. */
+/** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise.
+ *  A hyphen is a separator only with a space after it: "**TSLA** -2.4%" is a
+ *  minus sign, and taking it as one dropped it ("TSLA / 2.4%", 2026-11-12). */
 function boldLead(text) {
-  const m = String(text || "").match(/^\s*(?:\*\*|__)(.{2,90}?)(?:\*\*|__)\s*([:：—–-]\s*)?([\s\S]*)$/);
+  const m = String(text || "").match(/^\s*(?:\*\*|__)(.{2,90}?)(?:\*\*|__)\s*([:：—–]\s*|-\s+)?([\s\S]*)$/);
   if (!m) return null;
   const rest = m[3].trim();
   // "**Label:** text" is a label over its body. "**Oil climbs above $100**,
