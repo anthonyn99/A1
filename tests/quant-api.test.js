@@ -544,6 +544,32 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: 'x5', symbol: 'NVDA', price: 2 } } });
   ok('...but one of the 200 can still be changed', r.status === 200);
 
+  console.log('\nThe history check (Yahoo before 2016 vs Tiingo)');
+  {
+    const DA = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'data.js')).href);
+    const ts = [1, 2, 3, 4, 5].map((k) => Date.UTC(2014, 5, k, 4));
+    const y = ts.map((t, i) => ({ t, c: [10, 10.5, 10.2, 10.8, 11][i] }));
+    // Tiingo raw = 7× Yahoo's split-adjusted closes (a later 7:1 split): the same returns.
+    const tRaw = ts.map((t, i) => ({ t, c: y[i].c * 7, split: 1 }));
+    let c = DA.compareReturns(y, tRaw);
+    ok('the same history at another split scale: every day compared, nothing flagged', c.days === 4 && c.mismatches.length === 0);
+    c = DA.compareReturns(y, tRaw.map((r, i) => (i === 2 ? { ...r, c: r.c * 1.05 } : r)));
+    ok('a day off by 5% is flagged (and the day after it too, whose return it also moves)', c.mismatches.length === 2 && c.mismatches[0].t === ts[2]);
+    c = DA.compareReturns(y, tRaw.map((r, i) => (i >= 3 ? { ...r, c: r.c * 2, split: i === 3 ? 0.5 : 1 } : r)));
+    ok('a split day in Tiingo is skipped, not flagged', c.mismatches.length === 0 && c.days === 3);
+    W.reset();
+    const env2 = fullEnv();
+    r = await call(env2, '/bars?symbol=NVDA&tf=1d&from=2014-06-01&to=2014-06-20', { key: GOOD });
+    ok('with a Tiingo key, old Yahoo history comes back with its check (one Tiingo call)', r.status === 200 && r.body.check && r.body.check.by === 'tiingo' && Number.isFinite(r.body.check.days) && W.count('api.tiingo.com') === 1, JSON.stringify(r.body.check));
+    W.reset();
+    r = await call(env2, '/bars?symbol=NVDA&tf=1d&from=2024-06-01&to=2024-06-20', { key: GOOD });
+    ok('...history after 2016 is not checked (no Tiingo call)', r.status === 200 && !r.body.check && W.count('api.tiingo.com') === 0);
+    W.reset(); W.down.add('tiingo');
+    r = await call(env2, '/bars?symbol=NVDA&tf=1d&from=2014-06-01&to=2014-06-20', { key: GOOD });
+    ok('...Tiingo down: the bars still come, the check says why it could not run', r.status === 200 && r.body.bars.length > 0 && r.body.check && r.body.check.error);
+    W.reset();
+  }
+
   console.log('\nThe signal ledger');
   const sig = (o = {}) => ({ id: 'sabc123', symbol: 'nvda', setup: 'orb', horizon: 'day', dir: 'long', at: NOW - 3600000, expires: NOW + 3600000, verdict: 'WATCH', score: 61.5, regime: 'Constructive',
     entry: 180, stop: 179, zone: [179.9, 180.1], targets: [181.5, 183], rr: [1.5, 3], factors: { trend: 0.8 }, why: ['volume 2.1x usual'], ...o });
