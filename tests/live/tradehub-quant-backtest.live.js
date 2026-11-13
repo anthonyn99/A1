@@ -40,7 +40,7 @@ const SPEC = { v: 1, name: 'Live dip', horizon: 'swing', universe: { symbols: ['
   const c = await connect({ mock: api.mock });
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable');
-  await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP + `;window.__long=[];try{new PerformanceObserver(function(l){l.getEntries().forEach(function(e){window.__long.push(e.duration);});}).observe({type:'longtask',buffered:false});}catch(e){}` });
+  await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP + `;window.__long=[];try{new PerformanceObserver(function(l){l.getEntries().forEach(function(e){window.__long.push([Math.round(e.startTime - (window.__t0 || 0)), Math.round(e.duration)]);});}).observe({type:'longtask',buffered:false});}catch(e){}` });
   c.ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
@@ -71,16 +71,16 @@ const SPEC = { v: 1, name: 'Live dip', horizon: 'swing', universe: { symbols: ['
 
   console.log('\nA run');
   api.asked.length = 0;
-  await js(`window.__long=[]; window.__prog=[]; var s=document.querySelector('[data-bt-status]'); new MutationObserver(function(){window.__prog.push(s.textContent);}).observe(s,{childList:true,characterData:true,subtree:true}); document.querySelector('[data-bt-run]').click(); return 1;`);
+  await js(`window.__long=[]; window.__prog=[]; var s=document.querySelector('[data-bt-status]'); window.__t0=performance.now(); new MutationObserver(function(){window.__prog.push(s.textContent); if(/^Done/.test(s.textContent)&&!window.__done) window.__done=Math.round(performance.now()-window.__t0);}).observe(s,{childList:true,characterData:true,subtree:true}); document.querySelector('[data-bt-run]').click(); return 1;`);
   ok('Run turns into Cancel while it runs', await js(`return document.querySelector('[data-bt-run]').dataset.btRun === 'cancel';`));
   ok('the run finishes', await until(`/^Done/.test(document.querySelector('[data-bt-status]').textContent)`, 60000), await js(`return document.querySelector('[data-bt-status]').textContent;`));
   const prog = await js(`return JSON.stringify(window.__prog);`).then(JSON.parse);
   ok('progress was shown while it ran (bars read; a long run also shows the simulation and the nudges)', prog.some((x) => /Reading bars: \d+ of \d+ series/.test(x)), prog.slice(0, 6).join(' | '));
   ok('the bars were read by the run (daily, for each symbol, SPY and VIX)', ['NVDA', 'AMD', 'MSFT', 'SPY', '%5EVIX'].every((s) => api.asked.some((x) => x.p === '/bars' && x.q.includes('symbol=' + s) && /tf=1d/.test(x.q))), api.asked.filter((x) => x.p === '/bars').map((x) => x.q).slice(0, 8).join(' '));
-  const long = await js(`return JSON.stringify(window.__long);`).then(JSON.parse);
+  const long = await js(`return JSON.stringify(window.__long);`).then(JSON.parse).then((l) => l.map((x) => x[1]));
   await sleep(1500);   // the result cards draw one a frame after Done
-  const longAll = await js(`return JSON.stringify(window.__long);`).then(JSON.parse);
-  ok('no main-thread task over 50 ms during the run and while its cards draw', long.every((d) => d <= 50) && longAll.every((d) => d <= 50), longAll.join(','));
+  const longAt = await js(`return JSON.stringify(window.__long);`).then(JSON.parse), doneAt = await js(`return window.__done;`);
+  ok('no main-thread task over 50 ms during the run and while its cards draw', long.every((d) => d <= 50) && longAt.every((x) => x[1] <= 50), 'Done at ' + doneAt + ' ms; tasks [start ms, length ms]: ' + JSON.stringify(longAt));
   ok('headline tiles: CAGR, total vs SPY, drawdown, Sharpe, win rate, profit factor, trades', await js(`return ['cagr','total','dd','sharpe','win','pf','trades'].every(function(k){return !!document.querySelector('[data-bt-tile="'+k+'"]');});`));
   ok('...and a plain verdict written by code', /(Beat|Trailed) SPY by .* a year with .* drawdown; \d+ trades/.test(await js(`return document.querySelector('[data-bt-verdict]').textContent;`)));
   ok('the notes say the survivorship caveat', /Survivorship/.test(await js(`return document.querySelector('[data-bt-notes]').textContent;`)));
