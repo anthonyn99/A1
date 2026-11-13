@@ -26,6 +26,9 @@
 //   GET  /alerts[?symbol=X]        { alerts }                 the alert rules made from charts
 //   POST /alerts                   { alert }                  add or change one (at most 200)
 //   DELETE /alerts?id=             remove one
+//   GET  /signals?since&status&symbol&limit   { signals }   the scanner's ledger, newest first (lib/signals.js)
+//   POST /signals                  { signals }   new signals; one already stored is left as it is
+//   POST /grades                   { grades }    what happened to open signals
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -36,6 +39,8 @@ import { TFS, INTRADAY } from './lib/bars.js';
 import { marketHours, nyMonthStart, nyMidnight } from './lib/time.js';
 import * as alpaca from './providers/alpaca.js';
 import { finnhub, publicCom, tiingo } from './providers/others.js';
+import { fail, json } from './lib/http.js';
+import { getSignals, postSignals, postGrades } from './lib/signals.js';
 
 export { CAPS, spend, noteHealth, day } from './lib/ledger.js';
 
@@ -98,6 +103,9 @@ async function route(req, env, url, ctx) {
   if (p === '/alerts' && m === 'GET') return getAlerts(env, url);
   if (p === '/alerts' && m === 'POST') return putAlert(env, req);
   if (p === '/alerts' && m === 'DELETE') return deleteAlert(env, url);
+  if (p === '/signals' && m === 'GET') return getSignals(env, url);
+  if (p === '/signals' && m === 'POST') return postSignals(env, req);
+  if (p === '/grades' && m === 'POST') return postGrades(env, req);
   throw fail(404, 'no such route');
 }
 
@@ -390,10 +398,6 @@ function same(a, b) {
 }
 
 /* ── small helpers ──────────────────────────────────────────────────────── */
-function fail(status, message, extra) { return Object.assign(new Error(message), { status, extra }); }
-function json(body, status = 200, headers = {}) {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers } });
-}
 // The edge cache (absent outside Cloudflare, e.g. in the tests).
 const edge = () => (typeof caches !== 'undefined' && caches.default) || null;
 async function cacheGet(key) { const c = edge(); return c ? (await c.match(key)) || null : null; }
