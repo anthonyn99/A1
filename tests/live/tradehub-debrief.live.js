@@ -3,7 +3,7 @@
 // MAGI's own renderer (A1 magibrief.js) in Brief, the Brief / Text switch
 // redraws all of them and is remembered; the dialog stays one size and in
 // place while only its body scrolls, the header never moving; the News
-// Summary tab and the News overlay show the build as mm/dd/yyyy hh:mm and
+// Summary tab and the News overlay show the build as mm/dd/'yy h:mm AM/PM and
 // "x ago". Desktop, tablet and phone, with screenshots.
 //
 // Run: node tests/live/tradehub-debrief.live.js
@@ -144,10 +144,10 @@ const RUN = {
     const g3 = await geo();
     ok('another tab: the dialog keeps its size and place', g3.card[0] === g1.card[0] && g3.card[1] === g1.card[1], JSON.stringify([g1.card, g3.card]));
 
-    // The News overlay: the build time as mm/dd/yyyy hh:mm and "x ago".
+    // The News overlay: the build time as mm/dd/'yy h:mm AM/PM and "x ago".
     await js(`var host=document.getElementById('__dbr'); host.__root.unmount(); host.remove();
       var h2=document.createElement('div'); h2.id='__sum'; document.body.appendChild(h2); h2.__root=ReactDOM.createRoot(h2);
-      h2.__root.render(React.createElement(window.tbNewsSummary.Overlay,{onClose:function(){}, summary:null, loading:true, error:'', generatedAt:new Date(2026,10,12,6,21).getTime(), eventCount:42})); 1`);
+      h2.__root.render(React.createElement(window.tbNewsSummary.Overlay,{onClose:function(){}, summary:null, loading:true, error:'', generatedAt:new Date(2026,10,12,13,48).getTime(), eventCount:42})); 1`);
     await sleep(300);
     const meta = await js(`return document.querySelector('.nhs-head .nhs-meta').textContent;`);
     ok('News Summary: built 11/12/2026 06:21 and how long ago', /42 events/.test(meta) && /11\/12\/2026 06:21/.test(meta) && /(\d+[mhd] ago|now)/.test(meta), meta);
