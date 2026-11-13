@@ -156,7 +156,7 @@ const PROBE = `(() => {
   const idle = JSON.parse(await js(`window.__perf.on = false; return JSON.stringify(window.__perf.long.map(function(x){return x.ms;}));`));
   ok(`it opens with the first ${first} rows and runs nothing while it sits still`, first >= 50 && first < 200 && idle.length === 0 && (await rows()) === first, first + ' rows; ' + idle.join());
   await js(`window.__perf.long.length = 0; window.__perf.on = true; 1`);
-  for (let k = 0; k < 40 && (await rows()) < 800; k++) { await js(`var p=document.querySelector('.tb-scroll-visible'); p.scrollTop=p.scrollHeight; 1`); await sleep(150); }
+  for (let k = 0; k < 40 && (await rows()) < 800; k++) { await js(`var p=document.querySelector('.tbj-tbl').closest('.tb-scroll-thin'); p.scrollTop=p.scrollHeight; 1`); await sleep(150); }
   const jl = JSON.parse(await js(`window.__perf.on = false; return JSON.stringify(window.__perf.long.map(function(x){return x.ms;}));`));
   ok('scrolling to the end draws all 800 rows', (await rows()) === 800, await rows());
   ok('...with no main-thread task over 50 ms on the way', jl.every((x) => x <= 50), jl.join());
