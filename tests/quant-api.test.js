@@ -17,7 +17,7 @@ const ok = (name, cond, extra) => {
 
 // The statements the worker uses, over plain maps.
 function fakeDb() {
-  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map(), drawings = new Map(), alerts = new Map();
+  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map(), drawings = new Map(), alerts = new Map(), signals = new Map();
   const newest = (rows) => rows.sort((a, b) => b.due - a.due)[0] || null;
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
@@ -32,6 +32,7 @@ function fakeDb() {
       if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
       if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
       if (/FROM drawings WHERE symbol = \?/.test(sql)) return drawings.get(args[0]) || null;
+      if (/COUNT\(\*\) AS n FROM signals WHERE at >= \?/.test(sql)) return { n: [...signals.values()].filter((x) => x.at >= args[0]).length };
       if (/COUNT\(\*\) AS n FROM alerts WHERE id != \?/.test(sql)) return { n: [...alerts.keys()].filter((k) => k !== args[0]).length };
       throw new Error('fakeDb.first: ' + sql);
     },
@@ -41,6 +42,12 @@ function fakeDb() {
       if (/FROM meta WHERE k LIKE/.test(sql)) return { results: [...kv].filter(([k]) => k.startsWith('lat:')).map(([k, v]) => ({ k, v })) };
       if (/FROM corrections/.test(sql)) return { results: corrections.slice().reverse().slice(0, args[0]) };
       if (/FROM alerts WHERE symbol = \?/.test(sql)) return { results: [...alerts.values()].filter((a) => a.symbol === args[0]).sort((a, b) => b.created - a.created) };
+      if (/^SELECT \* FROM signals WHERE at >= \?/.test(sql)) {
+        let k = 1, rows = [...signals.values()].filter((x) => x.at >= args[0]);
+        if (/AND done = \?/.test(sql)) { const d = args[k++]; rows = rows.filter((x) => x.done === d); }
+        if (/AND symbol = \?/.test(sql)) { const sy = args[k++]; rows = rows.filter((x) => x.symbol === sy); }
+        return { results: rows.sort((a, b) => b.at - a.at).slice(0, args[k]).map((x) => ({ ...x })) };
+      }
       if (/FROM alerts ORDER BY created DESC/.test(sql)) return { results: [...alerts.values()].sort((a, b) => b.created - a.created).slice(0, args[0]) };
       throw new Error('fakeDb.all: ' + sql);
     },
@@ -73,10 +80,21 @@ function fakeDb() {
         alerts.set(id, { id, symbol, kind, price, lo, hi, level, note, active, created: old ? old.created : created, at }); return {};
       }
       if (/^DELETE FROM alerts WHERE id = \?/.test(sql)) { alerts.delete(args[0]); return {}; }
+      if (/^INSERT INTO signals/.test(sql)) {
+        if (!/ON CONFLICT \(id\) DO NOTHING/.test(sql)) throw new Error('signals insert must not overwrite');
+        const [id, symbol, setup, horizon, dir, at, expires, verdict, score, regime, by, created, body] = args;
+        if (!signals.has(id)) { signals.set(id, { id, symbol, setup, horizon, dir, at, expires, verdict, score, regime, by, created, status: 'open', done: 0, r: null, taken: null, graded_at: null, body, grade: null }); db.writes++; }
+        return {};
+      }
+      if (/^UPDATE signals SET status = \?, done = \?, r = \?, taken = COALESCE\(\?, taken\), graded_at = \?, grade = \? WHERE id = \? AND done = 0/.test(sql)) {
+        const [status, done, r, taken, at, grade, id] = args, x = signals.get(id);
+        if (x && x.done === 0) { Object.assign(x, { status, done, r, taken: taken == null ? x.taken : taken, graded_at: at, grade }); db.writes++; }
+        return {};
+      }
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots, drawings, alerts };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots, drawings, alerts, signals, writes: 0 };
   return db;
 }
 
@@ -525,9 +543,44 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: 'x5', symbol: 'NVDA', price: 2 } } });
   ok('...but one of the 200 can still be changed', r.status === 200);
 
+  console.log('\nThe signal ledger');
+  const sig = (o = {}) => ({ id: 'sabc123', symbol: 'nvda', setup: 'orb', horizon: 'day', dir: 'long', at: NOW - 3600000, expires: NOW + 3600000, verdict: 'WATCH', score: 61.5, regime: 'Constructive',
+    entry: 180, stop: 179, zone: [179.9, 180.1], targets: [181.5, 183], rr: [1.5, 3], factors: { trend: 0.8 }, why: ['volume 2.1x usual'], ...o });
+  ok('the ledger needs the key', (await call(env, '/signals')).status === 401);
+  r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig(), sig({ id: 'sdef456', setup: 'sweep', verdict: 'GO' })] } });
+  ok('signals are stored in one batch', r.status === 200 && env.DB.signals.size === 2 && env.DB.signals.get('sabc123').symbol === 'NVDA');
+  const w0 = env.DB.writes;
+  r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ verdict: 'GO', score: 99 })] } });
+  ok('the same bar twice is one row, and the first copy stays (no write)', r.status === 200 && env.DB.signals.size === 2 && env.DB.signals.get('sabc123').verdict === 'WATCH' && env.DB.writes === w0);
+  r = await call(env, '/signals', { key: GOOD });
+  ok('GET lists them newest first, with the body back', r.status === 200 && r.body.signals.length === 2 && r.body.signals[0].entry === 180 && r.body.signals[0].targets[1] === 183 && r.body.signals[0].done === false);
+  r = await call(env, '/grades', { key: GOOD, method: 'POST', body: { grades: [{ id: 'sabc123', status: 'target1', done: true, r: 1.5, triggeredAt: NOW - 3000000, closedAt: NOW - 1000000, mfe: 1.8, mae: 0.3, bars: 7 }] } });
+  ok('a grade is kept', r.status === 200 && env.DB.signals.get('sabc123').done === 1 && env.DB.signals.get('sabc123').r === 1.5);
+  r = await call(env, '/grades', { key: GOOD, method: 'POST', body: { grades: [{ id: 'sabc123', status: 'stopped', done: true, r: -1 }] } });
+  ok('...and a finished grade is never changed again', env.DB.signals.get('sabc123').status === 'target1' && env.DB.signals.get('sabc123').r === 1.5);
+  r = await call(env, '/signals?status=open', { key: GOOD });
+  ok('status=open lists only what is still running', r.body.signals.length === 1 && r.body.signals[0].id === 'sdef456');
+  r = await call(env, '/signals?status=done', { key: GOOD });
+  ok('status=done lists the finished, with the grade merged in', r.body.signals.length === 1 && r.body.signals[0].mfe === 1.8 && r.body.signals[0].status === 'target1');
+  r = await call(env, '/signals?symbol=AMD', { key: GOOD });
+  ok('symbol= filters', r.body.signals.length === 0);
+  const badSig = [];
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'bad id' })] } })).status);
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'sxyz111', verdict: 'BUY' })] } })).status);
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'sxyz112', expires: NOW - 7200000 })] } })).status);
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'sxyz113', stop: 0 })] } })).status);
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [] } })).status);
+  badSig.push((await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: Array.from({ length: 101 }, (_, i) => sig({ id: 'sq' + (1000 + i) })) } })).status);
+  badSig.push((await call(env, '/grades', { key: GOOD, method: 'POST', body: { grades: [{ id: 'sdef456', status: 'won' }] } })).status);
+  ok('refused: a bad id, an unknown verdict, expiry before the bar, no stop, an empty list, over 100, an unknown status', badSig.join() === '400,400,400,400,400,400,400', badSig.join());
+  ok('...and nothing refused was stored', env.DB.signals.size === 2);
+  for (let i = 0; i < 598; i++) env.DB.signals.set('sfill' + i, { id: 'sfill' + i, at: NOW - 1000, done: 0 });
+  r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'sover1' })] } });
+  ok('at most 600 signals a day', r.status === 429);
+
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
-  const src = ['worker.js', 'lib/data.js', 'lib/net.js', 'providers/alpaca.js', 'providers/others.js', 'providers/yahoo.js']
+  const src = ['worker.js', 'lib/data.js', 'lib/net.js', 'lib/charts.js', 'lib/signals.js', 'providers/alpaca.js', 'providers/others.js', 'providers/yahoo.js']
     .map((f) => fs.readFileSync(path.join(__dirname, '..', 'workers2', 'quant-api', f), 'utf8')).join('\n');
   ok('no order, trading-API or paper-api URL anywhere in the worker', !/\/v2\/orders|paper-api\.alpaca|api\.alpaca\.markets|\/order\b|placeOrder|\/trading\/[^a"]/.test(src));
 
