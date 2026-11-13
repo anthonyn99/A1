@@ -20,6 +20,12 @@
 //   POST /snapshot                 { snapshot }  kept under its (day, slot); from the runner or the page
 //   POST /snapshot/claim           { day, slot } → { granted }  one device builds a slot the runner missed
 //   POST /watchlist                { symbols }   the watchlist the runner builds the snapshot for
+//                                  (it also marks the drawings of symbols that left it; 30 days gone = deleted)
+//   GET  /drawings?symbol=X        { symbol, drawings, at }   Tony's drawings on that chart
+//   PUT  /drawings                 { symbol, drawings }       replace them (at most 200, 64 KB)
+//   GET  /alerts[?symbol=X]        { alerts }                 the alert rules made from charts
+//   POST /alerts                   { alert }                  add or change one (at most 200)
+//   DELETE /alerts?id=             remove one
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -87,6 +93,11 @@ async function route(req, env, url, ctx) {
   if (p === '/snapshot' && m === 'POST') return putSnapshot(env, req);
   if (p === '/snapshot/claim' && m === 'POST') return claimSnapshot(env, req);
   if (p === '/watchlist' && m === 'POST') return putWatchlist(env, req);
+  if (p === '/drawings' && m === 'GET') return getDrawings(env, url);
+  if (p === '/drawings' && m === 'PUT') return putDrawings(env, req);
+  if (p === '/alerts' && m === 'GET') return getAlerts(env, url);
+  if (p === '/alerts' && m === 'POST') return putAlert(env, req);
+  if (p === '/alerts' && m === 'DELETE') return deleteAlert(env, url);
   throw fail(404, 'no such route');
 }
 
@@ -164,9 +175,88 @@ async function putWatchlist(env, req) {
   try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
   if (!Array.isArray(body && body.symbols)) throw fail(400, 'symbols is needed');
   const syms = [...new Set(body.symbols.map((x) => String(x).toUpperCase().trim()))].filter((x) => /^\^?[A-Z0-9][A-Z0-9.\-=]{0,14}$/.test(x)).slice(0, 200);
-  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at')
-    .bind('watchlist', JSON.stringify(syms), Date.now()).run();
+  const now = Date.now(), list = JSON.stringify(syms);
+  const stmts = [
+    env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('watchlist', list, now),
+    // Drawings follow the watchlist: a symbol that left it is marked, one back
+    // in it unmarked, and one gone for DRAWINGS_KEEP_MS deleted.
+    env.DB.prepare('UPDATE drawings SET gone_at = ? WHERE gone_at IS NULL AND symbol NOT IN (SELECT value FROM json_each(?))').bind(now, list),
+    env.DB.prepare('UPDATE drawings SET gone_at = NULL WHERE gone_at IS NOT NULL AND symbol IN (SELECT value FROM json_each(?))').bind(list),
+    env.DB.prepare('DELETE FROM drawings WHERE gone_at IS NOT NULL AND gone_at < ?').bind(now - DRAWINGS_KEEP_MS),
+  ];
+  if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
   return json({ ok: true, symbols: syms });
+}
+
+/* ── /drawings, /alerts (the Charts tab) ────────────────────────────────── */
+export const DRAWINGS_MAX = 200, DRAWINGS_BYTES = 64_000, ALERTS_MAX = 200;
+export const DRAWINGS_KEEP_MS = 30 * DAY;
+const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-=]{0,14}$/, ID_RE = /^[\w-]{1,64}$/;
+function symOf(v) {
+  const s = String(v || '').toUpperCase().trim();
+  if (!SYM_RE.test(s)) throw fail(400, 'a symbol is needed');
+  return s;
+}
+async function bodyOf(req, max) {
+  let text;
+  try { text = await req.text(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  if (text.length > max) throw fail(413, 'at most ' + max + ' bytes');
+  try { return JSON.parse(text); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+}
+/** GET /drawings?symbol=X: one read. */
+async function getDrawings(env, url) {
+  const symbol = symOf(url.searchParams.get('symbol'));
+  const row = await env.DB.prepare('SELECT body, at FROM drawings WHERE symbol = ?').bind(symbol).first();
+  let drawings = [];
+  if (row) { try { const a = JSON.parse(row.body); if (Array.isArray(a)) drawings = a; } catch (e) {} }
+  return json({ ok: true, symbol, drawings, at: row ? row.at : null });
+}
+/** PUT /drawings { symbol, drawings }: replace that chart's drawings. One write. */
+async function putDrawings(env, req) {
+  const body = await bodyOf(req, DRAWINGS_BYTES + 200);
+  const symbol = symOf(body && body.symbol), list = body && body.drawings;
+  if (!Array.isArray(list)) throw fail(400, 'drawings must be a list');
+  if (list.length > DRAWINGS_MAX) throw fail(400, 'at most ' + DRAWINGS_MAX + ' drawings a chart');
+  if (!list.every((d) => d && typeof d === 'object' && !Array.isArray(d) && typeof d.kind === 'string' && Array.isArray(d.pts))) throw fail(400, 'each drawing needs kind and pts');
+  const out = JSON.stringify(list), now = Date.now();
+  if (out.length > DRAWINGS_BYTES) throw fail(413, 'at most ' + DRAWINGS_BYTES + ' bytes of drawings a chart');
+  await env.DB.prepare('INSERT INTO drawings (symbol, body, at, gone_at) VALUES (?, ?, ?, NULL) '
+    + 'ON CONFLICT (symbol) DO UPDATE SET body = excluded.body, at = excluded.at').bind(symbol, out, now).run();
+  return json({ ok: true, symbol, n: list.length, at: now });
+}
+/** GET /alerts[?symbol=X]: the rules, newest first. */
+async function getAlerts(env, url) {
+  const s = url.searchParams.get('symbol');
+  const rows = s ? (await env.DB.prepare('SELECT * FROM alerts WHERE symbol = ? ORDER BY created DESC').bind(symOf(s)).all()).results
+    : (await env.DB.prepare('SELECT * FROM alerts ORDER BY created DESC LIMIT ?').bind(ALERTS_MAX).all()).results;
+  return json({ ok: true, alerts: rows || [] });
+}
+/** POST /alerts { alert }: add one, or change it (same id; its created time stays). */
+async function putAlert(env, req) {
+  const body = await bodyOf(req, 4000), a = body && body.alert;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) throw fail(400, 'alert is needed');
+  const symbol = symOf(a.symbol), kind = a.kind === 'level' ? 'level' : 'price';
+  const num = (v) => (v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : NaN);
+  const price = num(a.price), lo = num(a.lo), hi = num(a.hi);
+  if ([price, lo, hi].some(Number.isNaN)) throw fail(400, 'price, lo and hi must be numbers');
+  if (price == null && (lo == null || hi == null)) throw fail(400, 'a price, or lo and hi, is needed');
+  const id = a.id == null ? crypto.randomUUID() : String(a.id);
+  if (!ID_RE.test(id)) throw fail(400, 'a bad id');
+  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM alerts WHERE id != ?').bind(id).first();
+  if (n && n.n >= ALERTS_MAX) throw fail(400, 'at most ' + ALERTS_MAX + ' alerts');
+  const s = (v, k) => (v == null ? null : String(v).slice(0, k)), now = Date.now();
+  await env.DB.prepare('INSERT INTO alerts (id, symbol, kind, price, lo, hi, level, note, active, created, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+    + 'ON CONFLICT (id) DO UPDATE SET symbol = excluded.symbol, kind = excluded.kind, price = excluded.price, lo = excluded.lo, hi = excluded.hi, '
+    + 'level = excluded.level, note = excluded.note, active = excluded.active, at = excluded.at')
+    .bind(id, symbol, kind, price, lo, hi, s(a.level, 40), s(a.note, 200), a.active === false ? 0 : 1, now, now).run();
+  return json({ ok: true, id });
+}
+/** DELETE /alerts?id=: remove one. */
+async function deleteAlert(env, url) {
+  const id = String(url.searchParams.get('id') || '');
+  if (!ID_RE.test(id)) throw fail(400, 'id= is needed');
+  await env.DB.prepare('DELETE FROM alerts WHERE id = ?').bind(id).run();
+  return json({ ok: true, id });
 }
 
 /* ── /usage ─────────────────────────────────────────────────────────────── */
