@@ -27,7 +27,7 @@ const MIN = 60000;
 // Three stored signals, one for each lane (still running at the mock's clock).
 function seed(id, verdict, o = {}) {
   return { id, symbol: 'NVDA', setup: 'orb', horizon: 'day', dir: 'long', at: CLOCK - 60 * MIN, expires: CLOCK + 60 * MIN, verdict, score: verdict === 'GO' ? 78 : verdict === 'WATCH' ? 60 : 40,
-    trigger: 180, zone: [179.9, 180.2], entry: 180.05, stop: 179.2, targets: [181.4, 182.6], rr: [1.6, 3], risk: 0.85, atr: 0.6, factors: { trend: 0.8 },
+    trigger: 164, zone: [163.9, 164.15], entry: 164.03, stop: 163.6, targets: [164.7, 165.3], rr: [1.6, 3], risk: 0.85, atr: 0.6, factors: { trend: 0.8 },
     why: ['above its rising averages', 'volume 2.1× usual', 'no high-impact catalyst before it expires', 'volatility at an extreme'], notes: ['closed above the opening range'],
     backtested: false, regime: 'Constructive', status: 'open', done: false, created: CLOCK - 60 * MIN, ...o };
 }
@@ -37,7 +37,7 @@ function seed(id, verdict, o = {}) {
   api.state.signals = [
     seed('sgo00001', 'GO'),
     seed('swatch001', 'WATCH', { symbol: 'AMD', setup: 'ma-pullback', horizon: 'swing', expires: CLOCK + 4 * 86400000 }),
-    seed('snogo0001', 'NO-GO', { symbol: 'TSLA', dir: 'short', setup: 'vwap-reject', stop: 181, targets: [179, 178] }),
+    seed('snogo0001', 'NO-GO', { symbol: 'TSLA', dir: 'short', setup: 'vwap-reject', stop: 164.5, targets: [163.4, 162.8] }),
     seed('sold00001', 'GO', { symbol: 'MU', expires: CLOCK - 5 * MIN, status: 'target1', done: true, r: 1.6 }),
   ];
   const c = await connect({ mock: api.mock });
@@ -69,21 +69,26 @@ function seed(id, verdict, o = {}) {
   const laneIds = (lane) => js(`return JSON.stringify([...document.querySelectorAll('[data-sc-lane="${lane}"] [data-sc-sig]')].map(function(x){return x.dataset.scSig;}));`).then(JSON.parse);
   ok('GO, WATCH and NO-GO lanes, each with its stored signal', (await laneIds('go')).includes('sgo00001') && (await laneIds('watch')).includes('swatch001') && (await laneIds('nogo')).includes('snogo0001'));
   ok('...a finished signal is not on the board', !(await laneIds('go')).includes('sold00001'));
-  ok('each card: entry, stop, targets, R:R, score, expiry, why, "not yet backtested"', await js(`var e=document.querySelector('[data-sc-sig="sgo00001"]'), t=e.innerText; return /Entry/.test(t) && /179\\.90 to 180\\.20/.test(t) && /Stop/.test(t) && /181\\.40 · 182\\.60/.test(t) && /1 : 1\\.6 · 1 : 3\\.0/.test(t) && /78 of 100/.test(t) && /Expires/.test(t) && /Volume 2\\.1/.test(t) && !!e.querySelector('[data-sc-nobt]');`));
+  ok('each card: entry, stop, targets, R:R, score, expiry, why, "not yet backtested"', await js(`var e=document.querySelector('[data-sc-sig="sgo00001"]'), t=e.innerText; return /Entry/.test(t) && /163\\.90 to 164\\.15/.test(t) && /Stop/.test(t) && /164\\.70 · 165\\.30/.test(t) && /1 : 1\\.6 · 1 : 3\\.0/.test(t) && /78 of 100/.test(t) && /Expires/.test(t) && /Volume 2\\.1/.test(t) && !!e.querySelector('[data-sc-nobt]');`));
   ok('...the verdict lanes are coloured cards on the fluid grid', await js(`return ['go','watch','nogo'].every(function(id){return !!document.querySelector('.lay-card[data-card="'+id+'"]');});`));
 
   console.log('\nFilters and views');
   await js(`document.querySelector('[data-sc-horizon="swing"]').click(); return 1;`);
   await sleep(150);
-  ok('Swing: only the swing signal stays', (await laneIds('go')).length === 0 && (await laneIds('watch')).join() === 'swatch001');
+  // The scan adds its own signals from the mock's bars, so each filter is checked on every card shown.
+  const cards = () => js(`return JSON.stringify([...document.querySelectorAll('[data-sc-sig]')].map(function(x){return [x.dataset.scSig,x.dataset.horizon,x.dataset.dir,x.dataset.setup];}));`).then(JSON.parse);
+  let cs = await cards();
+  ok('Swing: only swing signals stay', cs.every((x) => x[1] === 'swing') && cs.some((x) => x[0] === 'swatch001') && !cs.some((x) => x[0] === 'sgo00001'), JSON.stringify(cs));
   await js(`document.querySelector('[data-sc-horizon="all"]').click(); return 1;`);
   await sleep(100);
   await js(`document.querySelector('[data-sc-dir="short"]').click(); return 1;`);
   await sleep(150);
-  ok('Short: only the short one', (await laneIds('nogo')).join() === 'snogo0001' && (await laneIds('go')).length === 0);
+  cs = await cards();
+  ok('Short: only short signals', cs.every((x) => x[2] === 'short') && cs.some((x) => x[0] === 'snogo0001'), JSON.stringify(cs));
   await js(`document.querySelector('[data-sc-dir="all"]').click(); var s=document.querySelector('[data-sc-setup]'); s.value='orb'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1;`);
   await sleep(150);
-  ok('a setup: only that setup', (await laneIds('watch')).length === 0 && (await laneIds('go')).includes('sgo00001'));
+  cs = await cards();
+  ok('a setup: only that setup', cs.every((x) => x[3] === 'orb') && cs.some((x) => x[0] === 'sgo00001'), JSON.stringify(cs));
   await js(`var s=document.querySelector('[data-sc-setup]'); s.value='all'; s.dispatchEvent(new Event('change',{bubbles:true})); return 1;`);
   await js(`document.querySelector('[data-sc-view="ledger"]').click(); return 1;`);
   await sleep(200);
@@ -130,7 +135,7 @@ function seed(id, verdict, o = {}) {
       await sleep(150);
       ok('...a lane tab shows that lane', await js(`var c=document.querySelector('.lay-card[data-card="nogo"]'); return getComputedStyle(c).display!=='none' && getComputedStyle(document.querySelector('.lay-card[data-card="go"]')).display==='none';`));
     }
-    if (process.env.SHOTS_DIR) await shot(require('path').join(process.env.SHOTS_DIR, `scanner-${w}.png`));
+    if (process.env.SHOTS_DIR) await shot(`scanner-${w}`);
   }
 
   ok('no uncaught errors', !errs.length, errs.slice(0, 3).join(' | '));
