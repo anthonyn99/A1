@@ -3,6 +3,8 @@
 // hour, the two providers' WebSockets faked, and a boot that opens TradeHub
 // with the switch on or off.
 //
+// Phase 6 adds /calibration, /paper and /backtests kept here.
+//
 // Phase 4 adds intraday bars (sessions 04:00 to 20:00 New York), /drawings
 // and /alerts kept here, and the chart library (lightweight-charts) served
 // from a copy kept in the OS temp folder, fetched once from jsdelivr.
@@ -88,7 +90,7 @@ function walkDaily(sym, from, to) {
  */
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
-  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [] };
+  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [] };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
     handle(req) {
@@ -114,6 +116,16 @@ function quantApi() {
       if (p === '/alerts' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.alerts = state.alerts.filter((x) => x.id !== id); return { json: { ok: true, id } }; }
       if (p === '/signals' && req.method === 'GET') return { json: { ok: true, signals: state.signals } };
       if (p === '/signals' && req.method === 'POST') { const b = JSON.parse(req.postData); (posted.signals = posted.signals || []).push(b); for (const x of b.signals) if (!state.signals.some((y) => y.id === x.id)) state.signals.push({ ...x, done: false }); return { json: { ok: true, sent: b.signals.length } }; }
+      // Phase 6: calibration, paper trades, saved backtests.
+      if (p === '/calibration' && req.method === 'GET') return { json: { ok: true, calibration: state.calibration } };
+      if (p === '/paper' && req.method === 'GET') return { json: { ok: true, paper: state.paper } };
+      if (p === '/paper' && req.method === 'POST') { const s = JSON.parse(req.postData).signal; (posted.paper = posted.paper || []).push(s); if (!state.paper.some((x) => x.id === s.id)) state.paper.unshift({ ...s, followed: CLOCK, paper: true }); return { json: { ok: true, id: s.id } }; }
+      if (p === '/paper' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.paper = state.paper.filter((x) => x.id !== id); return { json: { ok: true } }; }
+      if (p === '/backtests' && req.method === 'GET') return { json: { ok: true, backtests: state.backtests.map(({ curve, ...x }) => x) } };
+      if (p === '/backtests' && req.method === 'POST') { const b = JSON.parse(req.postData), id = 'b' + (1000 + state.backtests.length) + 'live'; (posted.backtests = posted.backtests || []).push(b); state.backtests.unshift({ id, name: b.name, created: CLOCK, spec: b.spec, summary: b.summary, curve: { equity: b.curve, bench: b.bench } }); return { json: { ok: true, id, created: CLOCK } }; }
+      const bt = /^\/backtests\/(\w+)$/.exec(p);
+      if (bt && req.method === 'GET') { const x = state.backtests.find((y) => y.id === bt[1]); return x ? { json: { ok: true, backtest: x } } : { status: 404, json: { ok: false } }; }
+      if (bt && req.method === 'DELETE') { state.backtests = state.backtests.filter((y) => y.id !== bt[1]); return { json: { ok: true } }; }
       if (p === '/grades' && req.method === 'POST') { (posted.grades = posted.grades || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/quotes') {
         if (!state.quotes) return { status: 503, json: { ok: false, error: 'no provider answered', missing: {} } };
