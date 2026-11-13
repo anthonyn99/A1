@@ -203,6 +203,7 @@ const CH = `${TAB}.active()`;
   await boot({ quant: true, keep: true });
   await tab('charts');
   await ready();
+  ok('...on the range and interval last picked (5D, 5 minutes)', (await info()).range === '5D' && (await info()).tf === '5m', JSON.stringify(await info()).slice(0, 80));
   ok('after a reload the drawing and the alerts are back', await until(`${CH}.info().drawings === 1 && ${CH}.info().alerts === 2`, 8000), JSON.stringify(await info()));
 
   // The keyboard reaches the chart: Escape drops a tool, Delete removes a selected alert line.
@@ -211,6 +212,8 @@ const CH = `${TAB}.active()`;
   await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   ok('Escape drops the picked tool', await until(`!${CH}.draw().tool() && !document.querySelector('[data-ch-tool="trend"]').classList.contains('is-on')`, 2000));
   s = await stage();
+  await js(`var a=${CH}.draw().alerts().find(function(x){return x.kind==='price';}); if (a) ${CH}.center(a.price); 1`);
+  await sleep(300);
   const alertY = JSON.parse(await js(`var a=${CH}.draw().alerts().find(function(x){return x.kind==='price';}); return JSON.stringify(a ? ${CH}.geo.y(a.price) : null);`));
   if (alertY != null) {
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: s.l + s.w * 0.4, y: s.t + alertY, button: 'left', clickCount: 1 });
