@@ -4,6 +4,7 @@
 #   2. index.html test gate  — runs only for commits touching index.html/tests/Notebook.
 #   3. Notebook stamp        — re-stamps the hosts when Notebook/ changes (runs first).
 #   4. ORCA's root copies    — keeps them identical to Shared/ (never blocks).
+#   5. MAGI's answer views   — rebuilds Shared/magibrief.js from magi.html (never blocks).
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Bypass in an emergency:  git commit --no-verify
@@ -95,6 +96,21 @@ if command -v node >/dev/null 2>&1; then
       fi
     fi
   done
+fi
+
+# ── 5. MAGI's answer views for other programs ────────────────────────────────
+# Shared/magibrief.js is cut out of magi.html (tools/build-magibrief.js) for
+# TradeHub's Debrief. A commit with magi.html in it rebuilds and stages it, so
+# the Debrief always draws answers the way MAGI does. Never blocks:
+# tests/magibrief.test.js reports a stale or broken file.
+if command -v node >/dev/null 2>&1 && git diff --cached --name-only | grep -qx 'magi.html'; then
+  if node tools/build-magibrief.js >/dev/null 2>&1; then
+    git diff --quiet -- Shared/magibrief.js || {
+      git add -- Shared/magibrief.js && printf 'pre-commit: rebuilt Shared/magibrief.js from magi.html\n' >&2
+    }
+  else
+    printf 'pre-commit: tools/build-magibrief.js failed; Shared/magibrief.js not rebuilt\n' >&2
+  fi
 fi
 
 if git diff --cached --name-only | grep -qE '^(index\.html|tests/|Notebook/)'; then

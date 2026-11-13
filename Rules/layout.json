@@ -23,7 +23,7 @@
       "Notebook": "the journals and the DOCX editor",
       "PriceWatch": "the Price Watch extension (Brave loads it unpacked from this folder)",
       "Rules": "machine-read rules: cleanup-rules.json, firestore.rules, this file",
-      "Shared": "files every program loads: scrollbar, popups, controls, dragsort, resizegrip, hoverfx, apphead, profilepick, tabsync, sweep, tni, catdebrief",
+      "Shared": "files every program loads: scrollbar, popups, controls, dragsort, resizegrip, hoverfx, apphead, profilepick, tabsync, sweep, tni, catdebrief, magibrief (generated from magi.html)",
       "Shield": "the Shield desktop agent (desktop/); its page is shield.html at the root",
       "Shruti": "everything of Shruti but its page (shruti.html at the root): app/, books, media, tools, tests, docs, worker",
       "TaskHub": "TaskHub's own scripts (its page is index.html at the root)",
