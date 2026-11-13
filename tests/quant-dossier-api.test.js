@@ -123,7 +123,8 @@ globalThis.fetch = async (url) => {
   ok('a first request makes at most 6 provider calls', r.status === 200 && r.body.calls <= 6 && W.calls.length <= 6, r.body && r.body.calls + ' / ' + W.calls.length);
   ok('...the parts past the budget are pending, in order', JSON.stringify(r.body.pending) === JSON.stringify(['estimates', 'sec']), JSON.stringify(r.body.pending));
   ok('...each part carries its source and time', ['calendar', 'metric', 'target', 'recommendation', 'surprises', 'insiders'].every((p) => r.body.parts[p] && r.body.parts[p].src && r.body.parts[p].at > 0));
-  ok('...stored in ONE batch', env.DB.batches.filter((n) => n === 6).length === 1 && env.DB.parts.size === 6, JSON.stringify(env.DB.batches));
+  // Two batches: the six parts, and the ledger's usage and health rows.
+  ok('...stored in ONE batch (plus the ledger\'s)', env.DB.batches.length === 2 && env.DB.parts.size === 6 && env.DB.writes === 6, JSON.stringify(env.DB.batches));
   const f = (p) => r.body.parts[p].facts;
   ok('Finnhub metrics: percents become fractions, market cap in dollars', f('metric').grossMargin === 0.721 && f('metric').marketCap === 4.5e12 && f('metric').pe === 48.2 && f('metric').revGrowth3y === 0.85);
   ok('...its P/E history oldest first', JSON.stringify(f('metric').peHist.map((x) => x.v)) === '[55,40,48]');
