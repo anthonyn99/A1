@@ -223,7 +223,9 @@ async function putDrawings(env, req) {
   const out = JSON.stringify(list), now = Date.now();
   if (out.length > DRAWINGS_BYTES) throw fail(413, 'at most ' + DRAWINGS_BYTES + ' bytes of drawings a chart');
   await env.DB.prepare('INSERT INTO drawings (symbol, body, at, gone_at) VALUES (?, ?, ?, NULL) '
-    + 'ON CONFLICT (symbol) DO UPDATE SET body = excluded.body, at = excluded.at').bind(symbol, out, now).run();
+    // A save clears gone_at: a chart still being drawn on (a ticker-panel symbol off the
+    // watchlist, say) is swept only 30 days after the next watchlist change that follows it.
+    + 'ON CONFLICT (symbol) DO UPDATE SET body = excluded.body, at = excluded.at, gone_at = NULL').bind(symbol, out, now).run();
   return json({ ok: true, symbol, n: list.length, at: now });
 }
 /** GET /alerts[?symbol=X]: the rules, newest first. */

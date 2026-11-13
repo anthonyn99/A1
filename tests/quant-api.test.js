@@ -493,6 +493,10 @@ globalThis.fetch = async (url, init = {}) => {
   env.DB.drawings.get('AMD').gone_at = Date.now() - 31 * DAY;
   await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
   ok('...gone 30 days, they are deleted', !env.DB.drawings.has('AMD') && env.DB.drawings.has('NVDA'));
+  await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'SPY', drawings: [line] } });
+  await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
+  await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'SPY', drawings: [line, line] } });
+  ok('a symbol off the watchlist that is still drawn on is unmarked by the save', env.DB.drawings.get('SPY').gone_at == null);
   const noTable = fullEnv(); const prep = noTable.DB.prepare;
   noTable.DB.prepare = (sql) => (/drawings/.test(sql) ? { bind: () => ({ run: async () => { throw new Error('no such table: drawings'); } }) } : prep(sql));
   r = await call(noTable, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
