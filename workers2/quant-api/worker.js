@@ -12,7 +12,8 @@
 //   GET  /whoami                   { ok }
 //   GET  /usage                    today's calls per service with caps, provider health, which keys are set
 //   GET  /quotes?symbols=A,B       { quotes: {SYM: Quote}, asOf, missing, tried }   max 60; 503 when nobody answered
-//   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried }
+//   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried, check? }
+//                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
 //   GET  /stream-keys              { alpaca: {key, secret}, finnhub: {key} }   the page's two live streams
 //   GET  /corrections?limit=50     the data doctor's log, newest first
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
@@ -269,6 +270,8 @@ async function bars(env, url, ctx) {
   finally { await later(ctx, L.flush()); }
   if (!out) throw fail(503, 'no provider answered', { tried: [] });
   out.known = await noteHistory(env, symbol, tf, out, now);
+  // Days where Yahoo's old history and Tiingo disagree go to the data doctor's log.
+  if (out.check && out.check.mismatches && out.check.mismatches.length) await later(ctx, logMismatches(env, symbol, out.check.mismatches, now));
   const cc = !(closed && out.complete) ? 'public, max-age=' + (marketHours(now) ? 15 : 300)
     : adj ? 'public, max-age=86400' : 'public, max-age=31536000, immutable';
   const r = json({ ok: true, ...out }, 200, { 'cache-control': cc });
@@ -287,6 +290,14 @@ async function noteHistory(env, symbol, tf, out, now) {
       .bind(symbol, tf, next.first_t, next.last_t, out.provider, now).run();
   }
   return next;
+}
+
+/** The history check's disagreements → corrections rows (kind 'bars'), one batch. */
+async function logMismatches(env, symbol, list, now) {
+  const pctx = (x) => (x * 100).toFixed(2) + '%';
+  const stmts = list.map((m) => env.DB.prepare('INSERT INTO corrections (at, kind, symbol, field, old_v, new_v, source, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(now, 'bars', symbol, 'daily return ' + new Date(m.t + 12 * 3600_000).toISOString().slice(0, 10), pctx(m.yahoo), pctx(m.tiingo), 'tiingo', 'Yahoo history vs Tiingo: kept Yahoo, flagged'));
+  try { if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run(); } catch (e) { console.warn('history check log:', e.message || e); }
 }
 
 /* ── /corrections ───────────────────────────────────────────────────────── */

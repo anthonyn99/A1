@@ -96,6 +96,12 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
     }
     if (!parts.some((p) => p.bars)) return null;
   }
+  // History from before Alpaca's start that Yahoo served is checked against Tiingo.
+  let check = null;
+  if (!INTRADAY.has(base) && from < ALPACA_START && parts[0] && parts[0].provider === 'yahoo' && tiingo.has(env)) {
+    try { check = { by: 'tiingo', ...compareReturns(parts[0].bars, await tiingo.raw(L, env, sym, from, Math.min(to, ALPACA_START - 1))) }; }
+    catch (e) { if (!(e instanceof ProviderError)) throw e; check = { by: 'tiingo', error: e.message }; }
+  }
   const ok = parts.filter((p) => p.bars);
   // Trim the base bars first, so a week or month that began before `from` still comes out.
   const bars = toTimeframe(within(mergeBars(...ok.map((p) => p.bars)), from, to), tf);
@@ -104,5 +110,27 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
     provider: [...new Set(ok.map((p) => p.provider))].join('+'),
     complete: ok.length === parts.length && !ok.some((p) => p.clipped),
     tried,
+    ...(check ? { check } : {}),
   };
+}
+
+export const CHECK_TOL = 0.01, CHECK_LIST = 20;
+/** Yahoo's old daily bars against Tiingo's raw closes, by DAILY RETURN (a
+ *  return does not change with split adjustment, so the two need not be
+ *  adjusted alike). A day is compared when both sources have it and the day
+ *  before, and Tiingo shows no split that day. → `{ days, mismatches: [{ t,
+ *  yahoo, tiingo }] (at most 20), more }`, returns as fractions; a mismatch
+ *  differs by more than 1 point. */
+export function compareReturns(yahooBars, raw) {
+  const tb = new Map((raw || []).map((r, i) => [r.t, { ...r, prev: i ? raw[i - 1] : null }]));
+  let days = 0, more = 0;
+  const mismatches = [];
+  for (let i = 1; i < (yahooBars || []).length; i++) {
+    const y0 = yahooBars[i - 1], y1 = yahooBars[i], t1 = tb.get(y1.t);
+    if (!t1 || !t1.prev || t1.prev.t !== y0.t || t1.split !== 1 || !(y0.c > 0) || !(t1.prev.c > 0)) continue;
+    days++;
+    const ry = y1.c / y0.c - 1, rt = t1.c / t1.prev.c - 1;
+    if (Math.abs(ry - rt) > CHECK_TOL) { if (mismatches.length < CHECK_LIST) mismatches.push({ t: y1.t, yahoo: ry, tiingo: rt }); else more++; }
+  }
+  return { days, mismatches, more };
 }

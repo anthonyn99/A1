@@ -90,10 +90,7 @@ export const tiingo = {
    *  take out dividends, which Alpaca and Yahoo here do not). */
   async bars(L, env, sym, tf, from, to, adj) {
     if (tf !== '1d') return null;
-    const d = (ms) => new Date(ms).toISOString().slice(0, 10);
-    const j = await call(L, 'tiingo', `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(sym.replace(/\./g, '-').toLowerCase())}/prices?startDate=${d(from)}&endDate=${d(to)}&token=${encodeURIComponent(env.TIINGO_KEY)}`,
-      { timeout: BARS_TIMEOUT });
-    if (!Array.isArray(j)) throw noteBad(L, 'tiingo', 'bars in an unknown shape');
+    const j = await tiingoRows(L, env, sym, from, to);
     const out = [];
     let f = 1;
     for (let i = j.length - 1; i >= 0; i--) {
@@ -105,4 +102,18 @@ export const tiingo = {
     }
     return out.reverse();
   },
+  /** Raw daily closes for the history check → [{ t, c, split }] (split = that
+   *  day's split factor, 1 on an ordinary day), oldest first. One call. */
+  async raw(L, env, sym, from, to) {
+    const j = await tiingoRows(L, env, sym, from, to), out = [];
+    for (const r of j) if (r.close > 0) out.push({ t: nyMidnight(String(r.date).slice(0, 10)), c: r.close, split: r.splitFactor > 0 ? r.splitFactor : 1 });
+    return out;
+  },
 };
+async function tiingoRows(L, env, sym, from, to) {
+  const d = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const j = await call(L, 'tiingo', `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(sym.replace(/\./g, '-').toLowerCase())}/prices?startDate=${d(from)}&endDate=${d(to)}&token=${encodeURIComponent(env.TIINGO_KEY)}`,
+    { timeout: BARS_TIMEOUT });
+  if (!Array.isArray(j)) throw noteBad(L, 'tiingo', 'bars in an unknown shape');
+  return j;
+}
