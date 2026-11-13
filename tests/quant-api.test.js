@@ -64,7 +64,7 @@ function fakeDb() {
       if (/^INSERT INTO bars_meta/.test(sql)) { meta.set(args[0] + '|' + args[1], { first_t: args[2], last_t: args[3], provider: args[4] }); return {}; }
       if (/^INSERT INTO snapshots/.test(sql)) { snapshots.set(args[0] + '|' + args[1], { day: args[0], slot: args[1], due: args[2], at: args[3], by: args[4], body: args[5] }); return {}; }
       if (/^INSERT INTO corrections/.test(sql)) { corrections.push({ id: corrections.length + 1, at: args[0], kind: args[1], symbol: args[2], field: args[3], old_v: args[4], new_v: args[5], source: args[6], note: args[7] }); return {}; }
-      if (/^INSERT INTO drawings/.test(sql)) { const old = drawings.get(args[0]); drawings.set(args[0], { symbol: args[0], body: args[1], at: args[2], gone_at: old ? null : null }); return {}; }
+      if (/^INSERT INTO drawings/.test(sql)) { const old = drawings.get(args[0]); drawings.set(args[0], { symbol: args[0], body: args[1], at: args[2], gone_at: old && !/gone_at = NULL'?s*$|gone_at = NULL/.test(sql.split('DO UPDATE')[1] || '') ? old.gone_at : null }); return {}; }
       if (/^UPDATE drawings SET gone_at = \? WHERE gone_at IS NULL AND symbol NOT IN/.test(sql)) { const keep = JSON.parse(args[1]); for (const d of drawings.values()) if (d.gone_at == null && !keep.includes(d.symbol)) d.gone_at = args[0]; return {}; }
       if (/^UPDATE drawings SET gone_at = NULL/.test(sql)) { const keep = JSON.parse(args[0]); for (const d of drawings.values()) if (d.gone_at != null && keep.includes(d.symbol)) d.gone_at = null; return {}; }
       if (/^DELETE FROM drawings WHERE gone_at IS NOT NULL AND gone_at < \?/.test(sql)) { for (const [k, d] of drawings) if (d.gone_at != null && d.gone_at < args[0]) drawings.delete(k); return {}; }
