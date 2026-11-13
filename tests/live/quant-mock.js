@@ -88,7 +88,7 @@ function walkDaily(sym, from, to) {
  */
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
-  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [] };
+  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [] };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
     handle(req) {
@@ -112,6 +112,9 @@ function quantApi() {
       if (p === '/alerts' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, alerts: state.alerts.filter((a) => !sym || a.symbol === sym) } }; }
       if (p === '/alerts' && req.method === 'POST') { const a = JSON.parse(req.postData).alert, id = a.id || 'a' + (state.alerts.length + 1) + '_' + Math.round(Math.random() * 1e6); state.alerts = state.alerts.filter((x) => x.id !== id).concat([{ ...a, id, active: 1 }]); (posted.alerts = posted.alerts || []).push({ ...a, id }); return { json: { ok: true, id } }; }
       if (p === '/alerts' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.alerts = state.alerts.filter((x) => x.id !== id); return { json: { ok: true, id } }; }
+      if (p === '/signals' && req.method === 'GET') return { json: { ok: true, signals: state.signals } };
+      if (p === '/signals' && req.method === 'POST') { const b = JSON.parse(req.postData); (posted.signals = posted.signals || []).push(b); for (const x of b.signals) if (!state.signals.some((y) => y.id === x.id)) state.signals.push({ ...x, done: false }); return { json: { ok: true, sent: b.signals.length } }; }
+      if (p === '/grades' && req.method === 'POST') { (posted.grades = posted.grades || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/quotes') {
         if (!state.quotes) return { status: 503, json: { ok: false, error: 'no provider answered', missing: {} } };
         const quotes = {};
