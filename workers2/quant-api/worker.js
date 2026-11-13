@@ -18,6 +18,7 @@
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
 //   GET  /snapshot?day[&slot]      { snapshot, watchlist }  the newest market snapshot up to that New York day
 //   POST /snapshot                 { snapshot }  kept under its (day, slot); from the runner or the page
+//   POST /snapshot/claim           { day, slot } → { granted }  one device builds a slot the runner missed
 //   POST /watchlist                { symbols }   the watchlist the runner builds the snapshot for
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
@@ -26,7 +27,7 @@
 import { CAPS, Ledger, day, readLatency, median } from './lib/ledger.js';
 import { getQuotes, getBars, parseSymbols } from './lib/data.js';
 import { TFS, INTRADAY } from './lib/bars.js';
-import { marketHours, nyMonthStart } from './lib/time.js';
+import { marketHours, nyMonthStart, nyMidnight } from './lib/time.js';
 import * as alpaca from './providers/alpaca.js';
 import { finnhub, publicCom, tiingo } from './providers/others.js';
 
@@ -84,12 +85,18 @@ async function route(req, env, url, ctx) {
   if (p === '/corrections' && m === 'POST') return addCorrections(env, req);
   if (p === '/snapshot' && m === 'GET') return getSnapshot(env, url);
   if (p === '/snapshot' && m === 'POST') return putSnapshot(env, req);
+  if (p === '/snapshot/claim' && m === 'POST') return claimSnapshot(env, req);
   if (p === '/watchlist' && m === 'POST') return putWatchlist(env, req);
   throw fail(404, 'no such route');
 }
 
 /* ── /snapshot, /watchlist ──────────────────────────────────────────────── */
 export const SLOT_NAMES = ['premarket', 'open30', 'midday', 'close', 'nightly'];
+// Minutes after New York midnight each slot is due (A1-Priv TradeHub/core/slots.js SLOTS).
+export const SLOT_MIN = { premarket: 510, open30: 600, midday: 750, close: 970, nightly: 1230 };
+export const CLAIM_MS = 10 * 60_000;   // how long a device's claim to build a slot holds
+/** When `slot` of New York day `day` is due (ms). */
+export const slotDue = (day, slot) => nyMidnight(day) + SLOT_MIN[slot] * 60_000;
 export const SNAPSHOT_MAX = 300_000;   // bytes of JSON one snapshot may be
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** The watchlist the page last sent (meta row `watchlist`), or null. */
@@ -125,8 +132,10 @@ async function putSnapshot(env, req) {
   if (!s || typeof s !== 'object' || Array.isArray(s)) throw fail(400, 'snapshot is needed');
   if (!DAY_RE.test(s.day || '')) throw fail(400, 'snapshot.day must be YYYY-MM-DD');
   if (!SLOT_NAMES.includes(s.slot)) throw fail(400, 'snapshot.slot must be one of ' + SLOT_NAMES.join(' '));
-  if (!Number.isFinite(s.due) || !Number.isFinite(s.at) || !s.rows || typeof s.rows !== 'object' || !s.regime) throw fail(400, 'snapshot needs due, at, rows and regime');
+  if (!Number.isFinite(s.at) || !s.rows || typeof s.rows !== 'object' || !s.regime) throw fail(400, 'snapshot needs at, rows and regime');
   const now = Date.now();
+  // `due` orders the snapshots, so it is worked out here, never taken from the sender.
+  s.due = slotDue(s.day, s.slot);
   if (s.due > now + 60_000) throw fail(400, 'that slot is not due yet');
   const out = JSON.stringify(s);
   if (out.length > SNAPSHOT_MAX) throw fail(413, 'a snapshot may be at most ' + SNAPSHOT_MAX + ' bytes');
@@ -134,6 +143,20 @@ async function putSnapshot(env, req) {
     + 'ON CONFLICT (day, slot) DO UPDATE SET due = excluded.due, at = excluded.at, by = excluded.by, body = excluded.body')
     .bind(s.day, s.slot, Math.round(s.due), now, s.by === 'runner' ? 'runner' : 'page', out).run();
   return json({ ok: true, day: s.day, slot: s.slot });
+}
+/** POST /snapshot/claim { day, slot }: may the caller build this slot? Granted
+ *  when nobody claimed it in the last CLAIM_MS (meta row `claim:day:slot`), so
+ *  several devices that find it missing do not all build it. One read, one write. */
+async function claimSnapshot(env, req) {
+  let body;
+  try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  const day = body && body.day, slot = body && body.slot;
+  if (!DAY_RE.test(day || '') || !SLOT_NAMES.includes(slot)) throw fail(400, 'day and slot are needed');
+  const k = 'claim:' + day + ':' + slot, now = Date.now();
+  const row = await env.DB.prepare('SELECT at FROM meta WHERE k = ?').bind(k).first();
+  if (row && now - row.at < CLAIM_MS) return json({ ok: true, granted: false, until: row.at + CLAIM_MS });
+  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind(k, '1', now).run();
+  return json({ ok: true, granted: true });
 }
 /** POST /watchlist { symbols }: what the runner should include (meta row `watchlist`). */
 async function putWatchlist(env, req) {
