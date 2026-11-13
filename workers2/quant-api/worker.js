@@ -30,6 +30,9 @@
 //   GET  /signals?since&status&symbol&limit   { signals }   the scanner's ledger, newest first (lib/signals.js)
 //   POST /signals                  { signals }   new signals; one already stored is left as it is
 //   POST /grades                   { grades }    what happened to open signals
+//   GET/PUT /calibration           the setups' measured table (lib/backtest.js)
+//   GET/POST/DELETE /paper         signals followed on paper
+//   GET/POST /backtests, GET/DELETE /backtests/:id   saved strategy backtests
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -42,6 +45,7 @@ import * as alpaca from './providers/alpaca.js';
 import { finnhub, publicCom, tiingo } from './providers/others.js';
 import { fail, json } from './lib/http.js';
 import { getSignals, postSignals, postGrades } from './lib/signals.js';
+import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listBacktests, getBacktest, postBacktest, deleteBacktest } from './lib/backtest.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -110,6 +114,16 @@ async function route(req, env, url, ctx) {
   if (p === '/signals' && m === 'GET') return getSignals(env, url);
   if (p === '/signals' && m === 'POST') return postSignals(env, req);
   if (p === '/grades' && m === 'POST') return postGrades(env, req);
+  if (p === '/calibration' && m === 'GET') return getCalibration(env);
+  if (p === '/calibration' && m === 'PUT') return putCalibration(env, req);
+  if (p === '/paper' && m === 'GET') return getPaper(env);
+  if (p === '/paper' && m === 'POST') return postPaper(env, req);
+  if (p === '/paper' && m === 'DELETE') return deletePaper(env, url);
+  if (p === '/backtests' && m === 'GET') return listBacktests(env);
+  if (p === '/backtests' && m === 'POST') return postBacktest(env, req);
+  const bt = /^\/backtests\/([\w-]+)$/.exec(p);
+  if (bt && m === 'GET') return getBacktest(env, bt[1]);
+  if (bt && m === 'DELETE') return deleteBacktest(env, bt[1]);
   throw fail(404, 'no such route');
 }
 
