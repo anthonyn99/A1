@@ -53,7 +53,7 @@ follows the same rules (its own `docs/layout.md`).
 | `Notebook/` | The journals and the DOCX editor (`docs/Notebook/README.md`). |
 | `PriceWatch/` | The Price Watch extension. Brave loads it unpacked from this folder, so its own files stay flat as `manifest.json` names them. |
 | `Rules/` | Machine-read rules: `cleanup-rules.json` (the trash registry, read by `Shared/sweep.js`, `magi/sweep.py` and the tests), `firestore.rules`, `layout.json`. |
-| `Shared/` | Files every program loads: `scrollbar.js`, `popups.js`, `controls.js`, `dragsort.js`, `resizegrip.js`, `hoverfx.js`, `apphead.js`, `profilepick.js`, `tabsync.js`, `sweep.js`, `tni.js`, `catdebrief.js`. A1-Priv and StudyOS load them by URL (`https://anthonyn99.github.io/A1/Shared/...`). |
+| `Shared/` | Files every program loads: `scrollbar.js`, `popups.js`, `controls.js`, `dragsort.js`, `resizegrip.js`, `hoverfx.js`, `apphead.js`, `profilepick.js`, `tabsync.js`, `sweep.js`, `tni.js`, `catdebrief.js`, `magibrief.js` (generated from magi.html by `tools/build-magibrief.js`; never edit it). A1-Priv and StudyOS load them by URL (`https://anthonyn99.github.io/A1/Shared/...`). |
 | `Shield/` | The Shield desktop agent in `desktop/` (Tauri; its installer workflow builds from there). |
 | `Shruti/` | Everything of Shruti but its page: its modules in `app/`, books, media, tools, tests, docs, worker. |
 | `TaskHub/` | TaskHub's own scripts (`taskhub-merge.js`). |
