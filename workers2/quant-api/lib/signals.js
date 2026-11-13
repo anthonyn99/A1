@@ -5,7 +5,8 @@
 //   GET  /signals?since=ms&status=open|done|all&symbol=X&limit=N
 //        → { signals }, newest first (default: the last 30 days, all, 500)
 //   POST /signals { signals: [Signal] }     at most 100 a call; a signal whose id
-//        is already stored is left exactly as it is (no write)
+//        is already stored is left exactly as it is (no write); at most 600 NEW
+//        signals stored in any 24 hours
 //   POST /grades  { grades: [{ id, status, done, r, taken, triggeredAt, closedAt, mfe, mae, bars }] }
 //        at most 200 a call; a finished grade is never changed again
 //
@@ -75,13 +76,17 @@ export async function postSignals(env, req) {
   if (!list || !list.length) throw fail(400, 'signals is empty');
   if (list.length > SIGNALS_PER_CALL) throw fail(400, 'at most ' + SIGNALS_PER_CALL + ' signals a call');
   const rows = list.map(checkSignal), by = b.by === 'runner' ? 'runner' : 'page', now = Date.now();
-  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM signals WHERE at >= ?').bind(now - DAY).first();
-  if (n && n.n + rows.length > SIGNALS_PER_DAY) throw fail(429, 'at most ' + SIGNALS_PER_DAY + ' signals a day');
-  const stmts = rows.map((x) => env.DB.prepare('INSERT INTO signals (id, symbol, setup, horizon, dir, at, expires, verdict, score, regime, by, created, body) '
+  // Only rows not stored yet count against the cap (a stored id is ignored and writes nothing).
+  const have = new Set(((await env.DB.prepare('SELECT id FROM signals WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(rows.map((x) => x.id))).all()).results || []).map((x) => x.id));
+  const fresh = rows.filter((x) => !have.has(x.id));
+  if (!fresh.length) return json({ ok: true, sent: rows.length, added: 0 });
+  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM signals WHERE created >= ?').bind(now - DAY).first();
+  if (n && n.n + fresh.length > SIGNALS_PER_DAY) throw fail(429, 'at most ' + SIGNALS_PER_DAY + ' signals a day');
+  const stmts = fresh.map((x) => env.DB.prepare('INSERT INTO signals (id, symbol, setup, horizon, dir, at, expires, verdict, score, regime, by, created, body) '
     + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING')
     .bind(x.id, x.symbol, x.setup, x.horizon, x.dir, x.at, x.expires, x.verdict, x.score, x.regime, by, now, x.body));
   if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
-  return json({ ok: true, sent: rows.length });
+  return json({ ok: true, sent: rows.length, added: fresh.length });
 }
 
 /** POST /grades: one batch of updates; a row already done is not touched. */

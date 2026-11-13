@@ -32,7 +32,7 @@ function fakeDb() {
       if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
       if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
       if (/FROM drawings WHERE symbol = \?/.test(sql)) return drawings.get(args[0]) || null;
-      if (/COUNT\(\*\) AS n FROM signals WHERE at >= \?/.test(sql)) return { n: [...signals.values()].filter((x) => x.at >= args[0]).length };
+      if (/COUNT\(\*\) AS n FROM signals WHERE created >= \?/.test(sql)) return { n: [...signals.values()].filter((x) => x.created >= args[0]).length };
       if (/COUNT\(\*\) AS n FROM alerts WHERE id != \?/.test(sql)) return { n: [...alerts.keys()].filter((k) => k !== args[0]).length };
       throw new Error('fakeDb.first: ' + sql);
     },
@@ -42,6 +42,7 @@ function fakeDb() {
       if (/FROM meta WHERE k LIKE/.test(sql)) return { results: [...kv].filter(([k]) => k.startsWith('lat:')).map(([k, v]) => ({ k, v })) };
       if (/FROM corrections/.test(sql)) return { results: corrections.slice().reverse().slice(0, args[0]) };
       if (/FROM alerts WHERE symbol = \?/.test(sql)) return { results: [...alerts.values()].filter((a) => a.symbol === args[0]).sort((a, b) => b.created - a.created) };
+      if (/^SELECT id FROM signals WHERE id IN \(SELECT value FROM json_each\(\?\)\)/.test(sql)) { const ids = JSON.parse(args[0]); return { results: ids.filter((i) => signals.has(i)).map((id) => ({ id })) }; }
       if (/^SELECT \* FROM signals WHERE at >= \?/.test(sql)) {
         let k = 1, rows = [...signals.values()].filter((x) => x.at >= args[0]);
         if (/AND done = \?/.test(sql)) { const d = args[k++]; rows = rows.filter((x) => x.done === d); }
@@ -574,9 +575,11 @@ globalThis.fetch = async (url, init = {}) => {
   badSig.push((await call(env, '/grades', { key: GOOD, method: 'POST', body: { grades: [{ id: 'sdef456', status: 'won' }] } })).status);
   ok('refused: a bad id, an unknown verdict, expiry before the bar, no stop, an empty list, over 100, an unknown status', badSig.join() === '400,400,400,400,400,400,400', badSig.join());
   ok('...and nothing refused was stored', env.DB.signals.size === 2);
-  for (let i = 0; i < 598; i++) env.DB.signals.set('sfill' + i, { id: 'sfill' + i, at: NOW - 1000, done: 0 });
+  for (let i = 0; i < 598; i++) env.DB.signals.set('sfill' + i, { id: 'sfill' + i, at: NOW - 1000, created: Date.now() - 1000, done: 0 });
   r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'sover1' })] } });
-  ok('at most 600 signals a day', r.status === 429);
+  ok('at most 600 new signals stored in a day', r.status === 429);
+  r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig(), sig({ id: 'sdef456', setup: 'sweep' })] } });
+  ok('...but signals already stored never count: re-sending them is fine and writes nothing', r.status === 200 && r.body.added === 0);
 
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
