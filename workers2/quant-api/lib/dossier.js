@@ -49,7 +49,7 @@ export const jsonCache = {
 async function runPart(part, { L, env, sym, cik, now, room }) {
   let calls = 0;
   const one = async (fn) => { calls++; return fn(); };
-  if (FINNHUB_PARTS.has(part) && !env.FINNHUB_KEY) throw new ProviderError('finnhub', 'no Finnhub key set');
+  if (FINNHUB_PARTS.has(part) && !env.FINNHUB_KEY) throw new ProviderError('finnhub', 'no Finnhub key set', 'nokey');
   if (part === 'metric') return { src: 'finnhub', facts: await one(() => F.metric(L, env, sym)), calls };
   if (part === 'recommendation') return { src: 'finnhub', facts: await one(() => F.recommendation(L, env, sym)), calls };
   if (part === 'surprises') return { src: 'finnhub', facts: await one(() => F.surprises(L, env, sym)), calls };
@@ -104,7 +104,7 @@ export async function getDossier(env, url, ctx, later) {
           + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL').bind(sym, p, now, r.src, JSON.stringify(r.facts)));
       } catch (e) {
         if (!(e instanceof ProviderError)) throw e;
-        calls += 1;
+        if (e.status !== 'nokey') calls += 1;
         failed[p] = (e.provider ? e.provider + ': ' : '') + e.message;
       }
     }
