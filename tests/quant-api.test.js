@@ -17,7 +17,7 @@ const ok = (name, cond, extra) => {
 
 // The statements the worker uses, over plain maps.
 function fakeDb() {
-  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map();
+  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map(), drawings = new Map(), alerts = new Map();
   const newest = (rows) => rows.sort((a, b) => b.due - a.due)[0] || null;
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
@@ -31,6 +31,8 @@ function fakeDb() {
       if (/FROM snapshots WHERE day = \? AND slot = \?/.test(sql)) return snapshots.get(args[0] + '|' + args[1]) || null;
       if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
       if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
+      if (/FROM drawings WHERE symbol = \?/.test(sql)) return drawings.get(args[0]) || null;
+      if (/COUNT\(\*\) AS n FROM alerts WHERE id != \?/.test(sql)) return { n: [...alerts.keys()].filter((k) => k !== args[0]).length };
       throw new Error('fakeDb.first: ' + sql);
     },
     async all() {
@@ -38,6 +40,8 @@ function fakeDb() {
       if (/FROM provider_health/.test(sql)) return { results: [...health.values()].map((h) => ({ ...h })) };
       if (/FROM meta WHERE k LIKE/.test(sql)) return { results: [...kv].filter(([k]) => k.startsWith('lat:')).map(([k, v]) => ({ k, v })) };
       if (/FROM corrections/.test(sql)) return { results: corrections.slice().reverse().slice(0, args[0]) };
+      if (/FROM alerts WHERE symbol = \?/.test(sql)) return { results: [...alerts.values()].filter((a) => a.symbol === args[0]).sort((a, b) => b.created - a.created) };
+      if (/FROM alerts ORDER BY created DESC/.test(sql)) return { results: [...alerts.values()].sort((a, b) => b.created - a.created).slice(0, args[0]) };
       throw new Error('fakeDb.all: ' + sql);
     },
     async run() {
@@ -60,10 +64,19 @@ function fakeDb() {
       if (/^INSERT INTO bars_meta/.test(sql)) { meta.set(args[0] + '|' + args[1], { first_t: args[2], last_t: args[3], provider: args[4] }); return {}; }
       if (/^INSERT INTO snapshots/.test(sql)) { snapshots.set(args[0] + '|' + args[1], { day: args[0], slot: args[1], due: args[2], at: args[3], by: args[4], body: args[5] }); return {}; }
       if (/^INSERT INTO corrections/.test(sql)) { corrections.push({ id: corrections.length + 1, at: args[0], kind: args[1], symbol: args[2], field: args[3], old_v: args[4], new_v: args[5], source: args[6], note: args[7] }); return {}; }
+      if (/^INSERT INTO drawings/.test(sql)) { const old = drawings.get(args[0]); drawings.set(args[0], { symbol: args[0], body: args[1], at: args[2], gone_at: old ? null : null }); return {}; }
+      if (/^UPDATE drawings SET gone_at = \? WHERE gone_at IS NULL AND symbol NOT IN/.test(sql)) { const keep = JSON.parse(args[1]); for (const d of drawings.values()) if (d.gone_at == null && !keep.includes(d.symbol)) d.gone_at = args[0]; return {}; }
+      if (/^UPDATE drawings SET gone_at = NULL/.test(sql)) { const keep = JSON.parse(args[0]); for (const d of drawings.values()) if (d.gone_at != null && keep.includes(d.symbol)) d.gone_at = null; return {}; }
+      if (/^DELETE FROM drawings WHERE gone_at IS NOT NULL AND gone_at < \?/.test(sql)) { for (const [k, d] of drawings) if (d.gone_at != null && d.gone_at < args[0]) drawings.delete(k); return {}; }
+      if (/^INSERT INTO alerts/.test(sql)) {
+        const [id, symbol, kind, price, lo, hi, level, note, active, created, at] = args, old = alerts.get(id);
+        alerts.set(id, { id, symbol, kind, price, lo, hi, level, note, active, created: old ? old.created : created, at }); return {};
+      }
+      if (/^DELETE FROM alerts WHERE id = \?/.test(sql)) { alerts.delete(args[0]); return {}; }
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots, drawings, alerts };
   return db;
 }
 
@@ -451,6 +464,62 @@ globalThis.fetch = async (url, init = {}) => {
   ok('...and comes back with the snapshot, for the runner', r.body.watchlist.join() === 'NVDA,AMD,BRK.B');
   r = await call(env, '/watchlist', { key: GOOD, method: 'POST', body: {} });
   ok('a watchlist with no symbols list: 400', r.status === 400);
+
+  console.log('\nDrawings and alerts (the Charts tab)');
+  env = fullEnv();
+  r = await call(env, '/drawings?symbol=NVDA', { key: GOOD });
+  ok('no drawings yet: an empty list, not an error', r.status === 200 && Array.isArray(r.body.drawings) && !r.body.drawings.length && r.body.at === null);
+  const line = { id: 'd1', kind: 'trend', pts: [{ t: 1, p: 100 }, { t: 2, p: 110 }] };
+  r = await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'nvda', drawings: [line, { id: 'd2', kind: 'hline', pts: [{ t: 1, p: 95 }] }] } });
+  ok('drawings are kept per symbol, in one write', r.status === 200 && r.body.n === 2 && env.DB.drawings.size === 1 && env.DB.drawings.has('NVDA'));
+  r = await call(env, '/drawings?symbol=NVDA', { key: GOOD });
+  ok('...and come back as sent', r.body.drawings.length === 2 && r.body.drawings[0].kind === 'trend' && r.body.drawings[0].pts[1].p === 110 && r.body.at > 0);
+  r = await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'NVDA', drawings: [line] } });
+  ok('a second save replaces the first', (await call(env, '/drawings?symbol=NVDA', { key: GOOD })).body.drawings.length === 1);
+  const badDraw = [];
+  badDraw.push((await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'NVDA', drawings: 'x' } })).status);
+  badDraw.push((await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'not a symbol!', drawings: [] } })).status);
+  badDraw.push((await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'NVDA', drawings: [{ kind: 'trend' }] } })).status);
+  badDraw.push((await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'NVDA', drawings: Array.from({ length: 201 }, () => line) } })).status);
+  badDraw.push((await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'NVDA', drawings: [{ kind: 'text', pts: [], text: 'x'.repeat(70000) }] } })).status);
+  ok('refused: not a list, a bad symbol, a drawing with no points, 201 drawings, over 64 KB', badDraw.join() === '400,400,400,400,413', badDraw.join());
+  ok('drawings need the key', (await call(env, '/drawings?symbol=NVDA')).status === 401);
+  await call(env, '/drawings', { key: GOOD, method: 'PUT', body: { symbol: 'AMD', drawings: [line] } });
+  await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
+  ok('a symbol taken off the watchlist has its drawings marked, not deleted', env.DB.drawings.get('AMD').gone_at > 0 && env.DB.drawings.get('NVDA').gone_at == null);
+  await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA', 'AMD'] } });
+  ok('...put back in time, it keeps them', env.DB.drawings.get('AMD').gone_at == null);
+  await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
+  env.DB.drawings.get('AMD').gone_at = Date.now() - 31 * DAY;
+  await call(env, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
+  ok('...gone 30 days, they are deleted', !env.DB.drawings.has('AMD') && env.DB.drawings.has('NVDA'));
+  const noTable = fullEnv(); const prep = noTable.DB.prepare;
+  noTable.DB.prepare = (sql) => (/drawings/.test(sql) ? { bind: () => ({ run: async () => { throw new Error('no such table: drawings'); } }) } : prep(sql));
+  r = await call(noTable, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
+  ok('a database without the drawings table still keeps the watchlist', r.status === 200 && noTable.DB.kv.get('watchlist') === '["NVDA"]');
+
+  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'nvda', kind: 'level', price: 180.5, level: 'R1 Strong', note: 'bell' } } });
+  ok('an alert rule is stored, with an id made for it', r.status === 200 && typeof r.body.id === 'string' && env.DB.alerts.size === 1);
+  const aid = r.body.id;
+  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', kind: 'level', lo: 170, hi: 172 } } });
+  ok('a zone alert (lo and hi) too', r.status === 200 && env.DB.alerts.size === 2);
+  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: aid, symbol: 'NVDA', kind: 'price', price: 181 } } });
+  ok('the same id changes it (an alert line dragged)', env.DB.alerts.size === 2 && env.DB.alerts.get(aid).price === 181 && env.DB.alerts.get(aid).kind === 'price');
+  r = await call(env, '/alerts?symbol=NVDA', { key: GOOD });
+  ok('GET lists a symbol\'s alerts', r.body.alerts.length === 2 && r.body.alerts.every((a) => a.symbol === 'NVDA'));
+  const badAlert = [];
+  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA' } } })).status);
+  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 'abc' } } })).status);
+  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 1, id: 'bad id!' } } })).status);
+  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: {} })).status);
+  ok('refused: no price, a price that is not a number, a bad id, no alert', badAlert.join() === '400,400,400,400', badAlert.join());
+  r = await call(env, '/alerts?id=' + aid, { key: GOOD, method: 'DELETE' });
+  ok('DELETE removes one', r.status === 200 && env.DB.alerts.size === 1 && !env.DB.alerts.has(aid));
+  for (let i = env.DB.alerts.size; i < 200; i++) env.DB.alerts.set('x' + i, { id: 'x' + i, symbol: 'NVDA', created: i });
+  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 1 } } });
+  ok('at most 200 alerts', r.status === 400 && /200/.test(r.body.error));
+  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: 'x5', symbol: 'NVDA', price: 2 } } });
+  ok('...but one of the 200 can still be changed', r.status === 200);
 
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
