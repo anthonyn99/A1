@@ -150,7 +150,7 @@ const RUN = {
       h2.__root.render(React.createElement(window.tbNewsSummary.Overlay,{onClose:function(){}, summary:null, loading:true, error:'', generatedAt:new Date(2026,10,12,13,48).getTime(), eventCount:42})); 1`);
     await sleep(300);
     const meta = await js(`return document.querySelector('.nhs-head .nhs-meta').textContent;`);
-    ok('News Summary: built 11/12/2026 06:21 and how long ago', /42 events/.test(meta) && /11\/12\/2026 06:21/.test(meta) && /(\d+[mhd] ago|now)/.test(meta), meta);
+    ok("News Summary: Built 11/12/'26 1:48 PM and how long ago, no event count", meta.includes("Built 11/12/'26 1:48 PM") && /(\d+[mhd] ago|now)/.test(meta) && !/events/.test(meta), meta);
     await shot(`summary-${tag}-meta`);
     await js(`var h2=document.getElementById('__sum'); h2.__root.unmount(); h2.remove(); 1`);
     await js(`window.MagiBrief.setView('brief'); 1`);

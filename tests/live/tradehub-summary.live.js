@@ -101,7 +101,7 @@ const SUMMARY = {
     ok('the gauge marks +0.20 (60%), filled from the centre', r.dotLeft === '60%' && parseFloat(r.fillW) === 10, r.dotLeft + ' ' + r.fillW);
     ok('key points: each an outlined card, edged in its stance, unnumbered, with stance and tickers', r.points === 4 && r.nums === 0 && r.boxed && /▲Bull,▼Bear,▲Bull,●Neutral/.test(r.tags) && r.chips === 6, JSON.stringify([r.nums, r.tags, r.chips]));
     ok('ticker and theme cards, risks and what to watch', r.tickers === 3 && r.themes === 2 && r.risks === 4, JSON.stringify([r.tickers, r.themes, r.risks]));
-    ok('footer names the model', /55 analyzed events/.test(r.foot) && /gemini-2\.5-flash/.test(r.foot), r.foot);
+    ok('footer names the model, no event count', !/\d+ analyzed events/.test(r.foot) && /gemini-2\.5-flash/.test(r.foot), r.foot);
     ok('no tinted washes and no gradients (MAGI theme)', !r.washes.length && !r.grads, JSON.stringify(r.washes) + ' grads=' + r.grads);
     ok('the score is Inter 500 tabular', /Inter/.test(r.scoreFont) && /\|500\|/.test(r.scoreFont) && /tabular-nums/.test(r.scoreFont), r.scoreFont);
     ok('the header stays put while it scrolls', r.headSticky === 'sticky');
