@@ -9,7 +9,8 @@
 //      a switch under 450 ms, no task over 200 ms, 30 frames a second
 //   4. a tab change is a quick settle, transform only: nothing fades, and a
 //      click on the tab already open plays nothing at all
-//   5. an 800-trade Journal opens in under 150 ms and still draws every row
+//   5. an 800-trade Journal opens in under 150 ms, draws more rows as it is
+//      scrolled (all 800 by the end) and runs nothing while it sits still
 //
 // PERF_SECONDS shortens the scripted minute while working on the test.
 // Run: node tests/live/tradehub-perf.live.js
@@ -126,9 +127,12 @@ const PROBE = `(() => {
   ok('...with a transform only, nothing fading, in under 200 ms', moving.every((a) => a.props.length && a.props.every((p) => p === 'transform') && a.ms <= 200), JSON.stringify(moving));
   ok('...and no view transition', !anim.some((a) => /view-transition/.test(String(a.on))));
   await sleep(400);
-  const again = JSON.parse(await js(`var b = [...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(function(x){return x.offsetParent;}); var first = document.querySelector('.tbq-pane > *'); b.click(); b.click();
+  const again = JSON.parse(await js(`var b = [...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(function(x){return x.offsetParent;}); var first = document.querySelector('.tbq-pane > *');
+    var before = new Set(document.getAnimations());
+    b.click(); b.click();
     await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
-    return JSON.stringify({ same: document.querySelector('.tbq-pane > *') === first, anims: document.getAnimations().filter(function(a){ return /tbq|tb-fade-in/.test(String(a.animationName||'') + ' ' + String((a.effect.target && a.effect.target.className) || '')); }).length });`));
+    var started = document.getAnimations().filter(function(a){ return !before.has(a); });
+    return JSON.stringify({ same: document.querySelector('.tbq-pane > *') === first, anims: started.length, what: started.map(function(a){ return String(a.animationName || '') + ' on ' + String((a.effect.target && a.effect.target.className) || ''); }) });`));
   ok('clicking the tab already open redraws nothing and plays nothing', again.same && again.anims === 0, JSON.stringify(again));
   await sleep(500);
   await c.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
@@ -144,11 +148,19 @@ const PROBE = `(() => {
   for (let i = 0; i < 3; i++) { jt.push(await js(`return window.__switch('journal');`)); await sleep(1500); await js(`return window.__switch('portfolio');`); await sleep(400); }
   console.log('    Journal on screen (ms): ' + jt.map(Math.round).join(', '));
   ok('it is on screen in under 150 ms', Math.max(...jt) < 150, jt.join());
+  await js(`return window.__switch('journal');`); await sleep(300);
+  const rows = () => js(`return document.querySelectorAll('.tbj-tbl tbody tr:not(.tbj-day)').length;`);
+  const first = await rows();
   await js(`window.__perf.long.length = 0; window.__perf.on = true; 1`);
-  await js(`return window.__switch('journal');`);
-  ok('...and draws all 800 rows within two seconds', await until(`document.querySelectorAll('.tbj-tbl tbody tr:not(.tbj-day)').length === 800`, 2000), await js(`return document.querySelectorAll('.tbj-tbl tbody tr:not(.tbj-day)').length;`));
+  await sleep(2000);
+  const idle = JSON.parse(await js(`window.__perf.on = false; return JSON.stringify(window.__perf.long.map(function(x){return x.ms;}));`));
+  ok(`it opens with the first ${first} rows and runs nothing while it sits still`, first >= 50 && first < 200 && idle.length === 0 && (await rows()) === first, first + ' rows; ' + idle.join());
+  await js(`window.__perf.long.length = 0; window.__perf.on = true; 1`);
+  for (let k = 0; k < 40 && (await rows()) < 800; k++) { await js(`var p=document.querySelector('.tb-scroll-visible'); p.scrollTop=p.scrollHeight; 1`); await sleep(150); }
   const jl = JSON.parse(await js(`window.__perf.on = false; return JSON.stringify(window.__perf.long.map(function(x){return x.ms;}));`));
-  ok('...without a main-thread task over 100 ms while it fills in', jl.every((x) => x <= 100), jl.join());
+  ok('scrolling to the end draws all 800 rows', (await rows()) === 800, await rows());
+  ok('...with no main-thread task over 50 ms on the way', jl.every((x) => x <= 50), jl.join());
+  ok('"Show all" is gone once every row is drawn', await js(`return !document.querySelector('[data-tbj-more]');`));
 
   console.log('\nSide effects');
   ok('no page errors', errs.length === 0, errs.join(' | '));
