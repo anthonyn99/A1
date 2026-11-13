@@ -25,4 +25,5 @@ migrations_dir = "migrations"
 #   ALPACA_KEY, ALPACA_SECRET   Alpaca PAPER key (market data only; it cannot trade money)
 #   PUBLIC_KEY                  Public.com API secret (PUBLIC_ACCOUNT_ID optional)
 #   TIINGO_KEY                  the second source for daily history
+#   ALPHAVANTAGE_KEY            the dossier's second source for price targets (at most 20 calls a day)
 # Added by later phases: GEMINI_KEY, PUSH_SECRET.

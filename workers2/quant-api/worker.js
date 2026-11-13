@@ -33,6 +33,10 @@
 //   GET/PUT /calibration           the setups' measured table (lib/backtest.js)
 //   GET/POST/DELETE /paper         signals followed on paper
 //   GET/POST /backtests, GET/DELETE /backtests/:id   saved strategy backtests
+//   GET  /dossier?symbol&cik       the ticker dossier's parts (lib/dossier.js; at most 6 provider calls)
+//   GET  /fundamentals?symbols     basic financials for the nightly ideas (at most 25 symbols)
+//   GET/POST /ideas                the nightly ideas
+//   POST /short-volume             FINRA short volume rows from the runner
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -46,6 +50,7 @@ import { finnhub, publicCom, tiingo } from './providers/others.js';
 import { fail, json } from './lib/http.js';
 import { getSignals, postSignals, postGrades } from './lib/signals.js';
 import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listBacktests, getBacktest, postBacktest, deleteBacktest } from './lib/backtest.js';
+import { getDossier, getFundamentals, getIdeas, postIdeas, postShortVolume } from './lib/dossier.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -121,6 +126,11 @@ async function route(req, env, url, ctx) {
   if (p === '/paper' && m === 'DELETE') return deletePaper(env, url);
   if (p === '/backtests' && m === 'GET') return listBacktests(env);
   if (p === '/backtests' && m === 'POST') return postBacktest(env, req);
+  if (p === '/dossier' && m === 'GET') return getDossier(env, url, ctx, later);
+  if (p === '/fundamentals' && m === 'GET') return getFundamentals(env, url, ctx, later);
+  if (p === '/ideas' && m === 'GET') return getIdeas(env);
+  if (p === '/ideas' && m === 'POST') return postIdeas(env, req);
+  if (p === '/short-volume' && m === 'POST') return postShortVolume(env, req);
   const bt = /^\/backtests\/([\w-]+)$/.exec(p);
   if (bt && m === 'GET') return getBacktest(env, bt[1]);
   if (bt && m === 'DELETE') return deleteBacktest(env, bt[1]);
@@ -228,7 +238,7 @@ async function usage(env) {
     usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })),
     health,
     caps: CAPS,
-    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), groq: !!env.GROQ_KEY },
+    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), groq: !!env.GROQ_KEY, alphavantage: !!env.ALPHAVANTAGE_KEY },
   });
 }
 

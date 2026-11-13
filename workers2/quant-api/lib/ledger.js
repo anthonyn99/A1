@@ -14,6 +14,7 @@ export const CAPS = {
   cboe: 500,
   fred: 400,        // free: 1,000 a day
   sec: 2000,
+  nasdaq: 2000,     // the dossier's analyst pages (no key)
   alphavantage: 20, // free: 25 a day
   tiingo: 400,      // free: 1,000 a day
   groq: 800,        // free: about 1,000 a day
