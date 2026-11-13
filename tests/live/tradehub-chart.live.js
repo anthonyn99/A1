@@ -205,6 +205,20 @@ const CH = `${TAB}.active()`;
   await ready();
   ok('after a reload the drawing and the alerts are back', await until(`${CH}.info().drawings === 1 && ${CH}.info().alerts === 2`, 8000), JSON.stringify(await info()));
 
+  // The keyboard reaches the chart: Escape drops a tool, Delete removes a selected alert line.
+  await js(`if (document.querySelector('[data-ch-drawtools]') === null && document.querySelector('[data-ch-tool="trend"]').offsetParent === null) document.querySelector('[data-ch-drawbtn]').click(); 1`);
+  await js(`document.querySelector('[data-ch-tool="trend"]').click(); 1`);
+  await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }); await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  ok('Escape drops the picked tool', await until(`!${CH}.draw().tool() && !document.querySelector('[data-ch-tool="trend"]').classList.contains('is-on')`, 2000));
+  s = await stage();
+  const alertY = JSON.parse(await js(`var a=${CH}.draw().alerts().find(function(x){return x.kind==='price';}); return JSON.stringify(a ? ${CH}.geo.y(a.price) : null);`));
+  if (alertY != null) {
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: s.l + s.w * 0.4, y: s.t + alertY, button: 'left', clickCount: 1 });
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: s.l + s.w * 0.4, y: s.t + alertY, button: 'left', clickCount: 1 });
+    await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 }); await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+  }
+  ok('a pressed alert line is selected, and Delete removes it and its rule', alertY != null && await until(`${CH}.info().alerts === 1`, 3000) && api.asked.some((x) => x.p === '/alerts' && x.method === 'DELETE'), JSON.stringify(await info()).slice(0, 200));
+
   console.log('\nThe watchlist, mirrored');
   let rounds = 0;
   for (let k = 0; k < 5; k++) {
