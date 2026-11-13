@@ -26,7 +26,7 @@ const MIN = 60000;
 
 // Three stored signals, one for each lane (still running at the mock's clock).
 function seed(id, verdict, o = {}) {
-  return { id, symbol: 'NVDA', setup: 'orb', horizon: 'day', dir: 'long', at: CLOCK - 60 * MIN, expires: CLOCK + 60 * MIN, verdict, score: verdict === 'GO' ? 78 : verdict === 'WATCH' ? 60 : 40,
+  return { id, symbol: 'NVDA', setup: 'orb', horizon: 'day', dir: 'long', at: CLOCK - 2 * MIN, expires: CLOCK + 60 * MIN, verdict, score: verdict === 'GO' ? 78 : verdict === 'WATCH' ? 60 : 40,
     trigger: 164, zone: [163.9, 164.15], entry: 164.03, stop: 163.6, targets: [164.7, 165.3], rr: [1.6, 3], risk: 0.85, atr: 0.6, factors: { trend: 0.8 },
     why: ['above its rising averages', 'volume 2.1× usual', 'no high-impact catalyst before it expires', 'volatility at an extreme'], notes: ['closed above the opening range'],
     backtested: false, regime: 'Constructive', status: 'open', done: false, created: CLOCK - 60 * MIN, ...o };
