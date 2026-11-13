@@ -277,6 +277,13 @@
     transition: opacity 0.1s, color 0.1s, background 0.1s;
   }
 #tj-root .entry-item:hover .entry-delete { opacity: 1; }
+#tj-root .entry-pin {
+    position: absolute; top: 8px; right: 6px;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 12px; pointer-events: none;
+  }
+#tj-root .entry-pin svg { width: 13px; height: 13px; display: block; }
 #tj-root .entry-delete:hover { color: var(--red); background: transparent; }
 
 #tj-root #tj-sidebar-stats {

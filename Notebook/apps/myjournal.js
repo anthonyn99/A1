@@ -1129,7 +1129,10 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
-    if (_tjIsPinned(entry.id)) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').style.setProperty('display', 'none', 'important'); }
+    if (_tjIsPinned(entry.id)) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').style.setProperty('display', 'none', 'important'); 
+      // A pin where the x would be: this page stays first and is never trashed.
+      div.insertAdjacentHTML('beforeend', `<span class="entry-pin" title="Pinned: always first, can't be moved to Trash" aria-label="Pinned">${(window.TNI.pin || '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>')}</span>`);
+    }
     div.addEventListener('click', e => {
       if (e.target.closest('.entry-delete')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
