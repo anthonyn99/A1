@@ -54,6 +54,7 @@ function quantApi() {
       if (auth !== 'Bearer ' + KEY) return { status: 401, json: { ok: false, error: 'an Orca key is needed' } };
       if (p === '/snapshot' && req.method === 'GET') return { json: { ok: true, snapshot: state.snapshot, watchlist: state.watchlist } };
       if (p === '/snapshot' && req.method === 'POST') { const s = JSON.parse(req.postData).snapshot; posted.snapshots.push(s); state.snapshot = s; return { json: { ok: true } }; }
+      if (p === '/snapshot/claim') { posted.claims = (posted.claims || 0) + 1; return { json: { ok: true, granted: state.claim !== false } }; }
       if (p === '/watchlist') { const l = JSON.parse(req.postData).symbols; posted.watchlists.push(l); state.watchlist = l; return { json: { ok: true, symbols: l } }; }
       if (p === '/bars') {
         const sym = u.searchParams.get('symbol');

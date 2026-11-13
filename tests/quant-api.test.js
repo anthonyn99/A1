@@ -17,7 +17,7 @@ const ok = (name, cond, extra) => {
 
 // The statements the worker uses, over plain maps.
 function fakeDb() {
-  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), corrections = [], snapshots = new Map();
+  const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map();
   const newest = (rows) => rows.sort((a, b) => b.due - a.due)[0] || null;
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
@@ -27,6 +27,7 @@ function fakeDb() {
       if (/FROM usage WHERE day = \? AND service = \?/.test(sql)) { const n = usage.get(args[0] + '|' + args[1]); return n == null ? null : { n }; }
       if (/FROM bars_meta/.test(sql)) return meta.get(args[0] + '|' + args[1]) || null;
       if (/FROM meta WHERE k = 'watchlist'/.test(sql)) return kv.has('watchlist') ? { v: kv.get('watchlist'), at: 1 } : null;
+      if (/SELECT at FROM meta WHERE k = \?/.test(sql)) return kv.has(args[0]) ? { at: kvAt.get(args[0]) } : null;
       if (/FROM snapshots WHERE day = \? AND slot = \?/.test(sql)) return snapshots.get(args[0] + '|' + args[1]) || null;
       if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
       if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
@@ -55,14 +56,14 @@ function fakeDb() {
         health.set(args[0], { provider: args[0], ok: args[1], status: args[2], latency_ms: args[3], detail: args[4], at, ok_at: args[6] == null ? ((old && old.ok_at) || null) : args[6], fails, skip_until: skip });
         return {};
       }
-      if (/^INSERT INTO meta/.test(sql)) { kv.set(args[0], args[1]); return {}; }
+      if (/^INSERT INTO meta/.test(sql)) { kv.set(args[0], args[1]); kvAt.set(args[0], args[2]); return {}; }
       if (/^INSERT INTO bars_meta/.test(sql)) { meta.set(args[0] + '|' + args[1], { first_t: args[2], last_t: args[3], provider: args[4] }); return {}; }
       if (/^INSERT INTO snapshots/.test(sql)) { snapshots.set(args[0] + '|' + args[1], { day: args[0], slot: args[1], due: args[2], at: args[3], by: args[4], body: args[5] }); return {}; }
       if (/^INSERT INTO corrections/.test(sql)) { corrections.push({ id: corrections.length + 1, at: args[0], kind: args[1], symbol: args[2], field: args[3], old_v: args[4], new_v: args[5], source: args[6], note: args[7] }); return {}; }
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, corrections, snapshots };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots };
   return db;
 }
 
@@ -416,10 +417,28 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/snapshot?day=2026-11-10&slot=close', { key: GOOD });
   ok('a second build of a slot replaces the first', env.DB.snapshots.size === 3 && r.body.snapshot.rows.SPY.c === 599);
   const refused = [];
-  for (const bad of [{ day: 'today' }, { slot: 'lunch' }, { rows: null }, { regime: null }, { due: 'x' }, { due: Date.now() + 3600000 }]) {
+  for (const bad of [{ day: 'today' }, { slot: 'lunch' }, { rows: null }, { regime: null }, { at: 'x' }, { day: '2099-01-02' }]) {
     refused.push((await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap(bad) } })).status);
   }
   ok('a wrong day, slot, shape or a slot not yet due is refused', refused.every((x) => x === 400), refused.join());
+  await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ day: '2026-11-09', slot: 'premarket', due: Date.parse('2026-11-11T20:00:00Z'), rows: { SPY: { c: 1 } } }) } });
+  r = await call(env, '/snapshot?day=2026-11-11', { key: GOOD });
+  ok('the sender\'s due is not trusted: it is worked out from day and slot', r.body.snapshot.day === '2026-11-11' && env.DB.snapshots.get('2026-11-09|premarket').due === Date.parse('2026-11-09T13:30:00Z'));
+  env.DB.snapshots.delete('2026-11-09|premarket');
+  ok('slotDue is New York time, summer and winter', Wk.slotDue('2026-11-12', 'close') === Date.parse('2026-11-12T21:10:00Z') && Wk.slotDue('2026-07-14', 'nightly') === Date.parse('2026-07-15T00:30:00Z'));
+  r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
+  ok('the first device to claim a missing slot may build it', r.status === 200 && r.body.granted === true);
+  r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
+  ok('...a second one, within ten minutes, may not', r.body.granted === false && r.body.until > Date.now());
+  r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'close' } });
+  ok('...another slot is its own claim', r.body.granted === true);
+  env.DB.kvAt.set('claim:2026-11-12:midday', Date.now() - Wk.CLAIM_MS - 1);
+  r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
+  ok('...and a claim older than ten minutes (a device that gave up) can be taken over', r.body.granted === true);
+  r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: 'x', slot: 'midday' } });
+  ok('a claim without a real day and slot: 400', r.status === 400);
+  r = await call(env, '/snapshot/claim', { method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
+  ok('claiming needs the key', r.status === 401);
   r = await call(env, '/snapshot', { key: GOOD, method: 'POST', body: { snapshot: snap({ pad: 'x'.repeat(Wk.SNAPSHOT_MAX) }) } });
   ok('a snapshot over the size limit: 413', r.status === 413 && env.DB.snapshots.size === 3);
   r = await call(env, '/snapshot?day=nope', { key: GOOD });
