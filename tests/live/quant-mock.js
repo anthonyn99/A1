@@ -32,11 +32,11 @@ function lwc() {
 }
 const TF_MS = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '30m': 1800e3, '1h': 3600e3, '4h': 14400e3 };
 /** Intraday bars between two times: weekdays, 04:00 to 20:00 New York (UTC-5 here), a seeded walk. */
-function fakeIntraday(sym, tf, from, to) {
+function walkIntraday(sym, tf, from, to) {
   const step = TF_MS[tf], out = [];
   let x = [...sym].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11) % 233280, c = 40 + (x % 300);
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
-  const start = Math.floor(Math.max(from, to - 60 * 86_400_000) / step) * step;
+  const start = Math.floor((CLOCK - 70 * 86_400_000) / step) * step;   // one walk for the symbol, whatever the window
   for (let t = start; t <= to; t += step) {
     const d = new Date(t - 5 * 3600e3), dow = d.getUTCDay(), m = d.getUTCHours() * 60 + d.getUTCMinutes();
     if (dow === 0 || dow === 6 || m < 240 || m >= 1200) continue;
@@ -54,8 +54,18 @@ const FIXTURE = JSON.parse(fs.readFileSync(path.join(PRIV, 'tests', 'fixtures', 
 const CLOCK = FIXTURE.due + 20 * 60_000;
 const WATCHLIST = FIXTURE.watchlist.filter((s) => FIXTURE.rows[s]);
 
+// Every series of a symbol is scaled so it ends near the snapshot's close (the
+// price the quotes report), so bars, levels and the live price agree.
+const scales = new Map();
+function scaled(key, sym, gen, from, to) {
+  if (!scales.has(key)) { const all = gen(sym, 0, CLOCK), last = all.length ? all[all.length - 1].c : 1, row = FIXTURE.rows[sym]; scales.set(key, row && row.c ? row.c / last : 1); }
+  const k = scales.get(key), r = (x) => +(x * k).toFixed(4);
+  return gen(sym, from, to).map((b) => ({ ...b, o: r(b.o), h: r(b.h), l: r(b.l), c: r(b.c) }));
+}
 /** Daily bars for `sym` between two times: a seeded walk, weekdays only, stamped 05:00 UTC. */
-function fakeBars(sym, from, to) {
+const fakeBars = (sym, from, to) => scaled('1d|' + sym, sym, walkDaily, from, to);
+const fakeIntraday = (sym, tf, from, to) => scaled(tf + '|' + sym, sym, (s, a, b) => walkIntraday(s, tf, a, b), from, to);
+function walkDaily(sym, from, to) {
   let x = [...sym].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 233280, c = 40 + (x % 300);
   const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
   const out = [], DAY = 86_400_000, start = Date.UTC(2023, 0, 2, 5);
