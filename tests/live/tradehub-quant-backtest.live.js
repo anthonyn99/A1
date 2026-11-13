@@ -75,7 +75,7 @@ const SPEC = { v: 1, name: 'Live dip', horizon: 'swing', universe: { symbols: ['
   ok('Run turns into Cancel while it runs', await js(`return document.querySelector('[data-bt-run]').dataset.btRun === 'cancel';`));
   ok('the run finishes', await until(`/^Done/.test(document.querySelector('[data-bt-status]').textContent)`, 60000), await js(`return document.querySelector('[data-bt-status]').textContent;`));
   const prog = await js(`return JSON.stringify(window.__prog);`).then(JSON.parse);
-  ok('progress was shown while it ran (bars read; a long run also shows the simulation and the nudges)', prog.some((x) => /Reading bars: d+ of d+ series/.test(x)), prog.slice(0, 6).join(' | '));
+  ok('progress was shown while it ran (bars read; a long run also shows the simulation and the nudges)', prog.some((x) => /Reading bars: \d+ of \d+ series/.test(x)), prog.slice(0, 6).join(' | '));
   ok('the bars were read by the run (daily, for each symbol, SPY and VIX)', ['NVDA', 'AMD', 'MSFT', 'SPY', '%5EVIX'].every((s) => api.asked.some((x) => x.p === '/bars' && x.q.includes('symbol=' + s) && /tf=1d/.test(x.q))), api.asked.filter((x) => x.p === '/bars').map((x) => x.q).slice(0, 8).join(' '));
   const long = await js(`return JSON.stringify(window.__long);`).then(JSON.parse);
   await sleep(1500);   // the result cards draw one a frame after Done
