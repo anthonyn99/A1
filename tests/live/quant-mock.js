@@ -3,6 +3,10 @@
 // hour, the two providers' WebSockets faked, and a boot that opens TradeHub
 // with the switch on or off.
 //
+// Phase 4 adds intraday bars (sessions 04:00 to 20:00 New York), /drawings
+// and /alerts kept here, and the chart library (lightweight-charts) served
+// from a copy kept in the OS temp folder, fetched once from jsdelivr.
+//
 // The snapshot served is A1-Priv tests/fixtures/quant/snapshot.json (a real
 // one, recorded by tools/quant-runner.mjs --dry --out=). The page's clock is
 // set 20 minutes after that snapshot's slot came due, so it is "current".
@@ -10,7 +14,37 @@
 const fs = require('fs');
 const path = require('path');
 const { evalJs, sleep } = require('./cdp.js');
+const os = require('os');
+const https = require('https');
 const { firebaseMock } = require('./fake-firebase.js');
+
+const LWC = 'https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.mjs';
+const LWC_FILE = path.join(os.tmpdir(), 'a1-lwc-5.2.1.mjs');
+let lwcText = null;
+/** The chart library's text: the temp copy, or jsdelivr once. */
+function lwc() {
+  if (lwcText) return Promise.resolve(lwcText);
+  if (fs.existsSync(LWC_FILE) && fs.statSync(LWC_FILE).size > 100000) return Promise.resolve(lwcText = fs.readFileSync(LWC_FILE, 'utf8'));
+  return new Promise((ok, no) => https.get(LWC, (r) => {
+    if (r.statusCode !== 200) { no(new Error('jsdelivr ' + r.statusCode)); return; }
+    let b = ''; r.setEncoding('utf8'); r.on('data', (c) => (b += c)); r.on('end', () => { fs.writeFileSync(LWC_FILE, b); ok(lwcText = b); });
+  }).on('error', no));
+}
+const TF_MS = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '30m': 1800e3, '1h': 3600e3, '4h': 14400e3 };
+/** Intraday bars between two times: weekdays, 04:00 to 20:00 New York (UTC-5 here), a seeded walk. */
+function fakeIntraday(sym, tf, from, to) {
+  const step = TF_MS[tf], out = [];
+  let x = [...sym].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11) % 233280, c = 40 + (x % 300);
+  const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+  const start = Math.floor(Math.max(from, to - 60 * 86_400_000) / step) * step;
+  for (let t = start; t <= to; t += step) {
+    const d = new Date(t - 5 * 3600e3), dow = d.getUTCDay(), m = d.getUTCHours() * 60 + d.getUTCMinutes();
+    if (dow === 0 || dow === 6 || m < 240 || m >= 1200) continue;
+    const o = c; c = Math.max(2, c * (1 + (rnd() - 0.5) * 0.004));
+    if (t >= from) out.push({ t, o: +o.toFixed(4), h: +(Math.max(o, c) * 1.001).toFixed(4), l: +(Math.min(o, c) * 0.999).toFixed(4), c: +c.toFixed(4), v: Math.round(1e4 * (0.5 + rnd()) * (m >= 570 && m < 960 ? 5 : 1)) });
+  }
+  return out;
+}
 
 const ORIGIN = 'https://anthonyn99.github.io';
 const URL = ORIGIN + '/A1/tradehub.html';
@@ -43,11 +77,12 @@ function fakeBars(sym, from, to) {
  */
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
-  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true };
+  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [] };
   const worker = {
-    patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
+    patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
     handle(req) {
       if (req.method === 'OPTIONS') return { status: 204, text: '' };
+      if (req.url === LWC) return lwc().then((text) => ({ text, type: 'text/javascript' }), () => ({ status: 503, text: '' }));
       if (!req.url.includes('quant-api')) return { json: { ok: true } };
       const u = new global.URL(req.url), p = u.pathname, auth = req.headers.Authorization || req.headers.authorization || '';
       asked.push({ p, method: req.method, auth, q: u.search });
@@ -57,9 +92,15 @@ function quantApi() {
       if (p === '/snapshot/claim') { posted.claims = (posted.claims || 0) + 1; return { json: { ok: true, granted: state.claim !== false } }; }
       if (p === '/watchlist') { const l = JSON.parse(req.postData).symbols; posted.watchlists.push(l); state.watchlist = l; return { json: { ok: true, symbols: l } }; }
       if (p === '/bars') {
-        const sym = u.searchParams.get('symbol');
-        return { json: { ok: true, symbol: sym, tf: '1d', bars: fakeBars(sym, Number(u.searchParams.get('from')), Number(u.searchParams.get('to'))), provider: 'alpaca', complete: true, known: null } };
+        const sym = u.searchParams.get('symbol'), tf = u.searchParams.get('tf') || '1d', from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
+        const bars = TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
+        return { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null } };
       }
+      if (p === '/drawings' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, symbol: sym, drawings: state.drawings[sym] || [], at: state.drawings[sym] ? 1 : null } }; }
+      if (p === '/drawings' && req.method === 'PUT') { const b = JSON.parse(req.postData); state.drawings[b.symbol] = b.drawings; (posted.drawings = posted.drawings || []).push(b); return { json: { ok: true, n: b.drawings.length, at: CLOCK } }; }
+      if (p === '/alerts' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, alerts: state.alerts.filter((a) => !sym || a.symbol === sym) } }; }
+      if (p === '/alerts' && req.method === 'POST') { const a = JSON.parse(req.postData).alert, id = a.id || 'a' + (state.alerts.length + 1) + '_' + Math.round(Math.random() * 1e6); state.alerts = state.alerts.filter((x) => x.id !== id).concat([{ ...a, id, active: 1 }]); (posted.alerts = posted.alerts || []).push({ ...a, id }); return { json: { ok: true, id } }; }
+      if (p === '/alerts' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.alerts = state.alerts.filter((x) => x.id !== id); return { json: { ok: true, id } }; }
       if (p === '/quotes') {
         if (!state.quotes) return { status: 503, json: { ok: false, error: 'no provider answered', missing: {} } };
         const quotes = {};
@@ -152,4 +193,4 @@ function driver(c) {
   return { js, until, size, boot, tab, shot };
 }
 
-module.exports = { quantApi, driver, bigJournal, PAGE_SETUP, FIXTURE, CLOCK, WATCHLIST, KEY, ORIGIN, URL };
+module.exports = { quantApi, driver, bigJournal, PAGE_SETUP, FIXTURE, CLOCK, WATCHLIST, KEY, ORIGIN, URL, fakeBars, fakeIntraday, lwc };
