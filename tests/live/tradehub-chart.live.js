@@ -100,8 +100,8 @@ const CH = `${TAB}.active()`;
   // The front edge (Tony, 2026-11-13): a button back to the newest bar, and room past it, capped.
   const frontShown = () => js(`var b=document.querySelector('[data-ch-main] [data-ch-front]'); return !!b && !b.hidden && b.getBoundingClientRect().width > 0;`);
   ok('at the newest bar: no "back to the newest bar" button', !(await frontShown()));
-  const fn = I.bars + I.gaps, fw = I.view.to - I.view.from;
-  await js(`var ts=${CH}.chart().timeScale(); ts.setVisibleLogicalRange({from:${I.view.from - fw * 0.6}, to:${I.view.to - fw * 0.6}}); return 1;`);
+  const fn = I.bars + I.gaps, fw = 100;   // zoomed in to 100 bars, 200 bars back
+  await js(`var ts=${CH}.chart().timeScale(); ts.setVisibleLogicalRange({from:${fn - 301}, to:${fn - 201}}); return 1;`);
   ok('scrolled back: the button shows', await until(`(function(){var b=document.querySelector('[data-ch-main] [data-ch-front]'); return !!b && !b.hidden;})()`, 3000));
   await js(`document.querySelector('[data-ch-main] [data-ch-front]').click(); return 1;`);
   await sleep(60);
