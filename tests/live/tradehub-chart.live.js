@@ -115,6 +115,19 @@ const CH = `${TAB}.active()`;
   I = await info();
   ok('scrolling far past the newest bar stops with it whole at the left edge', Math.abs(I.view.from - (fn - 1.5)) < 0.6, JSON.stringify(I.view));
   ok('...where the button brings it back', await frontShown());
+  // A quick mouse drag stops the moment it is let go: no glide after (Tony, 2026-11-13).
+  await js(`var ts=${CH}.chart().timeScale(); ts.setVisibleLogicalRange({from:${fn - 301}, to:${fn - 201}}); return 1;`);
+  await sleep(200);
+  { const s = await stage(), y = s.t + s.h * 0.4, x0 = s.l + s.w * 0.3;
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y });
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y, button: 'left', buttons: 1, clickCount: 1 });
+    for (let k = 1; k <= 6; k++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + k * 30, y, button: 'left', buttons: 1 }); await sleep(8); }
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x0 + 180, y, button: 'left', buttons: 0, clickCount: 1 });
+    await sleep(40);
+    const atRelease = (await info()).view;
+    await sleep(700);
+    const later = (await info()).view;
+    ok('a fast mouse drag moves the chart and stops where it is let go (no glide)', atRelease.from < fn - 301 - 5 && Math.abs(later.from - atRelease.from) < 0.01, JSON.stringify({ atRelease, later })); }
   await js(`${CH}.fit(); return 1;`);
   await sleep(300);
   await js(`document.querySelector('[data-ch-main] [data-ch-box]').focus(); 1`);
