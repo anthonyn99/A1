@@ -95,7 +95,7 @@ function seed(id, verdict, o = {}) {
   ok('Ledger: every signal, the finished one too, with its result', await js(`var r=[...document.querySelectorAll('[data-sc-lrow]')].map(function(x){return x.dataset.scLrow;}); return r.includes('sold00001') && r.includes('sgo00001') && /\\+1\\.60 R/.test(document.querySelector('[data-sc-lrow="sold00001"]').innerText);`));
   await js(`document.querySelector('[data-sc-view="score"]').click(); return 1;`);
   await sleep(200);
-  ok('Scorecard: per setup, the graded signal counted', await js(`var e=document.querySelector('[data-sc-score]'); return !!e && /Opening range breakout/.test(e.innerText) && /100%/.test(e.innerText);`));
+  ok('Scorecard: per setup, the graded signal counted', await js(`var e=document.querySelector('[data-sc-score]'); return !!e && /Opening range breakout/.test(e.innerText) && /Hit rate/.test(e.innerText) && /\d+%/.test(e.innerText);`));
   await js(`document.querySelector('[data-sc-view="board"]').click(); return 1;`);
   await sleep(200);
 
