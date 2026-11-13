@@ -176,15 +176,17 @@ async function putWatchlist(env, req) {
   if (!Array.isArray(body && body.symbols)) throw fail(400, 'symbols is needed');
   const syms = [...new Set(body.symbols.map((x) => String(x).toUpperCase().trim()))].filter((x) => /^\^?[A-Z0-9][A-Z0-9.\-=]{0,14}$/.test(x)).slice(0, 200);
   const now = Date.now(), list = JSON.stringify(syms);
+  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('watchlist', list, now).run();
+  // Drawings follow the watchlist: a symbol that left it is marked, one back
+  // in it unmarked, and one gone for DRAWINGS_KEEP_MS deleted. Never fails the
+  // watchlist itself (a database without the drawings table, say).
   const stmts = [
-    env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('watchlist', list, now),
-    // Drawings follow the watchlist: a symbol that left it is marked, one back
-    // in it unmarked, and one gone for DRAWINGS_KEEP_MS deleted.
     env.DB.prepare('UPDATE drawings SET gone_at = ? WHERE gone_at IS NULL AND symbol NOT IN (SELECT value FROM json_each(?))').bind(now, list),
     env.DB.prepare('UPDATE drawings SET gone_at = NULL WHERE gone_at IS NOT NULL AND symbol IN (SELECT value FROM json_each(?))').bind(list),
     env.DB.prepare('DELETE FROM drawings WHERE gone_at IS NOT NULL AND gone_at < ?').bind(now - DRAWINGS_KEEP_MS),
   ];
-  if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
+  try { if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run(); }
+  catch (e) { console.warn('drawings sweep:', e.message || e); }
   return json({ ok: true, symbols: syms });
 }
 
