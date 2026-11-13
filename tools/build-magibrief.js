@@ -204,4 +204,3 @@ if (process.argv.includes('--check')) {
   fs.writeFileSync(OUT, out);
   console.log('wrote Shared/magibrief.js (' + out.length + ' bytes)');
 }
-module.exports = { build };
