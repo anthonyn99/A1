@@ -19,7 +19,7 @@ export const SIGNALS_PER_CALL = 100, GRADES_PER_CALL = 200, SIGNALS_PER_DAY = 60
 export const SIGNAL_BYTES = 4000;
 const DAY = 86400_000;
 const ID_RE = /^s[0-9a-z]{4,16}$/, SETUP_RE = /^[a-z][a-z-]{1,23}$/;
-const HORIZONS = ['day', 'swing'], DIRS = ['long', 'short'], VERDICTS = ['GO', 'WATCH', 'NO-GO'];
+const HORIZONS = ['day', 'swing', 'invest'], DIRS = ['long', 'short'], VERDICTS = ['GO', 'WATCH', 'NO-GO'];
 const STATUSES = ['open', 'triggered', 'target1', 'target2', 'stopped', 'expired'];
 const fin = (x) => (Number.isFinite(x) ? x : null);
 
@@ -98,7 +98,9 @@ export async function postGrades(env, req) {
   const now = Date.now();
   const stmts = list.map((g) => {
     if (!g || !ID_RE.test(String(g.id || '')) || !STATUSES.includes(g.status)) throw fail(400, 'a grade needs an id and a known status');
-    const grade = JSON.stringify({ triggeredAt: fin(g.triggeredAt), closedAt: fin(g.closedAt), mfe: fin(g.mfe), mae: fin(g.mae), bars: fin(g.bars) });
+    // An invest signal (Phase 7) also carries its return at 1, 3 and 6 months.
+    const grade = JSON.stringify({ triggeredAt: fin(g.triggeredAt), closedAt: fin(g.closedAt), mfe: fin(g.mfe), mae: fin(g.mae), bars: fin(g.bars),
+      ...(g.m1 != null || g.m3 != null || g.m6 != null ? { m1: fin(g.m1), m3: fin(g.m3), m6: fin(g.m6) } : {}) });
     const taken = g.taken == null ? null : String(g.taken).slice(0, 64);
     return env.DB.prepare('UPDATE signals SET status = ?, done = ?, r = ?, taken = COALESCE(?, taken), graded_at = ?, grade = ? WHERE id = ? AND done = 0')
       .bind(g.status, g.done ? 1 : 0, fin(g.r), taken, now, grade, g.id);
