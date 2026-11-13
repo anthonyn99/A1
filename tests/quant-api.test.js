@@ -18,11 +18,19 @@ const ok = (name, cond, extra) => {
 // The statements the worker uses, over plain maps.
 function fakeDb() {
   const usage = new Map(), health = new Map(), meta = new Map(), kv = new Map(), kvAt = new Map(), corrections = [], snapshots = new Map(), drawings = new Map(), alerts = new Map(), signals = new Map();
+  const calibration = [], paper = new Map(), backtests = new Map();
+  // Phase 6's tables (0006_backtest.sql): db.no6 = true plays a database without them.
+  const six = (sql) => { const m = /\b(calibration|paper|backtests)\b/.exec(sql); if (db.no6 && m) throw new Error('D1_ERROR: no such table: ' + m[1]); };
   const newest = (rows) => rows.sort((a, b) => b.due - a.due)[0] || null;
   const SKIP = 5 * 60000;
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     async first() {
+      six(sql);
+      if (/^SELECT at, body FROM calibration ORDER BY at DESC/.test(sql)) return calibration.slice().sort((a, b) => b.at - a.at || b.id - a.id)[0] || null;
+      if (/^SELECT COUNT\(\*\) AS n FROM paper/.test(sql)) return { n: paper.size };
+      if (/^SELECT COUNT\(\*\) AS n FROM backtests/.test(sql)) return { n: backtests.size };
+      if (/^SELECT \* FROM backtests WHERE id = \?/.test(sql)) return backtests.get(args[0]) || null;
       if (/^SELECT 1/.test(sql)) return { one: 1 };
       if (/FROM usage WHERE day = \? AND service = \?/.test(sql)) { const n = usage.get(args[0] + '|' + args[1]); return n == null ? null : { n }; }
       if (/FROM bars_meta/.test(sql)) return meta.get(args[0] + '|' + args[1]) || null;
@@ -37,6 +45,9 @@ function fakeDb() {
       throw new Error('fakeDb.first: ' + sql);
     },
     async all() {
+      six(sql);
+      if (/FROM paper p LEFT JOIN signals s ON s\.id = p\.id/.test(sql)) return { results: [...paper.values()].sort((a, b) => b.created - a.created).map((p) => { const s = signals.get(p.id) || {}; return { pid: p.id, followed: p.created, psig: p.signal, status: s.status, done: s.done, r: s.r, grade: s.grade }; }) };
+      if (/^SELECT id, name, created, spec, summary FROM backtests/.test(sql)) return { results: [...backtests.values()].sort((a, b) => b.created - a.created).slice(0, args[0]) };
       if (/FROM usage WHERE day = \?/.test(sql)) return { results: [...usage].filter(([k]) => k.startsWith(args[0] + '|')).map(([k, n]) => ({ service: k.split('|')[1], n })).sort((a, b) => a.service.localeCompare(b.service)) };
       if (/FROM provider_health/.test(sql)) return { results: [...health.values()].map((h) => ({ ...h })) };
       if (/FROM meta WHERE k LIKE/.test(sql)) return { results: [...kv].filter(([k]) => k.startsWith('lat:')).map(([k, v]) => ({ k, v })) };
@@ -53,6 +64,13 @@ function fakeDb() {
       throw new Error('fakeDb.all: ' + sql);
     },
     async run() {
+      six(sql);
+      if (/^INSERT INTO calibration/.test(sql)) { calibration.push({ id: calibration.length ? Math.max(...calibration.map((x) => x.id)) + 1 : 1, at: args[0], by: args[1], body: args[2] }); db.writes++; return {}; }
+      if (/^DELETE FROM calibration WHERE id NOT IN/.test(sql)) { const keep = new Set(calibration.slice().sort((a, b) => b.at - a.at || b.id - a.id).slice(0, args[0]).map((x) => x.id)); for (let i = calibration.length - 1; i >= 0; i--) if (!keep.has(calibration[i].id)) calibration.splice(i, 1); return {}; }
+      if (/^INSERT INTO paper/.test(sql)) { if (!/ON CONFLICT \(id\) DO NOTHING/.test(sql)) throw new Error('paper insert must not overwrite'); if (!paper.has(args[0])) { paper.set(args[0], { id: args[0], signal: args[1], created: args[2] }); db.writes++; } return {}; }
+      if (/^DELETE FROM paper WHERE id = \?/.test(sql)) { paper.delete(args[0]); return {}; }
+      if (/^INSERT INTO backtests/.test(sql)) { const [id, name, created, spec, summary, curve] = args; backtests.set(id, { id, name, created, spec, summary, curve }); db.writes++; return {}; }
+      if (/^DELETE FROM backtests WHERE id = \?/.test(sql)) { backtests.delete(args[0]); return {}; }
       if (/^INSERT INTO usage/.test(sql)) { const k = args[0] + '|' + args[1]; usage.set(k, (usage.get(k) || 0) + args[2]); return {}; }
       // The cap row: only the skip window and the reason change.
       if (/^INSERT INTO provider_health/.test(sql) && /SET skip_until = excluded\.skip_until, detail/.test(sql)) {
@@ -95,7 +113,7 @@ function fakeDb() {
       throw new Error('fakeDb.run: ' + sql);
     },
   });
-  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots, drawings, alerts, signals, writes: 0 };
+  const db = { prepare: (sql) => stmt(sql), batches: [], batch: async (list) => { db.batches.push(list.length); for (const s of list) await s.run(); return []; }, usage, health, meta, kv, kvAt, corrections, snapshots, drawings, alerts, signals, calibration, paper, backtests, writes: 0 };
   return db;
 }
 
@@ -607,9 +625,61 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig(), sig({ id: 'sdef456', setup: 'sweep' })] } });
   ok('...but signals already stored never count: re-sending them is fine and writes nothing', r.status === 200 && r.body.added === 0);
 
+  console.log('\nPhase 6: calibration, paper trades, saved backtests');
+  let e6 = { DB: fakeDb(), ALLOWED_KEYS: hash };
+  e6.DB.no6 = true;
+  r = await call(e6, '/calibration', { key: GOOD });
+  ok('before migration 0006: the calibration reads as none', r.status === 200 && r.body.calibration === null);
+  r = await call(e6, '/backtests', { key: GOOD });
+  ok('...saved runs read as none', r.status === 200 && r.body.backtests.length === 0);
+  r = await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: [] } });
+  ok('...and a write says which migration is missing (503)', r.status === 503 && /0006_backtest/.test(r.body.error), JSON.stringify(r.body));
+  e6 = { DB: fakeDb(), ALLOWED_KEYS: hash };
+  ok('the routes need the key', (await call(e6, '/calibration')).status === 401 && (await call(e6, '/backtests')).status === 401 && (await call(e6, '/paper')).status === 401);
+  const cal = (n) => ({ v: 1, setups: { orb: { all: { n, wins: 10 } } }, weights: {}, fittedAt: n });
+  r = await call(e6, '/calibration', { key: GOOD, method: 'PUT', body: { calibration: cal(1), by: 'runner' } });
+  ok('a calibration is stored (one insert, in one batch with the trim)', r.status === 200 && e6.DB.calibration.length === 1 && e6.DB.batches[e6.DB.batches.length - 1] === 2);
+  for (let i = 2; i <= 14; i++) { await new Promise((res) => setTimeout(res, 2)); await call(e6, '/calibration', { key: GOOD, method: 'PUT', body: { calibration: cal(i) } }); }
+  r = await call(e6, '/calibration', { key: GOOD });
+  ok('GET gives the newest; only the last 12 are kept', r.body.calibration.fittedAt === 14 && e6.DB.calibration.length === 12);
+  const bad6 = [];
+  bad6.push((await call(e6, '/calibration', { key: GOOD, method: 'PUT', body: { calibration: { v: 2, setups: {} } } })).status);
+  bad6.push((await call(e6, '/calibration', { key: GOOD, method: 'PUT', body: { calibration: { v: 1, setups: { x: 'y'.repeat(410000) } } } })).status);
+  ok('refused: a wrong version, over 400 KB', bad6.join() === '400,413', bad6.join());
+  r = await call(e6, '/paper', { key: GOOD, method: 'POST', body: { signal: sig({ id: 'spaper1' }) } });
+  const wp = e6.DB.writes;
+  await call(e6, '/paper', { key: GOOD, method: 'POST', body: { signal: sig({ id: 'spaper1', verdict: 'GO' }) } });
+  ok('a paper trade is one write; following again writes nothing', r.status === 200 && e6.DB.paper.size === 1 && e6.DB.writes === wp);
+  ok('...a bad signal is refused as the ledger refuses it', (await call(e6, '/paper', { key: GOOD, method: 'POST', body: { signal: sig({ id: 'spaper2', verdict: 'BUY' }) } })).status === 400);
+  await call(e6, '/signals', { key: GOOD, method: 'POST', body: { signals: [sig({ id: 'spaper1' })] } });
+  await call(e6, '/grades', { key: GOOD, method: 'POST', body: { grades: [{ id: 'spaper1', status: 'target1', done: true, r: 1.5, mfe: 2 }] } });
+  r = await call(e6, '/paper', { key: GOOD });
+  ok('GET /paper gives each one with the ledger grade', r.body.paper.length === 1 && r.body.paper[0].r === 1.5 && r.body.paper[0].status === 'target1' && r.body.paper[0].done === true && r.body.paper[0].entry === 180 && r.body.paper[0].paper === true, JSON.stringify(r.body));
+  r = await call(e6, '/paper?id=spaper1', { key: GOOD, method: 'DELETE' });
+  ok('DELETE stops following it', r.status === 200 && e6.DB.paper.size === 0);
+  const curve = Array.from({ length: 500 }, (_, i) => [i, 100 + i]);
+  r = await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'RSI dip', spec: { v: 1, name: 'RSI dip' }, summary: { cagr: 0.1, trades: 40 }, curve, bench: curve } });
+  const runId = r.body && r.body.id;
+  ok('a saved run is one write', r.status === 200 && /^b[0-9a-z]+$/.test(runId) && e6.DB.backtests.size === 1);
+  r = await call(e6, '/backtests', { key: GOOD });
+  ok('the list has its headline numbers, not its curve', r.body.backtests.length === 1 && r.body.backtests[0].summary.cagr === 0.1 && !('curve' in r.body.backtests[0]));
+  r = await call(e6, '/backtests/' + runId, { key: GOOD });
+  ok('one run comes with its curve and benchmark', r.status === 200 && r.body.backtest.curve.equity.length === 500 && r.body.backtest.curve.bench.length === 500 && r.body.backtest.spec.name === 'RSI dip');
+  const bad7 = [];
+  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: '', spec: { v: 1 }, summary: {}, curve: [] } })).status);
+  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: Array.from({ length: 501 }, (_, i) => [i, 1]) } })).status);
+  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1, pad: 'p'.repeat(9000) }, summary: {}, curve: [] } })).status);
+  bad7.push((await call(e6, '/backtests/nope', { key: GOOD })).status);
+  bad7.push((await call(e6, '/backtests/bzzzzzzzz', { key: GOOD })).status);
+  ok('refused: no name, over 500 points, a spec over 8 KB, a bad id; a missing run is 404', bad7.join() === '400,400,413,400,404', bad7.join());
+  for (let i = 0; i < 199; i++) e6.DB.backtests.set('bfill' + i, { id: 'bfill' + i, name: 'f', created: 1, spec: '{}', summary: '{}', curve: '{}' });
+  ok('at most 200 saved runs', (await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: [] } })).status === 429);
+  r = await call(e6, '/backtests/' + runId, { key: GOOD, method: 'DELETE' });
+  ok('DELETE removes a run', r.status === 200 && !e6.DB.backtests.has(runId));
+
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
-  const src = ['worker.js', 'lib/data.js', 'lib/net.js', 'lib/charts.js', 'lib/signals.js', 'providers/alpaca.js', 'providers/others.js', 'providers/yahoo.js']
+  const src = ['worker.js', 'lib/data.js', 'lib/net.js', 'lib/charts.js', 'lib/signals.js', 'lib/backtest.js', 'providers/alpaca.js', 'providers/others.js', 'providers/yahoo.js']
     .map((f) => fs.readFileSync(path.join(__dirname, '..', 'workers2', 'quant-api', f), 'utf8')).join('\n');
   ok('no order, trading-API or paper-api URL anywhere in the worker', !/\/v2\/orders|paper-api\.alpaca|api\.alpaca\.markets|\/order\b|placeOrder|\/trading\/[^a"]/.test(src));
 
