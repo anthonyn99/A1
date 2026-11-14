@@ -69,10 +69,14 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (u.startsWith('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable')) {
     const b = JSON.parse(init.body), id = 'file' + (G.next++) + 'xxxxxxxx';
-    G.files.set(id, { name: b.name, parent: b.parents[0], revisions: 1 });
+    G.files.set(id, { name: b.name, parent: b.parents[0], revisions: 1, tag: !!(b.appProperties && b.appProperties.tradehub === '1') });
     return new Response('', { status: 200, headers: { location: 'https://upload.example/session/' + id } });
   }
+  if (u.startsWith('https://www.googleapis.com/drive/v3/files?pageSize=100')) {   // backups by TradeHub's app tag (a new database)
+    return res({ files: [...G.files.entries()].filter(([, f]) => !f.folder && !f.trashed && /^d1-/.test(f.name) && f.tag).map(([id, f]) => ({ id, name: f.name, size: String(f.body ? f.body.length : 0), mimeType: 'application/gzip', modifiedTime: '2026-11-13T00:00:00Z' })) });
+  }
   const m = /\/files\/([\w-]+)/.exec(u), id = m && m[1], f = id && G.files.get(id);
+  if (method === 'GET' && u.includes('?fields=id,name,trashed')) return f ? res({ id, name: f.name, trashed: !!f.trashed, mimeType: 'application/octet-stream', appProperties: f.tag ? { tradehub: '1' } : {} }) : res({}, 404);
   if (u.startsWith('https://www.googleapis.com/upload/drive/v3/files/') && method === 'PATCH') {
     if (!f) return res({}, 404);
     f.body = Buffer.from(await new Response(init.body).arrayBuffer()); f.revisions++;
@@ -143,6 +147,19 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/drive/f/' + fid, { method: 'DELETE' });
   ok('delete: gone from Drive and from the list', r.status === 200 && !G.files.has(fid) && (await call(env, '/drive/list?prefix=ledger/')).body.files.length === 1);
   ok('a file quant-api did not make cannot be read or deleted', (await call(env, '/drive/f/someoneelsesfile123', {})).status === 404 && (await call(env, '/drive/f/someoneelsesfile123', { method: 'DELETE' })).status === 404);
+  // Tony empties things in Drive by hand: a trashed folder and a trashed file are noticed, not written into.
+  r = await call(env, '/drive/f?path=backtests/a.json', { method: 'PUT', raw: true, body: '{"a":1}' });
+  const aId = r.body.id, btFolder = G.files.get(aId).parent;
+  G.files.get(btFolder).trashed = true; G.files.get(aId).trashed = true; DR.forgetSeen(); G.reset();
+  r = await call(env, '/drive/f?path=backtests/a.json', { method: 'PUT', raw: true, body: '{"a":1}' });
+  ok('a trashed file is uploaded afresh (not "skipped" into the trash), into a new folder', !r.body.skipped && r.body.id !== aId && G.files.get(r.body.id).parent !== btFolder && !G.files.get(G.files.get(r.body.id).parent).trashed);
+  const env0 = mkEnv(); env0.DRIVE_KEY = env.DRIVE_KEY;
+  await env0.DB.prepare("INSERT INTO meta (k, v, at) VALUES ('drive:token', ?, 1)").bind(sealed).run();
+  await call(env, '/drive/f?path=backup/d1-2026-11-13.json.gz', { method: 'PUT', raw: true, body: 'gz', type: 'application/gzip' });
+  r = await call(env0, '/drive/list?prefix=backup/&drive=1');
+  ok('a NEW database finds the backups in Drive by TradeHub\'s app tag', r.body.fromDrive && r.body.files.some((x) => /d1-2026-11-13\.json\.gz$/.test(x.path)), JSON.stringify(r.body));
+  r = await call(env0, '/drive/f/' + r.body.files[0].id);
+  ok('...and can read one (tagged as TradeHub\'s), so a restore by id works', r.status === 200 && r.text === 'gz');
   r = await call(env, '/drive/disconnect', { method: 'POST' });
   ok('disconnect revokes the token and forgets it', r.status === 200 && G.revoked === 1 && !(await call(env, '/drive/health')).body.connected);
   DR.forget();
