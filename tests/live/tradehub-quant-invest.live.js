@@ -115,7 +115,7 @@ const DOSSIER = {
   ok('the word "Accumulate" and why', (await js(`return document.querySelector('[data-iv-word]').dataset.ivWord;`)) === 'Accumulate' && /A tranche fired/.test(pl));
   ok('the tranche: a third, its date and price, invalid under the reversal low', /Tranche 1 \(a third\)[\s\S]*590\.40/.test(pl) && /Invalid on a close under 560\.20/.test(pl));
   ok('the ledger\'s invest signal with its 1-month mark (3 and 6 still to come)', /SPY tranche 1/i.test(pl) && /1 month \+3\.4% · 3 months — · 6 months —/.test(pl), pl);
-  ok('the rule measured on history, its sample stated plainly', /11 first tranches on SPY, 2006 to 20\d\d/.test(pl) && /6 months: median \+5\.1%, up in 7 of 11/.test(pl) && !!(await js(`return document.querySelector('[data-iv-small]');`)) && /Small sample \(11, under 30\)/.test(pl));
+  ok('the rule measured on history, its sample stated plainly', /11 first tranches on SPY, 2006 to 20\d\d/.test(pl) && /6 months: median \+5\.1%, up in 7 of 11/.test(pl) && !!(await js(`return document.querySelector('[data-iv-small]');`)) && /Small sample \(11, under 30\)/i.test(pl), pl);
 
   console.log('\nIdeas');
   ok('12 idea cards, best first', (await js(`return [...document.querySelectorAll('[data-iv-idea]')].map(function(x){return x.dataset.ivIdea;}).join();`)) === 'NVDA,MSFT,AVGO,META,GOOGL,COST,LLY,QQQ,V,MA,SOXX,ORCL');
@@ -131,7 +131,7 @@ const DOSSIER = {
   await js(`document.querySelector('[data-iv-dossier="NVDA"]').click(); return 1;`);
   ok('"Dossier" opens the ticker panel with the dossier', await until(`document.querySelector('[data-dossier="NVDA"]')`, 10000) && asked('/dossier', 'GET') === 1);
   const facts = await js(`return JSON.stringify([...document.querySelectorAll('[data-dossier] [data-dz-fact]')].map(function(f){var s=f.querySelector('[data-dz-src]'); return [f.dataset.dzFact, s ? s.textContent : '', f.classList.contains('is-missing') ? f.querySelector('b').textContent : ''];}));`).then(JSON.parse);
-  ok('every fact shows its source and time, or "unavailable"', facts.length >= 30 && facts.every(([, src, miss]) => /^(Finnhub|SEC filings|Nasdaq|FINRA|Alpha Vantage) · \w+day, \w+ \d+, \d+:\d\d/.test(src) || miss === 'unavailable'), JSON.stringify(facts.filter(([, s, m]) => !s && m !== 'unavailable')));
+  ok('every fact shows its source and time, or "unavailable"', facts.length >= 30 && facts.every(([, src, miss]) => /^(Finnhub|SEC filings|Nasdaq|FINRA|Alpha Vantage) · \w+day, \w+ \d+, \d+:\d\d [AP]M$/.test(src) || miss === 'unavailable'), JSON.stringify(facts.filter(([, s, m]) => !s && m !== 'unavailable')));
   ok('...EPS for the fiscal year is disputed (Finnhub 3.70, SEC 4.00)', /disputed: SEC filings says 4\.00/.test(await text('[data-dz-fact="epsFy"]')));
   ok('...insiders failed: unavailable, and the Sources say why', /unavailable/.test(await text('[data-dz-fact="insiders"]')) && /insiders: not available now \(finnhub: HTTP 500\)/.test(await text('[data-dz-sources]')));
   const dz = await text('[data-dossier="NVDA"]');
