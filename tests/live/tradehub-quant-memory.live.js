@@ -107,7 +107,7 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
   ok('verdict filter', await until(`document.querySelectorAll('[data-me-conv]').length === 1 && document.querySelector('[data-me-conv="cyday00001"]')`, 3000));
   await js(`var s=document.querySelector('[data-me-hv]'); s.value=''; s.dispatchEvent(new Event('change')); document.querySelector('[data-me-hpin="cyday00001"]').click(); 1`);
   ok('pin a conversation', await until(`/Pinned/.test(document.querySelector('[data-me-conv="cyday00001"]').innerText)`, 5000));
-  ok('no "Continue" until Neo Quant exists (Phase 9)', !(await js(`return !!document.querySelector('[data-me-hcont]');`)));
+  ok('"Continue" on each conversation (it opens Neo Quant, Phase 9)', await js(`return !!document.querySelector('[data-me-hcont="ctoday0001"]') && !!document.querySelector('[data-me-hcont="cyday00001"]');`));
   await js(`document.querySelector('[data-me-hdel="ctoday0001"]').click(); 1`);
   ok('delete one (after an in-page confirm)', await until(`!document.querySelector('[data-me-conv="ctoday0001"]')`, 5000));
 
