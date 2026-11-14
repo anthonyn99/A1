@@ -25,7 +25,7 @@
 import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 import { Ledger } from './ledger.js';
-import { sseEvent, sseResponse, peek, pipeRest } from './sse.js';
+import { sseEvent, sseResponse, peek, pipeRest, isGone } from './sse.js';
 import { buildPrompt, runChain, BODY_MAX, TIMING } from './ai.js';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
@@ -175,7 +175,7 @@ async function rung(env, L, row, job, body, write, now) {
         return { ok: true, text };
       }
       // A thinking model sends thoughts first: any chunk is a sign of life, and the text then gets longer to come.
-      const pk = await peek(r.body, { textOf: partsText, badOf: blockOf, onAlive: () => { clearTimeout(timer); timer = setTimeout(() => { why = 'no text in ' + TIMING.firstText / 1000 + ' s'; ac.abort(); }, TIMING.firstText); } });
+      const pk = await peek(r.body, { textOf: partsText, badOf: blockOf, signal: ac.signal, onAlive: () => { clearTimeout(timer); timer = setTimeout(() => { why = 'no text in ' + TIMING.firstText / 1000 + ' s'; ac.abort(); }, TIMING.firstText); } });
       // An empty or blocked answer is this rung's last word (no retry); a timeout goes the 5xx way below.
       if (!pk.ok) { if (why) throw new Error(why); L.note(svc, false, 200, null, pk.why); return { ok: false, why: pk.why }; }
       clearTimeout(timer);
@@ -183,12 +183,13 @@ async function rung(env, L, row, job, body, write, now) {
       const firstMs = Date.now() - t0;
       await write(sseEvent('meta', { provider: 'gemini', model: row.id, job }));
       for (const c of pk.head) await write(c);
-      const cut = await pipeRest(pk.reader, write);
+      const cut = await pipeRest(pk.reader, write, { signal: ac.signal });
       if (cut) { L.note(svc, false, 200, null, 'cut mid-stream'); await write(sseEvent('reset', { provider: 'gemini', why: why || 'the stream was cut' })); return { ok: false, why: why || 'the stream was cut mid-way' }; }
       L.note(svc, true, 200, firstMs);
       if (need && row.caps[need] == null) { row.caps[need] = true; row.dirty = true; }
       return { ok: true, firstMs, ms: Date.now() - t0 };
     } catch (e) {
+      if (isGone(e)) { ac.abort(); return { ok: false, gone: true, why: 'the page stopped listening' }; }
       const v = verdictOf(why ? null : status, errText, need, usedToday, now);
       if (v.spent) { row.spent[kind] = v.spent; row.dirty = true; } else L.note(svc, false, status, null, why || v.why);
       if (v.nocap) { row.caps[need] = false; row.dirty = true; }
@@ -220,6 +221,7 @@ export async function gemini(env, req, ctx) {
     for (const row of ladder(rows, job)) {
       const r = await rung(env, L, row, job, body, write, now);
       if (r.ok) return { ok: true, provider: 'gemini', model: row.id, tried, ...r };
+      if (r.gone) return { ok: false, gone: true, tried };
       tried.push({ provider: 'gemini', model: row.id, why: r.why });
     }
     // Every rung out: the job's fallback outside Gemini.
@@ -244,6 +246,7 @@ export async function gemini(env, req, ctx) {
   }
   return sseResponse(ctx, async (write) => {
     const r = await run(write);
+    if (r.gone) return;
     await write(r.ok ? sseEvent('done', { provider: r.provider, model: r.model, firstMs: r.firstMs, ms: r.ms, tried: r.tried, stripped: p.stripped }) : sseEvent('fail', { tried: r.tried, fallback: r.fallback }));
   }, after);
 }

@@ -21,7 +21,7 @@
 import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 import { Ledger, median } from './ledger.js';
-import { sseEvent, sseResponse, peek, pipeRest } from './sse.js';
+import { sseEvent, sseResponse, peek, pipeRest, isGone } from './sse.js';
 
 const DAY = 86_400_000;
 // How long a provider gets: to its first sign of life, to its first text, for the whole stream, for an answer asked whole.
@@ -174,13 +174,13 @@ async function tryStream(env, L, P, model, p, write) {
     const r = await send(env, P, model, p, true, ac.signal);
     status = r.status;
     if (!r.ok) { const x = await refusal(env, P, model, r); throw new Error(x.why); }
-    const pk = await peek(r.body, { textOf: P.binding ? workersText : openaiText, badOf: errorOf, onAlive: () => arm(TIMING.firstText, 'no text in ' + TIMING.firstText / 1000 + ' s') });
+    const pk = await peek(r.body, { textOf: P.binding ? workersText : openaiText, badOf: errorOf, signal: ac.signal, onAlive: () => arm(TIMING.firstText, 'no text in ' + TIMING.firstText / 1000 + ' s') });
     if (!pk.ok) throw new Error(why || pk.why);
     const firstMs = Date.now() - t0;
     arm(TIMING.stream, 'the answer ran past ' + TIMING.stream / 1000 + ' s');
     await write(sseEvent('meta', { provider: P.id, model }));
     for (const c of pk.head) await write(c);
-    const cut = await pipeRest(pk.reader, write);
+    const cut = await pipeRest(pk.reader, write, { signal: ac.signal });
     if (cut) {
       L.note(P.id, false, status, null, 'cut mid-stream: ' + (why || cut));
       await write(sseEvent('reset', { provider: P.id, why: why || 'the stream was cut' }));
@@ -189,6 +189,8 @@ async function tryStream(env, L, P, model, p, write) {
     L.note(P.id, true, status, firstMs);
     return { ok: true, firstMs, ms: Date.now() - t0 };
   } catch (e) {
+    // The page left: stop, and do not count it against the provider (it was answering).
+    if (isGone(e)) { ac.abort(); return { ok: false, gone: true, why: 'the page stopped listening' }; }
     const msg = why || (e && e.message) || String(e);
     L.note(P.id, false, status, null, msg);
     return { ok: false, why: msg };
@@ -231,6 +233,8 @@ export async function runChain(env, L, p, { write = null, forced = null, now = D
     const model = await modelFor(env, L, P, rows, now);
     const r = write ? await tryStream(env, L, P, model, p, write) : await tryOnce(env, L, P, model, p);
     if (r.ok) return { ok: true, provider: P.id, model, tried, ...r };
+    // Nobody is listening any more: no other provider is asked.
+    if (r.gone) return { ok: false, gone: true, tried };
     tried.push({ provider: P.id, model, why: r.why });
   }
   if (!tried.length) tried.push({ provider: forced || 'fast lane', why: forced ? 'no key is set for it' : 'no provider has a key set' });
@@ -249,6 +253,7 @@ export async function chat(env, req, ctx) {
   }
   return sseResponse(ctx, async (write) => {
     const r = await runChain(env, L, p, { write, forced });
+    if (r.gone) return;
     await write(r.ok ? sseEvent('done', { provider: r.provider, model: r.model, firstMs: r.firstMs, ms: r.ms, tried: r.tried }) : sseEvent('fail', { tried: r.tried }));
   }, () => L.flush());
 }
