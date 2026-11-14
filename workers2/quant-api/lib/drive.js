@@ -128,13 +128,29 @@ export function cleanPath(p) {
   if (!parts.length || parts.some((s) => !s || s === '.' || s === '..' || s.length > 120 || !/^[\w .()+-]+$/.test(s)) || parts.length > 6) throw fail(400, 'path must be like ledger/2026-11.jsonl (letters, digits, . _ - ( ) + and spaces)');
   return parts;
 }
+// Ids seen alive (not trashed) by this worker instance: each is asked once, so an id
+// kept in D1 that Tony deleted in Drive (it goes to the trash) is noticed, not written into.
+const seen = new Map();
+/** Is Drive file/folder `id` there and not in the trash? → its metadata, or null. */
+async function alive(env, id) {
+  if (seen.has(id)) return seen.get(id);
+  const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id) + '?fields=id,name,trashed,mimeType,size,appProperties');
+  const j = r.ok ? await r.json().catch(() => null) : null;
+  const out = j && !j.trashed ? j : null;
+  if (r.ok || r.status === 404) seen.set(id, out);
+  else throw fail(502, 'Drive could not be asked about a file (' + r.status + ')');
+  return out;
+}
+export function forgetSeen() { seen.clear(); }
 /** The folder TradeHub/<parts…>, made when missing; ids kept in drive_files. */
 async function folder(env, parts) {
   let parent = 'root', path = '';
   for (const name of [ROOT, ...parts]) {
     path = path ? path + '/' + name : name;
     const row = await env.DB.prepare("SELECT id FROM drive_files WHERE path = ? AND kind = 'folder'").bind(path).first();
-    if (row) { parent = row.id; continue; }
+    if (row && (await alive(env, row.id))) { parent = row.id; continue; }
+    // Gone or in the trash: everything kept under it is stale too.
+    if (row) await env.DB.prepare('DELETE FROM drive_files WHERE path = ? OR substr(path, 1, ?) = ?').bind(path, path.length + 1, path + '/').run();
     const q = "name = '" + name.replace(/'/g, "\\'") + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and '" + parent + "' in parents";
     const j = await (await gfetch(env, DRIVE + '/files?fields=files(id)&pageSize=1&q=' + encodeURIComponent(q))).json().catch(() => ({}));
     let id = j.files && j.files[0] && j.files[0].id;
@@ -155,14 +171,15 @@ export async function putFile(env, path, body, mimeIn) {
   const parts = cleanPath(path), full = [ROOT, ...parts].join('/'), name = parts[parts.length - 1];
   if (body.byteLength > FILE_MAX) throw fail(413, 'a file may be at most ' + FILE_MAX + ' bytes');
   const sha = await sha256(body), mime = mimeIn || MIME[name.split('.').pop()] || 'application/octet-stream';
-  const have = await guarded(env.DB.prepare("SELECT id, sha FROM drive_files WHERE path = ? AND kind = 'file'").bind(full).first());
+  let have = await guarded(env.DB.prepare("SELECT id, sha FROM drive_files WHERE path = ? AND kind = 'file'").bind(full).first());
+  // Deleted or trashed in Drive by hand: forget it and upload afresh (never "skipped" into the trash).
+  if (have && !(await alive(env, have.id))) { await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(full).run(); have = null; }
   if (have && have.sha === sha) return { ok: true, id: have.id, path: full, sha, size: body.byteLength, skipped: true };
   let id;
   if (have) {
     // Same path, new content: a new revision of the same file.
     const r = await gfetch(env, UPLOAD + '/files/' + encodeURIComponent(have.id) + '?uploadType=media&fields=id', { method: 'PATCH', headers: { 'content-type': mime }, body });
-    // Deleted in Drive by hand: forget it and upload afresh.
-    if (r.status === 404) { await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(full).run(); return putFile(env, path, body, mimeIn); }
+    if (r.status === 404) { seen.delete(have.id); await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(full).run(); return putFile(env, path, body, mimeIn); }
     if (!r.ok) throw fail(502, 'Drive refused the update (' + r.status + ')');
     id = have.id;
   } else {
@@ -189,10 +206,15 @@ export async function putRoute(env, req, url) {
   const body = await req.arrayBuffer();
   return json(await putFile(env, url.searchParams.get('path'), body, (req.headers.get('content-type') || '').split(';')[0] || null));
 }
-/** GET /drive/f/<id> */
+/** GET /drive/f/<id>: a file quant-api made. On a new database (after a loss, before a restore) drive_files
+ *  is empty, so a file is also accepted when Drive says it carries TradeHub's app tag. */
 export async function getFile(env, id) {
-  const known = await guarded(env.DB.prepare("SELECT path, mime FROM drive_files WHERE id = ? AND kind = 'file'").bind(id).first());
-  if (!known) throw fail(404, 'no such TradeHub file');
+  let known = await guarded(env.DB.prepare("SELECT path, mime FROM drive_files WHERE id = ? AND kind = 'file'").bind(id).first());
+  if (!known) {
+    const m = await alive(env, id);
+    if (!m || !m.appProperties || m.appProperties.tradehub !== '1') throw fail(404, 'no such TradeHub file');
+    known = { path: ROOT + '/…/' + m.name, mime: m.mimeType };
+  }
   const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id) + '?alt=media');
   if (!r.ok) throw fail(r.status === 404 ? 404 : 502, 'Drive could not send the file (' + r.status + ')');
   return new Response(r.body, { status: 200, headers: { 'content-type': known.mime || 'application/octet-stream', 'cache-control': 'no-store', 'x-path': known.path } });
@@ -210,5 +232,11 @@ export async function deleteFile(env, id) {
 export async function list(env, url) {
   const prefix = ROOT + '/' + String(url.searchParams.get('prefix') || '').replace(/^\/+/, '').replace(/^TradeHub\//, '');
   const rows = (await guarded(env.DB.prepare("SELECT path, id, sha, size, mime, at FROM drive_files WHERE kind = 'file' AND substr(path, 1, ?) = ? ORDER BY path DESC LIMIT 1000").bind(prefix.length, prefix).all())).results || [];
+  // A new database knows no files: the backups are then found in Drive itself, by TradeHub's app tag.
+  if (!rows.length && prefix === ROOT + '/backup/' && url.searchParams.get('drive') === '1') {
+    const q = "appProperties has { key='tradehub' and value='1' } and name contains 'd1-' and trashed = false";
+    const j = await (await gfetch(env, DRIVE + '/files?pageSize=100&orderBy=name desc&fields=files(id,name,size,mimeType,modifiedTime)&q=' + encodeURIComponent(q))).json().catch(() => ({}));
+    return json({ ok: true, files: (j.files || []).map((f) => ({ path: prefix + f.name, id: f.id, size: Number(f.size || 0), mime: f.mimeType, at: Date.parse(f.modifiedTime) || null })), fromDrive: true });
+  }
   return json({ ok: true, files: rows });
 }
