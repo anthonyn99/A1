@@ -141,6 +141,7 @@ globalThis.fetch = async (url) => {
   const f = (p) => r.body.parts[p].facts;
   ok('Finnhub metrics: percents become fractions, market cap in dollars', f('metric').grossMargin === 0.721 && f('metric').marketCap === 4.5e12 && f('metric').pe === 48.2 && f('metric').revGrowth3y === 0.85);
   ok('...its P/E history oldest first', JSON.stringify(f('metric').peHist.map((x) => x.v)) === '[55,40,48]');
+  ok('...EV/sales and its history (the value score\'s sales multiple)', f('metric').evs === 24.5 && JSON.stringify(f('metric').evsHist.map((x) => x.v)) === '[20,24]');
   ok('recommendations: counts and the trend over three months', f('recommendation').ratings.buy === 38 && f('recommendation').ratings.sell === 1 && f('recommendation').ratingTrend === 'up', JSON.stringify(f('recommendation')));
   ok('the next earnings date and time', f('calendar').nextEarnings === '2026-11-19' && f('calendar').earningsTime === 'after the close');
   ok('insiders: open-market buys and sells by value (the option exercise is left out)', f('insiders').insiders.sellValue === 180000 && f('insiders').insiders.buyValue === 17000 && f('insiders').insiders.buys === 1);
