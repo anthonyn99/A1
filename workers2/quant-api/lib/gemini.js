@@ -220,8 +220,11 @@ export async function gemini(env, req, ctx) {
   const b = await bodyOf(req, BODY_MAX + 4 * IMAGE_MAX), job = String((b && b.job) || '');
   if (!JOBS[job]) throw fail(400, 'job must be one of ' + Object.keys(JOBS).join(', '));
   if (!env.GEMINI_KEY) throw fail(503, 'GEMINI_KEY is not set');
-  // Account figures never leave for Gemini.
-  const p = buildPrompt(b, { stripPrivate: true }), pics = images(b), body = geminiBody(p, job, pics);
+  // Account figures never leave for Gemini: no private fact, and only the question itself (an earlier reply in the
+  // conversation could quote the account's value or P&L).
+  const p = buildPrompt(b, { stripPrivate: true });
+  p.messages = p.messages.slice(-1);
+  const pics = images(b), body = geminiBody(p, job, pics);
   const now = Date.now(), L = await Ledger.load(env, now);
   let rows = await rowsOf(env);
   if (!rows.some((r) => r.state === 'ok') || now - Math.max(0, ...rows.map((r) => r.at)) > DISCOVER_TTL) rows = await discover(env, now);
