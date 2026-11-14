@@ -114,7 +114,7 @@ const DOSSIER = {
   const pl = await text('[data-iv-plan]');
   ok('the word "Accumulate" and why', (await js(`return document.querySelector('[data-iv-word]').dataset.ivWord;`)) === 'Accumulate' && /A tranche fired/.test(pl));
   ok('the tranche: a third, its date and price, invalid under the reversal low', /Tranche 1 \(a third\)[\s\S]*590\.40/.test(pl) && /Invalid on a close under 560\.20/.test(pl));
-  ok('the ledger\'s invest signal with its 1-month mark (3 and 6 still to come)', /SPY tranche 1/.test(pl) && /1 month \+3\.4% · 3 months — · 6 months —/.test(pl));
+  ok('the ledger\'s invest signal with its 1-month mark (3 and 6 still to come)', /SPY tranche 1/.test(pl) && /1 month \+3\.4% · 3 months — · 6 months —/.test(pl), pl);
   ok('the rule measured on history, its sample stated plainly', /11 first tranches on SPY, 2006 to 20\d\d/.test(pl) && /6 months: median \+5\.1%, up in 7 of 11/.test(pl) && !!(await js(`return document.querySelector('[data-iv-small]');`)) && /Small sample \(11, under 30\)/.test(pl));
 
   console.log('\nIdeas');
@@ -135,7 +135,7 @@ const DOSSIER = {
   ok('...EPS for the fiscal year is disputed (Finnhub 3.70, SEC 4.00)', /disputed: SEC filings says 4\.00/.test(await text('[data-dz-fact="epsFy"]')));
   ok('...insiders failed: unavailable, and the Sources say why', /unavailable/.test(await text('[data-dz-fact="insiders"]')) && /insiders: not available now \(finnhub: HTTP 500\)/.test(await text('[data-dz-sources]')));
   const dz = await text('[data-dossier="NVDA"]');
-  ok('the Street: counts and the bar, the trend, low / mean / high targets', /38 buy · 5 hold · 1 sell/.test(dz) && !!(await js(`return document.querySelector('.dz-ratebar');`)) && /More buys than 3 months ago/.test(dz) && /247\.58/.test(dz) && /345\.00/.test(dz));
+  ok('the Street: counts and the bar, the trend, low / mean / high targets', /38 buy · 5 hold · 1 sell/.test(dz) && !!(await js(`return document.querySelector('.dz-ratebar');`)) && /More buys than 3 months ago/.test(dz) && /247\.58/.test(dz) && /345\.00/.test(dz), dz.slice(0, 1200));
   ok('warnings from the facts: earnings within 5 sessions, estimates falling', !!(await js(`return document.querySelector('[data-dz-warn="earnings-soon"]') && document.querySelector('[data-dz-warn="estimates-falling"]');`)));
   ok('sources with their times', /Finnhub: \w+day/.test(await text('[data-dz-sources]')) && /SEC filings: \w+day/.test(await text('[data-dz-sources]')));
   ok('the dispute went to the data doctor\'s log once', await until(`true`, 500) && asked('/corrections', 'POST') === 1 && api.posted.corrections[0].items.some((i) => i.field === 'epsFy'));
