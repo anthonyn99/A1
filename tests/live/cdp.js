@@ -158,7 +158,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
           { name: 'Content-Type', value: 'application/json' },
           { name: 'Access-Control-Allow-Origin', value: '*' },
           { name: 'Access-Control-Allow-Headers', value: '*' },
-          { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, DELETE, OPTIONS' },
+          { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, PATCH, DELETE, OPTIONS' },
         ],
         body: Buffer.from(r.text != null ? r.text : JSON.stringify(r.json)).toString('base64'),
       });
@@ -174,7 +174,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
             { name: 'Content-Type', value: (v && v.type) || 'application/json' },
             { name: 'Access-Control-Allow-Origin', value: '*' },
             { name: 'Access-Control-Allow-Headers', value: '*' },
-            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, DELETE, OPTIONS' },
+            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, PATCH, DELETE, OPTIONS' },
           ],
           body: Buffer.from(v && v.text != null ? v.text : v && v.json != null ? JSON.stringify(v.json) : '').toString('base64'),
         }));
@@ -187,7 +187,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
             { name: 'Content-Type', value: r.type || 'application/json' },
             { name: 'Access-Control-Allow-Origin', value: '*' },
             { name: 'Access-Control-Allow-Headers', value: '*' },
-            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, DELETE, OPTIONS' },
+            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, PATCH, DELETE, OPTIONS' },
           ],
           body: Buffer.from(r.text != null ? r.text : r.json == null ? '' : JSON.stringify(r.json)).toString('base64'),
         });
