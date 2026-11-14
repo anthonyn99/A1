@@ -32,6 +32,7 @@ const API = 'https://generativelanguage.googleapis.com/v1beta';
 const DAY = 86_400_000;
 export const JOBS = { search: { need: 'search', from: 'flash' }, image: { need: 'image', from: 'flash' }, long: { need: null, from: 'flash' }, hear: { need: 'audio', from: 'flash' }, route: { need: null, from: 'flash-lite' } };
 // Daily requests a model may take until Google's own number is known (a 429 always ends its day anyway).
+export const REST_MS = 10 * 60_000;   // how long a model that failed (503, 5xx twice, timeouts) is skipped
 export const BUDGET = { flash: 100, 'flash-lite': 200, gemma: 500 };
 export const LADDER_KEEP = { flash: 4, 'flash-lite': 2, gemma: 1 };
 export const IMAGE_MAX = 4_000_000, DISCOVER_TTL = 7 * DAY, NO_ALLOWANCE_MS = 7 * DAY;
@@ -139,18 +140,24 @@ export function verdictOf(status, text, need, usedToday, now) {
     return { why: secs != null && secs <= 90 ? 'at its per-minute limit' : usedToday ? 'its daily allowance is spent' : 'no free allowance for this kind of request', spent: until, retry: false };
   }
   if (status === 404) return { why: 'the model is gone', drop: true, retry: false };
+  // 503 UNAVAILABLE comes back at once and again on a retry (measured 2026-11-14 on three Flash models):
+  // no retry, the model rests REST_MS for every kind of job, next rung.
+  if (status === 503) return { why: 'unavailable (HTTP 503), resting ' + REST_MS / 60_000 + ' min', rest: true, retry: false };
   if (status === 400 && need && /(not supported|unsupported|not enabled|tool|modalit|grounding|search)/i.test(t)) return { why: 'it cannot do ' + need, nocap: true, retry: false };
-  if (status >= 500 || status == null) return { why: status ? 'HTTP ' + status : 'timed out', retry: true };
+  if (status >= 500 || status == null) return { why: status ? 'HTTP ' + status : 'timed out', retry: true, rest: true };
   return { why: 'HTTP ' + status, retry: false };
 }
 async function rung(env, L, row, job, body, write, now) {
   const need = JOBS[job].need, kind = need || 'text', svc = service(row.id);
   if (need && row.caps[need] === false) return { ok: false, why: 'it cannot do ' + need, skip: true };
   if ((row.spent[kind] || 0) > now) return { ok: false, why: 'spent until ' + new Date(row.spent[kind]).toISOString(), skip: true };
+  if ((row.spent.rest || 0) > now) return { ok: false, why: 'resting after failing, until ' + new Date(row.spent.rest).toISOString(), skip: true };
   L.caps[svc] = row.limits.rpd || BUDGET[row.family];
   const blocked = L.blocked(svc);
   if (blocked) return { ok: false, why: blocked, skip: true };
-  const usedToday = L.used[svc] || 0;
+  // Has this model answered this kind of job before? A 429 on a kind it never answered means no free allowance for it
+  // (a model can have one for text and none for search), not a day spent.
+  const usedToday = need ? row.caps[need] === true : (L.used[svc] || 0) > 0;
   for (let attempt = 0; ; attempt++) {
     if (!L.spend(svc)) return { ok: false, why: 'at its daily budget', skip: true };
     const t0 = Date.now(), ac = new AbortController();
@@ -165,7 +172,8 @@ async function rung(env, L, row, job, body, write, now) {
         L.note(svc, true, 200, Date.now() - t0);
         return { ok: true, text };
       }
-      const pk = await peek(r.body, { textOf: partsText, badOf: blockOf });
+      // A thinking model sends thoughts first: any chunk is a sign of life, and the text then gets longer to come.
+      const pk = await peek(r.body, { textOf: partsText, badOf: blockOf, onAlive: () => { clearTimeout(timer); timer = setTimeout(() => { why = 'no text in ' + TIMING.firstText / 1000 + ' s'; ac.abort(); }, TIMING.firstText); } });
       // An empty or blocked answer is this rung's last word (no retry); a timeout goes the 5xx way below.
       if (!pk.ok) { if (why) throw new Error(why); L.note(svc, false, 200, null, pk.why); return { ok: false, why: pk.why }; }
       clearTimeout(timer);
@@ -184,6 +192,7 @@ async function rung(env, L, row, job, body, write, now) {
       if (v.nocap) { row.caps[need] = false; row.dirty = true; }
       if (v.drop) { row.state = 'dropped'; row.spent.gone = now + NO_ALLOWANCE_MS; row.dirty = true; }
       if (v.retry && !attempt) continue;
+      if (v.rest) { row.spent.rest = now + REST_MS; row.dirty = true; }
       return { ok: false, why: why || v.why, drop: !!v.drop };
     } finally { clearTimeout(timer); }
   }
