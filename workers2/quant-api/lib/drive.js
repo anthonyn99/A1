@@ -195,7 +195,7 @@ export async function putFile(env, path, body, mimeIn) {
     if (!put.ok || !j.id) throw fail(502, 'Drive upload failed (' + put.status + ')');
     id = j.id;
   }
-  seen.set(id, { id, name, trashed: false });   // just written: alive, no need to ask Drive again this instance
+  seen.set(id, { id, name, trashed: false, mimeType: mime, appProperties: { tradehub: '1' } });   // just written (with TradeHub's tag): alive, no need to ask Drive again this instance
   await env.DB.prepare("INSERT INTO drive_files (path, id, kind, sha, size, mime, at) VALUES (?, ?, 'file', ?, ?, ?, ?) "
     + 'ON CONFLICT (path) DO UPDATE SET id = excluded.id, sha = excluded.sha, size = excluded.size, mime = excluded.mime, at = excluded.at').bind(full, id, sha, body.byteLength, mime, Date.now()).run();
   return { ok: true, id, path: full, sha, size: body.byteLength, skipped: false };
