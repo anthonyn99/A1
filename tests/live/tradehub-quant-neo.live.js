@@ -54,7 +54,7 @@ const ok = (name, cond, extra) => {
     await js(`var i=document.querySelector('[data-nq-dock] [data-nq-input]')||document.querySelector('[data-nq-input]'); i.value=${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true})); 1`);
   };
   const lastA = (sel = '') => `[...document.querySelectorAll('${sel}[data-nq-a]')].pop()`;
-  const doneA = (sel = '') => until(`(function(){var all=document.querySelectorAll('${sel}[data-nq-a]'), a=all[all.length-1]; return all.length > ${'${asked}'} && a && /done|failed/.test(a.dataset.state);})()`, 10000);
+  const doneA = (sel = '') => until(`(function(){var all=document.querySelectorAll('${sel}[data-nq-a]'), a=all[all.length-1]; return all.length > ${asked} && a && /done|failed/.test(a.dataset.state);})()`, 10000);
 
   console.log('\nThe dock on every tab');
   await size(1280, 900);
