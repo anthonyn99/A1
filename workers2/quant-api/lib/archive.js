@@ -18,7 +18,8 @@ import { bodyOf } from './charts.js';
 export const EXPORT_MAX = 500, RESTORE_MAX = 100, HISTORY_OLD_MAX = 50, RESTORE_CONFIRM = 'restore into an empty database';
 // Never exported or restored: Cloudflare's and SQLite's own, and the Drive token (sealed to this worker's key).
 const SKIP = new Set(['_cf_KV', 'sqlite_sequence', 'd1_migrations']);
-export const VOLATILE = new Set(['usage', 'provider_health', 'meta']);
+// `models` too: the worker reads the providers' lists again by itself.
+export const VOLATILE = new Set(['usage', 'provider_health', 'meta', 'models']);
 const META_SKIP = "k NOT LIKE 'drive:%'";
 const TABLE_RE = /^[a-z_][a-z0-9_]{0,40}$/;
 const batch = (env, stmts) => (env.DB.batch ? env.DB.batch(stmts) : (async () => { for (const s of stmts) await s.run(); })());

@@ -41,6 +41,10 @@
 //   /memory, /memory/:id, /memory/used   memory cards (lib/memory.js; Neo only proposes)
 //   /history, /history/:id, /history/turn   conversations, one row per turn
 //   GET /export/tables, GET /export, GET /history/old, POST /history/purge, POST /restore   (lib/archive.js)
+//   POST /ai/chat                  Neo Quant's fast lane, streamed (lib/ai.js)
+//   POST /ai/gemini, /ai/gemini/discover   Gemini's ladder for search, images, long reads (lib/gemini.js)
+//   GET  /ai/models, GET/POST /ai/evals    the model table and the graded question set's scores
+//   GET/POST /brief                the daily brief and "What changed?" (lib/brief.js)
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -58,6 +62,9 @@ import { getDossier, getFundamentals, getIdeas, postIdeas, postShortVolume } fro
 import * as drive from './lib/drive.js';
 import * as mem from './lib/memory.js';
 import * as arc from './lib/archive.js';
+import * as ai from './lib/ai.js';
+import * as gem from './lib/gemini.js';
+import { getBrief, postBrief } from './lib/brief.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -168,6 +175,15 @@ async function route(req, env, url, ctx) {
   if (p === '/export/tables' && m === 'GET') return arc.exportTables(env);
   if (p === '/export' && m === 'GET') return arc.exportPage(env, url);
   if (p === '/restore' && m === 'POST') return arc.restore(env, req);
+  // Phase 9: Neo Quant's AI lanes, the model table, evals, briefs.
+  if (p === '/ai/chat' && m === 'POST') return ai.chat(env, req, ctx);
+  if (p === '/ai/gemini' && m === 'POST') return gem.gemini(env, req, ctx);
+  if (p === '/ai/gemini/discover' && m === 'POST') return gem.discoverRoute(env);
+  if (p === '/ai/models' && m === 'GET') return ai.getModels(env);
+  if (p === '/ai/evals' && m === 'GET') return ai.getEvals(env, url);
+  if (p === '/ai/evals' && m === 'POST') return ai.postEval(env, req);
+  if (p === '/brief' && m === 'GET') return getBrief(env, url);
+  if (p === '/brief' && m === 'POST') return postBrief(env, req);
   const bt = /^\/backtests\/([\w-]+)$/.exec(p);
   if (bt && m === 'GET') return getBacktest(env, bt[1]);
   if (bt && m === 'DELETE') return deleteBacktest(env, bt[1]);
@@ -275,7 +291,7 @@ async function usage(env) {
     usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })),
     health,
     caps: CAPS,
-    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), groq: !!env.GROQ_KEY, alphavantage: !!env.ALPHAVANTAGE_KEY },
+    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), alphavantage: !!env.ALPHAVANTAGE_KEY, ...ai.keysSet(env), gemini: !!env.GEMINI_KEY },
   });
 }
 
