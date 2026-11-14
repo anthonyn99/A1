@@ -180,7 +180,8 @@ globalThis.fetch = async (url, init = {}) => {
   ok('...he edits and pins it', r.body.cards[0].text === 'Do not chase a gap over 3% in the first 5 minutes' && r.body.cards[0].pinned);
   r = await call(env, '/memory', { method: 'POST', body: { card: { kind: 'preference', text: 'Swing trades only on Fridays', source: 'tony' } } });
   ok('Tony\'s own card is active at once', r.body.state === 'active');
-  ok('a card over 240 characters or of an unknown kind is refused', (await call(env, '/memory', { method: 'POST', body: { card: { kind: 'fact', text: 'x'.repeat(241) } } })).status === 400 && (await call(env, '/memory', { method: 'POST', body: { card: { kind: 'mood', text: 'x' } } })).status === 400);
+  ok('a card over 240 characters or of an unknown kind is refused', (await call(env, '/memory', { method: 'POST', body: { card: { kind: 'fact', text: 'x'.repeat(241), source: 'tony' } } })).status === 400 && (await call(env, '/memory', { method: 'POST', body: { card: { kind: 'mood', text: 'x', source: 'tony' } } })).status === 400);
+  ok('a card that does not say whose it is is refused (never taken as Tony\'s)', (await call(env, '/memory', { method: 'POST', body: { card: { kind: 'fact', text: 'who?' } } })).status === 400);
   r = await call(env, '/memory/' + proposed, { method: 'DELETE' });
   ok('he deletes one', r.status === 200 && !(await call(env, '/memory')).body.cards.some((c) => c.id === proposed));
   // The 150 cap: 150 active (one pinned, the oldest), then one more.
@@ -193,6 +194,12 @@ globalThis.fetch = async (url, init = {}) => {
   await call(env, '/memory/used', { method: 'POST', body: { ids: ['mcard0002'] } });
   await call(env, '/memory', { method: 'POST', body: { card: { kind: 'fact', text: 'the 152nd', source: 'tony' } } });
   ok('...a card just used is kept; the next least recently used goes', (await call(env, '/memory?state=archived')).body.cards.map((c) => c.id).sort().join() === 'mcard0001,mcard0003');
+  // At the cap, accepting an old proposal (or restoring an archived card) keeps THAT card: it counts as just used.
+  env.DB.sql.prepare("INSERT INTO memory_cards (id, kind, text, source, created, last_used, pinned, state) VALUES ('mproposal10d', 'lesson', 'old idea', 'neo', ?, NULL, 0, 'proposed')").run(now - 10 * 86400000);
+  await call(env, '/memory/mproposal10d', { method: 'PATCH', body: { state: 'active', by: 'tony' } });
+  await call(env, '/memory/mcard0001', { method: 'PATCH', body: { state: 'active', by: 'tony' } });
+  const act2 = (await call(env, '/memory?state=active')).body.cards.map((c) => c.id);
+  ok('at the cap, an accepted proposal and a restored card stay active (an older one is archived instead)', act2.length === 150 && act2.includes('mproposal10d') && act2.includes('mcard0001'));
 
   console.log('\nHistory');
   env = mkEnv();
@@ -206,19 +213,27 @@ globalThis.fetch = async (url, init = {}) => {
   ok('the list: title from the first question, turns, tickers, verdicts', r.body.conversations.length === 1 && r.body.conversations[0].turns === 2 && r.body.conversations[0].title === 'Is NVDA a buy here?' && r.body.conversations[0].tickers.join() === 'NVDA' && r.body.conversations[0].verdicts.join() === 'WATCH');
   r = await call(env, '/history/cabcdef1');
   ok('a conversation\'s turns in order, with mode, model, facts', r.body.turns.length === 2 && r.body.turns[0].mode === 'voice' && r.body.turns[1].model === 'groq' && r.body.turns[1].facts[0] === 'f1');
-  r = await call(env, '/history/turns?since=0');
-  const t1 = r.body.turns[0].at;
-  ok('turns since a time, oldest first, with their conversation (the search index reads these)', r.body.turns.length === 2 && r.body.turns[0].title === 'Is NVDA a buy here?' && r.body.turns[1].verdict === 'WATCH' && (await call(env, '/history/turns?since=' + r.body.turns[1].at)).body.turns.length === 0 && t1 > 0);
+  r = await call(env, '/history/turns?after=0');
+  const seq2 = r.body.turns[1].seq;
+  ok('turns after a cursor, in stored order, with their conversation (the search index reads these)', r.body.turns.length === 2 && r.body.turns[0].title === 'Is NVDA a buy here?' && r.body.turns[1].verdict === 'WATCH' && (await call(env, '/history/turns?after=' + seq2)).body.turns.length === 0);
+  await call(env, '/history/turn', { method: 'POST', body: { conv: 'cabcdef1', turn: { role: 'q', text: 'from a phone whose clock is behind', at: Date.now() - 3600000 } } });
+  ok('...a turn stamped EARLIER (a clock behind) still comes after the cursor: the order is the database\'s, not the clock\'s', (await call(env, '/history/turns?after=' + seq2)).body.turns.map((t) => t.text).join() === 'from a phone whose clock is behind');
   await call(env, '/history/cabcdef1', { method: 'PATCH', body: { pinned: true } });
   ok('pin', (await call(env, '/history')).body.conversations[0].pinned);
   await call(env, '/history/turn', { method: 'POST', body: { conv: 'cold00001', turn: { role: 'q', text: 'old question', at: Date.now() - 40 * 86400000 } } });
   env.DB.sql.prepare("UPDATE history SET created = ? WHERE id = 'cold00001'").run(Date.now() - 40 * 86400000);
   env.DB.sql.prepare("UPDATE history_turns SET at = ? WHERE conv = 'cabcdef1'").run(Date.now() - 50 * 86400000);
+  await call(env, '/history/turn', { method: 'POST', body: { conv: 'cold00002', turn: { role: 'q', text: 'another old one', at: Date.now() - 45 * 86400000 } } });
+  env.DB.sql.prepare("UPDATE history SET created = ? WHERE id = 'cold00002'").run(Date.now() - 45 * 86400000);
   r = await call(env, '/history/old?days=30');
-  ok('the 30-day rule: only the unpinned old conversation, with its turns', r.body.conversations.map((c) => c.id).join() === 'cold00001' && r.body.conversations[0].turns.length === 1);
-  r = await call(env, '/history/purge', { method: 'POST', body: { ids: ['cold00001', 'cabcdef1'] } });
-  const left = (await call(env, '/history')).body.conversations.map((c) => c.id);
-  ok('purge removes it from D1; a pinned one is never purged, even when named', left.join() === 'cabcdef1' && !(await env.DB.prepare("SELECT 1 AS x FROM history_turns WHERE conv = 'cold00001'").first()));
+  const before = r.body.before;
+  ok('the 30-day rule: only the unpinned old conversations, with their turns and the cut used', r.body.conversations.map((c) => c.id).sort().join() === 'cold00001,cold00002' && r.body.conversations[0].turns.length === 1 && before > 0);
+  ok('purge needs the cut', (await call(env, '/history/purge', { method: 'POST', body: { ids: ['cold00001'] } })).status === 400);
+  // While the archive was busy, Tony continued cold00002: its new turn must not be purged unarchived.
+  await call(env, '/history/turn', { method: 'POST', body: { conv: 'cold00002', turn: { role: 'q', text: 'continued just now' } } });
+  r = await call(env, '/history/purge', { method: 'POST', body: { ids: ['cold00001', 'cold00002', 'cabcdef1'], before } });
+  const left = (await call(env, '/history')).body.conversations.map((c) => c.id).sort();
+  ok('purge removes only what is still old: the pinned one stays, the one continued since stays', left.join() === 'cabcdef1,cold00002' && r.body.ids.join() === 'cold00001' && !(await env.DB.prepare("SELECT 1 AS x FROM history_turns WHERE conv = 'cold00001'").first()));
   ok('delete all needs the confirmation', (await call(env, '/history', { method: 'DELETE' })).status === 400 && (await call(env, '/history?confirm=delete-all', { method: 'DELETE' })).status === 200 && !(await call(env, '/history')).body.conversations.length);
 
   console.log('\nBackup and restore');
@@ -232,10 +247,16 @@ globalThis.fetch = async (url, init = {}) => {
   ok('export lists every table (not Cloudflare\'s or SQLite\'s own)', tables.some((t) => t.table === 'signals' && t.rows === 1) && tables.some((t) => t.table === 'memory_cards') && !tables.some((t) => /^(_cf_KV|d1_migrations|sqlite_)/.test(t.table)));
   ok('...the Drive token is never in a backup', tables.find((t) => t.table === 'meta').rows === 1);
   const dump = {};
-  for (const t of tables) { dump[t.table] = []; for (let off = 0; ; off += 2000) { const p = await call(env, `/export?table=${t.table}&offset=${off}`); dump[t.table].push(...p.body.rows); if (!p.body.more) break; } }
+  for (const t of tables) { dump[t.table] = []; for (let off = 0; ; off += 500) { const p = await call(env, `/export?table=${t.table}&offset=${off}`); dump[t.table].push(...p.body.rows); if (!p.body.more) break; } }
   const env2 = mkEnv();
+  // The new database is already alive: Drive connected (its token) and a usage row, as any worker call makes.
+  env2.DB.sql.exec("INSERT INTO meta (k, v, at) VALUES ('drive:token', 'v1.new', 5); INSERT INTO usage (day, service, n) VALUES ('2026-11-14', 'yahoo', 3)");
   ok('restore needs the typed confirmation', (await call(env2, '/restore', { method: 'POST', body: { table: 'signals', rows: dump.signals } })).status === 400);
-  for (const [t, rows] of Object.entries(dump)) for (let i = 0; i < rows.length; i += 500) await call(env2, '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: t, rows: rows.slice(i, i + 500), offset: i } });
+  const codes = [];
+  for (const [t, rows] of Object.entries(dump)) for (let i = 0; i < Math.max(1, rows.length); i += 100) codes.push((await call(env2, '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: t, rows: rows.slice(i, i + 100), offset: i } })).status);
+  ok('...on a database already alive (Drive token, usage rows) every table restores (no false "not empty")', codes.every((s) => s === 200), codes.join());
+  ok('...its own Drive token is kept, never replaced from a backup', (await env2.DB.prepare("SELECT v FROM meta WHERE k = 'drive:token'").first()).v === 'v1.new');
+  ok('at most 100 rows a call', (await call(mkEnv(), '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: 'signals', rows: Array(101).fill({ id: 'x' }), offset: 0 } })).status === 400);
   const same = await (async () => { for (const t of tables) { const a = (await call(env, `/export?table=${t.table}`)).body.rows, b = (await call(env2, `/export?table=${t.table}`)).body.rows; if (JSON.stringify(a) !== JSON.stringify(b)) return t.table; } return true; })();
   ok('a backup restored into an empty database reproduces every table', same === true, same);
   r = await call(env2, '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: 'signals', rows: dump.signals, offset: 0 } });
