@@ -26,7 +26,7 @@ import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 import { Ledger } from './ledger.js';
 import { sseEvent, sseResponse, peek, pipeRest } from './sse.js';
-import { buildPrompt, runChain, BODY_MAX } from './ai.js';
+import { buildPrompt, runChain, BODY_MAX, TIMING } from './ai.js';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 const DAY = 86_400_000;
@@ -34,7 +34,7 @@ export const JOBS = { search: { need: 'search', from: 'flash' }, image: { need: 
 // Daily requests a model may take until Google's own number is known (a 429 always ends its day anyway).
 export const BUDGET = { flash: 100, 'flash-lite': 200, gemma: 500 };
 export const LADDER_KEEP = { flash: 4, 'flash-lite': 2, gemma: 1 };
-export const GEMINI_FIRST_MS = 15_000, GEMINI_STREAM_MS = 90_000, IMAGE_MAX = 4_000_000, DISCOVER_TTL = 7 * DAY, NO_ALLOWANCE_MS = 7 * DAY;
+export const IMAGE_MAX = 4_000_000, DISCOVER_TTL = 7 * DAY, NO_ALLOWANCE_MS = 7 * DAY;
 const FALLBACK = { long: 'fast', route: 'fast', search: 'units', image: 'units', hear: 'hearing' };
 
 const noTable = (e) => /no such table/i.test(String((e && e.message) || e));
@@ -152,7 +152,7 @@ async function rung(env, L, row, job, body, write, now) {
   for (let attempt = 0; ; attempt++) {
     if (!L.spend(svc)) return { ok: false, why: 'at its daily budget', skip: true };
     const t0 = Date.now(), ac = new AbortController();
-    let why = '', status = null, timer = setTimeout(() => { why = 'no first words in ' + GEMINI_FIRST_MS / 1000 + ' s'; ac.abort(); }, GEMINI_FIRST_MS), errText = '';
+    let why = '', status = null, timer = setTimeout(() => { why = 'no first words in ' + TIMING.geminiFirst / 1000 + ' s'; ac.abort(); }, TIMING.geminiFirst), errText = '';
     try {
       const r = await fetch(`${API}/models/${row.id}:${write ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, { method: 'POST', signal: ac.signal, headers: { 'x-goog-api-key': env.GEMINI_KEY, 'content-type': 'application/json' }, body });
       status = r.status;
@@ -167,7 +167,7 @@ async function rung(env, L, row, job, body, write, now) {
       // An empty or blocked answer is this rung's last word (no retry); a timeout goes the 5xx way below.
       if (!pk.ok) { if (why) throw new Error(why); L.note(svc, false, 200, null, pk.why); return { ok: false, why: pk.why }; }
       clearTimeout(timer);
-      timer = setTimeout(() => { why = 'the answer ran past ' + GEMINI_STREAM_MS / 1000 + ' s'; ac.abort(); }, GEMINI_STREAM_MS);
+      timer = setTimeout(() => { why = 'the answer ran past ' + TIMING.geminiStream / 1000 + ' s'; ac.abort(); }, TIMING.geminiStream);
       const firstMs = Date.now() - t0;
       await write(sseEvent('meta', { provider: 'gemini', model: row.id, job }));
       for (const c of pk.head) await write(c);

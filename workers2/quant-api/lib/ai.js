@@ -24,7 +24,8 @@ import { Ledger, median } from './ledger.js';
 import { sseEvent, sseResponse, peek, pipeRest } from './sse.js';
 
 const DAY = 86_400_000;
-export const FIRST_SIGN_MS = 8000, FIRST_TEXT_MS = 25_000, STREAM_MS = 60_000, ONCE_MS = 30_000;
+// How long a provider gets: to its first sign of life, to its first text, for the whole stream, for an answer asked whole.
+export const TIMING = { firstSign: 8000, firstText: 25_000, stream: 60_000, once: 30_000, geminiFirst: 15_000, geminiStream: 90_000 };
 export const BODY_MAX = 80_000, MAX_TOKENS = 1500, MODELS_TTL = 7 * DAY, FACTS_MAX = 200;
 // A provider under either bar on the graded question set is not used for answers.
 export const EVAL_BAR = { numeric: 0.85, verdict: 0.80 };
@@ -169,14 +170,14 @@ async function tryStream(env, L, P, model, p, write) {
   let why = '', status = null, timer = null;
   const arm = (ms, msg) => { clearTimeout(timer); timer = setTimeout(() => { why = msg; ac.abort(); }, ms); };
   try {
-    arm(FIRST_SIGN_MS, 'no first token in ' + FIRST_SIGN_MS / 1000 + ' s');
+    arm(TIMING.firstSign, 'no first token in ' + TIMING.firstSign / 1000 + ' s');
     const r = await send(env, P, model, p, true, ac.signal);
     status = r.status;
     if (!r.ok) { const x = await refusal(env, P, model, r); throw new Error(x.why); }
-    const pk = await peek(r.body, { textOf: P.binding ? workersText : openaiText, badOf: errorOf, onAlive: () => arm(FIRST_TEXT_MS, 'no text in ' + FIRST_TEXT_MS / 1000 + ' s') });
+    const pk = await peek(r.body, { textOf: P.binding ? workersText : openaiText, badOf: errorOf, onAlive: () => arm(TIMING.firstText, 'no text in ' + TIMING.firstText / 1000 + ' s') });
     if (!pk.ok) throw new Error(why || pk.why);
     const firstMs = Date.now() - t0;
-    arm(STREAM_MS, 'the answer ran past ' + STREAM_MS / 1000 + ' s');
+    arm(TIMING.stream, 'the answer ran past ' + TIMING.stream / 1000 + ' s');
     await write(sseEvent('meta', { provider: P.id, model }));
     for (const c of pk.head) await write(c);
     const cut = await pipeRest(pk.reader, write);
@@ -201,7 +202,7 @@ async function tryOnce(env, L, P, model, p) {
   const t0 = Date.now();
   let status = null;
   try {
-    const r = await send(env, P, model, p, false, AbortSignal.timeout(ONCE_MS));
+    const r = await send(env, P, model, p, false, AbortSignal.timeout(TIMING.once));
     status = r.status;
     if (!r.ok) { const x = await refusal(env, P, model, r); throw new Error(x.why); }
     const j = await r.json(), c = j && j.choices && j.choices[0];
@@ -210,7 +211,7 @@ async function tryOnce(env, L, P, model, p) {
     L.note(P.id, true, status, Date.now() - t0);
     return { ok: true, text };
   } catch (e) {
-    const msg = e && e.name === 'TimeoutError' ? 'timed out after ' + ONCE_MS / 1000 + ' s' : (e && e.message) || String(e);
+    const msg = e && e.name === 'TimeoutError' ? 'timed out after ' + TIMING.once / 1000 + ' s' : (e && e.message) || String(e);
     L.note(P.id, false, status, null, msg);
     return { ok: false, why: msg };
   }
