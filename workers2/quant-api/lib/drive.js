@@ -214,7 +214,7 @@ export async function getFile(env, id) {
   if (!known) {
     const m = await alive(env, id);
     if (!m || !m.appProperties || m.appProperties.tradehub !== '1') throw fail(404, 'no such TradeHub file');
-    known = { path: ROOT + '/…/' + m.name, mime: m.mimeType };
+    known = { path: ROOT + '/' + String(m.name).replace(/[^\x20-\x7e]/g, '_'), mime: m.mimeType };   // a header: plain ASCII only
   }
   const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id) + '?alt=media');
   if (!r.ok) throw fail(r.status === 404 ? 404 : 502, 'Drive could not send the file (' + r.status + ')');
