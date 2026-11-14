@@ -54,7 +54,12 @@ class NoRoom extends Error {}
  *  counts it on `budget` (shared by the request) and refuses when none is left,
  *  so a part with a fallback or a ticker lookup can never pass DOSSIER_CALLS. */
 async function runPart(part, { L, env, sym, cik, now, budget }) {
-  const one = async (fn) => { if (budget.used >= DOSSIER_CALLS) throw new NoRoom(); budget.used++; return fn(); };
+  const one = async (fn) => {
+    if (budget.used >= DOSSIER_CALLS) throw new NoRoom();
+    budget.used++;
+    // A provider in its skip window or at its cap answers without a request: that costs nothing.
+    try { return await fn(); } catch (e) { if (e instanceof ProviderError && /skipped until|daily cap/.test(e.message)) budget.used--; throw e; }
+  };
   if (FINNHUB_PARTS.has(part) && !env.FINNHUB_KEY) throw new ProviderError('finnhub', 'no Finnhub key set', 'nokey');
   if (part === 'metric') return { src: 'finnhub', facts: await one(() => F.metric(L, env, sym)) };
   if (part === 'recommendation') return { src: 'finnhub', facts: await one(() => F.recommendation(L, env, sym)) };
