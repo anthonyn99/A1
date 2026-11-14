@@ -136,8 +136,10 @@ export function verdictOf(status, text, need, usedToday, now) {
   if (status === 429 || /RESOURCE_EXHAUSTED/.test(t)) {
     const m = /"retryDelay"\s*:\s*"(\d+)(?:\.\d+)?s"/.exec(t), secs = m ? Number(m[1]) : null;
     // A short retryDelay is the per-minute limit; otherwise the day is spent (or there never was an allowance).
-    const until = secs != null && secs <= 90 ? now + (secs + 1) * 1000 : usedToday ? nextPacificMidnight(now) : now + NO_ALLOWANCE_MS;
-    return { why: secs != null && secs <= 90 ? 'at its per-minute limit' : usedToday ? 'its daily allowance is spent' : 'no free allowance for this kind of request', spent: until, retry: false };
+    // Otherwise spent until Google's reset (midnight in Los Angeles), whether the day's allowance ran out or there is none
+    // for this kind of job: one probe a day after the reset costs nothing, and a week's lock-out would be wrong after a bad day.
+    const until = secs != null && secs <= 90 ? now + (secs + 1) * 1000 : nextPacificMidnight(now);
+    return { why: secs != null && secs <= 90 ? 'at its per-minute limit' : usedToday ? 'its daily allowance is spent' : 'no free allowance for this kind of request (asked again after the reset)', spent: until, retry: false };
   }
   if (status === 404) return { why: 'the model is gone', drop: true, retry: false };
   // 503 UNAVAILABLE comes back at once and again on a retry (measured 2026-11-14 on three Flash models):
@@ -149,6 +151,12 @@ export function verdictOf(status, text, need, usedToday, now) {
   if (status >= 500) return { why: 'HTTP ' + status, retry: true, rest: true };
   return { why: 'HTTP ' + status, retry: false };
 }
+/** A model answered a `kind` of job: it can do it, and when it last did (asked whole or streamed alike). */
+function learned(row, need, kind, now) {
+  if (need && row.caps[need] !== true) row.caps[need] = true;
+  row.spent['ok_' + kind] = now;
+  row.dirty = true;
+}
 async function rung(env, L, row, job, body, write, now) {
   const need = JOBS[job].need, kind = need || 'text', svc = service(row.id);
   if (need && row.caps[need] === false) return { ok: false, why: 'it cannot do ' + need, skip: true };
@@ -159,7 +167,7 @@ async function rung(env, L, row, job, body, write, now) {
   if (blocked) return { ok: false, why: blocked, skip: true };
   // Has this model answered this kind of job before? A 429 on a kind it never answered means no free allowance for it
   // (a model can have one for text and none for search), not a day spent.
-  const usedToday = need ? row.caps[need] === true : (L.used[svc] || 0) > 0;
+  const usedToday = (row.spent['ok_' + kind] || 0) > now - DAY;   // it answered this kind of job in the last day
   for (let attempt = 0; ; attempt++) {
     if (!L.spend(svc)) return { ok: false, why: 'at its daily budget', skip: true };
     const t0 = Date.now(), ac = new AbortController();
@@ -172,6 +180,7 @@ async function rung(env, L, row, job, body, write, now) {
         const j = await r.json(), bad = blockOf(j), text = partsText(j).trim();
         if (bad || !text) { status = 200; errText = ''; L.note(svc, false, 200, null, bad || 'an empty answer'); return { ok: false, why: bad || 'an empty answer' }; }
         L.note(svc, true, 200, Date.now() - t0);
+        learned(row, need, kind, now);
         return { ok: true, text };
       }
       // A thinking model sends thoughts first: any chunk is a sign of life, and the text then gets longer to come.
@@ -186,7 +195,7 @@ async function rung(env, L, row, job, body, write, now) {
       const cut = await pipeRest(pk.reader, write, { signal: ac.signal });
       if (cut) { L.note(svc, false, 200, null, 'cut mid-stream'); await write(sseEvent('reset', { provider: 'gemini', why: why || 'the stream was cut' })); return { ok: false, why: why || 'the stream was cut mid-way' }; }
       L.note(svc, true, 200, firstMs);
-      if (need && row.caps[need] == null) { row.caps[need] = true; row.dirty = true; }
+      learned(row, need, kind, now);
       return { ok: true, firstMs, ms: Date.now() - t0 };
     } catch (e) {
       if (isGone(e)) { ac.abort(); return { ok: false, gone: true, why: 'the page stopped listening' }; }
