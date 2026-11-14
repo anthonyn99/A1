@@ -128,7 +128,7 @@ const ok = (name, cond, extra) => {
   ok('...which already holds the questions asked in the dock', await until(`document.querySelectorAll('[data-neo-tab] [data-nq-q]').length >= 4`, 3000));
   ok('the daily brief, its day and age, its sections', await until(`/Constructive into the open/.test((document.querySelector('[data-nq-brief]')||{}).innerText||'') && document.querySelector('[data-nq-briefday]')`, 5000));
   await js(`document.querySelector('[data-nq-changed-go]').click(); 1`);
-  ok('What changed?: code finds the changes, the AI words them', await until(`/VERDICT|WATCH/.test(document.querySelector('[data-nq-changed]').innerText) && /Choppy to Constructive/.test(document.querySelector('[data-nq-changed] details').innerText)`, 8000), await js(`return document.querySelector('[data-nq-changed]').innerText;`));
+  ok('What changed?: code finds the changes, the AI words them', await until(`/VERDICT|WATCH/.test(document.querySelector('[data-nq-changed]').innerText) && /Choppy to Constructive/.test(document.querySelector('[data-nq-changed] details').textContent)`, 8000), await js(`return document.querySelector('[data-nq-changed]').innerText;`));
   const ch = ai()[ai().length - 1].body;
   ok('...its sheet holds only code-made differences', ch.facts.every((f) => f.pack === 'changed') && /score 44\.5 → 63\.3/.test(ch.facts.map((f) => f.text).join(' ')), JSON.stringify(ch.facts.map((f) => f.text)));
   ok('recent conversations, each with Continue', await until(`document.querySelector('[data-nq-recent] [data-nq-continue="cold000001"]')`, 5000));
