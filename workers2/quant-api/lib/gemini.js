@@ -164,7 +164,8 @@ async function rung(env, L, row, job, body, write, now) {
         return { ok: true, text };
       }
       const pk = await peek(r.body, { textOf: partsText, badOf: blockOf });
-      if (!pk.ok) { L.note(svc, false, 200, null, why || pk.why); if (why) { status = null; throw new Error(why); } return { ok: false, why: pk.why }; }
+      // An empty or blocked answer is this rung's last word (no retry); a timeout goes the 5xx way below.
+      if (!pk.ok) { if (why) throw new Error(why); L.note(svc, false, 200, null, pk.why); return { ok: false, why: pk.why }; }
       clearTimeout(timer);
       timer = setTimeout(() => { why = 'the answer ran past ' + GEMINI_STREAM_MS / 1000 + ' s'; ac.abort(); }, GEMINI_STREAM_MS);
       const firstMs = Date.now() - t0;
