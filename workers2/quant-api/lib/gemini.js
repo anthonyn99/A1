@@ -77,9 +77,11 @@ export async function discover(env, now = Date.now()) {
   for (const [family, list] of Object.entries(fam)) list.forEach((m, rank) => {
     const was = old.get(m.id), caps = was ? was.caps : { search: family === 'gemma' ? false : null, image: null, audio: null };
     const limits = { rpd: (was && was.limits && was.limits.rpd) || BUDGET[family], in: m.in, out: m.out };
-    rows.push({ id: m.id, family, rank, caps, limits, spent: was ? was.spent : {}, state: 'ok', at: now });
-    stmts.push(env.DB.prepare("INSERT INTO models (provider, id, family, rank, caps, limits, spent, state, at) VALUES ('gemini', ?, ?, ?, ?, ?, ?, 'ok', ?)")
-      .bind(m.id, family, rank, JSON.stringify(caps), JSON.stringify(limits), JSON.stringify(was ? was.spent : {}), now));
+    // A model Google still lists but answers 404 for stays dropped for a week (else every question would try it again).
+    const spent = was ? was.spent : {}, state = (spent.gone || 0) > now ? 'dropped' : 'ok';
+    rows.push({ id: m.id, family, rank, caps, limits, spent, state, at: now });
+    stmts.push(env.DB.prepare("INSERT INTO models (provider, id, family, rank, caps, limits, spent, state, at) VALUES ('gemini', ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(m.id, family, rank, JSON.stringify(caps), JSON.stringify(limits), JSON.stringify(spent), state, now));
   });
   if (!rows.length) throw fail(502, 'Google lists no Flash, Flash-Lite or Gemma model');
   await batch(env, stmts);
@@ -180,7 +182,7 @@ async function rung(env, L, row, job, body, write, now) {
       const v = verdictOf(why ? null : status, errText, need, usedToday, now);
       if (v.spent) { row.spent[kind] = v.spent; row.dirty = true; } else L.note(svc, false, status, null, why || v.why);
       if (v.nocap) { row.caps[need] = false; row.dirty = true; }
-      if (v.drop) { row.state = 'dropped'; row.dirty = true; }
+      if (v.drop) { row.state = 'dropped'; row.spent.gone = now + NO_ALLOWANCE_MS; row.dirty = true; }
       if (v.retry && !attempt) continue;
       return { ok: false, why: why || v.why, drop: !!v.drop };
     } finally { clearTimeout(timer); }
@@ -204,14 +206,11 @@ export async function gemini(env, req, ctx) {
   if (!rows.some((r) => r.state === 'ok') || now - Math.max(0, ...rows.map((r) => r.at)) > DISCOVER_TTL) rows = await discover(env, now);
   const run = async (write) => {
     const tried = [];
-    let dropped = false;
     for (const row of ladder(rows, job)) {
       const r = await rung(env, L, row, job, body, write, now);
       if (r.ok) return { ok: true, provider: 'gemini', model: row.id, tried, ...r };
       tried.push({ provider: 'gemini', model: row.id, why: r.why });
-      dropped = dropped || !!r.drop;
     }
-    if (dropped) { try { await saveRows(env, rows); rows = await discover(env, now); } catch (e) {} }
     // Every rung out: the job's fallback outside Gemini.
     if (FALLBACK[job] === 'fast') {
       const f = await runChain(env, L, buildPrompt(b), { write, now });
@@ -219,7 +218,13 @@ export async function gemini(env, req, ctx) {
     }
     return { ok: false, tried, fallback: FALLBACK[job] };
   };
-  const after = async () => { await saveRows(env, rows).catch((e) => console.warn('gemini rows:', e.message || e)); await L.flush(); };
+  const after = async () => {
+    const gone = rows.some((r) => r.dirty && r.state === 'dropped');
+    await saveRows(env, rows).catch((e) => console.warn('gemini rows:', e.message || e));
+    // A model was retired: read the list again, so whatever replaced it joins the ladder.
+    if (gone) await discover(env, now).catch((e) => console.warn('gemini list:', e.message || e));
+    await L.flush();
+  };
   if (b.stream === false) {
     let r;
     try { r = await run(null); } finally { await after(); }

@@ -267,7 +267,7 @@ function readSse(text) {
   ok('every status down the ladder: 429, 5xx twice, 404, a safety block, an empty answer, then Gemma answers', r.sse.ev('done').model === 'gemma-4-31b-it' && r.sse.text === 'Long read done.' && whys.length === 5, JSON.stringify(whys));
   ok('...429 on its first request of the day: no free allowance, spent for a week', /no free allowance/.test(whys[0]) && (await mrow(env, 'gemini-3.8-flash')).spent.text > Date.now() + 6 * 86400000);
   ok('...5xx: one retry, then the next rung', P.calls.filter((c) => c === 'gemini-3.7-flash').length === 2);
-  ok('...404: the model is dropped and the list read again', P.calls.filter((c) => c === GOOGLE + '/models').length === 2 && /gone/.test(whys[2]));
+  ok('...404: the model is dropped, the list read again, and it stays dropped though Google still lists it', P.calls.filter((c) => c === GOOGLE + '/models').length === 2 && /gone/.test(whys[2]) && (await mrow(env, 'gemini-2.5-flash')).state === 'dropped');
   ok('...a safety block and an empty answer each move on', /blocked: SAFETY/.test(whys[3]) && /empty/.test(whys[4]));
   P.calls.length = 0;
   P.plan['gemini-3.7-flash'] = [{ chunks: [gem('second rung', { finishReason: 'STOP' })] }];
@@ -298,7 +298,7 @@ function readSse(text) {
   ok('search: a model that refuses the tool is remembered; Gemma (no search) is never asked', (await mrow(env, 'gemini-3.8-flash')).caps.search === false && !P.calls.includes('gemma-4-31b-it'));
   ok('search, every rung down: a fail event naming the fallback (the browser units, on a press), nothing made up', r.sse.text === '' && r.sse.ev('fail').fallback === 'units' && r.sse.ev('fail').tried.length === 6 && !P.calls.includes(GROQ), r.text);
   ok('...search being spent does not spend plain text on the same model', (await mrow(env, 'gemini-3.7-flash')).spent.search > Date.now() && !(await mrow(env, 'gemini-3.7-flash')).spent.text);
-  P.plan['gemini-3.8-flash'] = [{ status: 429, body: { error: { status: 'RESOURCE_EXHAUSTED' } } }];
+  P.plan['gemini-3.8-flash'] = P.plan['gemma-4-31b-it'] = [{ status: 429, body: { error: { status: 'RESOURCE_EXHAUSTED' } } }];
   r = await call(env, '/ai/gemini', G('long'));
   ok('long, every rung down: the fast lane answers instead (with every fact: it is not Gemini)', r.sse.text === 'never for search' && r.sse.ev('done').provider === 'groq' && /52,310/.test(P.bodies[P.bodies.length - 1].body), r.text);
   r = await call(env, '/ai/gemini', G('image', { images: [{ mime: 'image/png', data: 'iVBORw0KGgo=' }], stream: false }));
