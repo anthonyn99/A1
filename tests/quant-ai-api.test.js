@@ -265,7 +265,7 @@ function readSse(text) {
   r = await call(env, '/ai/gemini', G('long'));
   const whys = r.sse.ev('done').tried.map((t) => t.model + ': ' + t.why);
   ok('every status down the ladder: 429, 5xx twice, 404, a safety block, an empty answer, then Gemma answers', r.sse.ev('done').model === 'gemma-4-31b-it' && r.sse.text === 'Long read done.' && whys.length === 5, JSON.stringify(whys));
-  ok('...429 on its first request of the day: no free allowance, spent for a week', /no free allowance/.test(whys[0]) && (await mrow(env, 'gemini-3.8-flash')).spent.text > Date.now() + 6 * 86400000);
+  ok('...429 from a model that never answered: no free allowance, asked again after Google\'s reset (Pacific midnight), not locked for a week', /no free allowance/.test(whys[0]) && Math.abs((await mrow(env, 'gemini-3.8-flash')).spent.text - GM.nextPacificMidnight()) < 5000);
   ok('...5xx: one retry, then the next rung, and the model rests 10 minutes', P.calls.filter((c) => c === 'gemini-3.7-flash').length === 2 && (await mrow(env, 'gemini-3.7-flash')).spent.rest > Date.now() + 9 * 60000);
   ok('...404: the model is dropped, the list read again, and it stays dropped though Google still lists it', P.calls.filter((c) => c === GOOGLE + '/models').length === 2 && /gone/.test(whys[2]) && (await mrow(env, 'gemini-2.5-flash')).state === 'dropped');
   ok('...a safety block and an empty answer each move on', /blocked: SAFETY/.test(whys[3]) && /empty/.test(whys[4]));
@@ -280,12 +280,27 @@ function readSse(text) {
   ok('503 (unavailable): no retry, the model rests, the next rung answers', r.sse.text === 'after thinking' && P.calls.filter((c) => c === 'gemini-3.8-flash').length === 1 && (await mrow(env, 'gemini-3.8-flash')).spent.rest > Date.now());
   env = await gemEnv();
   await call(env, '/ai/gemini/discover', { method: 'POST' });
-  await env.DB.prepare("UPDATE models SET caps = ? WHERE id = 'gemini-3.8-flash'").bind(JSON.stringify({ search: null })).run();
-  await env.DB.prepare("INSERT INTO usage (day, service, n) VALUES (?, 'gemini:gemini-3.8-flash', 3)").bind(new Date().toISOString().slice(0, 10)).run();
+  // It answered a text job today, never a search: a 429 on search is "no search allowance", and only search is spent.
+  await env.DB.prepare("UPDATE models SET caps = ?, spent = ? WHERE id = 'gemini-3.8-flash'").bind(JSON.stringify({ search: null }), JSON.stringify({ ok_text: Date.now() - 60000 })).run();
   P.plan['gemini-3.8-flash'] = [{ status: 429, body: { error: { status: 'RESOURCE_EXHAUSTED' } } }];
-  P.plan['gemini-3.7-flash'] = [{ chunks: [gem('grounded', { finishReason: 'STOP' })] }];
-  r = await call(env, '/ai/gemini', G('search'));
-  ok('429 on search from a model that answered text today but never a search: no search allowance (a week), not "spent today"', /no free allowance/.test(r.sse.ev('done').tried[0].why) && (await mrow(env, 'gemini-3.8-flash')).spent.search > Date.now() + 6 * 86400000);
+  P.plan['gemini-3.7-flash'] = [{ body: { candidates: [{ content: { parts: [{ text: 'grounded, whole' }] }, finishReason: 'STOP' }] } }];
+  r = await call(env, '/ai/gemini', G('search', { stream: false }));
+  const m38 = await mrow(env, 'gemini-3.8-flash'), m37 = await mrow(env, 'gemini-3.7-flash');
+  ok('429 on search from a model that answered text today but never a search: "no search allowance", search spent until the reset, text not', /no free allowance/.test(r.body.tried[0].why) && Math.abs(m38.spent.search - GM.nextPacificMidnight()) < 5000 && !m38.spent.text);
+  ok('...and a search answered WHOLE (not streamed) also teaches the capability', r.body.text === 'grounded, whole' && m37.caps.search === true && m37.spent.ok_search > Date.now() - 5000);
+
+  console.log('\nThe page going away');
+  env = await gemEnv(); P.reset();
+  P.plan[GROQ] = [{ chunks: [oai('a long '), oai('answer '), oai('that '), oai('keeps going'), DONE] }]; P.plan[CERE] = [{ chunks: [oai('never'), DONE] }];
+  {
+    const waits = [];
+    const res = await W.fetch(new Request('https://quant-api.test/ai/chat', { method: 'POST', headers: { authorization: 'Bearer ' + KEY, 'content-type': 'application/json' }, body: JSON.stringify(ASK) }), env, { waitUntil: (x) => waits.push(x) });
+    const rd = res.body.getReader();
+    await rd.read();
+    await rd.cancel();   // Stop pressed
+    await Promise.all(waits);
+  }
+  ok('Stop mid-answer: no other provider is asked, and it is not counted against the one answering', !P.calls.includes(CERE) && ((await health(env, 'groq')) || { ok: 1 }).ok === 1, JSON.stringify(P.calls));
 
   env = await gemEnv();
   await call(env, '/ai/gemini/discover', { method: 'POST' });
