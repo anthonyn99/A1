@@ -119,8 +119,8 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
   };
   let hits = await search('discipline');
   ok('a Playbook page is found (read through Notebook\'s API)', hits.some(([k, t]) => k === 'playbook' && /discipline/i.test(t)), JSON.stringify(hits));
-  hits = await search('breakout volume');
-  ok('a memory card is found', hits.some(([k]) => k === 'card'), JSON.stringify(hits));
+  hits = await search('swing entries');
+  ok('an active memory card is found (the archived one is not)', hits.some(([k, t]) => k === 'card' && /Swing entries only after 10 AM/.test(t)) && !(await search('confirm breakout before')).some(([k]) => k === 'card'), JSON.stringify(hits));
   hits = await search('SPY');
   ok('a conversation turn is found by its ticker', hits.some(([k, t]) => k === 'turn' && /Market open plan/.test(t)), JSON.stringify(hits));
   hits = await search('zebra quantum');
