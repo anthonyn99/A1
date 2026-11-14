@@ -8,6 +8,8 @@
 //        (calendar 6 h, SEC 7 days, the rest 24 h). At most DOSSIER_CALLS
 //        provider calls a request: parts past that are listed in `pending`
 //        and come on the next request (the page asks once more by itself).
+//        A part that failed is remembered (error, err_at) and left alone for an
+//        hour (a day when the answer was empty: an ETF has no financials).
 //   GET  /fundamentals?symbols=A,B   { items: { SYM: { at, facts } }, failed, calls }
 //        Finnhub's basic financials for the ideas job, at most 25 symbols a
 //        request, each kept 7 days (shared with the dossier's `metric` part).
@@ -99,7 +101,7 @@ export async function getDossier(env, url, ctx, later) {
   const rows = (await guarded(env.DB.prepare('SELECT part, at, src, body, error, err_at FROM dossier_parts WHERE symbol = ?').bind(sym).all())).results || [];
   const have = Object.fromEntries(rows.map((r) => [r.part, r]));
   // Stale = older than its time, unless it failed lately (then it waits; see FAIL_TTL).
-  const resting = (r) => r && r.err_at && r.error && now - r.err_at < (/^nodata:|: HTTP 404|no metrics|no target|no us-gaap|no company number/.test(r.error) ? EMPTY_TTL : FAIL_TTL);
+  const resting = (r) => r && r.err_at && r.error && now - r.err_at < (/^nodata: /.test(r.error) ? EMPTY_TTL : FAIL_TTL);
   const stale = PART_ORDER.filter((p) => (!have[p] || now - have[p].at > TTL[p]) && !resting(have[p]));
   const parts = {}, failed = {}, pending = [], writes = [];
   for (const r of rows) {
