@@ -59,7 +59,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (!/^Bearer at\d+$/.test(auth)) return res({ error: 'unauthenticated' }, 401);
   if (u.startsWith('https://www.googleapis.com/drive/v3/files?fields=files')) {
     const q = decodeURIComponent(u.split('q=')[1] || ''), name = /name = '([^']+)'/.exec(q)[1], parent = /'([^']+)' in parents/.exec(q)[1];
-    const hit = [...G.files.entries()].find(([, f]) => f.folder && f.name === name && f.parent === parent);
+    const hit = [...G.files.entries()].find(([, f]) => f.folder && !f.trashed && f.name === name && f.parent === parent);   // the query says trashed = false
     return res({ files: hit ? [{ id: hit[0] }] : [] });
   }
   if (u.startsWith('https://www.googleapis.com/drive/v3/files?fields=id') && method === 'POST') {
@@ -257,7 +257,8 @@ globalThis.fetch = async (url, init = {}) => {
   ok('...on a database already alive (Drive token, usage rows) every table restores (no false "not empty")', codes.every((s) => s === 200), codes.join());
   ok('...its own Drive token is kept, never replaced from a backup', (await env2.DB.prepare("SELECT v FROM meta WHERE k = 'drive:token'").first()).v === 'v1.new');
   ok('at most 100 rows a call', (await call(mkEnv(), '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: 'signals', rows: Array(101).fill({ id: 'x' }), offset: 0 } })).status === 400);
-  const same = await (async () => { for (const t of tables) { const a = (await call(env, `/export?table=${t.table}`)).body.rows, b = (await call(env2, `/export?table=${t.table}`)).body.rows; if (JSON.stringify(a) !== JSON.stringify(b)) return t.table; } return true; })();
+  // Every table reproduced; usage, provider_health and meta also hold what the new worker wrote itself, so there every backed-up row must be present.
+  const same = await (async () => { for (const t of tables) { const a = (await call(env, `/export?table=${t.table}`)).body.rows, b = (await call(env2, `/export?table=${t.table}`)).body.rows; if (t.volatile ? !a.every((x) => b.some((y) => JSON.stringify(y) === JSON.stringify(x))) : JSON.stringify(a) !== JSON.stringify(b)) return t.table; } return true; })();
   ok('a backup restored into an empty database reproduces every table', same === true, same);
   r = await call(env2, '/restore', { method: 'POST', body: { confirm: 'restore into an empty database', table: 'signals', rows: dump.signals, offset: 0 } });
   ok('...and a restore over live data is refused (409)', r.status === 409);
