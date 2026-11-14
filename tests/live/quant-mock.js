@@ -108,7 +108,7 @@ function aiRoutes(state, posted, req, u, p) {
     return { text: sseEv('meta', { provider, model }) + sseChunk(t.slice(0, half)) + sseChunk(t.slice(half)) + 'data: [DONE]\n\n' + sseEv('done', { provider, model, firstMs: 320, ms: 900, tried: [] }), type: 'text/event-stream' };
   }
   if (p === '/brief' && req.method === 'GET') return { json: { ok: true, brief: state.ai.brief } };
-  if (p === '/brief' && req.method === 'POST') { const b = body(); (posted.briefs = posted.briefs || []).push(b); state.ai.brief = { day: b.day, kind: b.kind, at: CLOCK, ...b.body }; return { json: { ok: true } }; }
+  if (p === '/brief' && req.method === 'POST') { const b = body(); (posted.briefs = posted.briefs || []).push(b); if (b.kind === 'daily') state.ai.brief = { day: b.day, kind: b.kind, at: CLOCK, ...b.body }; return { json: { ok: true } }; }
   if (p === '/ai/models') return { json: { ok: true, keys: { groq: true, gemini: true }, models: [], evals: [], bar: { numeric: 0.85, verdict: 0.8 } } };
   return null;
 }
