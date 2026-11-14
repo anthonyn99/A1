@@ -68,7 +68,7 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
   ok('a page read through Notebook.page equals what the editor shows', both.api && norm(both.api) === norm(both.editor) && /Never average down on a gap/.test(both.api) && both.title === 'Rules', JSON.stringify(both));
 
   console.log('\nThe four cards');
-  await tab('control');
+  await tab('prompt');   // Control's tab id
   ok('Control mounts Memory & Drive', await until(`document.querySelector('[data-memory]') && document.querySelector('[data-me-drive-state]')`, 20000));
   ok('four cards on the grid: Drive, Memory, History, Search', await js(`return ['drive','memory','history','search'].every(function(id){return !!document.querySelector('[data-memory] .lay-card[data-card="'+id+'"]');});`));
   ok('...with Add card and Reset layout in its header', await js(`var r=document.querySelector('[data-memory]'); return !!r.querySelector('[data-lay-reset]') && !!r.querySelector('[data-lay-add]');`));
