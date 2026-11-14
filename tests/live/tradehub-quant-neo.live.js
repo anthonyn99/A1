@@ -47,11 +47,14 @@ const ok = (name, cond, extra) => {
   const { js, until, size, boot, tab, shot } = driver(c);
   const ai = () => api.posted.ai || [];
   const orca = () => api.posted.orca || [];
+  // Each ask waits for ITS answer: one more answer than before, finished.
+  let asked = 0;
   const ask = async (q) => {
+    asked = await js(`return document.querySelectorAll('[data-nq-a]').length;`);
     await js(`var i=document.querySelector('[data-nq-dock] [data-nq-input]')||document.querySelector('[data-nq-input]'); i.value=${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true})); 1`);
   };
   const lastA = (sel = '') => `[...document.querySelectorAll('${sel}[data-nq-a]')].pop()`;
-  const doneA = (sel = '') => until(`(function(){var a=${lastA(sel)}; return a && /done|failed/.test(a.dataset.state);})()`, 10000);
+  const doneA = (sel = '') => until(`(function(){var all=document.querySelectorAll('${sel}[data-nq-a]'), a=all[all.length-1]; return all.length > ${'${asked}'} && a && /done|failed/.test(a.dataset.state);})()`, 10000);
 
   console.log('\nThe dock on every tab');
   await size(1280, 900);
