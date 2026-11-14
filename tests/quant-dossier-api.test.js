@@ -90,10 +90,16 @@ globalThis.fetch = async (url) => {
   if (h === 'nasdaq') {
     if (/targetprice/.test(u)) return res({ data: { consensusOverview: { lowPriceTarget: 170, highPriceTarget: 345, priceTarget: 247.58, buy: 27, sell: 0, hold: 11 } } });
     if (/earnings-date/.test(u)) return res({ data: { reportText: 'NVIDIA is expected* to report earnings on  11/17/2026 after market close.' } });
+    if (/estimate-momentum/.test(u) && W.empty.has('lossmaker')) return res({ data: { changeInConsensus: { monthData: { yrMean: -0.40 }, currentData: { yrMean: -0.50 } }, estimatesChanged: {} } });
     if (/estimate-momentum/.test(u)) return res({ data: { changeInConsensus: { monthData: { yrMean: 9.4 }, currentData: { yrMean: 9.29 } }, estimatesChanged: { quarterDataDown: { changeValue: 3 }, quarterDataUp: { changeValue: 1 }, yearDataDown: { changeValue: 2 }, yearDataUp: { changeValue: 0 } } } });
   }
   if (h === 'sec') {
     if (/company_tickers/.test(u)) return res({ 0: { cik_str: 1045810, ticker: 'NVDA', title: 'NVIDIA' }, 1: { cik_str: 1, ticker: 'BRK-B' } });
+    // A company that switched its revenue tag in 2021: the old tag still has older 10-K rows.
+    if (/companyfacts\/CIK0000000002/.test(u)) return res({ entityName: 'SWITCHER', facts: { 'us-gaap': {
+      RevenueFromContractWithCustomerExcludingAssessedTax: { units: { USD: [FY('2020-12-31', 50e9), FY('2019-12-31', 45e9)] } },
+      Revenues: { units: { USD: [FY('2025-12-31', 90e9), FY('2024-12-31', 80e9)] } },
+    } } });
     if (/companyfacts\/CIK0001045810/.test(u)) return res({ entityName: 'NVIDIA CORP', facts: { 'us-gaap': {
       Revenues: { units: { USD: [FY('2026-01-25', 200e9), FY('2025-01-26', 130e9), FY('2024-01-28', 61e9), FY('2023-01-29', 27e9), { start: '2026-04-28', end: '2026-07-27', val: 60e9, form: '10-Q', filed: '2026-08-28' }] } },
       GrossProfit: { units: { USD: [FY('2026-01-25', 150e9)] } }, OperatingIncomeLoss: { units: { USD: [FY('2026-01-25', 120e9)] } },
@@ -179,6 +185,13 @@ globalThis.fetch = async (url) => {
   await call(env, '/dossier?symbol=SPY');
   ok('...still waiting two hours later', W.count(/stock\/metric/) === 0);
 
+  env = mk(); W.reset(); W.empty.add('lossmaker');
+  r = await call(env, '/dossier?symbol=NVDA&cik=1045810'); r = await call(env, '/dossier?symbol=NVDA&cik=1045810');
+  ok('a loss-making consensus going from −0.40 to −0.50 is a fall (−25%), not a rise', Math.abs(r.body.parts.estimates.facts.revisions.change + 0.25) < 1e-9, JSON.stringify(r.body.parts.estimates));
+  env = mk(); W.reset();
+  r = await call(env, '/dossier?symbol=SWCH&cik=2'); r = await call(env, '/dossier?symbol=SWCH&cik=2');
+  ok('SEC: a company that switched its revenue tag gets the newest year, not the old tag\'s', r.body.parts.sec && r.body.parts.sec.facts.revenue === 90e9 && r.body.parts.sec.facts.fiscalYearEnd === '2025-12-31', JSON.stringify(r.body.parts.sec && r.body.parts.sec.facts));
+
   console.log('\nThe budget is counted call by call');
   env = mk({ env: { ALPHAVANTAGE_KEY: 'av', FINNHUB_KEY: '' } }); W.reset(); W.down.add('nasdaq');
   r = await call(env, '/dossier?symbol=NVDA');
@@ -190,7 +203,6 @@ globalThis.fetch = async (url) => {
   env = mk(); W.reset();
   for (const p of ['calendar', 'metric', 'target', 'recommendation']) env.DB.parts.set('NVDA|' + p, { symbol: 'NVDA', part: p, at: Date.now(), src: 'finnhub', body: '{}', error: null, err_at: null });
   env.DB.parts.set('NVDA|surprises', { symbol: 'NVDA', part: 'surprises', at: 1, src: 'finnhub', body: '{}', error: null, err_at: null });
-  for (let i = 0; i < 2; i++) env.DB.parts.set('X|' + i, { symbol: 'X', part: 'x' + i, at: 1 });
   r = await call(env, '/dossier?symbol=NVDA');   // surprises, insiders, estimates = 3; sec needs 2 → 5; all fit
   ok('...never more than 6, whatever is stale', r.body.calls <= 6 && W.calls.length === r.body.calls);
   env = mk({ env: { FINNHUB_KEY: '' } }); W.reset();
