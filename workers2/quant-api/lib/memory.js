@@ -10,6 +10,7 @@
 //   POST   /memory/used { ids }      last-used times (one batch)
 //   GET    /history?since&limit      conversations, newest first, with turn counts and tickers
 //   GET    /history/:id              { conversation, turns }
+//   GET    /history/turns?since&limit   turns newer than `since` (the page's search index)
 //   POST   /history/turn { conv, title?, turn: { role, text, verdict?, facts?, tickers?, mode?, model? } }
 //          ONE row per turn (the conversation row is written once, with its first turn)
 //   PATCH  /history/:id { pinned?, title? }
@@ -105,6 +106,12 @@ export async function getHistory(env, url) {
     tickers: [...new Set(String(r.tk || '').split('|').flatMap((x) => parse(x, []) || []))].slice(0, 20),
     verdicts: [...new Set(String(r.vd || '').split('|').filter(Boolean))],
   })) });
+}
+/** GET /history/turns?since=ms&limit= → turns newer than `since`, oldest first (the page's search index, incrementally). */
+export async function getTurnsSince(env, url) {
+  const since = Number(url.searchParams.get('since')) || 0, limit = Math.max(1, Math.min(5000, Number(url.searchParams.get('limit')) || 2000));
+  const rows = (await guarded(env.DB.prepare('SELECT t.*, h.title, h.pinned FROM history_turns t JOIN history h ON h.id = t.conv WHERE t.at > ? ORDER BY t.at ASC LIMIT ?').bind(since, limit).all(), { results: [] })).results || [];
+  return json({ ok: true, turns: rows.map((t) => ({ id: t.id, conv: t.conv, title: t.title, pinned: !!t.pinned, at: t.at, role: t.role, text: t.text, verdict: t.verdict, tickers: parse(t.tickers, []) })), more: rows.length === limit });
 }
 export async function getConversation(env, id) {
   const conv = await guarded(env.DB.prepare('SELECT * FROM history WHERE id = ?').bind(id).first());

@@ -189,6 +189,9 @@ globalThis.fetch = async (url, init = {}) => {
   ok('the list: title from the first question, turns, tickers, verdicts', r.body.conversations.length === 1 && r.body.conversations[0].turns === 2 && r.body.conversations[0].title === 'Is NVDA a buy here?' && r.body.conversations[0].tickers.join() === 'NVDA' && r.body.conversations[0].verdicts.join() === 'WATCH');
   r = await call(env, '/history/cabcdef1');
   ok('a conversation\'s turns in order, with mode, model, facts', r.body.turns.length === 2 && r.body.turns[0].mode === 'voice' && r.body.turns[1].model === 'groq' && r.body.turns[1].facts[0] === 'f1');
+  r = await call(env, '/history/turns?since=0');
+  const t1 = r.body.turns[0].at;
+  ok('turns since a time, oldest first, with their conversation (the search index reads these)', r.body.turns.length === 2 && r.body.turns[0].title === 'Is NVDA a buy here?' && r.body.turns[1].verdict === 'WATCH' && (await call(env, '/history/turns?since=' + r.body.turns[1].at)).body.turns.length === 0 && t1 > 0);
   await call(env, '/history/cabcdef1', { method: 'PATCH', body: { pinned: true } });
   ok('pin', (await call(env, '/history')).body.conversations[0].pinned);
   await call(env, '/history/turn', { method: 'POST', body: { conv: 'cold00001', turn: { role: 'q', text: 'old question', at: Date.now() - 40 * 86400000 } } });

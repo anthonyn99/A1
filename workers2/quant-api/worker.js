@@ -158,6 +158,7 @@ async function route(req, env, url, ctx) {
   if (p === '/history' && m === 'GET') return mem.getHistory(env, url);
   if (p === '/history' && m === 'DELETE') return mem.deleteAllHistory(env, url);
   if (p === '/history/turn' && m === 'POST') return mem.postTurn(env, req);
+  if (p === '/history/turns' && m === 'GET') return mem.getTurnsSince(env, url);
   if (p === '/history/old' && m === 'GET') return arc.historyOld(env, url);
   if (p === '/history/purge' && m === 'POST') return arc.historyPurge(env, req);
   const hc = /^\/history\/([\w-]+)$/.exec(p);
