@@ -135,7 +135,8 @@ export async function estimates(L, sym) {
   const e = d.estimatesChanged, c = d.changeInConsensus || {};
   const v = (x) => num(x && x.changeValue) || 0;
   const now = num(c.currentData && c.currentData.yrMean), month = num(c.monthData && c.monthData.yrMean);
-  return { revisions: { up: v(e.quarterDataUp) + v(e.yearDataUp), down: v(e.quarterDataDown) + v(e.yearDataDown), yearNow: now, yearMonthAgo: month, change: now != null && month ? now / month - 1 : null } };
+  // The change over |a month ago|, so a loss-making company's consensus going from −0.40 to −0.50 reads as a fall.
+  return { revisions: { up: v(e.quarterDataUp) + v(e.yearDataUp), down: v(e.quarterDataDown) + v(e.yearDataDown), yearNow: now, yearMonthAgo: month, change: now != null && month ? (now - month) / Math.abs(month) : null } };
 }
 
 /* ── Alpha Vantage OVERVIEW (≤ 20 a day; only when Nasdaq's target fails) ── */
@@ -177,8 +178,11 @@ const INSTANT = {
   shortDebt: ['LongTermDebtCurrent', 'DebtCurrent', 'ShortTermBorrowings'],
   cash: ['CashAndCashEquivalentsAtCarryingValue', 'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
 };
-/** One concept's annual (10-K, about a year long) values → [{ fy, end, val }] newest first, one per year end. */
+/** One concept's annual (10-K, about a year long) values → [{ end, val }] newest first, one per
+ *  year end. Of the candidate concepts, the one reported most recently wins: companies switch
+ *  tags (Revenues → RevenueFromContract…), and an abandoned tag would give years-old numbers. */
 function annual(facts, names) {
+  let best = [];
   for (const n of names) {
     const units = facts[n] && facts[n].units;
     const rows = units && (units.USD || units['USD/shares']);
@@ -192,19 +196,20 @@ function annual(facts, names) {
       if (!old || String(r.filed) > String(old.filed)) by.set(r.end, r);
     }
     const out = [...by.values()].sort((a, b) => b.end.localeCompare(a.end)).map((r) => ({ end: r.end, val: r.val }));
-    if (out.length) return out;
+    if (out.length && (!best.length || out[0].end > best[0].end)) best = out;
   }
-  return [];
+  return best;
 }
-/** One balance-sheet concept's newest value (any 10-K or 10-Q). */
+/** One balance-sheet concept's newest value (any 10-K or 10-Q), the most recently reported candidate winning. */
 function instant(facts, names) {
+  let best = null;
   for (const n of names) {
     const rows = facts[n] && facts[n].units && facts[n].units.USD;
     if (!rows) continue;
     const r = rows.filter((x) => /^10-[KQ]/.test(x.form || '') && x.end && !x.start).sort((a, b) => b.end.localeCompare(a.end) || String(b.filed).localeCompare(String(a.filed)))[0];
-    if (r) return { end: r.end, val: r.val };
+    if (r && (!best || r.end > best.end)) best = { end: r.end, val: r.val };
   }
-  return null;
+  return best;
 }
 /** companyfacts → the last fiscal year's numbers, computed margins and 3-year growth, debt and cash. */
 export async function sec(L, cik) {

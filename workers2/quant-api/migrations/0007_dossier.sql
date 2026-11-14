@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS dossier_parts (
   at      INTEGER NOT NULL,   -- when it was fetched (ms)
   src     TEXT NOT NULL,      -- finnhub | nasdaq | sec | alphavantage
   body    TEXT NOT NULL,
-  error   TEXT,
+  error   TEXT,               -- the last failure, if the last refresh failed
+  err_at  INTEGER,            -- when it failed: the part is not asked again for a while (lib/dossier.js FAIL_TTL)
   PRIMARY KEY (symbol, part)
 );
 
