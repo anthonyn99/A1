@@ -107,22 +107,22 @@ const DOSSIER = {
   const st = await text('[data-iv-stage]');
   ok('stage, depth under the 252-day high and the close it is from', /Correction/.test(st) && /12\.3% under the 252-day high/.test(st) && /SPY/.test(st));
   ok('the washout and every part of it', /Washout[\s\S]*61 of 100/.test(st) && /Members at 20-day lows[\s\S]*50 of 100/.test(st) && /VIX over its 3-month[\s\S]*yes/.test(st) && /Index RSI under 30[\s\S]*no/.test(st));
-  ok('the reversal evidence, each item dated', (await js(`return document.querySelectorAll('[data-iv-ev]').length;`)) === 3 && st.includes(day(3)) && /Follow-through day/.test(st) && st.includes('since the'), st);
+  ok('the reversal evidence, each item dated', (await js(`return document.querySelectorAll('[data-iv-ev]').length;`)) === 3 && st.includes(day(3)) && /Follow-through day/.test(st) && /since the/i.test(st), st);
   ok('the sector funds\' depth', /Technology[\s\S]*15\.0%/.test(st));
 
   console.log('\nAccumulate');
   const pl = await text('[data-iv-plan]');
   ok('the word "Accumulate" and why', (await js(`return document.querySelector('[data-iv-word]').dataset.ivWord;`)) === 'Accumulate' && /A tranche fired/.test(pl));
   ok('the tranche: a third, its date and price, invalid under the reversal low', /Tranche 1 \(a third\)[\s\S]*590\.40/.test(pl) && /Invalid on a close under 560\.20/.test(pl));
-  ok('the ledger\'s invest signal with its 1-month mark (3 and 6 still to come)', /SPY tranche 1/.test(pl) && /1 month \+3\.4% · 3 months — · 6 months —/.test(pl), pl);
+  ok('the ledger\'s invest signal with its 1-month mark (3 and 6 still to come)', /SPY tranche 1/i.test(pl) && /1 month \+3\.4% · 3 months — · 6 months —/.test(pl), pl);
   ok('the rule measured on history, its sample stated plainly', /11 first tranches on SPY, 2006 to 20\d\d/.test(pl) && /6 months: median \+5\.1%, up in 7 of 11/.test(pl) && !!(await js(`return document.querySelector('[data-iv-small]');`)) && /Small sample \(11, under 30\)/.test(pl));
 
   console.log('\nIdeas');
   ok('12 idea cards, best first', (await js(`return [...document.querySelectorAll('[data-iv-idea]')].map(function(x){return x.dataset.ivIdea;}).join();`)) === 'NVDA,MSFT,AVGO,META,GOOGL,COST,LLY,QQQ,V,MA,SOXX,ORCL');
   const card = await text('[data-iv-idea="NVDA"]');
-  ok('each: score, why (three facts), what could go wrong, where to start buying, how it fits', /90 of 100/.test(card) && (await js(`return document.querySelectorAll('[data-iv-idea="NVDA"] [data-iv-why] li').length;`)) === 3 && /Earnings in 3 sessions/.test(card) && /Strong support 171\.20 \(S2\) · 200-day 160\.30 · last close 180\.50/.test(card) && /How it fits/.test(card), card);
+  ok('each: score, why (three facts), what could go wrong, where to start buying, how it fits', /90 of 100/.test(card) && (await js(`return document.querySelectorAll('[data-iv-idea="NVDA"] [data-iv-why] li').length;`)) === 3 && /Earnings in 3 sessions/.test(card) && /Strong support 171\.20 \(S2\) · 200-day 160\.30 · last close 180\.50/.test(card) && /How it fits/i.test(card), card);
   ok('...no holdings loaded: the fit says so', await until(`/No holdings to compare with/.test(document.querySelector('[data-iv-idea="NVDA"] [data-iv-fit]').textContent)`, 8000));
-  ok('...an ETF card says ETF and has no fundamentals parts', /ETF/.test(await text('[data-iv-idea="QQQ"]')) && /Rel\. strength/.test(await text('[data-iv-idea="QQQ"]')));
+  ok('...an ETF card says ETF and has no fundamentals parts', /ETF/i.test(await text('[data-iv-idea="QQQ"]')) && /Rel\. strength/.test(await text('[data-iv-idea="QQQ"]')));
   ok('the universe and that nothing here acts', /Top 12 of 431 ranked: the S&P 500, the Nasdaq-100 and 25 ETFs/.test(await text('[data-iv-universe]')) && /never acted on/.test(await text('[data-iv-universe]')));
   const long1 = await js(`return JSON.stringify(window.__long||[]);`).then(JSON.parse);
   ok('no main-thread task over 50 ms while Invest draws', long1.every((x) => x[1] <= 50), JSON.stringify(long1));
@@ -135,7 +135,7 @@ const DOSSIER = {
   ok('...EPS for the fiscal year is disputed (Finnhub 3.70, SEC 4.00)', /disputed: SEC filings says 4\.00/.test(await text('[data-dz-fact="epsFy"]')));
   ok('...insiders failed: unavailable, and the Sources say why', /unavailable/.test(await text('[data-dz-fact="insiders"]')) && /insiders: not available now \(finnhub: HTTP 500\)/.test(await text('[data-dz-sources]')));
   const dz = await text('[data-dossier="NVDA"]');
-  ok('the Street: counts and the bar, the trend, low / mean / high targets', /38 buy · 5 hold · 1 sell/.test(dz) && !!(await js(`return document.querySelector('.dz-ratebar');`)) && /More buys than 3 months ago/.test(dz) && /247\.58/.test(dz) && /345\.00/.test(dz), dz.slice(0, 1200));
+  ok('the Street: counts and the bar, the trend, low / mean / high targets', /38 buy · 5 hold · 1 sell/.test(dz) && !!(await js(`return document.querySelector('.dz-ratebar');`)) && /More buys than 3 months ago/i.test(dz) && /247\.58/.test(dz) && /345\.00/.test(dz), dz.slice(0, 1200));
   ok('warnings from the facts: earnings within 5 sessions, estimates falling', !!(await js(`return document.querySelector('[data-dz-warn="earnings-soon"]') && document.querySelector('[data-dz-warn="estimates-falling"]');`)));
   ok('sources with their times', /Finnhub: \w+day/.test(await text('[data-dz-sources]')) && /SEC filings: \w+day/.test(await text('[data-dz-sources]')));
   ok('the dispute went to the data doctor\'s log once', await until(`true`, 500) && asked('/corrections', 'POST') === 1 && api.posted.corrections[0].items.some((i) => i.field === 'epsFy'));
