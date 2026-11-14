@@ -257,7 +257,7 @@ function readSse(text) {
 
   env = await gemEnv();
   P.plan['gemini-3.8-flash'] = [{ status: 429, body: { error: { code: 429, status: 'RESOURCE_EXHAUSTED' } } }];
-  P.plan['gemini-3.7-flash'] = [{ status: 503 }, { status: 503 }];
+  P.plan['gemini-3.7-flash'] = [{ status: 500 }, { status: 502 }];
   P.plan['gemini-2.5-flash'] = [{ status: 404 }];
   P.plan['gemini-3.5-flash-lite'] = [{ chunks: ['data: {"promptFeedback":{"blockReason":"SAFETY"}}\n\n'] }];
   P.plan['gemini-3.1-flash-lite'] = [{ chunks: [gem('', { finishReason: 'STOP' })] }];
@@ -266,13 +266,26 @@ function readSse(text) {
   const whys = r.sse.ev('done').tried.map((t) => t.model + ': ' + t.why);
   ok('every status down the ladder: 429, 5xx twice, 404, a safety block, an empty answer, then Gemma answers', r.sse.ev('done').model === 'gemma-4-31b-it' && r.sse.text === 'Long read done.' && whys.length === 5, JSON.stringify(whys));
   ok('...429 on its first request of the day: no free allowance, spent for a week', /no free allowance/.test(whys[0]) && (await mrow(env, 'gemini-3.8-flash')).spent.text > Date.now() + 6 * 86400000);
-  ok('...5xx: one retry, then the next rung', P.calls.filter((c) => c === 'gemini-3.7-flash').length === 2);
+  ok('...5xx: one retry, then the next rung, and the model rests 10 minutes', P.calls.filter((c) => c === 'gemini-3.7-flash').length === 2 && (await mrow(env, 'gemini-3.7-flash')).spent.rest > Date.now() + 9 * 60000);
   ok('...404: the model is dropped, the list read again, and it stays dropped though Google still lists it', P.calls.filter((c) => c === GOOGLE + '/models').length === 2 && /gone/.test(whys[2]) && (await mrow(env, 'gemini-2.5-flash')).state === 'dropped');
   ok('...a safety block and an empty answer each move on', /blocked: SAFETY/.test(whys[3]) && /empty/.test(whys[4]));
   P.calls.length = 0;
-  P.plan['gemini-3.7-flash'] = [{ chunks: [gem('second rung', { finishReason: 'STOP' })] }];
+  P.plan['gemini-3.5-flash-lite'] = [{ chunks: [gem('third rung', { finishReason: 'STOP' })] }];
   r = await call(env, '/ai/gemini', G('long'));
-  ok('a spent model is skipped without a request', r.sse.ev('done').model === 'gemini-3.7-flash' && !P.calls.includes('gemini-3.8-flash') && /spent until/.test(r.sse.ev('done').tried[0].why));
+  ok('a spent model and a resting one are skipped without a request', r.sse.ev('done').model === 'gemini-3.5-flash-lite' && !P.calls.includes('gemini-3.8-flash') && !P.calls.includes('gemini-3.7-flash') && /spent until/.test(r.sse.ev('done').tried[0].why) && /resting/.test(r.sse.ev('done').tried[1].why), JSON.stringify(r.sse.ev('done').tried));
+  env = await gemEnv();
+  P.plan['gemini-3.8-flash'] = [{ status: 503 }];
+  P.plan['gemini-3.7-flash'] = [{ chunks: ['data: ' + JSON.stringify({ candidates: [{ content: { parts: [{ text: 'hmm', thought: true }] } }] }) + '\n\n', gem('after thinking', { finishReason: 'STOP' })] }];
+  r = await call(env, '/ai/gemini', G('long'));
+  ok('503 (unavailable): no retry, the model rests, the next rung answers', r.sse.text === 'after thinking' && P.calls.filter((c) => c === 'gemini-3.8-flash').length === 1 && (await mrow(env, 'gemini-3.8-flash')).spent.rest > Date.now());
+  env = await gemEnv();
+  await call(env, '/ai/gemini/discover', { method: 'POST' });
+  await env.DB.prepare("UPDATE models SET caps = ? WHERE id = 'gemini-3.8-flash'").bind(JSON.stringify({ search: null })).run();
+  await env.DB.prepare("INSERT INTO usage (day, service, n) VALUES (?, 'gemini:gemini-3.8-flash', 3)").bind(new Date().toISOString().slice(0, 10)).run();
+  P.plan['gemini-3.8-flash'] = [{ status: 429, body: { error: { status: 'RESOURCE_EXHAUSTED' } } }];
+  P.plan['gemini-3.7-flash'] = [{ chunks: [gem('grounded', { finishReason: 'STOP' })] }];
+  r = await call(env, '/ai/gemini', G('search'));
+  ok('429 on search from a model that answered text today but never a search: no search allowance (a week), not "spent today"', /no free allowance/.test(r.sse.ev('done').tried[0].why) && (await mrow(env, 'gemini-3.8-flash')).spent.search > Date.now() + 6 * 86400000);
 
   env = await gemEnv();
   await call(env, '/ai/gemini/discover', { method: 'POST' });
