@@ -37,8 +37,10 @@ export async function metric(L, env, sym) {
   const j = await fh(L, env, `stock/metric?symbol=${enc(sym)}&metric=all`);
   const m = j && j.metric;
   if (!m || !Object.keys(m).length) throw noteBad(L, 'finnhub', 'no metrics for ' + sym);
-  const hist = (key) => {
-    const s = j.series && j.series.quarterly && j.series.quarterly[key];
+  // Quarterly series names as Finnhub sends them (checked against the live API 2026-11-13): peTTM, psTTM, evRevenueTTM.
+  const hist = (...keys) => {
+    const q = (j.series && j.series.quarterly) || {}, key = keys.find((k) => Array.isArray(q[k]) && q[k].length);
+    const s = key && q[key];
     return Array.isArray(s) ? s.filter((x) => x && num(x.v) != null && x.period).slice(0, 20).map((x) => ({ d: String(x.period).slice(0, 10), v: num(x.v) })).reverse() : null;
   };
   const cap = pick(m, 'marketCapitalization');
@@ -46,7 +48,7 @@ export async function metric(L, env, sym) {
     high52: pick(m, '52WeekHigh'), low52: pick(m, '52WeekLow'), beta: pick(m, 'beta'),
     marketCap: cap == null ? null : cap * 1e6,
     pe: pick(m, 'peTTM', 'peBasicExclExtraTTM', 'peExclExtraTTM'),
-    ps: pick(m, 'psTTM'),
+    ps: pick(m, 'psTTM'), evs: pick(m, 'evRevenueTTM'),
     eps: pick(m, 'epsTTM', 'epsBasicExclExtraItemsTTM', 'epsExclExtraItemsTTM'),
     epsFy: pick(m, 'epsAnnual', 'epsBasicExclExtraItemsAnnual', 'epsExclExtraItemsAnnual'),
     grossMargin: pct(pick(m, 'grossMarginTTM')), grossMarginFy: pct(pick(m, 'grossMarginAnnual')),
@@ -57,7 +59,7 @@ export async function metric(L, env, sym) {
     revGrowthYoy: pct(pick(m, 'revenueGrowthTTMYoy')),
     dividendYield: pct(pick(m, 'currentDividendYieldTTM', 'dividendYieldIndicatedAnnual')),
     payoutRatio: pct(pick(m, 'payoutRatioTTM', 'payoutRatioAnnual')),
-    peHist: hist('pe'), psHist: hist('ps'),
+    peHist: hist('peTTM', 'pe'), psHist: hist('psTTM', 'ps'), evsHist: hist('evRevenueTTM'),
   };
 }
 
