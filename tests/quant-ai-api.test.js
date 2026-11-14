@@ -228,6 +228,15 @@ function readSse(text) {
   r = await call(env, '/ai/chat', { method: 'POST', body: ASK });
   ok('Workers AI through its binding (the last resort)', r.sse.text === 'from the edge' && r.sse.ev('done').provider === 'workersai' && (await call(env, '/ai/chat', { method: 'POST', body: { ...ASK, stream: false } })).body.text === 'whole');
 
+  env = await mkEnv({ GROQ_KEY: 'gk' }, false); P.reset();
+  AI.TIMING.firstSign = 80;
+  env.AI = { run: async () => new ReadableStream({ start() {} }) };   // accepts, then says nothing, ever
+  P.plan[GROQ + '/models'] = [{ status: 500 }]; P.plan[GROQ] = [{ chunks: [oai('after the stall'), DONE] }];
+  await env.DB.prepare("INSERT INTO meta (k, v, at) VALUES ('lat:workersai', '[10]', 1)").run();   // so Workers AI is tried first
+  r = await call(env, '/ai/chat', { method: 'POST', body: ASK });
+  ok('Workers AI stalling (its binding takes no signal): cut after the first-token limit, the next provider answers', r.sse.text === 'after the stall' && /no first token/.test(r.sse.ev('done').tried[0].why), r.text.slice(0, 300));
+  AI.TIMING.firstSign = 8000;
+
   env = await mkEnv({ GROQ_KEY: 'gk' }); P.reset();
   await env.DB.prepare("INSERT INTO usage (day, service, n) VALUES (?, 'groq', ?)").bind(new Date().toISOString().slice(0, 10), AI.PROVIDERS.length && 800).run();
   r = await call(env, '/ai/chat', { method: 'POST', body: ASK });
