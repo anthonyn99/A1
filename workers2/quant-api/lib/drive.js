@@ -161,7 +161,8 @@ export async function putFile(env, path, body, mimeIn) {
   if (have) {
     // Same path, new content: a new revision of the same file.
     const r = await gfetch(env, UPLOAD + '/files/' + encodeURIComponent(have.id) + '?uploadType=media&fields=id', { method: 'PATCH', headers: { 'content-type': mime }, body });
-    if (r.status === 404) return putFile(env, path, body, mimeIn, await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(full).run());
+    // Deleted in Drive by hand: forget it and upload afresh.
+    if (r.status === 404) { await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(full).run(); return putFile(env, path, body, mimeIn); }
     if (!r.ok) throw fail(502, 'Drive refused the update (' + r.status + ')');
     id = have.id;
   } else {
