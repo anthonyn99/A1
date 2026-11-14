@@ -82,6 +82,37 @@ function walkDaily(sym, from, to) {
   return out;
 }
 
+/* ── Phase 9: Neo Quant's AI routes ───────────────────────────────────────
+   state.ai.plan: a queue of answers for /ai/chat and /ai/gemini, used in order:
+     { text }                     streamed as two chunks, then done
+     { fail: [{provider, why}] }  a fail event (nobody answered)
+   With the queue empty, the answer is built from the request's own facts (so
+   every number in it is on the sheet): the first fact naming a number. */
+const sseChunk = (t) => 'data: ' + JSON.stringify({ choices: [{ delta: { content: t } }] }) + '\n\n';
+const sseEv = (name, data) => '\n\nevent: ' + name + '\ndata: ' + JSON.stringify(data) + '\n\n';
+function autoReply(body) {
+  const facts = (body && body.facts) || [];
+  const f = facts.find((x) => /ticker/.test(x.pack || '') && /\d/.test(x.text)) || facts.find((x) => x.pack !== 'now' && /\d/.test(x.text)) || facts[0];
+  const g = facts.find((x) => x.pack === 'market' && x !== f);
+  return `VERDICT: WATCH. The engine has no GO here yet [${f ? f.id : 'F1'}].\nWHY: ${f ? f.text + ' [' + f.id + ']' : 'No facts.'}${g ? '\n' + g.text + ' [' + g.id + ']' : ''}\nRISK: The setup can fail at the open.\nWATCH: A close back above the first resistance.`;
+}
+function aiRoutes(state, posted, req, u, p) {
+  const body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
+  if ((p === '/ai/chat' || p === '/ai/gemini') && req.method === 'POST') {
+    const b = body();
+    (posted.ai = posted.ai || []).push({ p, body: b });
+    const next = state.ai.plan.length ? state.ai.plan.shift() : { text: autoReply(b) };
+    const provider = p === '/ai/gemini' ? 'gemini' : (b.provider || 'groq'), model = p === '/ai/gemini' ? 'gemini-test-flash' : 'llama-test';
+    if (next.fail) return { text: sseEv('fail', { tried: next.fail, fallback: next.fallback || null }), type: 'text/event-stream' };
+    const t = next.text, half = Math.ceil(t.length / 2);
+    return { text: sseEv('meta', { provider, model }) + sseChunk(t.slice(0, half)) + sseChunk(t.slice(half)) + 'data: [DONE]\n\n' + sseEv('done', { provider, model, firstMs: 320, ms: 900, tried: [] }), type: 'text/event-stream' };
+  }
+  if (p === '/brief' && req.method === 'GET') return { json: { ok: true, brief: state.ai.brief } };
+  if (p === '/brief' && req.method === 'POST') { const b = body(); (posted.briefs = posted.briefs || []).push(b); state.ai.brief = { day: b.day, kind: b.kind, at: CLOCK, ...b.body }; return { json: { ok: true } }; }
+  if (p === '/ai/models') return { json: { ok: true, keys: { groq: true, gemini: true }, models: [], evals: [], bar: { numeric: 0.85, verdict: 0.8 } } };
+  return null;
+}
+
 /** Phase 8's routes over `state` (memory cards, conversations, Drive), or null for another path. */
 function memoryRoutes(state, posted, req, u, p) {
   const body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
@@ -100,6 +131,8 @@ function memoryRoutes(state, posted, req, u, p) {
     return { json: { ok: true, turns: all.filter((t) => t.seq > after), more: false } };
   }
   const hc = /^\/history\/([\w-]+)$/.exec(p);
+  if (hc && req.method === 'GET') { const c = state.convs.find((x) => x.id === hc[1]); return c ? { json: { ok: true, conversation: { id: c.id, title: c.title, created: c.created, pinned: !!c.pinned }, turns: c.turns } } : { status: 404, json: { ok: false } }; }
+  if (p === '/history/turn' && req.method === 'POST') { const b = body(); (posted.turns = posted.turns || []).push(b); let c = state.convs.find((x) => x.id === b.conv); if (!c) state.convs.push(c = { id: b.conv, title: b.title || b.turn.text.slice(0, 80), created: CLOCK, pinned: false, turns: [] }); c.turns.push({ id: 't' + c.turns.length + b.conv, at: b.turn.at || CLOCK, ...b.turn }); return { json: { ok: true, id: 't1', conv: b.conv } }; }
   if (hc && req.method === 'PATCH') { const b = body(), c = state.convs.find((x) => x.id === hc[1]); if (b.pinned != null) c.pinned = !!b.pinned; return { json: { ok: true } }; }
   if (hc && req.method === 'DELETE') { state.convs = state.convs.filter((x) => x.id !== hc[1]); return { json: { ok: true } }; }
   if (p === '/drive/health') return { json: { ok: true, ...state.drive, files: state.drive.files.length } };
@@ -121,16 +154,28 @@ function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
   const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [], ideas: null, dossier: {},
     // Phase 8: memory cards, conversations ({ id, title, created, pinned, turns: [] }), Drive.
-    cards: [], convs: [], drive: { configured: true, connected: false, email: null, files: [] } };
+    cards: [], convs: [], drive: { configured: true, connected: false, email: null, files: [] },
+    // Phase 9: Neo Quant's planned answers, the stored brief, the snapshot before (What changed?), the browser units.
+    ai: { plan: [], brief: null }, prevSnapshot: null, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
   const worker = {
-    patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
+    patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*', 'https://orca.vedapatel05.workers.dev/*'],
     handle(req) {
       if (req.method === 'OPTIONS') return { status: 204, text: '' };
       if (req.url === LWC) return lwc().then((text) => ({ text, type: 'text/javascript' }), () => ({ status: 503, text: '' }));
+      if (req.url.includes('orca.vedapatel05')) {
+        const ou = new global.URL(req.url);
+        (posted.orca = posted.orca || []).push({ p: ou.pathname, method: req.method, body: req.postData || null });
+        if (ou.pathname === '/v1/models') return { json: { object: 'list', data: state.orca.models } };
+        if (ou.pathname === '/v1/chat/completions') return { json: { choices: [{ message: { content: 'VERDICT: WAIT. From a browser unit.
+WHY: Nothing more to add.' } }] } };
+        return { status: 404, json: {} };
+      }
       if (!req.url.includes('quant-api')) return { json: { ok: true } };
       const u = new global.URL(req.url), p = u.pathname, auth = req.headers.Authorization || req.headers.authorization || '';
       asked.push({ p, method: req.method, auth, q: u.search });
       if (auth !== 'Bearer ' + KEY) return { status: 401, json: { ok: false, error: 'an Orca key is needed' } };
+      // A day before the snapshot's own: the one before it (What changed?).
+      if (p === '/snapshot' && req.method === 'GET' && state.prevSnapshot && u.searchParams.get('day') && u.searchParams.get('day') < (state.snapshot || {}).day) return { json: { ok: true, snapshot: state.prevSnapshot, watchlist: state.watchlist } };
       if (p === '/snapshot' && req.method === 'GET') return { json: { ok: true, snapshot: state.snapshot, watchlist: state.watchlist } };
       if (p === '/snapshot' && req.method === 'POST') { const s = JSON.parse(req.postData).snapshot; posted.snapshots.push(s); state.snapshot = s; return { json: { ok: true } }; }
       if (p === '/snapshot/claim') { posted.claims = (posted.claims || 0) + 1; return { json: { ok: true, granted: state.claim !== false } }; }
@@ -172,6 +217,8 @@ function quantApi() {
       if (p === '/corrections' && req.method === 'POST') { (posted.corrections = posted.corrections || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/corrections') return { json: { ok: true, corrections: [] } };
       if (p === '/ideas') return { json: { ok: true, ideas: state.ideas, at: state.ideas ? state.ideas.at : null } };
+      const phase9 = aiRoutes(state, posted, req, u, p);
+      if (phase9) return phase9;
       const phase8 = memoryRoutes(state, posted, req, u, p);
       if (phase8) return phase8;
       if (p === '/dossier') { const sym = u.searchParams.get('symbol'), d = state.dossier[sym]; return d ? { json: { ok: true, ...d } } : { json: { ok: true, symbol: sym, asOf: null, parts: {}, failed: { metric: 'finnhub: HTTP 500' }, pending: [], calls: 1 } }; }
