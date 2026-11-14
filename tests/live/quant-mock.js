@@ -82,6 +82,30 @@ function walkDaily(sym, from, to) {
   return out;
 }
 
+/** Phase 8's routes over `state` (memory cards, conversations, Drive), or null for another path. */
+function memoryRoutes(state, posted, req, u, p) {
+  const body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
+  const conv = (c) => ({ id: c.id, title: c.title, created: c.created, pinned: !!c.pinned, updated: Math.max(c.created, ...c.turns.map((t) => t.at)), turns: c.turns.length,
+    tickers: [...new Set(c.turns.flatMap((t) => t.tickers || []))], verdicts: [...new Set(c.turns.map((t) => t.verdict).filter(Boolean))] });
+  if (p === '/memory' && req.method === 'GET') return { json: { ok: true, cards: state.cards } };
+  if (p === '/memory' && req.method === 'POST') { const c = body().card, id = 'm' + Date.now().toString(36) + state.cards.length; (posted.cards = posted.cards || []).push(c); state.cards.push({ id, kind: c.kind, text: c.text, source: c.source || 'tony', created: CLOCK, lastUsed: null, pinned: false, state: c.source === 'neo' ? 'proposed' : 'active' }); return { json: { ok: true, id } }; }
+  const mc = /^\/memory\/([\w-]+)$/.exec(p);
+  if (mc && req.method === 'PATCH') { const b = body(), c = state.cards.find((x) => x.id === mc[1]); if (b.state === 'active' && b.by !== 'tony') return { status: 403, json: { ok: false, error: 'only Tony can make a card active' } }; if (b.text != null) c.text = b.text; if (b.pinned != null) c.pinned = !!b.pinned; if (b.state) c.state = b.state; (posted.patches = posted.patches || []).push(b); return { json: { ok: true } }; }
+  if (mc && req.method === 'DELETE') { state.cards = state.cards.filter((x) => x.id !== mc[1]); return { json: { ok: true } }; }
+  if (p === '/history' && req.method === 'GET') return { json: { ok: true, conversations: state.convs.map(conv).sort((a, b) => b.updated - a.updated) } };
+  if (p === '/history' && req.method === 'DELETE') { state.convs = []; return { json: { ok: true } }; }
+  if (p === '/history/turns') { const since = Number(u.searchParams.get('since')) || 0; return { json: { ok: true, turns: state.convs.flatMap((c) => c.turns.filter((t) => t.at > since).map((t) => ({ ...t, conv: c.id, title: c.title, pinned: !!c.pinned }))).sort((a, b) => a.at - b.at), more: false } }; }
+  const hc = /^\/history\/([\w-]+)$/.exec(p);
+  if (hc && req.method === 'PATCH') { const b = body(), c = state.convs.find((x) => x.id === hc[1]); if (b.pinned != null) c.pinned = !!b.pinned; return { json: { ok: true } }; }
+  if (hc && req.method === 'DELETE') { state.convs = state.convs.filter((x) => x.id !== hc[1]); return { json: { ok: true } }; }
+  if (p === '/drive/health') return { json: { ok: true, ...state.drive, files: state.drive.files.length } };
+  if (p === '/drive/connect') { posted.connect = (posted.connect || 0) + 1; return { json: { ok: true, url: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x' } }; }
+  if (p === '/drive/disconnect') { state.drive.connected = false; state.drive.email = null; return { json: { ok: true } }; }
+  if (p === '/drive/list') { const pre = 'TradeHub/' + (u.searchParams.get('prefix') || ''); return { json: { ok: true, files: state.drive.files.filter((f) => f.path.startsWith(pre)) } }; }
+  if (p === '/drive/f' && req.method === 'PUT') { const path = 'TradeHub/' + u.searchParams.get('path'); (posted.drive = posted.drive || []).push({ path, body: req.postData }); state.drive.files.push({ path, id: 'f' + state.drive.files.length + 'xxxxxxxxxx', size: (req.postData || '').length, at: CLOCK }); return { json: { ok: true, path, skipped: false } }; }
+  return null;
+}
+
 /**
  * quant-api for a test → { mock, asked, posted, state }.
  *   state.snapshot   what GET /snapshot answers (null = none stored yet)
@@ -91,7 +115,9 @@ function walkDaily(sym, from, to) {
  */
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
-  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [], ideas: null, dossier: {} };
+  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [], ideas: null, dossier: {},
+    // Phase 8: memory cards, conversations ({ id, title, created, pinned, turns: [] }), Drive.
+    cards: [], convs: [], drive: { configured: true, connected: false, email: null, files: [] } };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
     handle(req) {
@@ -142,6 +168,8 @@ function quantApi() {
       if (p === '/corrections' && req.method === 'POST') { (posted.corrections = posted.corrections || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/corrections') return { json: { ok: true, corrections: [] } };
       if (p === '/ideas') return { json: { ok: true, ideas: state.ideas, at: state.ideas ? state.ideas.at : null } };
+      const phase8 = memoryRoutes(state, posted, req, u, p);
+      if (phase8) return phase8;
       if (p === '/dossier') { const sym = u.searchParams.get('symbol'), d = state.dossier[sym]; return d ? { json: { ok: true, ...d } } : { json: { ok: true, symbol: sym, asOf: null, parts: {}, failed: { metric: 'finnhub: HTTP 500' }, pending: [], calls: 1 } }; }
       return { status: 404, json: { ok: false } };
     },
