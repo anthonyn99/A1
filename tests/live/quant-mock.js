@@ -166,8 +166,7 @@ function quantApi() {
         const ou = new global.URL(req.url);
         (posted.orca = posted.orca || []).push({ p: ou.pathname, method: req.method, body: req.postData || null });
         if (ou.pathname === '/v1/models') return { json: { object: 'list', data: state.orca.models } };
-        if (ou.pathname === '/v1/chat/completions') return { json: { choices: [{ message: { content: 'VERDICT: WAIT. From a browser unit.
-WHY: Nothing more to add.' } }] } };
+        if (ou.pathname === '/v1/chat/completions') return { json: { choices: [{ message: { content: 'VERDICT: WAIT. From a browser unit.\nWHY: Nothing more to add.' } }] } };
         return { status: 404, json: {} };
       }
       if (!req.url.includes('quant-api')) return { json: { ok: true } };
