@@ -45,38 +45,49 @@ export const jsonCache = {
   async put(key, v, ttlS) { const c = edge(); if (c) await c.put(key, new Response(JSON.stringify(v), { headers: { 'cache-control': 'public, max-age=' + ttlS } })); },
 };
 
-/** Run one part: its calls (and its fallback's, if the budget allows) → { src, facts, calls }. */
-async function runPart(part, { L, env, sym, cik, now, room }) {
-  let calls = 0;
-  const one = async (fn) => { calls++; return fn(); };
+/** Not enough of the request's call budget left for this part's next call. */
+class NoRoom extends Error {}
+
+/** Run one part → { src, facts }. Every outside call goes through `one`, which
+ *  counts it on `budget` (shared by the request) and refuses when none is left,
+ *  so a part with a fallback or a ticker lookup can never pass DOSSIER_CALLS. */
+async function runPart(part, { L, env, sym, cik, now, budget }) {
+  const one = async (fn) => { if (budget.used >= DOSSIER_CALLS) throw new NoRoom(); budget.used++; return fn(); };
   if (FINNHUB_PARTS.has(part) && !env.FINNHUB_KEY) throw new ProviderError('finnhub', 'no Finnhub key set', 'nokey');
-  if (part === 'metric') return { src: 'finnhub', facts: await one(() => F.metric(L, env, sym)), calls };
-  if (part === 'recommendation') return { src: 'finnhub', facts: await one(() => F.recommendation(L, env, sym)), calls };
-  if (part === 'surprises') return { src: 'finnhub', facts: await one(() => F.surprises(L, env, sym)), calls };
-  if (part === 'insiders') return { src: 'finnhub', facts: await one(() => F.insiders(L, env, sym, now)), calls };
-  if (part === 'estimates') return { src: 'nasdaq', facts: await one(() => F.estimates(L, sym)), calls };
+  if (part === 'metric') return { src: 'finnhub', facts: await one(() => F.metric(L, env, sym)) };
+  if (part === 'recommendation') return { src: 'finnhub', facts: await one(() => F.recommendation(L, env, sym)) };
+  if (part === 'surprises') return { src: 'finnhub', facts: await one(() => F.surprises(L, env, sym)) };
+  if (part === 'insiders') return { src: 'finnhub', facts: await one(() => F.insiders(L, env, sym, now)) };
+  if (part === 'estimates') return { src: 'nasdaq', facts: await one(() => F.estimates(L, sym)) };
   if (part === 'calendar') {
     const f = await one(() => F.calendar(L, env, sym, now));
-    if (f.nextEarnings || room - calls < 1) return { src: 'finnhub', facts: f, calls };
+    if (f.nextEarnings || budget.used >= DOSSIER_CALLS) return { src: 'finnhub', facts: f };
     // Finnhub knows no date: Nasdaq's earnings date is the second source.
-    try { const n = await one(() => F.earningsDate(L, sym)); if (n.nextEarnings) return { src: 'nasdaq', facts: n, calls }; } catch (e) { if (!(e instanceof ProviderError)) throw e; }
-    return { src: 'finnhub', facts: f, calls };
+    try { const n = await one(() => F.earningsDate(L, sym)); if (n.nextEarnings) return { src: 'nasdaq', facts: n }; } catch (e) { if (!(e instanceof ProviderError)) throw e; }
+    return { src: 'finnhub', facts: f };
   }
   if (part === 'target') {
-    try { return { src: 'nasdaq', facts: await one(() => F.target(L, sym)), calls }; }
+    try { return { src: 'nasdaq', facts: await one(() => F.target(L, sym)) }; }
     catch (e) {
-      if (!(e instanceof ProviderError) || !F.alphavantage.has(env) || room - calls < 1) throw e;
-      return { src: 'alphavantage', facts: await one(() => F.avTarget(L, env, sym)), calls };
+      if (!(e instanceof ProviderError) || !F.alphavantage.has(env) || budget.used >= DOSSIER_CALLS) throw e;
+      return { src: 'alphavantage', facts: await one(() => F.avTarget(L, env, sym)) };
     }
   }
   if (part === 'sec') {
-    let id = cik;
-    if (!id) { calls++; id = await F.cikOf(L, sym, jsonCache); }   // a cached map makes no call, but is counted as one (the budget cannot see the cache)
-    if (!id) throw new ProviderError('sec', 'the SEC has no company number for ' + sym);
-    return { src: 'sec', facts: await one(() => F.sec(L, id)), calls };
+    // Without the company number it takes two calls (the ticker map, then the facts): wait for a request with room for both.
+    if (!cik && DOSSIER_CALLS - budget.used < 2) throw new NoRoom();
+    // The ticker map is counted as a call even when the edge cache answers (the budget cannot see the cache).
+    const id = cik || (await one(() => F.cikOf(L, sym, jsonCache)));
+    if (!id) throw new ProviderError('sec', 'the SEC has no company number for ' + sym, 'nodata');
+    return { src: 'sec', facts: await one(() => F.sec(L, id)) };
   }
   throw new Error('no such part ' + part);
 }
+
+// A part that failed is not asked again for a while: an hour for an outage, a day
+// for an answer with nothing in it (an ETF has no financials, a foreign filer no 10-K).
+export const FAIL_TTL = HOUR, EMPTY_TTL = DAY;
+const failTtl = (e) => (e.status === 'nodata' || e.status === 200 || e.status === 404 ? EMPTY_TTL : FAIL_TTL);
 
 /** GET /dossier?symbol=X[&cik=N]: the stored parts, the stale ones refreshed (≤ DOSSIER_CALLS calls). */
 export async function getDossier(env, url, ctx, later) {
@@ -85,27 +96,36 @@ export async function getDossier(env, url, ctx, later) {
   const cikQ = url.searchParams.get('cik');
   const cik = cikQ && /^\d{1,10}$/.test(cikQ) ? cikQ.replace(/^0+/, '') : null;
   const now = Date.now();
-  const rows = (await guarded(env.DB.prepare('SELECT part, at, src, body, error FROM dossier_parts WHERE symbol = ?').bind(sym).all())).results || [];
+  const rows = (await guarded(env.DB.prepare('SELECT part, at, src, body, error, err_at FROM dossier_parts WHERE symbol = ?').bind(sym).all())).results || [];
   const have = Object.fromEntries(rows.map((r) => [r.part, r]));
-  const stale = PART_ORDER.filter((p) => !have[p] || now - have[p].at > TTL[p]);
+  // Stale = older than its time, unless it failed lately (then it waits; see FAIL_TTL).
+  const resting = (r) => r && r.err_at && r.error && now - r.err_at < (/^nodata:|: HTTP 404|no metrics|no target|no us-gaap|no company number/.test(r.error) ? EMPTY_TTL : FAIL_TTL);
+  const stale = PART_ORDER.filter((p) => (!have[p] || now - have[p].at > TTL[p]) && !resting(have[p]));
   const parts = {}, failed = {}, pending = [], writes = [];
-  for (const r of rows) if (PART_SRC[r.part]) parts[r.part] = { src: r.src, at: r.at, facts: parse(r.body) || {} };
-  let calls = 0;
+  for (const r of rows) {
+    if (PART_SRC[r.part] && r.at > 0) parts[r.part] = { src: r.src, at: r.at, facts: parse(r.body) || {} };
+    if (resting(r)) failed[r.part] = r.error + ' (tried ' + Math.round((now - r.err_at) / 60000) + ' minutes ago)';
+  }
+  const budget = { used: 0 };
   const L = await Ledger.load(env, now);
   try {
     for (const p of stale) {
-      const room = DOSSIER_CALLS - calls;
-      if (room < 1) { pending.push(p); continue; }
+      if (budget.used >= DOSSIER_CALLS) { pending.push(p); continue; }
       try {
-        const r = await runPart(p, { L, env, sym, cik, now, room });
-        calls += r.calls;
+        const r = await runPart(p, { L, env, sym, cik, now, budget });
         parts[p] = { src: r.src, at: now, facts: r.facts };
-        writes.push(env.DB.prepare('INSERT INTO dossier_parts (symbol, part, at, src, body, error) VALUES (?, ?, ?, ?, ?, NULL) '
-          + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL').bind(sym, p, now, r.src, JSON.stringify(r.facts)));
+        writes.push(env.DB.prepare('INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, ?, ?, ?, ?, NULL, NULL) '
+          + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL, err_at = NULL').bind(sym, p, now, r.src, JSON.stringify(r.facts)));
       } catch (e) {
+        if (e instanceof NoRoom) { pending.push(p); continue; }
         if (!(e instanceof ProviderError)) throw e;
-        if (e.status !== 'nokey') calls += 1;
-        failed[p] = (e.provider ? e.provider + ': ' : '') + e.message;
+        const why = (e.provider ? e.provider + ': ' : '') + e.message;
+        failed[p] = why;
+        // Remembered, so the next looks do not spend calls on it again (a missing key is not remembered: it is free to check).
+        if (e.status !== 'nokey') {
+          writes.push(env.DB.prepare('INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, ?, 0, ?, \'{}\', ?, ?) '
+            + 'ON CONFLICT (symbol, part) DO UPDATE SET error = excluded.error, err_at = excluded.err_at').bind(sym, p, PART_SRC[p], (failTtl(e) === EMPTY_TTL ? 'nodata: ' : '') + why, now));
+        }
       }
     }
   } finally { await later(ctx, L.flush()); }
@@ -114,7 +134,7 @@ export async function getDossier(env, url, ctx, later) {
   const sv = (await guarded(env.DB.prepare('SELECT day, short, total FROM short_volume WHERE symbol = ? ORDER BY day DESC LIMIT 40').bind(sym).all(), { results: [] })).results || [];
   if (sv.length) parts.short = { src: 'finra', at: Date.parse(sv[0].day + 'T21:00:00Z'), facts: { shortVolume: sv.map((r) => ({ day: r.day, ratio: r.total ? r.short / r.total : null })) } };
   const asOf = Math.max(0, ...Object.values(parts).map((p) => p.at || 0));
-  return json({ ok: true, symbol: sym, asOf: asOf || null, parts, failed, pending, calls });
+  return json({ ok: true, symbol: sym, asOf: asOf || null, parts, failed, pending, calls: budget.used });
 }
 
 /** GET /fundamentals?symbols=A,B (≤ 25): Finnhub basic financials, each kept FUND_TTL. */
