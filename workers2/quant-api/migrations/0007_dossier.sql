@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS dossier_parts (
   symbol  TEXT NOT NULL,
   part    TEXT NOT NULL,
-  at      INTEGER NOT NULL,   -- when it was fetched (ms)
+  at      INTEGER NOT NULL,   -- when it was fetched (ms); 0 = never fetched, only failed
   src     TEXT NOT NULL,      -- finnhub | nasdaq | sec | alphavantage
   body    TEXT NOT NULL,
   error   TEXT,               -- the last failure, if the last refresh failed
