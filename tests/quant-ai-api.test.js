@@ -250,12 +250,12 @@ function readSse(text) {
   ok('the first job reads the list, then the newest Flash answers, streamed', r.sse.text === 'The S&P closed at 6,012 [F1].' && r.sse.ev('done').model === 'gemini-3.8-flash' && P.calls[0] === GOOGLE + '/models', r.text);
   const sent = JSON.parse(P.bodies[0].body);
   ok('...grounded in Google Search, the key in a header, never in the URL', !!sent.tools[0].google_search && P.bodies[0].auth === 'AQ.test');
+  ok('...and no account figure went to Google', !/52,310|Win rate/.test(P.bodies[0].body) && /\[F1\] NVDA/.test(sent.systemInstruction.parts[0].text) && r.sse.ev('done').stripped === 2);
+  ok('...counted per model, the capability learned', (await usage(env))['gemini:gemini-3.8-flash'] === 1 && (await mrow(env, 'gemini-3.8-flash')).caps.search === true);
   P.plan['gemini-3.8-flash'] = [{ chunks: [gem('ok', { finishReason: 'STOP' })] }];
   await call(env, '/ai/gemini', G('long', { messages: [{ role: 'user', content: 'my P&L?' }, { role: 'assistant', content: 'Account value $52,310.11 [F2]' }, { role: 'user', content: 'and NVDA?' }] }));
   const lastBody = JSON.parse(P.bodies[P.bodies.length - 1].body);
   ok('...nor through the conversation: Gemini gets only the question itself', lastBody.contents.length === 1 && lastBody.contents[0].parts[0].text === 'and NVDA?' && !/52,310/.test(P.bodies[P.bodies.length - 1].body));
-  ok('...and no account figure went to Google', !/52,310|Win rate/.test(P.bodies[0].body) && /\[F1\] NVDA/.test(sent.systemInstruction.parts[0].text) && r.sse.ev('done').stripped === 2);
-  ok('...counted per model, the capability learned', (await usage(env))['gemini:gemini-3.8-flash'] === 1 && (await mrow(env, 'gemini-3.8-flash')).caps.search === true);
   ok('the ladder is in D1 with each family\'s budget; Gemma is known not to search', (await mrow(env, 'gemini-3.8-flash')).limits.rpd === GM.BUDGET.flash && (await mrow(env, 'gemma-4-31b-it')).caps.search === false && (await mrow(env, 'gemini-3.5-flash-lite')).family === 'flash-lite');
   ok('a job that is not one is refused; so is Gemini without its key', (await call(env, '/ai/gemini', G('poem'))).status === 400 && (await call(await mkEnv(), '/ai/gemini', G('long'))).status === 503);
 
