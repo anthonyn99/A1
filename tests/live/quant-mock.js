@@ -86,11 +86,12 @@ function walkDaily(sym, from, to) {
  * quant-api for a test → { mock, asked, posted, state }.
  *   state.snapshot   what GET /snapshot answers (null = none stored yet)
  *   state.watchlist  what it says the stored watchlist is
+ *   state.ideas      what GET /ideas answers (Phase 7); state.dossier: symbol → GET /dossier's answer
  * `asked` lists every request's path; `posted` the snapshots and watchlists sent.
  */
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
-  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [] };
+  const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [], ideas: null, dossier: {} };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*'],
     handle(req) {
@@ -138,7 +139,10 @@ function quantApi() {
       }
       if (p === '/stream-keys') return { json: { ok: true, alpaca: { key: 'AK', secret: 'AS' }, finnhub: { key: 'FK' } } };
       if (p === '/usage') return { json: { ok: true, day: FIXTURE.day, usage: [], caps: {}, keys: { alpaca: true, yahoo: true }, health: [] } };
+      if (p === '/corrections' && req.method === 'POST') { (posted.corrections = posted.corrections || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/corrections') return { json: { ok: true, corrections: [] } };
+      if (p === '/ideas') return { json: { ok: true, ideas: state.ideas, at: state.ideas ? state.ideas.at : null } };
+      if (p === '/dossier') { const sym = u.searchParams.get('symbol'), d = state.dossier[sym]; return d ? { json: { ok: true, ...d } } : { json: { ok: true, symbol: sym, asOf: null, parts: {}, failed: { metric: 'finnhub: HTTP 500' }, pending: [], calls: 1 } }; }
       return { status: 404, json: { ok: false } };
     },
   };
