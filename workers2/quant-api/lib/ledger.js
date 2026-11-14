@@ -18,6 +18,13 @@ export const CAPS = {
   alphavantage: 20, // free: 25 a day
   tiingo: 400,      // free: 1,000 a day
   groq: 800,        // free: about 1,000 a day
+  // Neo Quant's other fast-lane providers (lib/ai.js); each is skipped without its key.
+  cerebras: 800,
+  openrouter: 40,   // free models: 50 a day without credits
+  mistral: 400,
+  github: 100,      // GitHub Models, free tier
+  nvidia: 400,
+  workersai: 150,   // Workers AI's free daily allowance is small
 };
 export const SKIP_MS = 5 * 60_000;
 export const FAILS_TO_SKIP = 3;
@@ -104,19 +111,21 @@ export class Ledger {
     this.spent = {};      // provider -> calls this request
     this.last = {};       // provider -> { ok, status, latencyMs, detail, failTail }
     this.capped = new Set();
+    this.caps = {};       // a service's own daily cap, where it is not in CAPS (each Gemini model's budget)
   }
+  cap(provider) { return this.caps[provider] != null ? this.caps[provider] : capOf(provider); }
   /** Why `provider` may not be asked now, or '' when it may. */
   blocked(provider) {
     const h = this.health[provider];
     if (h && h.skip_until && h.skip_until > this.now) return ((h.fails || 0) >= FAILS_TO_SKIP ? 'failing' : 'at its cap') + ', skipped until ' + new Date(h.skip_until).toISOString();
-    const cap = capOf(provider);
+    const cap = this.cap(provider);
     if (cap && (this.used[provider] || 0) >= cap) return 'at its daily cap';
     return '';
   }
   /** Count `n` calls. False when that would pass the cap (the provider is
    *  then put in the skip window, and nothing is counted). */
   spend(provider, n = 1) {
-    const cap = capOf(provider);
+    const cap = this.cap(provider);
     if (cap && (this.used[provider] || 0) + n > cap) {
       this.health[provider] = Object.assign({ fails: 0 }, this.health[provider], { skip_until: this.now + SKIP_MS });
       this.capped.add(provider);
