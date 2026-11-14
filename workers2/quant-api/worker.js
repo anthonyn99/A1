@@ -37,6 +37,10 @@
 //   GET  /fundamentals?symbols     basic financials for the nightly ideas (at most 25 symbols)
 //   GET/POST /ideas                the nightly ideas
 //   POST /short-volume             FINRA short volume rows from the runner
+//   /drive/…                       Google Drive under TradeHub/ (lib/drive.js; /drive/callback needs no key)
+//   /memory, /memory/:id, /memory/used   memory cards (lib/memory.js; Neo only proposes)
+//   /history, /history/:id, /history/turn   conversations, one row per turn
+//   GET /export/tables, GET /export, GET /history/old, POST /history/purge, POST /restore   (lib/archive.js)
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -51,6 +55,9 @@ import { fail, json } from './lib/http.js';
 import { getSignals, postSignals, postGrades } from './lib/signals.js';
 import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listBacktests, getBacktest, postBacktest, deleteBacktest } from './lib/backtest.js';
 import { getDossier, getFundamentals, getIdeas, postIdeas, postShortVolume } from './lib/dossier.js';
+import * as drive from './lib/drive.js';
+import * as mem from './lib/memory.js';
+import * as arc from './lib/archive.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -89,6 +96,8 @@ async function route(req, env, url, ctx) {
     try { db = !!(await env.DB.prepare('SELECT 1 AS one').first()); } catch (e) {}
     return json({ ok: true, db, time: Date.now() });
   }
+  // Google sends the browser back here after the consent page: no Orca key on that request (its state is signed instead).
+  if (m === 'GET' && p === '/drive/callback') return drive.callback(env, url);
   await auth(req, env);
   if (m === 'GET' && p === '/whoami') return json({ ok: true });
   if (m === 'GET' && p === '/usage') return usage(env);
@@ -131,6 +140,33 @@ async function route(req, env, url, ctx) {
   if (p === '/ideas' && m === 'GET') return getIdeas(env);
   if (p === '/ideas' && m === 'POST') return postIdeas(env, req);
   if (p === '/short-volume' && m === 'POST') return postShortVolume(env, req);
+  // Phase 8: Drive, memory, history, archives.
+  if (p === '/drive/health' && m === 'GET') return drive.health(env);
+  if (p === '/drive/connect' && m === 'POST') return drive.connect(env, url);
+  if (p === '/drive/disconnect' && m === 'POST') return drive.disconnect(env);
+  if (p === '/drive/f' && m === 'PUT') return drive.putRoute(env, req, url);
+  if (p === '/drive/list' && m === 'GET') return drive.list(env, url);
+  const df = /^\/drive\/f\/([\w-]{10,200})$/.exec(p);
+  if (df && m === 'GET') return drive.getFile(env, df[1]);
+  if (df && m === 'DELETE') return drive.deleteFile(env, df[1]);
+  if (p === '/memory' && m === 'GET') return mem.getMemory(env, url);
+  if (p === '/memory' && m === 'POST') return mem.postMemory(env, req);
+  if (p === '/memory/used' && m === 'POST') return mem.usedMemory(env, req);
+  const mc = /^\/memory\/([\w-]+)$/.exec(p);
+  if (mc && m === 'PATCH') return mem.patchMemory(env, req, mc[1]);
+  if (mc && m === 'DELETE') return mem.deleteMemory(env, mc[1]);
+  if (p === '/history' && m === 'GET') return mem.getHistory(env, url);
+  if (p === '/history' && m === 'DELETE') return mem.deleteAllHistory(env, url);
+  if (p === '/history/turn' && m === 'POST') return mem.postTurn(env, req);
+  if (p === '/history/old' && m === 'GET') return arc.historyOld(env, url);
+  if (p === '/history/purge' && m === 'POST') return arc.historyPurge(env, req);
+  const hc = /^\/history\/([\w-]+)$/.exec(p);
+  if (hc && m === 'GET') return mem.getConversation(env, hc[1]);
+  if (hc && m === 'PATCH') return mem.patchConversation(env, req, hc[1]);
+  if (hc && m === 'DELETE') return mem.deleteConversation(env, hc[1]);
+  if (p === '/export/tables' && m === 'GET') return arc.exportTables(env);
+  if (p === '/export' && m === 'GET') return arc.exportPage(env, url);
+  if (p === '/restore' && m === 'POST') return arc.restore(env, req);
   const bt = /^\/backtests\/([\w-]+)$/.exec(p);
   if (bt && m === 'GET') return getBacktest(env, bt[1]);
   if (bt && m === 'DELETE') return deleteBacktest(env, bt[1]);
