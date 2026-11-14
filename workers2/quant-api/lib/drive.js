@@ -99,7 +99,7 @@ export async function disconnect(env) {
   const t = configured(env) ? await readToken(env) : null;
   if (t && t.refresh_token) await fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(t.refresh_token), { method: 'POST' }).catch(() => {});
   await env.DB.prepare("DELETE FROM meta WHERE k = 'drive:token'").run();
-  access = null;
+  access = null; seen.clear();
   return json({ ok: true });
 }
 export function forget() { access = null; }
@@ -226,6 +226,7 @@ export async function deleteFile(env, id) {
   const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id), { method: 'DELETE' });
   if (!r.ok && r.status !== 404) throw fail(502, 'Drive could not delete it (' + r.status + ')');
   await env.DB.prepare('DELETE FROM drive_files WHERE path = ?').bind(known.path).run();
+  seen.delete(id);
   return json({ ok: true, path: known.path });
 }
 /** GET /drive/list?prefix=backup/ → files under TradeHub/<prefix>, newest first. */
