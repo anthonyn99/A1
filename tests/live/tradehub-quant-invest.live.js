@@ -107,7 +107,7 @@ const DOSSIER = {
   const st = await text('[data-iv-stage]');
   ok('stage, depth under the 252-day high and the close it is from', /Correction/.test(st) && /12\.3% under the 252-day high/.test(st) && /SPY/.test(st));
   ok('the washout and every part of it', /Washout[\s\S]*61 of 100/.test(st) && /Members at 20-day lows[\s\S]*50 of 100/.test(st) && /VIX over its 3-month[\s\S]*yes/.test(st) && /Index RSI under 30[\s\S]*no/.test(st));
-  ok('the reversal evidence, each item dated', (await js(`return document.querySelectorAll('[data-iv-ev]').length;`)) === 3 && st.includes(day(3)) && /Follow-through day/.test(st) && st.includes('since the'));
+  ok('the reversal evidence, each item dated', (await js(`return document.querySelectorAll('[data-iv-ev]').length;`)) === 3 && st.includes(day(3)) && /Follow-through day/.test(st) && st.includes('since the'), st);
   ok('the sector funds\' depth', /Technology[\s\S]*15\.0%/.test(st));
 
   console.log('\nAccumulate');
@@ -120,7 +120,7 @@ const DOSSIER = {
   console.log('\nIdeas');
   ok('12 idea cards, best first', (await js(`return [...document.querySelectorAll('[data-iv-idea]')].map(function(x){return x.dataset.ivIdea;}).join();`)) === 'NVDA,MSFT,AVGO,META,GOOGL,COST,LLY,QQQ,V,MA,SOXX,ORCL');
   const card = await text('[data-iv-idea="NVDA"]');
-  ok('each: score, why (three facts), what could go wrong, where to start buying, how it fits', /90 of 100/.test(card) && (await js(`return document.querySelectorAll('[data-iv-idea="NVDA"] [data-iv-why] li').length;`)) === 3 && /Earnings in 3 sessions/.test(card) && /Strong support 171\.20 \(S2\) · 200-day 160\.30 · last close 180\.50/.test(card) && /How it fits/.test(card));
+  ok('each: score, why (three facts), what could go wrong, where to start buying, how it fits', /90 of 100/.test(card) && (await js(`return document.querySelectorAll('[data-iv-idea="NVDA"] [data-iv-why] li').length;`)) === 3 && /Earnings in 3 sessions/.test(card) && /Strong support 171\.20 \(S2\) · 200-day 160\.30 · last close 180\.50/.test(card) && /How it fits/.test(card), card);
   ok('...no holdings loaded: the fit says so', await until(`/No holdings to compare with/.test(document.querySelector('[data-iv-idea="NVDA"] [data-iv-fit]').textContent)`, 8000));
   ok('...an ETF card says ETF and has no fundamentals parts', /ETF/.test(await text('[data-iv-idea="QQQ"]')) && /Rel\. strength/.test(await text('[data-iv-idea="QQQ"]')));
   ok('the universe and that nothing here acts', /Top 12 of 431 ranked: the S&P 500, the Nasdaq-100 and 25 ETFs/.test(await text('[data-iv-universe]')) && /never acted on/.test(await text('[data-iv-universe]')));
