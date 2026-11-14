@@ -94,7 +94,11 @@ function memoryRoutes(state, posted, req, u, p) {
   if (mc && req.method === 'DELETE') { state.cards = state.cards.filter((x) => x.id !== mc[1]); return { json: { ok: true } }; }
   if (p === '/history' && req.method === 'GET') return { json: { ok: true, conversations: state.convs.map(conv).sort((a, b) => b.updated - a.updated) } };
   if (p === '/history' && req.method === 'DELETE') { state.convs = []; return { json: { ok: true } }; }
-  if (p === '/history/turns') { const since = Number(u.searchParams.get('since')) || 0; return { json: { ok: true, turns: state.convs.flatMap((c) => c.turns.filter((t) => t.at > since).map((t) => ({ ...t, conv: c.id, title: c.title, pinned: !!c.pinned }))).sort((a, b) => a.at - b.at), more: false } }; }
+  if (p === '/history/turns') {
+    const after = Number(u.searchParams.get('after')) || 0;
+    const all = state.convs.flatMap((c) => c.turns.map((t) => ({ ...t, conv: c.id, title: c.title, pinned: !!c.pinned }))).sort((a, b) => a.at - b.at).map((t, i) => ({ ...t, seq: i + 1 }));
+    return { json: { ok: true, turns: all.filter((t) => t.seq > after), more: false } };
+  }
   const hc = /^\/history\/([\w-]+)$/.exec(p);
   if (hc && req.method === 'PATCH') { const b = body(), c = state.convs.find((x) => x.id === hc[1]); if (b.pinned != null) c.pinned = !!b.pinned; return { json: { ok: true } }; }
   if (hc && req.method === 'DELETE') { state.convs = state.convs.filter((x) => x.id !== hc[1]); return { json: { ok: true } }; }
