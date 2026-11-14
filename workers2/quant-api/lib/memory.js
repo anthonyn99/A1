@@ -10,7 +10,7 @@
 //   POST   /memory/used { ids }      last-used times (one batch)
 //   GET    /history?since&limit      conversations, newest first, with turn counts and tickers
 //   GET    /history/:id              { conversation, turns }
-//   GET    /history/turns?since&limit   turns newer than `since` (the page's search index)
+//   GET    /history/turns?after&limit   turns stored after cursor `after` (the page's search index)
 //   POST   /history/turn { conv, title?, turn: { role, text, verdict?, facts?, tickers?, mode?, model? } }
 //          ONE row per turn (the conversation row is written once, with its first turn)
 //   PATCH  /history/:id { pinned?, title? }
@@ -22,7 +22,7 @@ import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 
 export const MEMORY_ACTIVE = 150, MEMORY_TEXT = 240, KINDS = ['preference', 'lesson', 'fact', 'pattern'], STATES = ['active', 'proposed', 'archived'];
-export const TURN_TEXT = 20_000, HISTORY_LIST = 500;
+export const TURN_TEXT = 8_000, HISTORY_LIST = 500;
 const ID_RE = /^[a-z][0-9a-z_-]{5,40}$/;
 
 const noTable = (e) => /no such table/i.test(String((e && e.message) || e));
@@ -55,11 +55,13 @@ export async function postMemory(env, req) {
   const b = await bodyOf(req, 4000), c = b && b.card;
   if (!c || typeof c !== 'object') throw fail(400, 'card is needed');
   if (!KINDS.includes(c.kind)) throw fail(400, 'kind must be ' + KINDS.join(', '));
-  const source = c.source === 'neo' ? 'neo' : 'tony', text = checkText(c.text), id = newId('m'), now = Date.now();
-  // Neo only proposes; Tony's own card is active at once.
+  // The source must be said: a card that does not say whose it is is refused, never taken as Tony's.
+  if (c.source !== 'neo' && c.source !== 'tony') throw fail(400, 'card.source must be tony or neo');
+  const source = c.source, text = checkText(c.text), id = newId('m'), now = Date.now();
+  // Neo only proposes; Tony's own card is active at once (and counts as just used, so the cap never archives it at once).
   const state = source === 'neo' ? 'proposed' : 'active';
-  const stmts = [env.DB.prepare('INSERT INTO memory_cards (id, kind, text, source, evidence, created, last_used, pinned, state) VALUES (?, ?, ?, ?, ?, ?, NULL, 0, ?)')
-    .bind(id, c.kind, text, source, c.evidence ? String(c.evidence).slice(0, 80) : null, now, state)];
+  const stmts = [env.DB.prepare('INSERT INTO memory_cards (id, kind, text, source, evidence, created, last_used, pinned, state) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)')
+    .bind(id, c.kind, text, source, c.evidence ? String(c.evidence).slice(0, 80) : null, now, state === 'active' ? now : null, state)];
   if (state === 'active') stmts.push(capStmt(env));
   await guarded(batch(env, stmts));
   return json({ ok: true, id, state });
@@ -77,6 +79,8 @@ export async function patchMemory(env, req, id) {
     if (!STATES.includes(b.state)) throw fail(400, 'state must be ' + STATES.join(', '));
     if (b.state === 'active' && b.by !== 'tony') throw fail(403, 'only Tony can make a card active');
     sets.push('state = ?'); args.push(b.state);
+    // A card Tony accepts or restores counts as just used: the 150 cap archives an older one, not this.
+    if (b.state === 'active' && row.state !== 'active') { sets.push('last_used = ?'); args.push(Date.now()); }
   }
   if (!sets.length) return json({ ok: true, id, changed: false });
   const stmts = [env.DB.prepare(`UPDATE memory_cards SET ${sets.join(', ')} WHERE id = ?`).bind(...args, id)];
@@ -107,11 +111,12 @@ export async function getHistory(env, url) {
     verdicts: [...new Set(String(r.vd || '').split('|').filter(Boolean))],
   })) });
 }
-/** GET /history/turns?since=ms&limit= → turns newer than `since`, oldest first (the page's search index, incrementally). */
+/** GET /history/turns?after=seq&limit= → turns stored after cursor `seq` (the database's own row order, so a
+ *  device's clock can never hide a turn from the page's search index), oldest first, each with its `seq`. */
 export async function getTurnsSince(env, url) {
-  const since = Number(url.searchParams.get('since')) || 0, limit = Math.max(1, Math.min(5000, Number(url.searchParams.get('limit')) || 2000));
-  const rows = (await guarded(env.DB.prepare('SELECT t.*, h.title, h.pinned FROM history_turns t JOIN history h ON h.id = t.conv WHERE t.at > ? ORDER BY t.at ASC LIMIT ?').bind(since, limit).all(), { results: [] })).results || [];
-  return json({ ok: true, turns: rows.map((t) => ({ id: t.id, conv: t.conv, title: t.title, pinned: !!t.pinned, at: t.at, role: t.role, text: t.text, verdict: t.verdict, tickers: parse(t.tickers, []) })), more: rows.length === limit });
+  const after = Number(url.searchParams.get('after')) || 0, limit = Math.max(1, Math.min(1000, Number(url.searchParams.get('limit')) || 500));
+  const rows = (await guarded(env.DB.prepare('SELECT t.rowid AS seq, t.*, h.title, h.pinned FROM history_turns t JOIN history h ON h.id = t.conv WHERE t.rowid > ? ORDER BY t.rowid ASC LIMIT ?').bind(after, limit).all(), { results: [] })).results || [];
+  return json({ ok: true, turns: rows.map((t) => ({ seq: t.seq, id: t.id, conv: t.conv, title: t.title, pinned: !!t.pinned, at: t.at, role: t.role, text: t.text, verdict: t.verdict, tickers: parse(t.tickers, []) })), more: rows.length === limit });
 }
 export async function getConversation(env, id) {
   const conv = await guarded(env.DB.prepare('SELECT * FROM history WHERE id = ?').bind(id).first());
