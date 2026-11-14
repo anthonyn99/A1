@@ -327,8 +327,9 @@ function readSse(text) {
   ok('image: the picture rides with the last user message', r.sse.text === 'a chart' && JSON.parse(P.bodies[P.bodies.length - 1].body).contents[0].parts[1].inline_data.mime_type === 'image/png');
   AI.TIMING.geminiFirst = 60;
   P.plan['gemini-3.8-flash'] = [{ chunks: [], hang: true }]; P.plan['gemini-3.7-flash'] = [{ chunks: [gem('after a timeout', { finishReason: 'STOP' })] }];
+  const before38 = P.calls.filter((c) => c === 'gemini-3.8-flash').length;
   r = await call(env, '/ai/gemini', G('long'));
-  ok('a timeout: one retry, then the next rung', r.sse.text === 'after a timeout' && P.calls.filter((c) => c === 'gemini-3.8-flash').length >= 3);
+  ok('a timeout: no retry (it already cost the wait), the model rests, the next rung answers', r.sse.text === 'after a timeout' && P.calls.filter((c) => c === 'gemini-3.8-flash').length === before38 + 1 && /timed out|no first words/.test(r.sse.ev('done').tried[0].why), JSON.stringify(r.sse.ev('done')));
   AI.TIMING.geminiFirst = 15000;
 
   console.log('\nThe model table, briefs, the migration');
