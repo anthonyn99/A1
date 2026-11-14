@@ -35,7 +35,7 @@ function fakeDb({ noTables = false } = {}) {
       seven(sql);
       if (/FROM usage WHERE day = \?/.test(sql)) return { results: [...usage].map(([service, n]) => ({ service, n })) };
       if (/FROM provider_health/.test(sql) || /FROM meta WHERE k LIKE/.test(sql)) return { results: [] };
-      if (/^SELECT part, at, src, body, error FROM dossier_parts WHERE symbol = \?/.test(sql)) return { results: [...parts.values()].filter((r) => r.symbol === args[0]) };
+      if (/^SELECT part, at, src, body, error, err_at FROM dossier_parts WHERE symbol = \?/.test(sql)) return { results: [...parts.values()].filter((r) => r.symbol === args[0]).map((r) => ({ ...r })) };
       if (/FROM dossier_parts WHERE part = 'metric' AND symbol IN/.test(sql)) { const s = JSON.parse(args[0]); return { results: [...parts.values()].filter((r) => r.part === 'metric' && s.includes(r.symbol)) }; }
       if (/FROM short_volume WHERE symbol = \?/.test(sql)) return { results: [...short.values()].filter((r) => r.symbol === args[0]).sort((a, b) => b.day.localeCompare(a.day)).slice(0, args[1] || 40) };
       if (/SELECT id FROM signals WHERE id IN/.test(sql)) return { results: [] };
@@ -45,10 +45,16 @@ function fakeDb({ noTables = false } = {}) {
       seven(sql);
       if (/^INSERT INTO usage/.test(sql)) { usage.set(args[1], (usage.get(args[1]) || 0) + args[2]); return {}; }
       if (/^INSERT INTO (provider_health|meta)/.test(sql)) return {};
+      if (/^INSERT INTO dossier_parts/.test(sql) && /VALUES \(\?, \?, 0, \?, '\{\}', \?, \?\)/.test(sql)) {
+        // A failure: kept on the row (a new row gets at 0 and no facts); the old facts stay.
+        if (!/DO UPDATE SET error = excluded\.error, err_at = excluded\.err_at$/.test(sql)) throw new Error('a failure must not overwrite the facts');
+        const [symbol, part, src, error, errAt] = args, k = symbol + '|' + part, old = parts.get(k);
+        parts.set(k, old ? { ...old, error, err_at: errAt } : { symbol, part, at: 0, src, body: '{}', error, err_at: errAt }); db.writes++; return {};
+      }
       if (/^INSERT INTO dossier_parts/.test(sql)) {
         const metricOnly = /VALUES \(\?, 'metric', \?, 'finnhub', \?, NULL\)/.test(sql);
         const [symbol, part, at, src, body] = metricOnly ? [args[0], 'metric', args[1], 'finnhub', args[2]] : args;
-        parts.set(symbol + '|' + part, { symbol, part, at, src, body, error: null }); db.writes++; return {};
+        parts.set(symbol + '|' + part, { symbol, part, at, src, body, error: null, err_at: null }); db.writes++; return {};
       }
       if (/^INSERT INTO ideas/.test(sql)) { ideas.push({ id: ideas.length + 1, day: args[0], at: args[1], body: args[2] }); db.writes++; return {}; }
       if (/^DELETE FROM ideas WHERE id NOT IN/.test(sql)) { const keep = new Set(ideas.slice().sort((a, b) => b.at - a.at || b.id - a.id).slice(0, args[0]).map((x) => x.id)); for (let i = ideas.length - 1; i >= 0; i--) if (!keep.has(ideas[i].id)) ideas.splice(i, 1); return {}; }
