@@ -132,6 +132,7 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
   for (const [w, hgt] of [[1280, 900], [820, 1100], [390, 844]]) {
     await size(w, hgt); await sleep(500);
     ok(`${w} px: no sideways scroll, the four cards there`, (await js(`return document.scrollingElement.scrollWidth <= window.innerWidth + 1;`)) && (await js(`return document.querySelectorAll('[data-memory] .lay-card').length;`)) === 4);
+    await js(`document.querySelector('[data-memory]').scrollIntoView({ block: 'start' }); 1`); await sleep(200);
     await shot('memory-' + w);
   }
   ok('no uncaught errors', errs.length === 0, errs.join(' | '));
