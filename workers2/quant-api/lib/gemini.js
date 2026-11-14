@@ -144,7 +144,9 @@ export function verdictOf(status, text, need, usedToday, now) {
   // no retry, the model rests REST_MS for every kind of job, next rung.
   if (status === 503) return { why: 'unavailable (HTTP 503), resting ' + REST_MS / 60_000 + ' min', rest: true, retry: false };
   if (status === 400 && need && /(not supported|unsupported|not enabled|tool|modalit|grounding|search)/i.test(t)) return { why: 'it cannot do ' + need, nocap: true, retry: false };
-  if (status >= 500 || status == null) return { why: status ? 'HTTP ' + status : 'timed out', retry: true, rest: true };
+  // A timeout already cost 15 s or more: the model rests and the next rung is asked (a retry would double the wait).
+  if (status == null) return { why: 'timed out', retry: false, rest: true };
+  if (status >= 500) return { why: 'HTTP ' + status, retry: true, rest: true };
   return { why: 'HTTP ' + status, retry: false };
 }
 async function rung(env, L, row, job, body, write, now) {
