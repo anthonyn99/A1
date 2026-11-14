@@ -159,7 +159,7 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env0, '/drive/list?prefix=backup/&drive=1');
   ok('a NEW database finds the backups in Drive by TradeHub\'s app tag', r.body.fromDrive && r.body.files.some((x) => /d1-2026-11-13\.json\.gz$/.test(x.path)), JSON.stringify(r.body));
   r = await call(env0, '/drive/f/' + r.body.files[0].id);
-  ok('...and can read one (tagged as TradeHub\'s), so a restore by id works', r.status === 200 && r.text === 'gz');
+  ok('...and can read one (tagged as TradeHub\'s), so a restore by id works', r.status === 200 && r.text === 'gz', r.status + ' ' + r.text);
   r = await call(env, '/drive/disconnect', { method: 'POST' });
   ok('disconnect revokes the token and forgets it', r.status === 200 && G.revoked === 1 && !(await call(env, '/drive/health')).body.connected);
   DR.forget();
