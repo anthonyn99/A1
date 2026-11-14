@@ -166,7 +166,33 @@ globalThis.fetch = async (url) => {
   ok('...without its key the target is listed as failed, the rest still come', !r.body.parts.target && /nasdaq/.test(r.body.failed.target) && r.body.parts.metric);
   W.reset();
   r = await call(env, '/dossier?symbol=NVDA&cik=1045810');
-  ok('...and a failed part is tried again next time', W.count(/targetprice/) === 1);
+  ok('...a failed part is remembered: not asked again within the hour, still listed as failed', W.count(/targetprice/) === 0 && /nasdaq: HTTP 500 \(tried 0 minutes ago\)/.test(r.body.failed.target), JSON.stringify(r.body.failed) + ' ' + W.calls.join(' '));
+  env.DB.parts.get('NVDA|target').err_at -= 61 * 60000; W.reset(); W.down.clear();
+  r = await call(env, '/dossier?symbol=NVDA&cik=1045810');
+  ok('...after an hour it is tried again, and the facts come', W.count(/targetprice/) === 1 && r.body.parts.target && r.body.parts.target.facts.targetMean === 247.58 && !r.body.failed.target);
+  env = mk(); W.reset(); W.empty.add('metric');
+  await call(env, '/dossier?symbol=SPY');
+  W.reset();
+  r = await call(env, '/dossier?symbol=SPY');
+  ok('an empty answer (an ETF has no financials) waits a day, not an hour', W.count(/stock\/metric/) === 0 && /^nodata: /.test(env.DB.parts.get('SPY|metric').error) && !r.body.parts.metric);
+  env.DB.parts.get('SPY|metric').err_at -= 2 * 3600000; W.reset();
+  await call(env, '/dossier?symbol=SPY');
+  ok('...still waiting two hours later', W.count(/stock\/metric/) === 0);
+
+  console.log('\nThe budget is counted call by call');
+  env = mk({ env: { ALPHAVANTAGE_KEY: 'av', FINNHUB_KEY: '' } }); W.reset(); W.down.add('nasdaq');
+  r = await call(env, '/dossier?symbol=NVDA');
+  ok('a failed fallback counts both its calls; the SEC lookup needs room for two', r.body.calls <= 6 && W.calls.length <= 6 && r.body.calls === W.calls.length, r.body.calls + ' / ' + W.calls.length + ' ' + W.calls.join(' '));
+  env = mk(); W.reset();
+  for (const p of ['calendar', 'metric', 'target', 'recommendation', 'surprises']) env.DB.parts.set('NVDA|' + p, { symbol: 'NVDA', part: p, at: Date.now(), src: 'finnhub', body: '{}', error: null, err_at: null });
+  r = await call(env, '/dossier?symbol=NVDA');   // insiders + estimates = 2, then sec without a CIK needs 2 more: 4 ≤ 6
+  ok('...insiders, estimates, then the SEC with its ticker map: 4 calls', r.body.calls === 4 && W.calls.length === 4 && r.body.parts.sec, W.calls.join(' '));
+  env = mk(); W.reset();
+  for (const p of ['calendar', 'metric', 'target', 'recommendation']) env.DB.parts.set('NVDA|' + p, { symbol: 'NVDA', part: p, at: Date.now(), src: 'finnhub', body: '{}', error: null, err_at: null });
+  env.DB.parts.set('NVDA|surprises', { symbol: 'NVDA', part: 'surprises', at: 1, src: 'finnhub', body: '{}', error: null, err_at: null });
+  for (let i = 0; i < 2; i++) env.DB.parts.set('X|' + i, { symbol: 'X', part: 'x' + i, at: 1 });
+  r = await call(env, '/dossier?symbol=NVDA');   // surprises, insiders, estimates = 3; sec needs 2 → 5; all fit
+  ok('...never more than 6, whatever is stale', r.body.calls <= 6 && W.calls.length === r.body.calls);
   env = mk({ env: { FINNHUB_KEY: '' } }); W.reset();
   r = await call(env, '/dossier?symbol=NVDA');
   ok('no Finnhub key: its parts fail without a call or a charge; Nasdaq and the SEC (ticker map) still come', W.count(/finnhub/) === 0 && /no Finnhub key/.test(r.body.failed.metric) && r.body.parts.target && r.body.parts.sec && W.count(/company_tickers/) === 1, JSON.stringify(r.body.failed) + ' ' + W.calls.join(' '));
