@@ -262,6 +262,33 @@ export async function gemini(env, req, ctx) {
     await write(r.ok ? sseEvent('done', { provider: r.provider, model: r.model, firstMs: r.firstMs, ms: r.ms, tried: r.tried, stripped: p.stripped }) : sseEvent('fail', { tried: r.tried, fallback: r.fallback }));
   }, after);
 }
+/**
+ * One job asked whole, for another route (Phase 10's hearing, lib/hear.js), on
+ * that route's ledger → { ok, text, provider, model, tried } or { ok: false, tried }.
+ * The same ladder, rules and bookkeeping as POST /ai/gemini; no fallback outside Gemini.
+ */
+export async function askWhole(env, L, b, job, now = Date.now()) {
+  if (!JOBS[job]) throw new Error('no such Gemini job: ' + job);
+  if (!env.GEMINI_KEY) return { ok: false, tried: [{ provider: 'gemini', why: 'GEMINI_KEY is not set' }] };
+  const p = buildPrompt(b, { stripPrivate: true });
+  p.messages = p.messages.slice(-1);
+  const body = geminiBody(p, job, images(b));
+  let rows = await rowsOf(env);
+  if (!rows.some((r) => r.state === 'ok') || now - Math.max(0, ...rows.map((r) => r.at)) > DISCOVER_TTL) rows = await discover(env, now);
+  const tried = [];
+  try {
+    for (const row of ladder(rows, job)) {
+      const r = await rung(env, L, row, job, body, null, now);
+      if (r.ok) return { ok: true, text: r.text, provider: 'gemini', model: row.id, tried };
+      tried.push({ provider: 'gemini', model: row.id, why: r.why });
+    }
+    return { ok: false, tried };
+  } finally {
+    const gone = rows.some((r) => r.dirty && r.state === 'dropped');
+    await saveRows(env, rows).catch((e) => console.warn('gemini rows:', e.message || e));
+    if (gone) await discover(env, now).catch((e) => console.warn('gemini list:', e.message || e));
+  }
+}
 export async function discoverRoute(env) {
   const rows = await discover(env);
   return json({ ok: true, models: rows.map((r) => ({ id: r.id, family: r.family, rank: r.rank })) });
