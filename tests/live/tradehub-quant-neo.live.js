@@ -124,8 +124,11 @@ const ok = (name, cond, extra) => {
   const o0 = orca().length;
   await js(`${lastA()}.querySelector('[data-nq-askunits]').click(); 1`);
   ok('a press lists the units that are up (not the offline one)', await until(`${lastA()}.querySelectorAll('[data-nq-unit]').length === 2`, 5000) && orca().length === o0 + 1 && orca()[o0].p === '/v1/models');
+  // Wait for the NEW answer: the backup answer above is already "done" and names a browser unit.
+  const nA = await js(`return document.querySelectorAll('[data-nq-a]').length;`);
   await js(`${lastA()}.querySelector('[data-nq-unit="deepseek/free"]').click(); 1`);
-  ok('another press asks that unit; its reply is shown as the browser unit\'s', await until(`(function(){var a=${lastA()}; return a.dataset.state==='done' && /browser unit/i.test(a.innerText);})()`, 8000) && orca().some((x) => x.p === '/v1/chat/completions' && JSON.parse(x.body).model === 'deepseek/free'));
+  ok('another press asks that unit; its reply is shown as the browser unit\'s (not as the backup)', await until(`(function(){var all=document.querySelectorAll('[data-nq-a]'), a=all[all.length-1]; return all.length > ${nA} && a.dataset.state==='done' && /DeepSeek \\(browser\\)/.test(a.innerText) && !/Backup/.test(a.innerText);})()`, 8000)
+    && orca().filter((x) => x.p === '/v1/chat/completions' && JSON.parse(x.body).model === 'deepseek/free').length === 2);
 
   console.log('\nResearch and Deep dive');
   const n1 = ai().length;
