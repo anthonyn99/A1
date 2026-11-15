@@ -2361,10 +2361,14 @@ function macroScheduleStatus(rec, nowMs, windowDays){
     if (nowMs - c.at > MS_CHANGE_WARN_DAYS * 86400000) continue;
     const removed = (c.removed || []).filter(d => d >= today), added = (c.added || []).filter(d => d >= today);
     if (!removed.length && !added.length) continue;
+    // A date in another year says its year: "FOMC moved from Dec 8 to Nov 17" read as
+    // this year's meeting moving into next week, when it was 2027's (2026-11-15).
+    const day = (d) => fmtDay(d) + (d.slice(0, 4) === today.slice(0, 4) ? '' : ', ' + d.slice(0, 4));
     let what;
-    if (removed.length === 1 && added.length === 1) what = `moved from ${fmtDay(removed[0])} to ${fmtDay(added[0])}`;
-    else what = [removed.length ? `${list(removed.map(fmtDay))} dropped` : '', added.length ? `${list(added.map(fmtDay))} added` : ''].filter(Boolean).join(', ');
-    warnings.push({ code:'moved', level:'info', series:c.series, text:`${label(c.series)} ${what} on the official schedule (${ago(c.at)}). Catalysts follows it.` });
+    if (removed.length === 1 && added.length === 1) what = `moved from ${day(removed[0])} to ${day(added[0])}`;
+    else what = [removed.length ? `${list(removed.map(day))} dropped` : '', added.length ? `${list(added.map(day))} added` : ''].filter(Boolean).join(', ');
+    const later = removed.concat(added).every(d => d > toD);
+    warnings.push({ code:'moved', level:'info', series:c.series, text:`${label(c.series)} ${what} on the official schedule (${ago(c.at)}). ${later ? 'Nothing in these 30 days changes.' : 'Catalysts follows it.'}` });
   }
   // Each text reads as a sentence (labels like "jobs report" and "the ECB" lead some).
   for (const w of warnings) w.text = w.text.charAt(0).toUpperCase() + w.text.slice(1);
