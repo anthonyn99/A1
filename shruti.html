@@ -105,6 +105,10 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<!-- Beacon (docs/Beacon/README.md): this device in A1's device list (Settings ▸
+     Profile ▸ Devices). Its Firebase is Shruti's, through window.LifeHubFirebase. -->
+<script src="Beacon/beacon.js"></script>
+<script>if (window.Beacon) Beacon.mount('shruti', { label: 'Shruti', profileAttr: 'data-profile', firebase: 'lifehub' });</script>
 <script>
 // Each person's Shruti is a Guardian lock: <p>_shruti. Declared and painted
 // over before first paint; app.js gates on it before any network use.

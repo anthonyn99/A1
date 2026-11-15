@@ -245,7 +245,7 @@ function openSettings() {
     '<header class="mk-head"><span class="mk-ic">' + GEAR + '</span><div class="mk-ht"><h2 id="st-h">Settings</h2><p>' + esc(PROFILES[P].label) + ' · on every device</p></div><button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>' +
     '<section class="mk-sec st-sec" id="st-orca"></section><section class="mk-sec st-sec" id="st-units"></section><section class="mk-sec st-sec" id="st-drive"></section>' +
     '<section class="mk-sec st-sec"><div class="mk-label">Profile</div><div class="st-card st-prof"><span class="pf-av">' + (P === 'veda' ? SPARK : FLEUR) + '</span><div><b>' + esc(PROFILES[P].label) + '</b><span>Your progress and settings; the shared books are both of yours.</span></div></div>' +
-    '<div class="st-row"><button class="btn" data-switch>Switch profile</button><button class="btn" data-lock>' + (Guardian.isLocked(GID) ? 'Manage lock' : 'Set a password') + '</button></div></section>' +
+    '<div class="st-row"><button class="btn" data-switch>Switch profile</button><button class="btn" data-lock>' + (Guardian.isLocked(GID) ? 'Manage lock' : 'Set a password') + '</button>' + (window.Beacon ? '<button class="btn" data-devices>Devices</button>' : '') + '</div></section>' +
     '</aside>';
   document.body.appendChild(dim);
   const close = () => { dim.remove(); removeEventListener('keydown', esc1); offMe(); };
@@ -254,6 +254,8 @@ function openSettings() {
   dim.addEventListener('click', (e) => { if (e.target === dim || e.target.closest('[data-close]')) close(); });
   dim.querySelector('[data-switch]').addEventListener('click', () => { close(); showPicker(); });
   dim.querySelector('[data-lock]').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
+  // Every device Shruti runs on and its lock there: Beacon's panel (Beacon/beacon.js).
+  const dv = dim.querySelector('[data-devices]'); if (dv) dv.addEventListener('click', () => window.Beacon.open({ app: 'shruti', profile: P }));
   drawOrca(); drawUnits(); drawDrive();
   const offMe = C.on('doc:me', ({ remote }) => { if (remote && !dim.contains(document.activeElement)) { drawOrca(); drawUnits(); } });
   if (keyOf() && !modelsNow()) refreshModels();
