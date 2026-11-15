@@ -285,7 +285,9 @@ const mvw = M.macroScheduleStatus(mv, now, 30).warnings.find(w => w.code === 'mo
 ok('a moved date in the past week → "CPI moved from Dec 10 to Dec 11"', mvw && /CPI moved from Dec 10 to Dec 11/.test(mvw.text), mvw);
 const mv27 = M.macroScheduleStatus({ ...healthy, changes: [{ series:'fomc', year:'2027', removed:['2027-12-08'], added:['2027-11-17'], at: now - 2 * 86400000 }] }, now, 30).warnings.find(w => w.code === 'moved');
 ok('a move in another year says the year, and that nothing in the window changes (FOMC 2027, 2026-11-15)', mv27 && /moved from \w+ \d+, 2027 to \w+ \d+, 2027/.test(mv27.text) && /Nothing in these 30 days changes/.test(mv27.text) && !/Catalysts follows it/.test(mv27.text), mv27 && mv27.text);
-ok('...an in-window move keeps its short wording', mvw && !/, 2026/.test(mvw.text) && /Catalysts follows it/.test(mvw.text));
+ok('...a move within this year keeps its short wording (no year)', mvw && !/, 2026/.test(mvw.text));
+const mvIn = M.macroScheduleStatus({ ...healthy, changes: [{ series:'cpi', year:'2026', removed:['2026-11-20'], added:['2026-11-21'], at: now - 86400000 }] }, now, 30).warnings.find(w => w.code === 'moved');
+ok('...a move inside the window says Catalysts follows it', mvIn && /Catalysts follows it/.test(mvIn.text), mvIn && mvIn.text);
 ok('...gone after a week', !codes(M.macroScheduleStatus({ ...mv, changes: [{ ...mv.changes[0], at: now - 8 * 86400000 }] }, now, 30)).includes('moved'));
 ok('...silent once the dates have passed', !codes(M.macroScheduleStatus({ ...mv, changes: [{ series:'cpi', year:'2026', removed:['2026-11-05'], added:['2026-11-06'], at: now - 86400000 }] }, now, 30)).includes('moved'));
 ok('status reports each release\'s official years', eq(M.macroScheduleStatus(r1, now, 30).official.retail, ['2026','2027']));
