@@ -53,7 +53,7 @@ const worker = {
   const blurred = (re) => js(`var re=${re}; var el=[...document.querySelectorAll('#tradeboard-root *')].filter(e=>e.offsetParent&&e.children.length===0&&re.test(e.textContent))[0];
     if(!el) return 'missing'; return (${isBlur})(el);`);
   const btn = () => js(`var b=[...document.querySelectorAll('[aria-label="Display mode"]')].find(x=>x.offsetParent); if(!b) return null;
-    var lock=b.nextElementSibling; return {pressed:b.getAttribute('aria-pressed'), nextIsLock:!!lock&&/^tb-lock-btn/.test(lock.id), left:b.getBoundingClientRect().right<=lock.getBoundingClientRect().left+1};`);
+    var lock=b.nextElementSibling; return {pressed:b.getAttribute('aria-pressed'), nextIsLock:!!lock&&/^tb-lock-btn/.test(lock.id), above:b.getBoundingClientRect().bottom<=lock.getBoundingClientRect().top+3&&Math.abs(b.getBoundingClientRect().left-lock.getBoundingClientRect().left)<1};`);
 
   const load = async (w, h, mobile) => {
     await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
@@ -77,7 +77,8 @@ const worker = {
     await load(w, h, mobile);
     const b = await btn();
     ok('the Display mode button is visible', !!b, JSON.stringify(b));
-    ok('it sits just left of the app lock', b && b.nextIsLock && b.left, JSON.stringify(b));
+    // The sidebar's control rows since 2026-11-15 (beside the lock in the old header).
+    ok('it sits just above the app lock', b && b.nextIsLock && b.above, JSON.stringify(b));
     ok('it starts off', b && b.pressed === 'false');
 
     await nav('portfolio');
