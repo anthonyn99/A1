@@ -62,6 +62,14 @@
   Never build a lock in a program; declare one. The contract is
   [docs/Guardian/README.md](docs/Guardian/README.md) (hosts must load the file
   unpinned; legacy adoption is retired after 2026-11-10 by its checklist).
+- **Beacon — the device manager** ("devices", "remove a device", "which
+  devices get notifications", a new program with profiles or notifications):
+  [Beacon/beacon.js](Beacon/beacon.js) + its panel `beacon-ui.js`. A program
+  only declares itself (`Beacon.mount`) and opens the panel (`Beacon.open`);
+  never build a device list in a program. Contract:
+  [docs/Beacon/README.md](docs/Beacon/README.md) (owner = TaskHub's main;
+  a panel never reads the other person's document; Lock/Remove go through
+  `Guardian.lockDevice`).
 - **Popups** (any popup, dialog, modal or overlay, in any program, both sides):
   [popups.js](Shared/popups.js) gives every backdrop TaskHub's look (`rgba(0,0,0,.6)` +
   `blur(7px) saturate(.9)`), closes it on a click outside, and never on a
