@@ -460,26 +460,32 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
     const meCard = R.querySelector('[data-dev="dev_me"]');
     ok('this device first, tagged', cards[0] === 'dev_me' && /This device/.test(meCard.textContent));
     ok('model line: Windows, Edge', /Windows/.test(meCard.querySelector('.dm').textContent) && /Edge/.test(meCard.querySelector('.dm').textContent), meCard.querySelector('.dm').textContent);
-    ok('notifications on', /Notifications on/.test(meCard.textContent));
-    ok('lock pill shows only Tony’s locks', /Unlocked/.test(meCard.textContent) && !/Veda TaskHub/.test(meCard.textContent));
-    meCard.querySelector('[data-locks]').click();
-    await tick();
-    const lockRows = R.querySelector('[data-dev="dev_me"] .locks');
-    ok('the lock pill opens each lock, with biometrics marked', lockRows && /TaskHub/.test(lockRows.textContent) && !!lockRows.querySelector('.lb') && !/Veda/.test(lockRows.textContent));
+    ok('a closed row shows its state as glyphs: notifications on, unlocked', /title="Notifications on"/.test(meCard.querySelector('.gl').innerHTML) && /title="Unlocked"/.test(meCard.querySelector('.gl').innerHTML), meCard.querySelector('.gl').innerHTML);
+    ok('rows start closed: no actions yet', !meCard.querySelector('[data-act]'));
+    R.querySelector('[data-dev="dev_me"] [data-toggle]').click(); await tick();
+    let meOpen = R.querySelector('[data-dev="dev_me"]');
+    ok('a tap opens the row', meOpen.classList.contains('open') && meOpen.querySelector('[data-toggle]').getAttribute('aria-expanded') === 'true');
+    ok('open: notifications on, only Tony\u2019s locks', /Notifications on/.test(meOpen.textContent) && /Unlocked/.test(meOpen.textContent) && !/Veda TaskHub/.test(meOpen.textContent));
+    const lockRows = meOpen.querySelector('.lks');
+    ok('each lock listed, with biometrics marked', lockRows && /TaskHub/.test(lockRows.textContent) && !!lockRows.querySelector('.lb') && !/Veda/.test(lockRows.textContent));
+    ok('and the actions', !!meOpen.querySelector('[data-act="rename"]') && !!meOpen.querySelector('[data-act="remove"]'));
+    R.querySelector('[data-dev="dev_me"] [data-toggle]').click(); await tick();
+    ok('a second tap closes it', !R.querySelector('[data-dev="dev_me"]').classList.contains('open'));
     const oldCard = R.querySelector('[data-dev="dev_old"]');
     ok('a neutral push-only device sits under Neutral devices', oldCard && oldCard.closest('.sec').querySelector('.st').textContent === 'Neutral devices');
-    ok('and says its notifications are off (neutral)', /Notifications off/.test(oldCard.textContent));
-    ok('the count', /3 devices|2 devices/.test(R.querySelector('[data-count]').textContent), R.querySelector('[data-count]').textContent);
+    ok('and its glyph says notifications off (neutral)', /title="Notifications off"/.test(oldCard.querySelector('.gl').innerHTML));
+    ok('the summary line', /2 devices/.test(R.querySelector('[data-count]').textContent) && /get notifications/.test(R.querySelector('[data-count]').textContent), R.querySelector('[data-count]').textContent);
 
     R.querySelector('[data-scope="all"]').click();
     await tick();
     cards = [...R.querySelectorAll('[data-dev]')].map((c) => c.getAttribute('data-dev'));
     ok('"All programs" adds the MAGI-only iPhone', cards.includes('dev_ip') && !cards.includes('dev_vg'), cards);
-    const ip = R.querySelector('[data-dev="dev_ip"]');
+    let ip = R.querySelector('[data-dev="dev_ip"]');
     ok('iPhone named from its model and size', /iPhone/.test(ip.querySelector('.dn').textContent) && /16 \/ 17 Pro Max/.test(ip.querySelector('.dm').textContent), ip.querySelector('.dm').textContent);
-    ok('MAGI row shows Locked', /MAGI/.test(ip.textContent) && /Locked/.test(ip.textContent));
+    R.querySelector('[data-dev="dev_ip"] [data-toggle]').click(); await tick();
+    ip = R.querySelector('[data-dev="dev_ip"]');
+    ok('MAGI shows Locked', /MAGI/.test(ip.textContent) && /Locked/.test(ip.textContent));
 
-    // Rename inline
     ip.querySelector('[data-act="rename"]').click();
     await tick(5);
     const input = R.querySelector('[data-dev="dev_ip"] .inl input');
@@ -490,37 +496,50 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
     await tick(60);
     ok('rename + type are saved', doc(st, 'tony').devices.dev_ip.name === 'Work iPhone' && doc(st, 'tony').devices.dev_ip.kindSet === 'tablet');
     await tick(700);
-    ok('and the card redraws with the new name', /Work iPhone/.test(R.querySelector('[data-dev="dev_ip"] .dn').textContent));
+    ok('and the row redraws with the new name, still open', /Work iPhone/.test(R.querySelector('[data-dev="dev_ip"] .dn').textContent) && R.querySelector('[data-dev="dev_ip"]').classList.contains('open'));
 
-    // Escape cancels a form before it closes the panel.
     R.querySelector('[data-dev="dev_ip"] [data-act="remove"]').click();
     await tick();
-    ok('remove asks inline first', /Remove <b>|Remove/.test(R.querySelector('[data-dev="dev_ip"] .inl').textContent));
+    ok('remove asks inline first', /Remove/.test(R.querySelector('[data-dev="dev_ip"] .inl').textContent));
     me.document.dispatchEvent(new me.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await tick();
     ok('Escape cancels the question, not the panel', !R.querySelector('[data-dev="dev_ip"] .inl') && me.BeaconUI.isOpen());
 
-    // Lock inline
     R.querySelector('[data-dev="dev_ip"] [data-act="lock"]').click();
     await tick();
     R.querySelector('[data-dev="dev_ip"] [data-ok]').click();
     await tick(60);
     ok('lock sends the command', doc(st, 'tony').cmd.dev_ip.lock > 0);
     await tick(700);
-    ok('the card shows it pending with Cancel', /Lock sent/.test(R.querySelector('[data-dev="dev_ip"]').textContent) && !!R.querySelector('[data-dev="dev_ip"] [data-act="uncmd"]'));
+    ok('the row shows it pending with Cancel', /Lock sent/.test(R.querySelector('[data-dev="dev_ip"]').textContent) && !!R.querySelector('[data-dev="dev_ip"] [data-act="uncmd"]'));
     R.querySelector('[data-dev="dev_ip"] [data-act="uncmd"]').click();
     await tick(700);
     ok('Cancel takes the command back', !(doc(st, 'tony').cmd || {}).dev_ip && !/Lock sent/.test(R.querySelector('[data-dev="dev_ip"]').textContent));
 
-    // Remove inline
+    R.querySelector('[data-dev="dev_old"] [data-toggle]').click(); await tick();
     R.querySelector('[data-dev="dev_old"] [data-act="remove"]').click();
     await tick();
     R.querySelector('[data-dev="dev_old"] [data-ok]').click();
     await tick(80);
     ok('remove deletes the token', !st.docs['fcm_tokens/dev_old']);
     await tick(700);
-    ok('and the card leaves', !R.querySelector('[data-dev="dev_old"]'));
-    ok('a push-only device without a dev_ id cannot be renamed', true);
+    ok('and the row leaves', !R.querySelector('[data-dev="dev_old"]'));
+
+    // Inactive: folded away, cleared in one go.
+    st.docs['fcm_tokens/dev_gone1'] = { token: 'G1', mainDash: 'tony', updatedAt: Date.now() - 100 * 864e5, ua: '' };
+    st.docs['fcm_tokens/dev_gone2'] = { token: 'G2', mainDash: 'none', updatedAt: Date.now() - 200 * 864e5, ua: UA.winChrome.slice(0, 80) };
+    R.querySelector('[data-refresh]').click();
+    await tick(80);
+    const secOf = () => [...R.querySelectorAll('.sec')].find((x) => x.querySelector('.st') && /Inactive/.test(x.querySelector('.st').textContent));
+    ok('devices unseen for 60 days fold into Inactive, closed', secOf() && /2 not seen/.test(secOf().textContent) && !secOf().querySelector('[data-dev]'));
+    secOf().querySelector('[data-old]').click(); await tick();
+    ok('Show lists them; a token with no agent string is an Unknown device', secOf().querySelectorAll('[data-dev]').length === 2 && /Unknown device/.test(secOf().textContent) && /Known only by its notification token/.test(secOf().textContent));
+    secOf().querySelector('[data-clear-old]').click(); await tick();
+    ok('Remove all asks first', /Remove all/.test(R.querySelector('.inl').textContent));
+    R.querySelector('.inl [data-ok]').click();
+    await tick(900);
+    ok('and removes every inactive device', !st.docs['fcm_tokens/dev_gone1'] && !st.docs['fcm_tokens/dev_gone2'] && !secOf());
+
 
     // Live: another device checks in while the panel is open.
     const tab = device(st, { ua: UA.mac, ls: { th_device_id: 'dev_mac', td6_mainDash: 'tony' } });
