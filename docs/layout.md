@@ -47,6 +47,7 @@ follows the same rules (its own `docs/layout.md`).
 |---|---|
 | `Backup/` | A1Backup: `backup.js`, `backup-merge.js`, and `Index Backups/` (the repo copies `tools/pull-backups.mjs` writes). |
 | `docs/` | Every doc, plan and README, one subfolder per project; `docs/README.md` is the index. |
+| `Beacon/` | The device manager: `beacon.js` (every host loads it from this path, unpinned) and `beacon-ui.js`, its panel, which `beacon.js` loads on first open. |
 | `Guardian/` | The one lock, `guardian.js`. Every host (A1, A1-Priv, ORCA) loads it from this path, unpinned. |
 | `LifeHub/` | The app switcher, `lifehub.js`, loaded from this path by every host. |
 | `magi/` | MAGI's engine, a Python package run as `python -m magi` by scheduled tasks on both PCs (so its modules stay where they are). |

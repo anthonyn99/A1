@@ -21,6 +21,7 @@ Everwell) are in A1-Priv's own `docs/`.
 
 | Folder | Contents |
 | --- | --- |
+| [Beacon/](Beacon/) | The device manager: `README.md` (the contract) |
 | [Guardian/](Guardian/) | The one lock: `README.md` (the contract), `plan.md` (the build record) |
 | [LifeHub/](LifeHub/) | The app switcher |
 | [MAGI/](MAGI/) | `magi.md` (the runbook), `magi-plan.md` (the living plan; §0 is the session hand-off), `magi-accounts.md`, `magi-setup.md`, `magi-cloud-setup.md` (Track M: the always-on cloud engine, so phones work with the PC off) the three runbooks for Veda's PC, and `standing-prompts.md` (the engine runs TradeHub's market-movers and next-week-catalysts prompts on a schedule; Debrief shows them) |

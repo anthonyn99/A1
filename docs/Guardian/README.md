@@ -97,6 +97,7 @@ Removing a lock means deleting those lines. Nothing else in the program knows ab
 | `setLock(id)`, `changePassword(id)`, `removeLock(id)` | each flow on its own |
 | `verify(id, {title, message})` | always asks, ignoring the device's unlock, and resolves the password or `null` |
 | `lockNow(id \| ids)` | drops THIS device's unlock only (and ends its `session`) |
+| `lockDevice(reason)` | drops EVERY unlock on this device, for every lock, whether this page defines it or not. It also clears the old programs' markers, so adoption cannot reopen them. Each lock defined here re-gates, and it fires `guardian:device-locked`. Used by Beacon's remote Lock and Remove ([docs/Beacon/README.md](../Beacon/README.md)). |
 | `forget(id, password?)` | the locked thing was deleted (a journal entry): drop its traces here, and on the server given the password |
 | `isLocked`, `isUnlocked`, `mustBlock`, `status(id)` | synchronous answers from the cache |
 | `refresh(ids?)` | checks the worker now. The cross-device "bell" (`dashboards/applock`, MyList's `lockV`) calls this |
