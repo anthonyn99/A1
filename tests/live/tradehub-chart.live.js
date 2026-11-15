@@ -25,6 +25,9 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 500) : '')); }
 };
+// The desktop steps' window: a 1280 px content area beside TradeHub's 224 px sidebar
+// (2026-11-15). The phone pinch check starts from the zoom these steps leave.
+const DESK_W = 1280 + 224;
 const TAB = `document.querySelector('[data-charts]').__charts`;
 const CH = `${TAB}.active()`;
 
@@ -47,7 +50,7 @@ const CH = `${TAB}.active()`;
   const xOf = (t, s) => js(`return ${CH}.geo.x(${t}) + ${s.l};`);
 
   console.log('\nThe switch');
-  await size(1280, 900);
+  await size(DESK_W, 900);
   await boot({ quant: false });
   ok('switch off: no Charts tab', await js(`return !document.querySelector('.tb-navtab[data-navid="charts"]');`));
   await boot({ quant: true });
@@ -177,7 +180,7 @@ const CH = `${TAB}.active()`;
   await sleep(900);
   ok('820 px: no sideways scroll, the chart has room', (await js(`return document.documentElement.scrollWidth;`)) <= 820 && (await stage()).w > 500);
   await shot('chart-820');
-  await size(1280, 900);
+  await size(DESK_W, 900);
   await sleep(900);
   await js(`window.scrollTo(0,0); 1`);
   await shot('chart-1280');
