@@ -25023,6 +25023,20 @@ function renderRestoreRow(container,profile){
     '<a class="thset-btn" id="thset-rs-go" href="'+bkEsc(href)+'" style="background:'+ACCENT[profile]+';color:'+(profile==='tony'?'#1a1a1d':'#fff')+';">Open</a>'+
   '</div>';
 }
+// ── Devices — Beacon's panel (Beacon/beacon.js, docs/Beacon/README.md) ────
+// Every device this person's TaskHub runs on or notifies, plus neutral ones,
+// with each one's lock state; rename, lock or remove from there. The panel is
+// Beacon's own: nothing of it is built here.
+function renderDevicesRow(container,profile){
+  container.innerHTML='<div class="thset-row thset-rs">'+
+    '<div class="thset-rs-txt"><span class="thset-label">Devices</span>'+
+    '<span class="thset-rs-sub">Every device TaskHub runs on or sends notifications to, and whether it is locked. Rename, lock or remove one.</span></div>'+
+    '<button type="button" class="thset-btn" id="thset-dev-go" style="background:'+ACCENT[profile]+';color:'+(profile==='tony'?'#1a1a1d':'#fff')+';">Manage</button>'+
+  '</div>';
+  document.getElementById('thset-dev-go').addEventListener('click',function(){
+    if(window.Beacon) Beacon.open({app:'taskhub',profile:profile});
+  });
+}
 // backup.js announces captures, pushes, a new passphrase and the pause switch.
 window.addEventListener('a1backup:change',function(){
   if(_overlay.style.display!=='none') refreshBackup();
@@ -25045,6 +25059,10 @@ function openSettings(profile){
       '<div class="thset-sec-title">Profile Lock</div>'+
       '<div id="thset-suitelock"></div>'+
       '<div id="thset-mainrow"></div>'+
+    '</div>'+
+    '<div class="thset-sec">'+
+      '<div class="thset-sec-title">Devices</div>'+
+      '<div id="thset-devices"></div>'+
     '</div>'+
     (profile==='tony'?'<div class="thset-sec">'+
       '<div class="thset-sec-title">Tony\'s Neo AI</div>'+
@@ -25075,6 +25093,7 @@ function openSettings(profile){
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
   renderSuiteLock(document.getElementById('thset-suitelock'),profile);
   renderMainDeviceRow(document.getElementById('thset-mainrow'),profile);
+  renderDevicesRow(document.getElementById('thset-devices'),profile);
   // Tony's Neo AI draws its own section (mic, voice, typed replies): TaskHub/tony-neo.js.
   if(profile==='tony'){
     var neoBox=document.getElementById('thset-neo');
