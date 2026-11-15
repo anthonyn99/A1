@@ -108,12 +108,19 @@ async function run(c, w, h, mobile) {
     sessionStorage.setItem('__fakefs_docs', JSON.stringify(${JSON.stringify(SEED)})); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
   // In-browser Babel with the cache off can take a while: wait for TaskHub, not a clock.
+  // A fresh profile can reload itself once early on (its service worker
+  // taking over), so "booted" means the same page has stayed up for 4 s.
   let booted = false;
-  for (let i = 0; i < 90 && !booted; i++) {
-    booted = await evalJs(c, "return typeof window._profileGoTony === 'function' && typeof window._openSettings === 'function';");
-    if (!booted) await sleep(500);
+  for (let round = 0; round < 4 && !booted; round++) {
+    for (let i = 0; i < 90; i++) {
+      if (await evalJs(c, "return typeof window._profileGoTony === 'function' && typeof window._openSettings === 'function';")) break;
+      await sleep(500);
+    }
+    await evalJs(c, 'window.__beaconMark = 1; 1');
+    await sleep(4000);
+    booted = await evalJs(c, "return window.__beaconMark === 1 && typeof window._openSettings === 'function';");
   }
-  if (!booted) console.log('    not booted: ' + await evalJs(c, "return JSON.stringify({href: location.href, rs: document.readyState, ov: !!document.getElementById('thset-overlay'), scripts: document.scripts.length, beacon: !!window.Beacon, body: document.body && document.body.innerHTML.length});"));
+  if (!booted) console.log('    not booted: ' + await evalJs(c, "return JSON.stringify({href: location.href, rs: document.readyState, ov: !!document.getElementById('thset-overlay'), beacon: !!window.Beacon});"));
   await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._profileGoTony(); 1");
   await sleep(4500);
 
