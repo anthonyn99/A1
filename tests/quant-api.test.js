@@ -679,9 +679,15 @@ globalThis.fetch = async (url, init = {}) => {
 
   console.log('\nRead-only toward the broker');
   const fs = require('fs');
-  const src = ['worker.js', 'lib/data.js', 'lib/net.js', 'lib/charts.js', 'lib/signals.js', 'lib/backtest.js', 'providers/alpaca.js', 'providers/others.js', 'providers/yahoo.js']
-    .map((f) => fs.readFileSync(path.join(__dirname, '..', 'workers2', 'quant-api', f), 'utf8')).join('\n');
-  ok('no order, trading-API or paper-api URL anywhere in the worker', !/\/v2\/orders|paper-api\.alpaca|api\.alpaca\.markets|\/order\b|placeOrder|\/trading\/[^a"]/.test(src));
+  // §1 rule 2 as amended by Phase 9C: Webull stays read-only; the ONLY order code is lib/paper.js, for Alpaca PAPER.
+  const W = path.join(__dirname, '..', 'workers2', 'quant-api');
+  const files = ['worker.js', ...fs.readdirSync(path.join(W, 'lib')).map((f) => 'lib/' + f), ...fs.readdirSync(path.join(W, 'providers')).map((f) => 'providers/' + f)].filter((f) => f.endsWith('.js'));
+  const read = (f) => fs.readFileSync(path.join(W, f), 'utf8');
+  const others = files.filter((f) => f !== 'lib/paper.js');
+  ok('no Alpaca LIVE trading host anywhere in the worker (api.alpaca.markets)', files.every((f) => !/(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))), files.filter((f) => /(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))).join());
+  ok('the paper host and order paths only in lib/paper.js', others.every((f) => !/paper-api\.alpaca|\/v2\/orders|\/v2\/positions|placeOrder/.test(read(f))), others.filter((f) => /paper-api\.alpaca|\/v2\/orders|\/v2\/positions/.test(read(f))).join());
+  ok('lib/paper.js pins its host in ONE constant and builds no host from input', (read('lib/paper.js').match(/https:\/\/[\w.-]+/g) || []).every((h) => h === 'https://paper-api.alpaca.markets') && /PAPER_HOST \+ path/.test(read('lib/paper.js')));
+  ok('no Webull write path anywhere in the worker', files.every((f) => !/webull[^\n]{0,80}(order|trade\/place|placeOrder|cancel)/i.test(read(f))));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
