@@ -91,8 +91,7 @@ const ok = (name, cond, extra) => {
       const after = await order();
       ok('dragging Regime by its title bar past Sectors reorders the cards', after !== before && after.split(',').indexOf('regime') > 0, before + ' -> ' + after);
       ok('...written once to the layout doc', await until(`window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length === 1`, 4000));
-      // The layout is saved for the size the grid is drawn at (the 224 px sidebar can make a 1280 window a tablet grid).
-      ok('...in the order on screen', (await js(`var m=window.__fakeFs.docs['dashboards/tradehub_layout'].market; return (m.desktop||m.tablet||m.phone).order.join();`)) === after);
+      ok('...in the order on screen', (await js(`return window.__fakeFs.docs['dashboards/tradehub_layout'].market.desktop.order.join();`)) === after);
       const body = await centre('.lay-card[data-card="breadth"] .lay-body');
       const b2 = await centre('.lay-card[data-card="sectors"] .lay-title');
       await mouseDrag({ x: body.x, y: body.y }, { x: b2.x + 80, y: b2.y });
