@@ -57,7 +57,7 @@ const WORDS = 'test buying NVDA, AMD and MSFT when RSI is under 45 since June 20
   console.log('\nA request typed in Scanner ▸ Backtest');
   await size(1280, 900);
   await boot({ quant: true });
-  ok('Scanner ▸ Backtest has the "Ask Neo Quant" card, first, with a hint', await openBacktest() && await js(`var cards=[...document.querySelectorAll('[data-backtest] .lay-card')]; return cards[0] && cards[0].dataset.card==='lab' && /Say a strategy in your own words/.test(document.querySelector('[data-bt-lab]').innerText);`));
+  ok('Scanner ▸ Backtest has the "Ask Neo Quant" card, first, with a hint (once Neo Quant has loaded)', await openBacktest() && await until(`(function(){var cards=[...document.querySelectorAll('[data-backtest] .lay-card')]; return cards[0] && cards[0].dataset.card==='lab' && /Say a strategy in your own words/.test(document.querySelector('[data-bt-lab]').innerText);})()`, 15000));
   ok('nothing asked of the AI yet', ai().length === 0);
   api.state.ai.plan.push({ text: JSON.stringify(SPEC) });
   await js('window.__long=[]; 1');
