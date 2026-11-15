@@ -50,6 +50,9 @@ const MIN = 60000;
   console.log('\nThe Paper tab');
   await size(1280, 900);
   await boot({ quant: true });
+  // TradeHub installs its own in-page dialogs after boot: answer them here instead.
+  const stubDialogs = () => js(`window.uiConfirm=function(){return Promise.resolve(true);}; window.uiPrompt=function(t,o){return Promise.resolve(window.__promptAnswer!=null?window.__promptAnswer:(o&&o.value)||'');}; 1`);
+  await stubDialogs();
   ok('the nav has a Paper tab', await js(`return !!document.querySelector('.tb-navtab[data-navid="paper"]');`));
   await tab('paper');
   ok('the account: equity, today, cash, buying power, the PAPER badge', await until(`/\\$100,000\\.00/.test((document.querySelector('[data-pp-equity]')||{}).textContent||'')`, 15000) && await js(`var a=document.querySelector('[data-pp-account]').innerText; return /Today/.test(a) && /\\$400\\.00/.test(a) && /Buying power/.test(a) && !!document.querySelector('[data-paper-tab] .pt-badge');`));
@@ -88,8 +91,8 @@ const MIN = 60000;
 
   console.log('\nPlace on paper from a signal');
   await tab('scanner');
-  await until(`document.querySelector('[data-sc-card]') || document.querySelector('[data-sc-signal]')`, 15000);
-  await js(`var s=document.querySelector('[data-sc-signal="sgo00001"]')||document.querySelector('[data-sc-card]'); s && s.click(); 1`);
+  await until(`document.querySelector('[data-sc-sig="sgo00001"]')`, 15000);
+  await js(`document.querySelector('[data-sc-sig="sgo00001"]').click(); 1`);
   ok('a signal\'s detail has "Place on paper" and "Watch as an idea"', await until(`document.querySelector('[data-sc-place]') && document.querySelector('[data-sc-follow]')`, 8000));
   await js(`document.querySelector('[data-sc-place]').click(); 1`);
   ok('...the ticket opens with the signal\'s bracket: entry 164.03, stop 163.60, target 164.70', await until(`${T} && ${T}.querySelector('[data-pt-limit]') && ${T}.querySelector('[data-pt-limit]').value==='164.03' && ${T}.querySelector('[data-pt-bStop]').value==='163.6' && ${T}.querySelector('[data-pt-bTarget]').value==='164.7'`, 8000), await js(`return ${T} ? ${T}.innerText.slice(0,300) : 'no ticket';`));
