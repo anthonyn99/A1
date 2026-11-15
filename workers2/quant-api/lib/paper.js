@@ -22,7 +22,8 @@
 //   PATCH  /paper/runs/:id              { state?, limits?, capital?, who }   pause / resume / stop; Neo can never loosen a limit
 //   POST   /paper/fills                 { fills }   reconciled fills (the runner), kept once each
 //   POST   /paper/equity                { rows: [{ run, day, equity }] }   one row a run a day
-import { fail, json, bodyOf } from './http.js';
+import { fail, json } from './http.js';
+import { bodyOf } from './charts.js';
 
 export const PAPER_HOST = 'https://paper-api.alpaca.markets';
 export const TYPES = ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop'], SIDES = ['buy', 'sell'], TIFS = ['day', 'gtc'], CLASSES = ['simple', 'bracket', 'oco', 'oto'];
