@@ -126,7 +126,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   await goTab('market');
   const hd = hear().length;
   await js(`[...document.querySelectorAll('[data-nq-mic], [data-nq-dock] [data-nq-talk]')].find(function(b){ return b.getClientRects().length; }).click(); 1`);
-  await until(`!document.querySelector('[data-nq-dock]').hidden`, 4000);
+  await until(`!document.querySelector('[data-nq-dock]').hidden && document.querySelector('[data-nq-mic]').dataset.mode==='listening'`, 6000);
   await js(`document.querySelector('[data-nq-dock] [data-nq-hands]').click(); document.querySelector('[data-nq-close]').click(); 1`);
   await untilNode(() => hear().length > hd + 1, 30000);
   const dockHidden = await js(`return document.querySelector('[data-nq-dock]').hidden;`);
