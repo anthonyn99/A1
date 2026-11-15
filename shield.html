@@ -1154,6 +1154,10 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<!-- Beacon (docs/Beacon/README.md): this device in A1's device list (Devices ▸
+     All A1 devices). Shield's own device list above it stays Shield's. -->
+<script src="Beacon/beacon.js"></script>
+<script>if (window.Beacon) Beacon.mount('shield', { label: 'Shield', profileAttr: 'data-profile' });</script>
 <script src="Shared/apphead.js"></script>
 <script src="Shared/profilepick.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
@@ -3400,6 +3404,11 @@ function renderDevices(){
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Devices', 'Devices on this profile') + '</span></div>';
   h += devs.map(function(d){ return devRowHtml(d, false); }).join('');
   h += '</div>';
+  // Every A1 program on every device: Beacon's panel (Beacon/beacon.js).
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">All A1 devices</span></div>'
+    +  '<div class="card"><div class="opt"><div class="opt-main"><div class="opt-name">Every program, every device</div>'
+    +  '<div class="opt-sub">Where each A1 program runs, gets notifications and is locked. Rename, lock or remove a device.</div></div>'
+    +  '<button class="btn sm ac" id="a-beacon">Manage</button></div></div></div>';
   // Install on another PC. Sits in Devices because that is where you go when
   // you are thinking about a machine that is not this one.
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Add a Windows PC</span></div>'
@@ -3434,6 +3443,7 @@ function renderDevices(){
     };
   });
   var dl = $('a-download'); if (dl) dl.onclick = downloadAgent;
+  var bc = $('a-beacon'); if (bc) bc.onclick = function(){ if (window.Beacon) Beacon.open({ app: 'shield' }); };
   Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-remove]'), function(b){
     b.onclick = function(){ removeDevice(b.getAttribute('data-dev-remove')); };
   });
