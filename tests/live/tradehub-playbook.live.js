@@ -96,6 +96,16 @@ const worker = {
   ok('the Daily Reminder has no trash button; Rules does', R[0].del === false && R[1].del === true);
   await js(`document.querySelector('#pb-entries-list .entry-item[data-entry-id="daily-reminder"] .entry-item-title').click(); 1`); await sleep(600);
   ok('its content is the old page', /discipline/.test(await js(`return (document.getElementById('pb-page-editor')||{}).innerHTML || '';`)));
+  // The page fits a narrowed box and grows back when the box does (the Neo Quant dock opening and closing
+  // beside it: the shrunk fit was never undone, 2026-11-15).
+  const zoomNow = () => js(`var w=[...document.querySelectorAll('#pb-root [style*="--docx-zoom"]')].find(e=>e.getClientRects().length); return w ? parseFloat(w.style.getPropertyValue('--docx-zoom')) : null;`);
+  await js(`localStorage.removeItem('docx_zoom_pb'); window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
+  const z0 = await zoomNow();
+  await js(`document.getElementById('pb-root').style.maxWidth='620px'; 1`); await sleep(400);
+  const z1 = await zoomNow();
+  await js(`document.getElementById('pb-root').style.maxWidth=''; 1`); await sleep(400);
+  const z2 = await zoomNow();
+  ok('the page fits a narrowed box, and returns to its size when the box widens again', z0 != null && z1 < z0 && z2 === z0, JSON.stringify({ z0, z1, z2 }));
   await js(`document.getElementById('pb-new-entry-btn').click(); 1`); await sleep(400);
   ok('New Entry offers only a page', await js(`return [...document.querySelectorAll('#pb-root .template-card')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.template).join() === 'page';`));
   await js(`var x=document.querySelector('#pb-template-modal .modal-close, #pb-close-modal'); if(x) x.click(); 1`); await sleep(300);
