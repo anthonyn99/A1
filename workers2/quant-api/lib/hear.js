@@ -6,7 +6,7 @@
 // Brave has no speech recognition of its own, so the page records Tony and
 // sends the clip here. The chain, each rung through the ledger (spend()):
 //   1. Groq Whisper (whisper-large-v3-turbo; GROQ_KEY; its own allowance, apart from Groq's chat)
-//   2. Workers AI Whisper (the `AI` binding; OFF until Tony says yes: it meters against account 2)
+//   2. Workers AI Whisper on Cloudflare account 3 (A1 workers3/quant-hear; HEAR_URL + HEAR_SECRET)
 //   3. Gemini audio (lib/gemini.js, job `hear`: Phase 9's ladder)
 // A prompt hint lists the watchlist's tickers and the trading terms, so
 // "NVDA" and "VWAP" come back spelled right more often (the page's fixTerms
@@ -73,24 +73,39 @@ async function groq(env, L, clip) {
     return { why };
   }
 }
+// Workers AI Whisper. Normally through A1 workers3/quant-hear on Cloudflare account 3 (HEAR_URL +
+// HEAR_SECRET; its own allowance), so quant-api needs no `AI` binding: that binding would also turn on
+// Workers AI's chat model in Neo Quant's answer chain (lib/ai.js PROVIDERS) and meter account 2.
 async function workersAi(env, L, clip) {
   const svc = 'whisper-workersai';
-  if (!env.AI) return { skip: true, why: 'Workers AI is not bound (needs Tony\'s yes)' };
+  const remote = !!(env.HEAR_URL && env.HEAR_SECRET);
+  if (!remote && !env.AI) return { skip: true, why: 'Workers AI hearing is not set up (HEAR_URL / HEAR_SECRET)' };
   const blocked = L.blocked(svc);
   if (blocked) return { why: blocked };
   if (!L.spend(svc)) return { why: 'at its daily cap' };
   const t0 = Date.now();
+  let status = null;
   try {
-    const out = await Promise.race([
-      env.AI.run(WAI_MODEL, { audio: clip.b64, language: 'en', initial_prompt: clip.hint, vad_filter: true }),
-      new Promise((_, no) => setTimeout(() => no(new Error('timed out after ' + TIMEOUT_MS / 1000 + ' s')), TIMEOUT_MS)),
-    ]);
+    let out;
+    if (remote) {
+      const r = await fetch(String(env.HEAR_URL).replace(/\/+$/, '') + '/whisper', { method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { 'content-type': 'application/json', 'x-hear-key': env.HEAR_SECRET }, body: JSON.stringify({ audio: clip.b64, language: 'en', initial_prompt: clip.hint }) });
+      status = r.status;
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error ? String(j.error).slice(0, 120) + ' ' : '') + '(HTTP ' + r.status + ')');
+      out = j;
+    } else {
+      out = await Promise.race([
+        env.AI.run(WAI_MODEL, { audio: clip.b64, language: 'en', initial_prompt: clip.hint, vad_filter: true }),
+        new Promise((_, no) => setTimeout(() => no(new Error('timed out after ' + TIMEOUT_MS / 1000 + ' s')), TIMEOUT_MS)),
+      ]);
+    }
     const text = whisperText(out);
-    L.note(svc, true, 200, Date.now() - t0);
+    L.note(svc, true, status || 200, Date.now() - t0);
     return { ok: true, text, provider: 'workersai', model: WAI_MODEL };
   } catch (e) {
-    const why = (e && e.message) || String(e);
-    L.note(svc, false, null, null, why);
+    const why = e && e.name === 'TimeoutError' ? 'timed out after ' + TIMEOUT_MS / 1000 + ' s' : (e && e.message) || String(e);
+    L.note(svc, false, status, null, why);
     return { why };
   }
 }
