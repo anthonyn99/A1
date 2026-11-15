@@ -78,6 +78,7 @@ const panel = (c) => evalJs(c, `const R=${SR}; if(!R) return 'null';
     ids: cards.map(x=>x.getAttribute('data-dev')),
     sections: [...R.querySelectorAll('.sec .st')].map(x=>x.textContent),
     text: body.innerText,
+    sum: R.querySelector('[data-count]').textContent,
     rect: { l: b.left, r: b.right, t: b.top, btm: b.bottom, w: b.width },
     vw: innerWidth, vh: innerHeight,
     spill: Math.max(sheet.scrollWidth - sheet.clientWidth, body.scrollWidth - body.clientWidth),
@@ -140,11 +141,11 @@ async function run(c, w, h, mobile) {
   ok('the MyList-only laptop is not in the TaskHub view', !p.ids.includes('dev_laptop'), p.ids);
   ok('never Veda’s phone', !p.ids.includes('dev_vedaphone'), p.ids);
   ok('two sections: yours and neutral', p.sections.join('|') === 'Your devices|Neutral devices', p.sections);
-  ok('names and words read right', /Tony’s iPhone/.test(p.text) && /Notifications on/.test(p.text) && /Living room PC/.test(p.text) && /Notifications off/.test(p.text), p.text.slice(0, 400));
+  ok('names read right, summary counts notifications', /Tony’s iPhone/.test(p.text) && /Living room PC/.test(p.text) && /get notifications/.test(p.sum), p.text.slice(0, 300) + ' / ' + p.sum);
+  ok('rows start closed', !p.text.includes('Rename'));
   ok('no sideways scroll anywhere in it', p.spill <= 0 && !p.cardSpill, JSON.stringify({ spill: p.spill, cardSpill: p.cardSpill }));
   if (w <= 600) {
     ok('phone: an edge-to-edge bottom sheet', Math.abs(p.rect.w - p.vw) <= 1 && Math.abs(p.rect.btm - p.vh) <= 1, JSON.stringify(p.rect));
-    ok('phone: 44px action buttons', p.actH >= 44, p.actH);
   } else {
     ok('a centred sheet with room around it', p.rect.l >= 15 && p.vw - p.rect.r >= 15 && Math.abs(p.rect.l - (p.vw - p.rect.r)) <= 2, JSON.stringify(p.rect));
   }
@@ -153,11 +154,65 @@ async function run(c, w, h, mobile) {
 
   await tap(c, `${SR}.querySelector('[data-scope="all"]')`, mobile);
   p = await panel(c);
-  ok('"All programs" adds the laptop, Inactive, notifications blocked', p.ids.includes('dev_laptop') && /Inactive/i.test(p.text) && /Notifications blocked/.test(p.text), p.text.slice(0, 600));
-  await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-locks]')`, mobile);
+  ok('"All programs": the 70-day-old laptop is folded into Inactive', p.sections.includes('Inactive') && !p.ids.includes('dev_laptop'), JSON.stringify(p.sections) + p.ids);
+  await tap(c, `${SR}.querySelector('[data-old]')`, mobile);
+  await tap(c, `${SR}.querySelector('[data-dev="dev_laptop"] [data-toggle]')`, mobile);
   p = await panel(c);
-  ok('the lock pill opens each lock', /TaskHub\s*Unlocked/.test(p.text.replace(/\n/g, ' ')) || /Unlocked/.test(p.text), p.text.slice(0, 300));
+  ok('Show lists it; opened, it says notifications blocked', p.ids.includes('dev_laptop') && /Notifications blocked/.test(p.text), p.text.slice(0, 600));
+  await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-toggle]')`, mobile);
+  p = await panel(c);
+  ok('a tap opens the iPhone: its programs, each lock, its actions', /MAGI/.test(p.text) && /Unlocked/.test(p.text) && /Locked/.test(p.text) && /Rename/.test(p.text), p.text.slice(0, 400));
+  if (w <= 600) ok('phone: 44px action buttons', p.actH >= 44, p.actH);
   if (w === 1280) await shot(c, 'beacon-tony-1280-all');
+
+  // Every button keeps readable text, at rest and hovered (Tony, 2026-11-15:
+  // a hovered Remove went dark on dark).
+  const readable = async (sel) => {
+    const pts = JSON.parse(await evalJs(c, `const R=${SR}; return JSON.stringify([...R.querySelectorAll(${JSON.stringify(sel)})].map((b,i)=>{ b.setAttribute('data-ct', i); b.scrollIntoView({block:'center'}); const r=b.getBoundingClientRect(); return {i, x:r.left+r.width/2, y:r.top+r.height/2}; }));`));
+    const bad = [];
+    for (const pt of pts) {
+      for (const hover of [false, true]) {
+        await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hover ? pt.x : 2, y: hover ? pt.y : 2 });
+        await sleep(60);
+        const r = JSON.parse(await evalJs(c, `const R=${SR}; const b=R.querySelector('[data-ct="${pt.i}"]');
+          const rgb=(s)=>{const m=s.match(/[\\d.]+/g).map(Number); return {r:m[0],g:m[1],b:m[2],a:m.length>3?m[3]:1};};
+          const lum=(c)=>{const f=(v)=>{v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);}; return .2126*f(c.r)+.7152*f(c.g)+.0722*f(c.b);};
+          const under=rgb(getComputedStyle(R.querySelector('.sheet')).backgroundColor);
+          const bg=rgb(getComputedStyle(b).backgroundColor), fg=rgb(getComputedStyle(b).color);
+          const mix={r:bg.r*bg.a+under.r*(1-bg.a), g:bg.g*bg.a+under.g*(1-bg.a), b:bg.b*bg.a+under.b*(1-bg.a)};
+          const L1=lum(fg), L2=lum(mix);
+          return JSON.stringify({t:b.textContent.trim(), cr:(Math.max(L1,L2)+.05)/(Math.min(L1,L2)+.05), dis:b.disabled});`));
+        if (!r.dis && r.cr < 4.5) bad.push(r.t + (hover ? ' (hovered)' : '') + ' ' + r.cr.toFixed(2));
+      }
+    }
+    return bad;
+  };
+  if (!mobile) {
+    let bad = await readable('[data-dev="dev_iphone"] .acts .b');
+    await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-act="remove"]')`, mobile);
+    bad = bad.concat(await readable('[data-dev="dev_iphone"] .inl .b'));
+    ok('every action button reads clearly at rest and hovered (contrast ≥ 4.5)', !bad.length, bad.join(', '));
+    await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-cancel]')`, mobile);
+  }
+
+  // The scroll thumb drags (Tony, 2026-11-15: the browser's own bar would not).
+  const geo = JSON.parse(await evalJs(c, `const R=${SR}; const b=R.querySelector('[data-body]'); b.scrollTop=0; b.dispatchEvent(new Event('scroll')); const rail=R.querySelector('[data-rail]'); const t=rail.firstChild.getBoundingClientRect(); return JSON.stringify({over: b.scrollHeight-b.clientHeight, hidden: rail.hidden, x:t.left+t.width/2, y:t.top+t.height/2});`));
+  if (geo.over > 40) {
+    ok('a scroll thumb shows when the list overflows', !geo.hidden, JSON.stringify(geo));
+    if (mobile) {
+      await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: geo.x, y: geo.y }] });
+      for (let k = 1; k <= 8; k++) await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: geo.x, y: geo.y + k * 15 }] });
+      await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: geo.x, y: geo.y });
+      await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: geo.x, y: geo.y, button: 'left', clickCount: 1 });
+      for (let k = 1; k <= 8; k++) await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: geo.x, y: geo.y + k * 15, button: 'left', buttons: 1 });
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: geo.x, y: geo.y + 120, button: 'left', clickCount: 1 });
+    }
+    await sleep(200);
+    const top = await evalJs(c, `return ${SR}.querySelector('[data-body]').scrollTop;`);
+    ok('dragging the thumb scrolls the list', top > 40, top);
+  } else console.log('    (list fits: no thumb to drag at this size)');
 
   // Lock the iPhone from here.
   await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-act="lock"]')`, mobile);
@@ -168,6 +223,7 @@ async function run(c, w, h, mobile) {
   p = await panel(c);
   ok('and the card shows it pending', /Lock sent/.test(p.text), p.text.slice(0, 300));
   // Remove the push-only phone.
+  await tap(c, `${SR}.querySelector('[data-dev="dev_oldphone"] [data-toggle]')`, mobile);
   await tap(c, `${SR}.querySelector('[data-dev="dev_oldphone"] [data-act="remove"]')`, mobile);
   if (w <= 600) await shot(c, `beacon-tony-${w}-confirm`);
   await tap(c, `${SR}.querySelector('[data-dev="dev_oldphone"] [data-ok]')`, mobile);
