@@ -6,7 +6,7 @@
 //   1. nothing is asked of the microphone, quant-api's hearing or ORCA's voice before a press
 //   2. Talk on every tab at 1280, 820 and 390: the mic button (the composer's on the Neo
 //      Quant tab) records, the pink dot shows, silence sends the clip to /ai/hear (opus),
-//      the question is asked, the answer is spoken (ORCA /v1/audio/speech, Sonia, worded
+//      the question is asked, the answer is spoken (ORCA /v1/audio/speech, Luna by default, worded
 //      for the ear, citations gone), words light up, and the mic track is stopped after
 //   3. hands-free: two turns, then it stops on its own and releases the mic
 //   4. the hearing chain failing: a clear note, the typed path still answers
@@ -92,7 +92,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('...the clip carried the watchlist (the transcriber\'s hint)', Array.isArray(first.clip.watchlist) && first.clip.watchlist.includes('NVDA'));
   ok('...the mic asked for echo cancellation, noise suppression and auto gain', await js(`var a=window.__gum[0].audio; return !!(a.echoCancellation && a.noiseSuppression && a.autoGainControl);`));
   const s1 = first.said;
-  ok('...spoken in Sonia\'s voice (the default), with word timings, worded for the ear: no citations, Nvidia named', s1.length >= 2 && s1.every((b) => b.voice === 'en-GB-SoniaNeural' && b.timestamps === true && !/\[F\d/.test(b.input)) && s1.some((b) => /Nvidia|watch/i.test(b.input)), JSON.stringify(s1.map((b) => b.input)));
+  ok('...spoken in Luna\'s voice (the default since 2026-11-15, a Fast Aura voice), worded for the ear: no citations, Nvidia named', s1.length >= 2 && s1.every((b) => b.voice === 'aura:luna' && b.model === 'aura' && !/\[F\d/.test(b.input)) && s1.some((b) => /Nvidia|watch/i.test(b.input)), JSON.stringify(s1.map((b) => [b.voice, b.input])));
   ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10);
   const answered = await js(`var d=document.querySelector('[data-nq-dock]'), a=[...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop(); return JSON.stringify({ open: !d.hidden, state: a && a.dataset.state, verdict: a && (a.querySelector('[data-nq-verdict]')||{}).textContent });`).then(JSON.parse);
   ok('...talking opened the dock: the whole answer is on screen (brief to the ear, exact on screen)', answered.open && answered.state === 'done' && !!answered.verdict, JSON.stringify(answered));
