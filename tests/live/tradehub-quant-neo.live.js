@@ -113,7 +113,7 @@ const ok = (name, cond, extra) => {
   console.log('\nThe backup: a browser unit answers when the fast lane fails (Tony 2026-11-15)');
   api.state.orca.models = unitsUp;
   api.state.ai.plan.push({ fail: [{ provider: 'groq', why: 'HTTP 429' }] });
-  await ask('How is my portfolio doing?');
+  await ask('Is AMD a buy here?');
   await doneA();
   const bk = await js(`var a=${lastA()}; return JSON.stringify({ state: a.dataset.state, text: a.innerText });`).then(JSON.parse);
   ok('the backup answers, labelled with its unit, saying the account figures were left out', bk.state === 'done' && /Backup · DeepSeek \(browser\)/.test(bk.text) && /account figures were left out/.test(bk.text), JSON.stringify(bk));
