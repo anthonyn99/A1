@@ -27,17 +27,17 @@ const shot = async (c, name) => {
 // page, app, the profile to use, how to choose it, how to press the program's button.
 const HOSTS = [
   { page: 'mylist.html', app: 'mylist', who: 'veda',
-    choose: "document.body.setAttribute('data-profile','veda'); 1",
+    choose: "chooseProfile('veda'); 1",
     press: "document.getElementById('devices-btn').click(); 1" },
   { page: 'magi.html', app: 'magi', who: 'tony',
     choose: "1",
     press: "document.getElementById('devBtn').click(); 1" },
   { page: 'shield.html', app: 'shield', who: 'tony',
-    choose: "document.body.setAttribute('data-profile','tony'); 1",
+    choose: "enterProfile('tony'); 1",
     press: "(function(){ var b=[].slice.call(document.querySelectorAll('[data-view=\"devices\"]'))[0]; if(b) b.click(); })(); 1",
     press2: "var x=document.getElementById('a-beacon'); if(!x) throw new Error('no All A1 devices button'); x.click(); 1" },
-  { page: 'shruti.html', app: 'shruti', who: 'tony',
-    choose: "document.body.setAttribute('data-profile','tony'); 1",
+  { page: 'shruti.html', app: 'shruti', who: 'tony', pick: "sessionStorage.setItem('shruti.pick','tony');",
+    choose: "1",
     press: "document.getElementById('settings-btn').click(); 1",
     press2: "var x=document.querySelector('#settings [data-devices]'); if(!x) throw new Error('no Devices button in Settings'); x.click(); 1" },
   { page: 'V1/studyos.html', app: 'studyos', who: 'veda',
@@ -50,13 +50,14 @@ async function host(c, h, errs) {
   errs.length = 0;
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
-  await evalJs(c, "localStorage.clear(); sessionStorage.clear(); localStorage.setItem('th_device_id','dev_host1'); localStorage.setItem('a1b_disabled','1'); 1");
+  await evalJs(c, "localStorage.clear(); sessionStorage.clear(); localStorage.setItem('th_device_id','dev_host1'); localStorage.setItem('a1b_disabled','1'); " + (h.pick || '') + " 1");
   await c.send('Page.navigate', { url: ORIGIN + '/A1/' + h.page });
   let ready = false;
   for (let i = 0; i < 60 && !ready; i++) { await sleep(500); ready = await evalJs(c, "return !!(window.Beacon && Beacon.apps && Beacon.apps().length);"); }
   ok('Beacon loaded and mounted', ready);
   ok("mounted as '" + h.app + "'", await evalJs(c, "return Beacon.apps().indexOf(" + JSON.stringify(h.app) + ") >= 0;"));
-  await sleep(2500);
+  await sleep(4500);
+  if (h.choose !== '1') ok('nothing is recorded while the picker is up', await evalJs(c, "return !Object.keys((window.__fakeFs||{docs:{}}).docs).some(function(k){ return /beacon_/.test(k); });"));
   await evalJs(c, h.choose);
   // Wait for this device in the profile's document.
   let rec = null;
