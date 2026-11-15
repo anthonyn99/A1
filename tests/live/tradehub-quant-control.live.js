@@ -198,6 +198,5 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('no uncaught error', errs.length === 0, errs.join(' | '));
 
   console.log(`\n${pass} passed, ${fail} failed`);
-  c.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
