@@ -525,6 +525,12 @@ async function list(profile, opts) {
     var d = docs[i] || {};
     Object.keys(d.devices || {}).forEach(function (id) {
       var r = d.devices[id] || {};
+      // A device mid-move (its owner just changed) can sit in both documents
+      // until it next checks in: show it once, where it was seen last.
+      if (byId[id]) {
+        if ((byId[id].seen || 0) >= (r.seen || 0)) return;
+        out.splice(out.indexOf(byId[id]), 1);
+      }
       var dev = { id: id, owner: owner, name: r.name || '', kindSet: r.kindSet || '', meta: r.meta || null,
         first: r.first || 0, seen: r.seen || 0, apps: r.apps || {}, cmd: (d.cmd || {})[id] || null, tokens: [] };
       out.push(dev); byId[id] = dev;
@@ -609,7 +615,7 @@ async function remove(dev) {
     f['devices.' + dev.id] = c.fs.deleteField();
     f['cmd.' + dev.id] = c.fs.deleteField();
     f['gone.' + dev.id] = Date.now();
-    await patch(c, dev.owner, f, { devices: one({}, dev.id, c.fs.deleteField()), cmd: one({}, dev.id, c.fs.deleteField()), gone: one({}, dev.id, Date.now()) });
+    await patch(c, dev.owner, f, nest(f));
   }
   if (dev.id === deviceId()) await applyRemoval(c, dev.owner);
   return true;
