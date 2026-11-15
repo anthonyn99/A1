@@ -124,7 +124,7 @@ The panel for a person reads **their document and the neutral one, never the oth
   - Tap a row to open it: per program, notifications, locks (each lock and whether biometrics are set up) and when it was last active; first and last seen in full ("Thursday, November 12, 1:48 PM"); and its actions.
   - Devices not seen for 60 days fold into **Inactive** (closed; Show, and Remove all with one confirmation). A push token with no agent string reads "Unknown device · Known only by its notification token".
 - **Actions:** Rename (name plus type) and Lock / Remove, each asked inline in the open row. Every button keeps text contrast of at least 4.5 at rest and hovered (the live test measures it).
-- **Scrolling:** its own thin thumb, A1's look, dragged with pointer capture. A1 hides native bars (, which cannot reach into a shadow root), and the browser's own bar in the shadow root would not drag in Brave.
+- **Scrolling:** its own thin thumb, A1's look, dragged with pointer capture. A1 hides native bars (`Shared/scrollbar.js`, which cannot reach into a shadow root), and the browser's own bar in the shadow root would not drag in Brave.
 - **Live:** it listens to the two documents while open; a form being typed in is never redrawn.
 
 ## Tests
