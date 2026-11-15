@@ -265,19 +265,11 @@ function quantApi() {
 // WebSockets. window.__ws.tick(sym, price) sends a trade; .auto(ms) sends SPY
 // and every subscribed symbol a trade every `ms` (the perf test's fake ticks).
 const PAGE_SETUP = `(() => {
-  // The whole clock moves, not only Date.now(): new Date() with no arguments too.
-  // With Date.now() alone, code that reads today's date from new Date() (the
-  // morning check's tbLastMorningSlot) saw the REAL day, and once that was more
-  // than two days past CLOCK it found no morning slot at all (2026-11-15).
-  const RealDate = Date, real = RealDate.now.bind(RealDate), shift = ${CLOCK} - real();
-  function FakeDate(...a) {
-    if (!new.target) return new RealDate(real() + shift).toString();
-    return a.length ? new RealDate(...a) : new RealDate(real() + shift);
-  }
-  FakeDate.prototype = RealDate.prototype;
-  FakeDate.now = () => real() + shift;
-  FakeDate.parse = RealDate.parse; FakeDate.UTC = RealDate.UTC;
-  window.Date = FakeDate;
+  // Only Date.now() moves (faking new Date() too unsettled unrelated steps,
+  // tried 2026-11-15). Page code that needs "today" under this clock reads it
+  // through Date.now() (tradehub.html tbLocalDate does).
+  const real = Date.now.bind(Date), shift = ${CLOCK} - real();
+  Date.now = () => real() + shift;
   const Real = window.WebSocket;
   const state = { sent: [], sockets: [], subs: new Set(), timer: null };
   const emit = (o) => { for (const w of state.sockets) if (w.alpaca && w.readyState === 1 && w.onmessage) w.onmessage({ data: JSON.stringify(o) }); };
