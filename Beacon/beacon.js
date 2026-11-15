@@ -375,6 +375,17 @@ function lockList(h, profile) {
   out.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
   return out.slice(0, 40);
 }
+// A program whose lock is not Guardian's markers (ORCA: a server session per
+// profile) reports it itself: lockState(profile) -> [{id, label, owner, open, bio}].
+async function hostLocks(h, profile) {
+  if (typeof h.lockState !== 'function') return [];
+  try {
+    var list = await h.lockState(profile);
+    return (Array.isArray(list) ? list : []).filter(function (l) { return l && l.id; }).map(function (l) {
+      return { id: String(l.id), label: String(l.label || l.id), owner: validProfile(l.owner) || profile, open: !!l.open, bio: !!l.bio };
+    });
+  } catch (e) { return []; }
+}
 function permission() {
   try { return ('Notification' in window) ? Notification.permission : 'unsupported'; } catch (e) { return 'unsupported'; }
 }
@@ -437,7 +448,7 @@ async function checkIn(app, force) {
     var now = Date.now();
     var profs = {}; Object.keys(prev.profs || {}).forEach(function (k) { if (validProfile(k)) profs[k] = prev.profs[k]; });
     profs[profile] = now;
-    var entry = { label: h.label || APP_NAMES[app] || app, seen: now, profs: profs, locks: lockList(h, profile) };
+    var entry = { label: h.label || APP_NAMES[app] || app, seen: now, profs: profs, locks: lockList(h, profile).concat(await hostLocks(h, profile)).slice(0, 40) };
     var push = await pushOf(h);
     if (push) entry.push = push;
     var meta = await detectFull();
@@ -478,19 +489,30 @@ function guardianLockDevice(reason) {
   if (!G || typeof G.lockDevice !== 'function') return false;
   try { G.lockDevice(reason); return true; } catch (e) { return false; }
 }
+// Programs that lock this device their own way (lockNow, e.g. ORCA ending its
+// server session). Run LAST: one may leave the page.
+function hostLockers() {
+  return Object.keys(HOSTS).map(function (a) { return HOSTS[a]; }).filter(function (h) { return typeof h.lockNow === 'function'; });
+}
+async function runHostLocks(list, reason) {
+  for (var i = 0; i < list.length; i++) { try { await list[i].lockNow(reason); } catch (e) {} }
+}
 async function applyCmd(c, owner, cmd) {
   if (!cmd || !cmd.lock) return;
-  // Only a page with Guardian can drop the unlocks; otherwise the command
-  // waits for the next A1 program on this device that has it.
-  if (!guardianLockDevice('remote')) return;
+  // Only a page that can drop the unlocks (Guardian, or a program's own
+  // lockNow) carries it out; otherwise it waits for one that can.
+  var hosts = hostLockers();
+  if (!guardianLockDevice('remote') && !hosts.length) return;
   var f = {}; f['cmd.' + deviceId()] = c.fs.deleteField();
   try { await c.fs.updateDoc(docRef(c, owner), f); } catch (e) {}
   emit('locked', { by: cmd.by || '' });
+  await runHostLocks(hosts, 'remote');
 }
 async function applyRemoval(c, owner) {
   REMOVED = true;
   lsSet('a1.beacon.removedAt', Date.now());
-  var locked = guardianLockDevice('removed');
+  var hosts = hostLockers();
+  var locked = guardianLockDevice('removed') || hosts.length > 0;
   Object.keys(HOSTS).forEach(function (a) {
     var h = HOSTS[a];
     if (typeof h.onRemoved === 'function') { try { h.onRemoved(); } catch (e) {} }
@@ -504,6 +526,7 @@ async function applyRemoval(c, owner) {
     try { await c.fs.updateDoc(docRef(c, owner), f); } catch (e) {}
   }
   emit('removed', {});
+  await runHostLocks(hosts, 'removed');
   return { removed: true };
 }
 
@@ -592,7 +615,7 @@ async function setKind(owner, id, kind) {
 }
 async function lockDevice(owner, id, by) {
   if (!DOCS[owner]) throw new Error('bad owner');
-  if (id === deviceId()) { guardianLockDevice('manual'); return { now: true }; }
+  if (id === deviceId()) { guardianLockDevice('manual'); await runHostLocks(hostLockers(), 'manual'); return { now: true }; }
   var c = await connect(), f = {};
   f['cmd.' + id] = { lock: Date.now(), by: validProfile(by) || '' };
   await patch(c, owner, f, nest(f));
