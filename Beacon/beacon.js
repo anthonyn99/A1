@@ -255,7 +255,15 @@ async function fsModule(h) {
   return import('https://www.gstatic.com/firebasejs/' + fbVersion() + '/firebase-firestore.js');
 }
 async function openFirestore() {
-  var hook = (OVERRIDE && OVERRIDE.firebase) || HOSTFB || (typeof window.LifeHubFirebase === 'function' ? window.LifeHubFirebase : null);
+  var hook = (OVERRIDE && OVERRIDE.firebase) || HOSTFB;
+  // 'lifehub': the program hands its Firebase to LifeHub from a module that
+  // may not have run yet (MAGI, Shruti, StudyOS); wait for it, never race it
+  // with an app of our own.
+  if (hook === 'lifehub') {
+    hook = await waitFor(function () { return typeof window.LifeHubFirebase === 'function' ? window.LifeHubFirebase : null; }, 15000);
+    if (!hook) throw new Error('LifeHubFirebase never appeared');
+  }
+  if (!hook && typeof window.LifeHubFirebase === 'function') hook = window.LifeHubFirebase;
   if (hook) {
     var h = await hook();
     if (!h || !h.db) throw new Error('host Firebase unavailable');
