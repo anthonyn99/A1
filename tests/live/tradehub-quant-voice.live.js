@@ -122,6 +122,19 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   await js(`document.querySelector('[data-neo-tab] [data-nq-hands]').click(); 1`);
   ok('...Hands-free off: the session ends and the mic is released', await until(`document.querySelector('[data-neo-tab] [data-nq-talk]').dataset.mode==='off'`, 15000) && !(await micLive()));
 
+  // Closing the dock during a hands-free session keeps it closed on the next turns (only a new conversation opens it).
+  await goTab('market');
+  const hd = hear().length;
+  await js(`[...document.querySelectorAll('[data-nq-mic], [data-nq-dock] [data-nq-talk]')].find(function(b){ return b.getClientRects().length; }).click(); 1`);
+  await until(`!document.querySelector('[data-nq-dock]').hidden`, 4000);
+  await js(`document.querySelector('[data-nq-dock] [data-nq-hands]').click(); document.querySelector('[data-nq-close]').click(); 1`);
+  await untilNode(() => hear().length > hd + 1, 30000);
+  ok('hands-free with the dock closed by hand: the next turns leave it closed', await js(`return document.querySelector('[data-nq-dock]').hidden;`) && hear().length > hd + 1);
+  await js(`window.dispatchEvent(new CustomEvent('tb-neo-open')); 1`); await sleep(300);
+  await js(`document.querySelector('[data-nq-dock] [data-nq-hands]').click(); 1`);
+  await until(`(document.querySelector('[data-nq-mic]').dataset.mode||'off')==='off'`, 15000);
+  await goTab('neo');
+
   console.log('\nHearing fails');
   api.state.ai.heard = [{ fail: [{ provider: 'groq', why: 'HTTP 429' }, { provider: 'workersai', why: 'not bound' }, { provider: 'gemini', why: 'spent' }] }];
   const hf = hear().length, af = ai().length;
@@ -138,6 +151,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   const w0 = await js(`return window.__fakeFs.log.filter(function(l){ return /tradehub_neo/.test(l.path); }).length;`);
   await sleep(1800);
   ok('opening them writes nothing', (await js(`return window.__fakeFs.log.filter(function(l){ return /tradehub_neo/.test(l.path); }).length;`)) === w0);
+  ok('dragging the speed slider keeps the same slider under the pointer (not rebuilt each step)', await js(`var r=document.querySelector('[data-nq-speed]'); r.value='1.05'; r.dispatchEvent(new Event('input',{bubbles:true})); r.value='1.1'; r.dispatchEvent(new Event('input',{bubbles:true})); return document.querySelector('[data-nq-speed]') === r && r.isConnected;`));
   await js(`document.querySelector('[data-nq-voice-id="en-GB-RyanNeural"] .nqs-vpick').click(); var r=document.querySelector('[data-nq-speed]'); r.value='1.2'; r.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('[data-nq-speakmode] [data-v="always"]').click(); 1`);
   await sleep(2200);
   const writes = await js(`return JSON.stringify(window.__fakeFs.log.filter(function(l){ return /tradehub_neo/.test(l.path); }).map(function(l){ return { path: l.path, data: l.data }; }));`).then(JSON.parse);
