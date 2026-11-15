@@ -108,10 +108,12 @@ async function run(c, w, h, mobile) {
     sessionStorage.setItem('__fakefs_docs', JSON.stringify(${JSON.stringify(SEED)})); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
   // In-browser Babel with the cache off can take a while: wait for TaskHub, not a clock.
-  for (let i = 0; i < 90; i++) {
-    if (await evalJs(c, "return typeof window._profileGoTony === 'function' && typeof window._openSettings === 'function';")) break;
-    await sleep(500);
+  let booted = false;
+  for (let i = 0; i < 90 && !booted; i++) {
+    booted = await evalJs(c, "return typeof window._profileGoTony === 'function' && typeof window._openSettings === 'function';");
+    if (!booted) await sleep(500);
   }
+  if (!booted) console.log('    not booted: ' + await evalJs(c, "return JSON.stringify({href: location.href, rs: document.readyState, ov: !!document.getElementById('thset-overlay'), scripts: document.scripts.length, beacon: !!window.Beacon, body: document.body && document.body.innerHTML.length});"));
   await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._profileGoTony(); 1");
   await sleep(4500);
 
