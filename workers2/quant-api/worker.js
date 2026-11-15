@@ -44,6 +44,7 @@
 //   GET /export/tables, GET /export, GET /history/old, POST /history/purge, POST /restore   (lib/archive.js)
 //   POST /ai/chat                  Neo Quant's fast lane, streamed (lib/ai.js)
 //   POST /ai/gemini, /ai/gemini/discover   Gemini's ladder for search, images, long reads (lib/gemini.js)
+//   POST /ai/hear                  Neo Quant's hearing: Groq Whisper → Workers AI → Gemini audio (lib/hear.js)
 //   GET  /ai/models, GET/POST /ai/evals    the model table and the graded question set's scores
 //   GET/POST /brief                the daily brief and "What changed?" (lib/brief.js)
 //
