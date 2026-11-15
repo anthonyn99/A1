@@ -35,4 +35,4 @@ migrations_dir = "migrations"
 # Neo Quant's hearing backup: Workers AI Whisper on account 3 (A1 workers3/quant-hear),
 # so this worker needs no `AI` binding (that would also add Workers AI chat to the answer chain).
 [vars]
-HEAR_URL = "https://quant-hear.av1-3.workers.dev"
+HEAR_URL = "https://quant-hear.anthony-account-3.workers.dev"
