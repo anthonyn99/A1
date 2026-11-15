@@ -6115,6 +6115,27 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<!-- Beacon (docs/Beacon/README.md): this device in A1's device list (Settings ▸
+     Devices). Push token = fcm_tokens/<th_device_id>; Firebase = the 'fcm' app
+     the notification module starts (_thBeaconFirebase). -->
+<script src="Beacon/beacon.js"></script>
+<script>
+if (window.Beacon) Beacon.mount('taskhub', {
+  label: 'TaskHub', fcm: true,
+  profile: function () { return window._activeProfile; },
+  push: function () { return window._thBeaconPush ? window._thBeaconPush() : null; },
+  firebase: function () {
+    return new Promise(function (res, rej) {
+      var n = 0;
+      (function wait() {
+        if (window._thBeaconFirebase) return window._thBeaconFirebase().then(res, rej);
+        if (++n > 150) return rej(new Error('TaskHub Firebase unavailable'));
+        setTimeout(wait, 100);
+      })();
+    });
+  }
+});
+</script>
 <!-- MAGI's drag to reorder and corner resize grip, shared by every program
      (theme overhaul, phases 1b and 2). In the head, so they exist before any
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
@@ -18293,6 +18314,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }catch(e){_fcmToken=null;window._fcmLastError='getToken: '+fmtFcmErr(e);console.warn('FCM getToken error:',e);return null;}
     if(!token){_fcmToken=null;if(!window._fcmLastError)window._fcmLastError='getToken returned empty (push blocked?)';return null;}
     _fcmToken=token;
+    try{if(window.Beacon)Beacon.refresh('taskhub');}catch(e){}
     const mainDash=localStorage.getItem('td6_mainDash')||'all';
     // lastDash is the profile most recently OPENED on this device, which is not
     // always the one it is "main" for — the first profile opened on a device
@@ -18316,6 +18338,14 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // that grants permission mid-session never writes its token doc and the
   // worker can't target it (the "desktop got it, phone didn't" bug).
   window._fcmEnsureToken=function(){return ensureFCMToken().catch(()=>null);};
+  // Beacon (Beacon/beacon.js, mounted in <head>): the device list uses this
+  // app's Firestore (the main one is terminated while the page is hidden), and
+  // reads this device's push state from here.
+  window._thBeaconFirebase=function(){return _authReady.then(function(){return {db:db};});};
+  window._thBeaconPush=function(){
+    return {perm:('Notification' in window)?Notification.permission:'unsupported',on:!!_fcmToken,
+      coll:'fcm_tokens',id:getDeviceId(),route:localStorage.getItem('td6_mainDash')||'all'};
+  };
 
   // Tell the service worker this device's current main dashboard so its
   // onBackgroundMessage scope gate (shouldShowForDash) can drop wrong-profile
@@ -18354,8 +18384,12 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   },4000);
 
   // Called when user changes main dashboard — updates Firestore token doc
+  let _beaconMain=null;
   window._updateFCMMainDash=async function(mainDash){
     const devId=getDeviceId();
+    // A new main moves this device between Tony's, Veda's and the neutral list.
+    if(_beaconMain!==null&&_beaconMain!==mainDash){try{if(window.Beacon)Beacon.refresh('taskhub');}catch(e){}}
+    _beaconMain=mainDash;
     tellSWMainDash(mainDash||'all');
     // See ensureFCMToken: blank lastDash so an un-mained device is unreachable
     // by the event path too.
@@ -18380,6 +18414,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     const neutral=localStorage.getItem('td6_mainDash')==='none';
     const d=neutral?'':(dash||localStorage.getItem('td6_lastDash')||'');
     tellSWLastDash(d);
+    try{if(window.Beacon)Beacon.refresh('taskhub');}catch(e){}
     if(d===_lastDashSent)return;
     _lastDashSent=d;
     try{await _authReady;await setDoc(doc(db,'fcm_tokens',getDeviceId()),{lastDash:d,updatedAt:Date.now()},{merge:true});}catch(e){}
