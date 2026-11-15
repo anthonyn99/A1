@@ -123,7 +123,7 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
   r = await tryCall(() => P.replace(env, req({ limit_price: 99.5, who: 'tony' }, 'PATCH'), id, { priceOf: async () => 101 }));
   ok('replace: the new limit at Alpaca, logged', r.ok && A.orders.get(id).limit_price === '99.5' && env.DB.sql.prepare("SELECT COUNT(*) AS n FROM paper_orders WHERE status = 'replaced'").get().n === 1);
   r = await tryCall(() => P.replace(env, req({ qty: 100000, who: 'tony' }, 'PATCH'), id, { priceOf: async () => 101 }));
-  ok('a change is checked as the order it becomes: 100,000 shares is over 25% of the account', !r.ok && /25%/.test(r.error) && A.orders.get(id).qty === 10);
+  ok('a change is checked as the order it becomes: 100,000 shares is over 25% of the account', !r.ok && /25%/.test(r.error) && Number(A.orders.get(id).qty) === 10);
   r = await tryCall(() => P.replace(env, req({ limit_price: 99 }, 'PATCH'), id, { priceOf: async () => 101 }));
   ok('...and a change with no author is refused (never taken as Tony\'s)', !r.ok && r.status === 400 && /who/.test(r.error));
   r = await tryCall(() => P.cancel(env, id));
