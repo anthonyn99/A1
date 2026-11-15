@@ -139,6 +139,13 @@ function aiRoutes(state, posted, req, u, p) {
   if (p === '/brief' && req.method === 'GET') return { json: { ok: true, brief: state.ai.brief } };
   if (p === '/brief' && req.method === 'POST') { const b = body(); (posted.briefs = posted.briefs || []).push(b); if (b.kind === 'daily') state.ai.brief = { day: b.day, kind: b.kind, at: CLOCK, ...b.body }; return { json: { ok: true } }; }
   if (p === '/ai/models') return { json: { ok: true, keys: { groq: true, gemini: true }, models: [], evals: [], bar: { numeric: 0.85, verdict: 0.8 } } };
+  // Phase 11: the wanted list (state.wanted rows; posted.wanted the POST bodies).
+  if (p === '/wanted') {
+    state.wanted = state.wanted || [];
+    if (req.method === 'GET') return { json: { ok: true, wanted: state.wanted.slice() } };
+    if (req.method === 'POST') { const b = body() || {}; (posted.wanted = posted.wanted || []).push(b); const old = state.wanted.find((x) => x.what === b.what); if (old) { old.count++; old.words = b.words; old.at = CLOCK; } else state.wanted.unshift({ what: b.what, words: b.words, kind: b.kind, at: CLOCK, count: 1 }); return { json: { ok: true, what: b.what } }; }
+    if (req.method === 'DELETE') { state.wanted = []; return { json: { ok: true } }; }
+  }
   // Phase 10: hearing. state.ai.heard = the transcript (a list: used in order, the last repeats), or { fail: tried }.
   if (p === '/ai/hear' && req.method === 'POST') {
     const b = body() || {};
