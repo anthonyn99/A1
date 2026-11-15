@@ -57,7 +57,7 @@ for (const [dir, rule, where] of [['', L.root, 'the repo root'], ['V1', L.V1, 'V
 // A program's page never hides in a folder: the top is where every page lives.
 // (Shruti/tests and tests/ hold harness pages, Notebook its embedded frames,
 // the extensions their popups, the desktop agents their local UI.)
-const NOT_PROGRAMS = /^(tests|Shruti\/tests|docs|Notebook|PriceWatch|V1\/Launcher|Shield\/desktop|V1\/StudyOS\/desktop|V1\/TradeBoard|V1\/tools|magi|workers|workers2|V1\/workers|Backup)\//;
+const NOT_PROGRAMS = /^(tests|Shruti\/tests|docs|Notebook|PriceWatch|V1\/Launcher|Shield\/desktop|V1\/StudyOS\/desktop|V1\/TradeBoard|V1\/tools|magi|workers|workers2|workers3|V1\/workers|Backup)\//;
 const hidden = files.filter((f) => /\.html$/.test(f) && f.includes('/') && !/^V1\/[^/]+\.html$/.test(f) && !NOT_PROGRAMS.test(f));
 ok('no program page hides in a folder', hidden.length === 0, hidden.join(', ') + ' — put the page at the top (Rules/layout.json `pages`)');
 

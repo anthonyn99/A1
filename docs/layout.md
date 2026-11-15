@@ -61,7 +61,7 @@ follows the same rules (its own `docs/layout.md`).
 | `tests/` | Every A1 test suite; `tests/live/` drives a real browser. `node tests/run-all.js` runs them all. |
 | `tools/` | Scripts run by hand or by a scheduled task, e.g. `tools/trading-auto-launch/launch.py` (the TradingAutoLaunch and TradingDailyAnalysis tasks). |
 | `V1/` | Veda's programs (below). |
-| `workers/`, `workers2/` | Cloudflare workers. The folder picks the account (1 or 2); a push deploys them. |
+| `workers/`, `workers2/`, `workers3/` | Cloudflare workers. The folder picks the account (1, 2 or 3); a push deploys them (account 3 once its CI token is set). |
 | `Vault` | Not tracked: a junction to `..\A1-Priv\Vault`, so the Vault Launcher extension Brave loads from `A1\Vault` keeps working. |
 
 ## V1 (Veda's programs)

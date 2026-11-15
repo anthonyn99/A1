@@ -107,7 +107,7 @@ for (const [file, extra] of Object.entries(HOSTS)) {
 console.log('\nNo page anywhere builds a lock outside Guardian');
 function walk(dir, base, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (/^(?:node_modules|\.git|tests|workers2?|Index Backups|desktop|magi|tools|docs|\.claude|\.deploy)$/.test(e.name)) continue;
+    if (/^(?:node_modules|\.git|tests|workers[23]?|Index Backups|desktop|magi|tools|docs|\.claude|\.deploy)$/.test(e.name)) continue;
     const p = path.join(dir, e.name), rel = path.relative(base, p).replace(/\\/g, '/');
     if (e.isDirectory()) { if (!e.isSymbolicLink()) walk(p, base, out); }
     else if (/\.(?:html|js)$/.test(e.name)) out.push(rel);

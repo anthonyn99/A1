@@ -33,6 +33,7 @@
       "V1": "Veda's programs (see `V1` below)",
       "workers": "Cloudflare workers on account 1 (the folder picks the account)",
       "workers2": "Cloudflare workers on account 2",
+      "workers3": "Cloudflare workers on account 3 (quant-hear, Neo Quant's hearing backup)",
       ".claude": "Claude Code settings and hooks",
       ".githooks": "git hooks",
       ".github": "GitHub workflows"
