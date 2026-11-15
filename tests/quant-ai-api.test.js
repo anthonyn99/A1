@@ -201,6 +201,18 @@ function readSse(text) {
   r = await call(env, '/ai/evals');
   ok('GET /ai/evals: newest first, with the bar', r.body.evals.length === 3 && r.body.evals[0].provider === 'cerebras' && r.body.bar.numeric === 0.85 && r.body.bar.verdict === 0.8);
   ok('a bad eval is refused', (await call(env, '/ai/evals', { method: 'POST', body: { provider: 'x', n: 0, numeric: 2, verdict: 1 } })).status === 400);
+  // Strategy Lab (A1-Priv phase-09b): its own graded set, stored as 'lab:<provider>', bar 90%, only for job: 'spec'.
+  await new Promise((x) => setTimeout(x, 5));
+  await call(env, '/ai/evals', { method: 'POST', body: { provider: 'lab:cerebras', n: 60, numeric: 0.8, verdict: 0.8 } });
+  P.reset(); P.plan[CERE] = [{ chunks: [oai('C'), DONE] }]; P.plan[GROQ] = [{ chunks: [oai('G'), DONE] }];
+  r = await call(env, '/ai/chat', { method: 'POST', body: { ...ASK, job: 'spec' } });
+  ok('job spec: a provider under 90% on the strategy set is not asked to write a spec', r.sse.ev('done').provider === 'groq' && !P.calls.includes(CERE) && /strategy set.*80%/.test(r.sse.ev('done').tried[0].why), r.text);
+  P.reset(); P.plan[CERE] = [{ chunks: [oai('C'), DONE] }];
+  ok('...but it still answers everything else (the question-set bar is its own)', (await call(env, '/ai/chat', { method: 'POST', body: ASK })).sse.ev('done').provider === 'cerebras');
+  await new Promise((x) => setTimeout(x, 5));
+  await call(env, '/ai/evals', { method: 'POST', body: { provider: 'lab:cerebras', n: 60, numeric: 0.95, verdict: 0.95 } });
+  P.reset(); P.plan[CERE] = [{ chunks: [oai('C'), DONE] }];
+  ok('...and a newer strategy-set score over 90% puts it back for specs', (await call(env, '/ai/chat', { method: 'POST', body: { ...ASK, job: 'spec' } })).sse.ev('done').provider === 'cerebras');
 
   console.log('\nModels are read from the provider, not named');
   env = await mkEnv({ GROQ_KEY: 'gk' }, false); P.reset();
