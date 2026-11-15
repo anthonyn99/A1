@@ -1,0 +1,107 @@
+name: Deploy Account-3 Workers
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Deploys every worker under workers3/ to the THIRD Cloudflare account
+# ("Anthony Account 3", made 2026-11-15 for Neo Quant's hearing backup,
+# workers3/quant-hear). The folder decides the account, as for workers/ and
+# workers2/ (see deploy-workers2.yml for why). Workers are discovered, not
+# listed: a new folder with a wrangler.toml deploys with no change here.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CF_API_TOKEN_3   — "Edit Cloudflare Workers" token issued FROM account 3
+#                      (Workers Scripts: Edit; Workers AI is used by binding, no extra scope)
+#   CF_ACCOUNT_ID_3  — account 3's Account ID
+# Until BOTH exist this workflow SKIPS cleanly (`guard`); deploys are then done
+# by hand: CLOUDFLARE_ACCOUNT_ID=<account 3> npx wrangler deploy (in the worker's folder).
+# Runtime secrets go in with `wrangler secret put`, per account.
+# ═══════════════════════════════════════════════════════════════════════════
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers3/**'
+      - '.github/workflows/deploy-workers3.yml'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Deploy just one worker (directory name under workers3/). Leave blank for all."
+        required: false
+        default: ""
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.CF_API_TOKEN_3 }}
+          ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_3 }}
+        run: |
+          if [ -n "${TOKEN:-}" ] && [ -n "${ACCOUNT:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Account-3 worker deploys skipped — set CF_API_TOKEN_3 and CF_ACCOUNT_ID_3 to enable them."
+          fi
+
+  discover:
+    needs: guard
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      workers: ${{ steps.find.outputs.workers }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        name: Discover workers
+        env:
+          ONLY: ${{ github.event.inputs.only }}
+        run: |
+          set -euo pipefail
+          list='[]'
+          if [ -d workers3 ]; then
+            list=$(find workers3 -maxdepth 2 \
+                     \( -name 'wrangler.toml' -o -name 'wrangler.jsonc' -o -name 'wrangler.json' \) \
+                     -printf '%h\n' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+          if [ -n "${ONLY:-}" ]; then
+            list=$(printf '%s' "$list" | jq -c --arg o "workers3/$ONLY" 'map(select(. == $o))')
+          fi
+          count=$(printf '%s' "$list" | jq 'length')
+          echo "workers=$list" >> "$GITHUB_OUTPUT"
+          echo "count=$count"  >> "$GITHUB_OUTPUT"
+          echo "Discovered $count worker(s): $list"
+
+  deploy:
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.workers) }}
+    name: deploy ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: |
+          if [ ! -f package.json ]; then
+            echo "::error::${{ matrix.dir }} has no package.json (it must pin wrangler ^4)."
+            exit 1
+          fi
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN_3 }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID_3 }}
+          workingDirectory: ${{ matrix.dir }}
+          wranglerVersion: '4'
+          command: deploy
