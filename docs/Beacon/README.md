@@ -117,12 +117,14 @@ The panel for a person reads **their document and the neutral one, never the oth
 - **Look:** Tony gets Guardian's MAGI tokens; Veda gets her TaskHub palette with Lora titles. The backdrop is the `popups.js` look. There are no fades: it opens and closes instantly.
 - **Closing:** a click that starts and ends on the backdrop closes it; a drag does not. Escape closes an open question first, then the panel.
 - **Layout:** a centred sheet on desktop and tablet; a bottom sheet on a phone, with 44px targets and safe-area insets.
-- **What it shows:**
-  - "*Program*" or "All programs".
-  - Your devices, then neutral ones; this device first, tagged.
-  - Each device with its icon, name and model line, plus a green dot when it was active in the last 10 minutes and "Inactive" after 60 days.
-  - Per program: notifications, the lock pill (tap it for each lock and whether biometrics are set up), and when it was last active. The tooltip gives the full time, e.g. "Thursday, November 12, 1:48 PM".
-- **Actions:** Rename (name plus type) and Lock / Remove, each asked inline in the card.
+- **What it shows** (redesigned 2026-11-15 for Tony: quieter, rows that open):
+  - A summary under the title: how many devices, how many are active now, and how many get notifications. Below it, "*Program*" or "All programs".
+  - Your devices, then neutral ones, each section one surface with a row per device; this device first, tagged.
+  - A row: icon (green dot = active in the last 10 minutes), name, "Active now" or how long ago, the model line, and glyphs for its notification and lock state.
+  - Tap a row to open it: per program, notifications, locks (each lock and whether biometrics are set up) and when it was last active; first and last seen in full ("Thursday, November 12, 1:48 PM"); and its actions.
+  - Devices not seen for 60 days fold into **Inactive** (closed; Show, and Remove all with one confirmation). A push token with no agent string reads "Unknown device · Known only by its notification token".
+- **Actions:** Rename (name plus type) and Lock / Remove, each asked inline in the open row. Every button keeps text contrast of at least 4.5 at rest and hovered (the live test measures it).
+- **Scrolling:** its own thin thumb, A1's look, dragged with pointer capture. A1 hides native bars (, which cannot reach into a shadow root), and the browser's own bar in the shadow root would not drag in Brave.
 - **Live:** it listens to the two documents while open; a form being typed in is never redrawn.
 
 ## Tests
