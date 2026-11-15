@@ -1,7 +1,9 @@
 // Neo Quant's fast lane (A1-Priv docs/TradeHub/quant/phase-09.md).
 //
-//   POST /ai/chat { system, facts, messages, max_tokens?, temperature?, stream?, provider? }
+//   POST /ai/chat { system, facts, messages, max_tokens?, temperature?, stream?, provider?, job? }
 //        facts: [{ id: 'F1', text, private? }]   messages: [{ role: 'user'|'assistant', content }]
+//        job: 'spec' (Strategy Lab writing a spec) also leaves out a provider under LAB_BAR on
+//        the strategy set (its evals are stored as provider 'lab:<id>').
 //        Streams (lib/sse.js) unless stream is false, which answers { ok, text, provider, model, tried }.
 //   GET  /ai/models        the model table, the providers with a key, the last eval of each
 //   GET  /ai/evals         the graded question set's scores, newest first
