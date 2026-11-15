@@ -47,6 +47,7 @@
 //   POST /ai/hear                  Neo Quant's hearing: Groq Whisper → Workers AI → Gemini audio (lib/hear.js)
 //   GET  /ai/models, GET/POST /ai/evals    the model table and the graded question set's scores
 //   GET/POST /brief                the daily brief and "What changed?" (lib/brief.js)
+//   GET/POST/DELETE /wanted        what Neo Quant was asked for and cannot do yet (lib/wanted.js)
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
@@ -63,6 +64,7 @@ import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listB
 import { getDossier, getFundamentals, getIdeas, postIdeas, postShortVolume } from './lib/dossier.js';
 import * as drive from './lib/drive.js';
 import * as mem from './lib/memory.js';
+import { getWanted, postWanted, deleteWanted } from './lib/wanted.js';
 import * as arc from './lib/archive.js';
 import * as ai from './lib/ai.js';
 import * as gem from './lib/gemini.js';
@@ -181,6 +183,10 @@ async function route(req, env, url, ctx) {
   if (p === '/export/tables' && m === 'GET') return arc.exportTables(env);
   if (p === '/export' && m === 'GET') return arc.exportPage(env, url);
   if (p === '/restore' && m === 'POST') return arc.restore(env, req);
+  // Phase 11: what Neo Quant was asked for and cannot do yet (Control shows it).
+  if (p === '/wanted' && m === 'GET') return getWanted(env);
+  if (p === '/wanted' && m === 'POST') return postWanted(env, req);
+  if (p === '/wanted' && m === 'DELETE') return deleteWanted(env, url);
   // Phase 9: Neo Quant's AI lanes, the model table, evals, briefs.
   if (p === '/ai/chat' && m === 'POST') return ai.chat(env, req, ctx);
   if (p === '/ai/gemini' && m === 'POST') return gem.gemini(env, req, ctx);
