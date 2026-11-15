@@ -1159,7 +1159,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <script src="Beacon/beacon.js"></script>
 <script>if (window.Beacon) Beacon.mount('shield', { label: 'Shield', profileAttr: 'data-profile',
   // S.profile is null at the picker, where body[data-profile] still says 'tony'.
-  profile: function () { return window.S && window.S.profile; } });</script>
+  profile: function () { return window.SH && window.SH._state ? window.SH._state.profile : null; } });</script>
 <script src="Shared/apphead.js"></script>
 <script src="Shared/profilepick.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.

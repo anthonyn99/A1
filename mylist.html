@@ -845,10 +845,10 @@ body { max-width: 2000px; margin-inline: auto; }
 <script src="Beacon/beacon.js"></script>
 <script>
 if (window.Beacon) Beacon.mount('mylist', {
-  // activeProfile is null while the picker is up (body[data-profile] then says
+  // ML.profile() (activeProfile) is null while the picker is up (body[data-profile] then says
   // 'tony' only for the colours); the attribute is watched for the switch.
   label: 'MyList', fcm: true, profileAttr: 'data-profile',
-  profile: function () { return window.activeProfile; },
+  profile: function () { return window.ML && window.ML.profile ? window.ML.profile() : null; },
   push: function () {
     return { on: /^token OK/.test(window._mlFcmStatus || ''), coll: 'fcm_tokens', id: Beacon.deviceId(),
       route: (function () { try { return localStorage.getItem('td6_mainDash') || 'all'; } catch (e) { return 'all'; } })() };
@@ -4221,7 +4221,9 @@ window.ML = {
   pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem, pwClearDrops:pwClearDrops,
   pwExtInstall:pwExtInstall,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
-  manageLock:manageLock
+  manageLock:manageLock,
+  // Beacon (in <head>) asks whose lists are open: null while the picker is up.
+  profile:function(){ return activeProfile; }
 };
 })();
 </script>
