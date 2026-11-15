@@ -44,7 +44,8 @@ const fakeFetch = async (url, init = {}) => {
   A.calls.push(method + ' ' + u.origin + u.pathname);
   if (u.origin !== 'https://paper-api.alpaca.markets') return res({ message: 'not the paper host' }, 599);
   if (h.get('APCA-API-KEY-ID') !== 'PKTEST' || h.get('APCA-API-SECRET-KEY') !== 'SECRET') return res({ message: 'unauthorized' }, 401);
-  const forced = A.plan.shift();
+  // A forced answer for one path and method (the account read comes first on every order).
+  const k = A.plan.findIndex((x) => x.path === u.pathname && (x.method || 'POST') === method), forced = k >= 0 ? A.plan.splice(k, 1)[0] : null;
   if (forced) return res(forced.body, forced.status, forced.headers);
   const p = u.pathname;
   if (p === '/v2/account') return res({ status: 'ACTIVE', currency: 'USD', equity: '100000', last_equity: '99500', cash: '100000', buying_power: '400000', long_market_value: '0', short_market_value: '0', pattern_day_trader: false, daytrade_count: 0, shorting_enabled: true, trading_blocked: false, multiplier: '4' });
@@ -105,10 +106,10 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
   await tryCall(() => P.place(env, req(dupBody), { priceOf: async () => 101 }));
   r = await tryCall(() => P.place(env, req(dupBody), { priceOf: async () => 101 }));
   ok('the same client id again (a retried tick) is "already sent", not an error', r.ok && r.body.duplicate === true);
-  A.plan.push({ status: 403, body: { message: 'insufficient buying power' } });
+  A.plan.push({ path: '/v2/orders', status: 403, body: { message: 'insufficient buying power' } });
   r = await tryCall(() => P.place(env, req({ order: { ...order, limit_price: 99 }, who: 'tony' }), { priceOf: async () => 101 }));
   ok('Alpaca\'s rejection is passed on with its reason, and logged as refused', !r.ok && /insufficient buying power/.test(r.error) && env.DB.sql.prepare("SELECT COUNT(*) AS n FROM paper_orders WHERE status = 'refused'").get().n === 1);
-  A.plan.push({ status: 429, body: { message: 'too many requests' } });
+  A.plan.push({ path: '/v2/orders', status: 429, body: { message: 'too many requests' } });
   r = await tryCall(() => P.place(env, req({ order: { ...order, limit_price: 98 }, who: 'tony' }), { priceOf: async () => 101 }));
   ok('a 429 is passed on as a 429', !r.ok && r.status === 429);
   const bracket = { ...order, limit_price: 100, order_class: 'bracket', take_profit: { limit_price: 110 }, stop_loss: { stop_price: 95 } };
