@@ -15,6 +15,7 @@
       "dragsort.js": "Copy of Shared/dragsort.js for ORCA, which loads it from this old root address. The pre-commit hook rewrites it from Shared/ in every commit that changes Shared/dragsort.js; tests/layout.test.js checks they match. Delete once ORCA loads Shared/dragsort.js."
     },
     "folders": {
+      "Beacon": "the device manager (beacon.js, and beacon-ui.js its panel); hosts load beacon.js from this path",
       "Backup": "A1Backup: backup.js, backup-merge.js and the repo copies (Index Backups/); its pages are backup-restore.html and backup-export.html at the root",
       "docs": "every doc, plan and README, one subfolder per project",
       "Guardian": "the one lock (guardian.js); hosts load it from this path",
