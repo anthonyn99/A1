@@ -190,18 +190,21 @@ async function run(c, w, h, mobile) {
 
 (async () => {
   const c = await connect({ mock: firebaseMock() });
-  const errs = [];
+  const errs = global.__errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Network.enable');
   await c.send('Network.setCacheDisabled', { cacheDisabled: true });
   c.ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push((m.params.exceptionDetails.exception && m.params.exceptionDetails.exception.description) || m.params.exceptionDetails.text);
   });
-  await run(c, 1280, 900, false);
-  await run(c, 820, 1180, true);
-  await run(c, 390, 844, true);
+  const only = process.env.BEACON_ONLY ? +process.env.BEACON_ONLY : 0;
+  if (!only || only === 1280) await run(c, 1280, 900, false);
+  if (!only || only === 820) await run(c, 820, 1180, true);
+  if (!only || only === 390) await run(c, 390, 844, true);
   const mine = errs.filter((e) => /beacon|Beacon/.test(e));
   ok('no page errors from Beacon', !mine.length, mine.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => { console.error(e); console.log('Page exceptions:
+' + (global.__errs || []).slice(0, 20).join('
+')); process.exit(1); });
