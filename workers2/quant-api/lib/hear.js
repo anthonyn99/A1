@@ -112,6 +112,7 @@ export async function hear(env, req) {
   const b = await bodyOf(req, AUDIO_MAX + 4000);
   const audio = b && typeof b.audio === 'string' ? b.audio : '';
   if (!audio || !/^[A-Za-z0-9+/=]+$/.test(audio)) throw fail(400, 'audio (base64) is needed');
+  if (audio.length > AUDIO_MAX) throw fail(413, 'a clip is at most ' + AUDIO_MAX + ' base64 characters (about 45 s)');
   const ext = extOf(b.mime);
   if (!ext) throw fail(400, 'mime must be an audio type (webm, ogg, mp4, mpeg, wav, flac)');
   const mime = String(b.mime).split(';')[0].trim().toLowerCase();
