@@ -52,9 +52,10 @@ const ok = (name, cond, extra) => {
   }
   const open = async () => { await tab('market'); if (!(await until(`document.querySelector('[data-mk-score]') && document.querySelector('[data-mk-analogs]')`, 15000))) throw new Error('Market did not draw'); await sleep(600); };
 
+  // 1280 px of content: a 1504 px window beside the 224 px sidebar (quant-plan §0, 2026-11-15).
   for (const [w, h] of [[1280, 900], [820, 1180], [390, 844]]) {
     console.log(`\n${w} px`);
-    await size(w, h);
+    await size(w === 1280 ? 1504 : w, h);
     await boot({ quant: true });
     await open();
     ok('A1\'s scrollbar is running', await js(`return !!(window.A1Scrollbar && window.A1Scrollbar.active());`));
