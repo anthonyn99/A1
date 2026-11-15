@@ -279,7 +279,7 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
     // Push tokens: one per routing, plus one device that never checked in.
     st.docs['fcm_tokens/dev_tp'] = { token: 'T1', mainDash: 'tony', updatedAt: Date.now() - 1000, ua: UA.iphone.slice(0, 80) };
     st.docs['fcm_tokens/dev_vp'] = { token: 'T2', mainDash: 'veda', updatedAt: Date.now() - 1000, ua: UA.galaxy.slice(0, 80) };
-    st.docs['fcm_tokens/dev_oldipad'] = { token: 'T3', mainDash: 'tony', updatedAt: Date.now() - 86400000, ua: UA.ipad.slice(0, 80) };
+    st.docs['fcm_tokens/dev_oldipad'] = { token: 'T3', mainDash: 'tony', updatedAt: Date.now() - 86400000, ua: UA.iphone17.slice(0, 80) };
     st.docs['fcm_tokens/dev_oldveda'] = { token: 'T4', mainDash: 'veda', updatedAt: Date.now() - 86400000, ua: UA.pixel.slice(0, 80) };
     st.docs['fcm_tokens/dev_shared'] = { token: 'T5', mainDash: 'all', updatedAt: Date.now() - 5000, ua: UA.firefox.slice(0, 80) };
     st.docs['studyos_fcm_tokens/tokABC'] = { token: 'tokABC', app: 'studyos', updatedAt: Date.now() - 7000, ua: UA.samsungTab };
@@ -293,7 +293,7 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
     const tpDev = T.devices.find((d) => d.id === 'dev_tp');
     ok('a device’s token joins its record (same id)', tpDev.tokens.length === 1 && tpDev.tokens[0].coll === 'fcm_tokens' && !tpDev.legacy);
     const old = T.devices.find((d) => d.id === 'dev_oldipad');
-    ok('a token with no record is shown as a device read from its agent string', old.legacy && old.meta.os === 'iPadOS' && old.owner === 'tony', old);
+    ok('a token with no record is shown as a device read from its agent string', old.legacy && old.meta.os === 'iOS' && old.meta.osVer === '17.4' && old.owner === 'tony', old);
     ok('a token routed to "all" counts as neutral', T.devices.find((d) => d.id === 'dev_shared').owner === 'neutral');
     ok('StudyOS tokens are not looked for unless StudyOS asks', !T.devices.some((d) => (d.tokens || []).some((t) => t.coll === 'studyos_fcm_tokens')));
 
