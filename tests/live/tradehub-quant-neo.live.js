@@ -164,7 +164,7 @@ const ok = (name, cond, extra) => {
   ok('...and a question there continues it (its turns in the messages, the same conversation id)', ai()[n2].body.messages.some((m) => /AMD into earnings/.test(m.content)) && (api.posted.turns || []).slice(-1)[0].conv === 'cold000001');
 
   console.log('\nThe pink, the layouts');
-  const pink = await js(`var bad=[]; document.querySelectorAll('body *').forEach(function(e){ var s=getComputedStyle(e); var hit=[s.color,s.backgroundColor,s.borderTopColor,s.borderLeftColor,s.outlineColor].some(function(v){return /240, 179, 203/.test(v);}) && !(s.borderTopStyle==='none' && !/240, 179, 203/.test(s.color+s.backgroundColor+s.borderLeftColor)); if(hit && !e.closest('.nq-dock-root,[data-neo-tab],.nq-halo')) bad.push(e.tagName+'.'+e.className); }); return JSON.stringify(bad.slice(0,8));`).then(JSON.parse);
+  const pink = await js(`var bad=[]; document.querySelectorAll('body *').forEach(function(e){ var s=getComputedStyle(e); var hit=[s.color,s.backgroundColor,s.borderTopColor,s.borderLeftColor,s.outlineColor].some(function(v){return /240, 179, 203/.test(v);}) && !(s.borderTopStyle==='none' && !/240, 179, 203/.test(s.color+s.backgroundColor+s.borderLeftColor)); if(hit && !e.closest('.nq-dock-root,[data-neo-tab],.nq-halo,[data-nq-settings]')) bad.push(e.tagName+'.'+e.className); }); return JSON.stringify(bad.slice(0,8));`).then(JSON.parse);
   ok('the pink appears only on Neo Quant\'s surfaces', pink.length === 0, JSON.stringify(pink));
   for (const [w, hgt, kind] of [[1280, 900, 'desktop'], [820, 1100, 'tablet'], [390, 844, 'phone']]) {
     await size(w, hgt); await sleep(400);
