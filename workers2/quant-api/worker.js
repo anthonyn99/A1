@@ -64,6 +64,7 @@ import * as mem from './lib/memory.js';
 import * as arc from './lib/archive.js';
 import * as ai from './lib/ai.js';
 import * as gem from './lib/gemini.js';
+import * as paper from './lib/paper.js';
 import { getBrief, postBrief } from './lib/brief.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
@@ -295,6 +296,38 @@ async function usage(env) {
     caps: CAPS,
     keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), alphavantage: !!env.ALPHAVANTAGE_KEY, ...ai.keysSet(env), gemini: !!env.GEMINI_KEY },
   });
+}
+
+/* ── /paper/… (Phase 9C) ──────────────────────────────────────────────────── */
+async function paperRoute(req, env, url, p, m) {
+  if (p === '/paper/probe' && m === 'GET') return paper.probe(env);
+  if (p === '/paper/account' && m === 'GET') return paper.account(env);
+  if (p === '/paper/positions' && m === 'GET') return paper.positions(env);
+  if (p === '/paper/orders' && m === 'GET') return paper.orders(env, url);
+  if (p === '/paper/activities' && m === 'GET') return paper.activities(env, url);
+  if (p === '/paper/log' && m === 'GET') return paper.log(env, url);
+  if (p === '/paper/orders' && m === 'POST') {
+    // The latest price, for the size checks (the quote chain, as /quotes; a failure leaves it unknown).
+    const priceOf = async (sym) => {
+      if (!sym || !/^[A-Z][A-Z0-9.]{0,9}$/.test(sym)) return null;
+      const now = Date.now(), L = await Ledger.load(env, now);
+      try { const q = await getQuotes(L, env, [sym], now); return q.quotes[sym] ? q.quotes[sym].price : null; } catch (e) { return null; } finally { await L.flush().catch(() => {}); }
+    };
+    return paper.place(env, req, { priceOf });
+  }
+  if (p === '/paper/kill' && m === 'POST') return paper.kill(env, req);
+  if (p === '/paper/runs' && m === 'GET') return paper.runs(env);
+  if (p === '/paper/runs' && m === 'POST') return paper.startRun(env, req);
+  if (p === '/paper/fills' && m === 'POST') return paper.postFills(env, req);
+  if (p === '/paper/equity' && m === 'POST') return paper.postEquity(env, req);
+  const o = /^\/paper\/orders\/([\w-]{1,64})$/.exec(p);
+  if (o && m === 'PATCH') return paper.replace(env, req, o[1]);
+  if (o && m === 'DELETE') return paper.cancel(env, o[1]);
+  const ps = /^\/paper\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(p);
+  if (ps && m === 'DELETE') return paper.closePosition(env, ps[1]);
+  const rn = /^\/paper\/runs\/(r[a-z0-9]{4,20})$/.exec(p);
+  if (rn && m === 'PATCH') return paper.changeRun(env, req, rn[1]);
+  throw fail(404, 'no such route');
 }
 
 /* ── /quotes ────────────────────────────────────────────────────────────── */
