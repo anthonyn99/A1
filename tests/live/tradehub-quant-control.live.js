@@ -194,7 +194,8 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('Dismiss: gone from the grid and from the saved layout', await until(`!document.querySelector('[data-lay="charts"] .nq-cv-host')`, 4000) && await js(`var d=JSON.parse(localStorage.getItem('tradehub_layout')||'{}'); return !(d.neo_canvas && d.neo_canvas.cards.length);`));
 
   console.log('\nThe whole run');
-  ok('no order route was ever called (no Alpaca order, no Webull write)', !urls.some((u) => /\/v2\/orders|\/paper\/orders|\/api\/order/i.test(u)), urls.filter((u) => /order/i.test(u)).join(' '));
+  // The Paper tab READS its order list (GET /paper/orders); nothing may write one.
+  ok('no order was ever written (no POST, PATCH or DELETE to an order route; no Webull write)', !urls.some((u) => /^(POST|PUT|PATCH|DELETE) .*(\/v2\/orders|\/paper\/orders|\/paper\/order|\/paper\/kill|\/api\/order)/i.test(u)), urls.filter((u) => /^(POST|PUT|PATCH|DELETE) .*order/i.test(u)).join(' '));
   ok('no uncaught error', errs.length === 0, errs.join(' | '));
 
   console.log(`\n${pass} passed, ${fail} failed`);
