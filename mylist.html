@@ -840,6 +840,18 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<!-- Beacon (docs/Beacon/README.md): this device in A1's device list (the
+     devices button in the top bar). Push = TaskHub's fcm_tokens/<th_device_id>. -->
+<script src="Beacon/beacon.js"></script>
+<script>
+if (window.Beacon) Beacon.mount('mylist', {
+  label: 'MyList', fcm: true, profileAttr: 'data-profile',
+  push: function () {
+    return { on: /^token OK/.test(window._mlFcmStatus || ''), coll: 'fcm_tokens', id: Beacon.deviceId(),
+      route: (function () { try { return localStorage.getItem('td6_mainDash') || 'all'; } catch (e) { return 'all'; } })() };
+  }
+});
+</script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="Shared/scrollbar.js"></script>
@@ -863,6 +875,9 @@ body { max-width: 2000px; margin-inline: auto; }
     <span class="wordmark tb-title"><span class="a1-app-ic" data-a1-app="mylist"></span>MyList</span>
     <span class="tb-spacer"></span>
     <span class="a1-sync idle" id="sync-pill"></span>
+    <button class="icon-btn" id="devices-btn" title="Devices" aria-label="Devices" onclick="window.Beacon&&Beacon.open({app:'mylist'})">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><path d="M6 18h6"/><rect x="16.5" y="8" width="5.5" height="11" rx="1.2"/></svg>
+    </button>
     <button class="icon-btn" id="lock-mgr-btn" title="Lock" onclick="ML.manageLock()">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     </button>
@@ -1608,7 +1623,7 @@ body { max-width: 2000px; margin-inline: auto; }
       catch(e){ window._mlFcmStatus='getToken ERROR (Brave push likely broken): '+((e&&e.code?e.code+' ':'')+(e&&e.message||e)); return; }
       if(!token){ window._mlFcmStatus='getToken returned EMPTY (push blocked)'; return; }
       const mainDash = localStorage.getItem('td6_mainDash') || 'all';
-      try{ await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true }); window._mlFcmStatus='token OK …'+token.slice(-10)+' mainDash='+mainDash+' perm=granted'; }
+      try{ await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true }); window._mlFcmStatus='token OK …'+token.slice(-10)+' mainDash='+mainDash+' perm=granted'; try{ if(window.Beacon) Beacon.refresh('mylist'); }catch(e){} }
       catch(e){ window._mlFcmStatus='token OK but fcm_tokens write blocked: '+(e&&e.message||e); }
       try{ const sw=(swReg.active||swReg.waiting)||navigator.serviceWorker.controller; if(sw) sw.postMessage({ type:'th-set-maindash', mainDash:mainDash }); }catch(e){}
       onMessage(messaging,(payload)=>{
