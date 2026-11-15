@@ -94,15 +94,15 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   const s1 = first.said;
   ok('...spoken in Sonia\'s voice (the default), with word timings, worded for the ear: no citations, Nvidia named', s1.length >= 2 && s1.every((b) => b.voice === 'en-GB-SoniaNeural' && b.timestamps === true && !/\[F\d/.test(b.input)) && s1.some((b) => /Nvidia|watch/i.test(b.input)), JSON.stringify(s1.map((b) => b.input)));
   ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10);
-  const answered = await js(`var a=[...document.querySelectorAll('[data-nq-a]')].pop(); return a && a.dataset.state;`);
-  ok('...and the full answer is on screen (the dock opened with it? not needed: the conversation holds it)', answered === 'done' || answered === null, answered);
+  const answered = await js(`var d=document.querySelector('[data-nq-dock]'), a=[...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop(); return JSON.stringify({ open: !d.hidden, state: a && a.dataset.state, verdict: a && (a.querySelector('[data-nq-verdict]')||{}).textContent });`).then(JSON.parse);
+  ok('...talking opened the dock: the whole answer is on screen (brief to the ear, exact on screen)', answered.open && answered.state === 'done' && !!answered.verdict, JSON.stringify(answered));
   await shot('voice-1280');
 
   for (const [w, hgt, tabs] of [[1280, 900, ['charts', 'neo', 'journal']], [820, 1100, ['scanner', 'paper']], [390, 844, ['market', 'neo']]]) {
     await size(w, hgt); await sleep(400);
     for (const t of tabs) {
       await goTab(t);
-      const sel = t === 'neo' ? '[data-neo-tab] [data-nq-talk]' : '[data-nq-mic]';
+      const sel = t === 'neo' ? '[data-neo-tab] [data-nq-talk]' : '[data-nq-mic], [data-nq-dock] [data-nq-talk]';
       const there = await until(`[...document.querySelectorAll('${sel}')].some(function(b){ return b.getClientRects().length; })`, 5000);
       ok(`${w} px ${t}: a mic to talk with`, there);
       if (there) await turn(sel, `${w} ${t}`);
