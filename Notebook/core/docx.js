@@ -780,6 +780,11 @@ function zGet(app) {
   if (w) return (w - 30) < _pageWidth(app) ? 'fit' : 1;
   return window.innerWidth < 1200 ? 'fit' : 1;
 }
+// Does the zoom follow the box? Yes unless Tony picked a fixed zoom. Asking
+// zGet() === 'fit' was wrong: once the box widened again it answered 1, so the
+// shrunk fit was never undone (TradeHub's Playbook stayed squeezed after the
+// Neo Quant dock closed, 2026-11-15).
+function zAuto(app) { var z = lsGet('docx_zoom_' + app, null); return z === null || z === 'fit'; }
 function applyZoom(app) {
   var cfg = APPS[app], z = zGet(app), ps = psGet(app);
   var dim = SIZES[ps.size] || SIZES.letter;
@@ -5060,8 +5065,8 @@ function initApp(app) {
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(function() {
-        if (zGet(app) === 'fit') applyZoom(app);
-        else updateRulers(app);
+        if (zAuto(app)) applyZoom(app);
+        updateRulers(app);
       });
       ro.observe(wrapEl);
     }
@@ -5157,8 +5162,8 @@ function initAll() {
     Object.keys(APPS).forEach(function(app) {
       // Rotating a tablet can cross the reflow breakpoint, so re-evaluate first.
       applyReflow(app);
-      if (zGet(app) === 'fit') applyZoom(app);
-      else updateRulers(app);
+      if (zAuto(app)) applyZoom(app);
+      updateRulers(app);
     });
   });
   // Flush undo/redo history to localStorage on leave so it survives close+reopen (item 13).
