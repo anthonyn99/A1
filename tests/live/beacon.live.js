@@ -85,6 +85,18 @@ const panel = (c) => evalJs(c, `const R=${SR}; if(!R) return 'null';
     actH: acts ? acts.getBoundingClientRect().height : 0,
     font: getComputedStyle(R.querySelector('h2')).fontFamily });`).then(JSON.parse);
 
+// Settings, open and drawn (a late cloud render can close it right after boot).
+async function openSettings(c, who) {
+  for (let i = 0; i < 3; i++) {
+    await evalJs(c, "var x=document.querySelector('.thset-close'); if(x&&document.getElementById('thset-overlay').style.display!=='none') x.click(); window._openSettings('" + who + "'); 1");
+    for (let j = 0; j < 12; j++) {
+      await sleep(250);
+      if (await evalJs(c, "return !!document.getElementById('thset-dev-go') && document.getElementById('thset-overlay').style.display!=='none';")) return true;
+    }
+  }
+  console.log('    settings state: ' + await evalJs(c, "return JSON.stringify({ov:(document.getElementById('thset-overlay')||{}).style&&document.getElementById('thset-overlay').style.display, go:!!document.getElementById('thset-dev-go'), ap:window._activeProfile});"));
+  return false;
+}
 async function run(c, w, h, mobile) {
   console.log(`\n${w}×${h}${mobile ? ' (touch)' : ''}`);
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
@@ -109,7 +121,7 @@ async function run(c, w, h, mobile) {
   const elsewhere = await evalJs(c, `return !((__fakeFs.docs['dashboards/beacon_veda']||{}).devices||{}).dev_live1 && !((__fakeFs.docs['dashboards/beacon_neutral']||{}).devices||{}).dev_live1;`);
   ok('and to nobody else’s', elsewhere);
 
-  await evalJs(c, "window._openSettings('tony'); 1"); await sleep(700);
+  await openSettings(c, 'tony');
   ok('Tony’s Settings has a Devices section', await evalJs(c, "return !!document.getElementById('thset-dev-go') && /Devices/.test(document.getElementById('thset-devices').closest('.thset-sec').textContent);"));
   await tap(c, "document.getElementById('thset-dev-go')", mobile);
   await sleep(900);
@@ -162,7 +174,7 @@ async function run(c, w, h, mobile) {
   ok('the page scroll lock is TaskHub’s again', await evalJs(c, "return document.documentElement.style.overflow !== 'hidden' || !!document.getElementById('thset-overlay');"));
 
   // Veda's side.
-  await evalJs(c, "document.querySelector('.thset-close').click(); window._openSettings('veda'); 1"); await sleep(700);
+  await openSettings(c, 'veda');
   await tap(c, "document.getElementById('thset-dev-go')", mobile);
   await sleep(900);
   p = await panel(c);
