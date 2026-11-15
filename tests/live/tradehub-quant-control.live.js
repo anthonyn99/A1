@@ -126,11 +126,11 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   await until(`window._tbOps.charts`, 8000);
   await js(`var d=document.querySelector('[data-nq-dock]'); if(d.hidden) document.querySelector('[data-nq-launch]').click(); 1`);
   await until(`!document.querySelector('[data-nq-dock]').hidden`, 4000);
-  await dockAsk('add COIN to the watchlist');
-  ok('"add COIN to the watchlist": the watchlist has it; the turn lists it with an Undo', await until(`window._tbOps.app.watchlist().indexOf('COIN')>=0 && [...document.querySelectorAll('[data-nq-dock] [data-nq-dos] li')].some(function(l){return /Added COIN/.test(l.textContent);}) && document.querySelector('[data-nq-dock] [data-nq-undo]')`, 6000),
+  await dockAsk('add IBM to the watchlist');
+  ok('"add IBM to the watchlist": the watchlist has it; the turn lists it with an Undo', await until(`window._tbOps.app.watchlist().indexOf('IBM')>=0 && [...document.querySelectorAll('[data-nq-dock] [data-nq-dos] li')].some(function(l){return /Added IBM/.test(l.textContent);}) && document.querySelector('[data-nq-dock] [data-nq-undo]')`, 6000),
     await js(`return JSON.stringify({ wl: window._tbOps.app.watchlist(), dock: !document.querySelector('[data-nq-dock]').hidden, inputs: document.querySelectorAll('[data-nq-dock] [data-nq-input]').length, last: (([...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop()||{}).innerText||'').slice(0,300), page: window._tbOps.app.page() });`));
   await js(`[...document.querySelectorAll('[data-nq-dock] [data-nq-undo]')].pop().click(); 1`);
-  ok('...Undo takes it off again', await until(`window._tbOps.app.watchlist().indexOf('COIN')<0`, 6000));
+  ok('...Undo takes it off again', await until(`window._tbOps.app.watchlist().indexOf('IBM')<0`, 6000));
   const wl0 = await js(`return window._tbOps.app.watchlist().join();`);
   await dockAsk('remove AMD from the watchlist');
   ok('a confirm action (a trash) asks Yes / No in the dock', await until(`document.querySelector('[data-nq-dock] [data-nq-confirm="asking"]')`, 6000));
