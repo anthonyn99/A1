@@ -178,6 +178,8 @@ async function rung(env, L, row, job, body, write, now) {
       if (!r.ok) { errText = (await r.text().catch(() => '')).slice(0, 2000); throw new Error('HTTP ' + status); }
       if (!write) {
         const j = await r.json(), bad = blockOf(j), text = partsText(j).trim();
+        // Hearing a clip where nobody spoke: nothing to write is the right answer, not a failing model.
+        if (!bad && !text && job === 'hear') { L.note(svc, true, 200, Date.now() - t0); learned(row, need, kind, now); return { ok: true, text: '' }; }
         if (bad || !text) { status = 200; errText = ''; L.note(svc, false, 200, null, bad || 'an empty answer'); return { ok: false, why: bad || 'an empty answer' }; }
         L.note(svc, true, 200, Date.now() - t0);
         learned(row, need, kind, now);
@@ -201,7 +203,8 @@ async function rung(env, L, row, job, body, write, now) {
       if (isGone(e)) { ac.abort(); return { ok: false, gone: true, why: 'the page stopped listening' }; }
       const v = verdictOf(why ? null : status, errText, need, usedToday, now);
       if (v.spent) { row.spent[kind] = v.spent; row.dirty = true; } else L.note(svc, false, status, null, why || v.why);
-      if (v.nocap) { row.caps[need] = false; row.dirty = true; }
+      // A clip the model will not take (its format) is the clip's fault, not proof the model cannot hear.
+      if (v.nocap && job !== 'hear') { row.caps[need] = false; row.dirty = true; }
       if (v.drop) { row.state = 'dropped'; row.spent.gone = now + NO_ALLOWANCE_MS; row.dirty = true; }
       if (v.retry && !attempt) continue;
       if (v.rest) { row.spent.rest = now + REST_MS; row.dirty = true; }

@@ -96,12 +96,14 @@ async function workersAi(env, L, clip) {
 }
 async function gemini(env, L, clip) {
   if (!env.GEMINI_KEY) return { skip: true, why: 'no GEMINI_KEY' };
-  const r = await askWhole(env, L, {
+  let r;
+  // Google's model list or the models table failing must not lose what the other rungs tried.
+  try { r = await askWhole(env, L, {
     system: 'Transcribe the speech in this audio exactly, in English. Write only the words said: no notes, no quotes, no timestamps. If nobody speaks, write nothing. ' + clip.hint,
     messages: [{ role: 'user', content: 'Transcribe this clip.' }],
     images: [{ mime: clip.mime, data: clip.b64 }],
     max_tokens: 400, temperature: 0,
-  }, 'hear');
+  }, 'hear'); } catch (e) { return { why: (e && e.message) || String(e) }; }
   if (r.ok) return { ok: true, text: String(r.text || '').trim(), provider: 'gemini', model: r.model, tried: r.tried };
   return { why: (r.tried && r.tried.length ? r.tried.map((t) => (t.model || 'gemini') + ': ' + t.why).join('; ') : 'no model could take it').slice(0, 300), tried: r.tried };
 }
