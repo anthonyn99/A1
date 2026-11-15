@@ -121,6 +121,27 @@ const GROQ = 'api.groq.com', FLASH = 'gemini-3.8-flash', LITE = 'gemini-3.5-flas
   r = await call(env, CLIP);
   ok('nobody spoke: an empty transcript from the first rung (no other rung is spent on silence)', r.status === 200 && r.body.text === '' && r.body.provider === 'groq' && P.calls.length === 1);
 
+  console.log('\nThe code review\'s findings (2026-11-15)');
+  env = await mkEnv(); P.reset();
+  P.plan[GROQ] = [{ status: 500 }];
+  P.plan[FLASH] = [{ status: 400, body: '{"error":{"message":"Unsupported MIME type: audio/webm"}}' }];
+  P.plan[LITE] = [{ body: gemText('Debrief me.') }];
+  r = await call(env, CLIP);
+  const capsAfter = JSON.parse((await env.DB.prepare("SELECT caps FROM models WHERE provider = 'gemini' AND id = ?").bind(FLASH).first()).caps);
+  ok('a model refusing the clip\'s format does not lose its "can hear" for good (the next rung hears it)', r.status === 200 && r.body.text === 'Debrief me.' && capsAfter.audio !== false, JSON.stringify({ body: r.body, capsAfter }));
+  env = await mkEnv(); P.reset();
+  P.plan[GROQ] = [{ status: 500 }];
+  P.plan[FLASH] = [{ body: { candidates: [{ content: { parts: [], role: 'model' }, finishReason: 'STOP' }] } }];
+  r = await call(env, CLIP);
+  const hFlash = await env.DB.prepare('SELECT ok, fails FROM provider_health WHERE provider = ?').bind('gemini:' + FLASH).first();
+  ok('Gemini hearing silence: text "" (not a failure, not a 503, not counted against the model)', r.status === 200 && r.body.text === '' && r.body.provider === 'gemini' && hFlash && hFlash.ok === 1, JSON.stringify({ body: r.body, hFlash }));
+  env = await mkEnv(); P.reset();
+  await env.DB.prepare("DELETE FROM models WHERE provider = 'gemini'").run();
+  P.plan[GROQ] = [{ status: 500 }];
+  P.plan['generativelanguage.googleapis.com'] = [{ status: 500 }];
+  r = await call(env, CLIP);
+  ok('Google\'s model list failing: still a 503 listing every rung (Groq\'s why kept)', r.status === 503 && r.body.tried.map((t) => t.provider).join() === 'groq,workersai,gemini' && r.body.tried[0].why === 'HTTP 500' && /model list/.test(r.body.tried[2].why), JSON.stringify(r.body));
+
   console.log('\nRefused');
   env = await mkEnv(); P.reset();
   ok('no Orca key → 401', (await call(env, CLIP, { key: null })).status === 401);
