@@ -118,7 +118,9 @@ const WORDS = 'test buying NVDA, AMD and MSFT when RSI is under 45 since June 20
   ok('after a reload the saved runs are listed (with the renamed one)', await until(`[...document.querySelectorAll('[data-bt-srow]')].some(function(r){return /Live lab QQQ/.test(r.innerText);})`, 15000));
   nA = await countA('[data-bt-lab-a]');
   await sayInBox('open Live lab QQQ');
-  ok('"open Live lab QQQ": its spec back in the builder, a Run button, the words it was asked in', await boxDone('opened') && /QQQ/.test(await js(`return document.querySelector('[data-bt-desc]').textContent;`)) && await js(`var a=${lastBox}; return !!a.querySelector('[data-nq-labrun]') && a.innerText.indexOf(${JSON.stringify(WORDS.slice(0, 30))}) >= 0;`));
+  ok('"open Live lab QQQ": opened', await boxDone('opened'), await js(`var a=${lastBox}; return a ? a.innerText.slice(0, 300) : 'none';`));
+  ok('...its spec back in the builder (QQQ)', /QQQ/.test(await js(`return document.querySelector('[data-bt-desc]').textContent;`)), await js(`return document.querySelector('[data-bt-desc]').textContent;`));
+  ok('...a Run button and the words it was asked in', await js(`var a=${lastBox}; return !!a.querySelector('[data-nq-labrun]') && a.innerText.indexOf(${JSON.stringify(WORDS.slice(0, 30))}) >= 0;`), await js(`return ${lastBox}.innerText.slice(0, 400);`));
   nA = await countA('[data-bt-lab-a]');
   await js(`${lastBox}.querySelector('[data-nq-labrun]').click(); 1`);
   ok('Run re-runs it on fresh data', await boxDone('result'));
