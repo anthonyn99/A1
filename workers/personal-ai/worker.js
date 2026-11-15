@@ -4672,8 +4672,13 @@ async function igApi(path, s) {
       Cookie: 'sessionid=' + encodeURIComponent(s.sid) + '; ds_user_id=' + s.uid } });
   } catch (e) { return { why: 'unreachable' }; }
   const text = await r.text().catch(() => '');
-  if (r.status !== 200) return { why: igWhy(r.status, text) };
-  try { return { j: JSON.parse(text) }; } catch (e) { return { why: 'expired' }; }   // an HTML page here is the login page
+  // What Instagram said, for the logs and Everwell's dialog: status, where it
+  // redirected, its own short message. Never the session or the body.
+  const said = { st: r.status, loc: String(r.headers.get('location') || '').replace(/[?#].*$/, '').slice(0, 120),
+    ct: String(r.headers.get('content-type') || '').split(';')[0], msg: '' };
+  try { said.msg = String(JSON.parse(text).message || '').slice(0, 120); } catch (e) {}
+  if (r.status !== 200) return { why: igWhy(r.status, text), said };
+  try { return { j: JSON.parse(text) }; } catch (e) { return { why: 'expired', said }; }   // an HTML page here is the login page
 }
 async function igSess(env, key) {
   if (!env.TOKEN_CACHE) return { why: 'no-kv' };
@@ -4689,7 +4694,7 @@ async function handleIgConnect(body, env) {
   let old = null; try { old = await env.TOKEN_CACHE.get(IG_SESS_KEY, 'json'); } catch (e) {}
   if (old && old.uid && old.uid !== p.uid && (await sha256(String((body && body.key) || ''))) !== old.kh) return json({ ok: false, error: 'other-account' }, 403);
   const t = await igApi('feed/saved/posts/', p);
-  if (!t.j) return json({ ok: false, error: t.why });
+  if (!t.j) { console.log('ig/connect refused', JSON.stringify(t.said || {})); return json({ ok: false, error: t.why, said: t.said }); }
   const key = b64u(crypto.getRandomValues(new Uint8Array(24)));
   await env.TOKEN_CACHE.put(IG_SESS_KEY, JSON.stringify({ sid: p.sid, uid: p.uid, kh: await sha256(key), at: Date.now() }));
   return json({ ok: true, key });
