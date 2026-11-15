@@ -21,6 +21,9 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 500) : '')); }
 };
+// Windows whose CONTENT is 1280 and 820 px beside TradeHub's 224 px sidebar (2026-11-15):
+// the card grid sizes itself by the content, not the window.
+const DESK_W = 1280 + 224, TAB_W = 820 + 224;
 const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength', 'volume', 'analogs'];
 
 (async () => {
@@ -38,7 +41,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   const paths = () => api.asked.map((a) => a.p);
 
   console.log('\nSwitch off (the default)');
-  await size(1280, 900);
+  await size(DESK_W, 900);
   await boot({ quant: false });
   ok('no Market tab', await js(`return !document.querySelector('.tb-navtab[data-navid="market"]');`));
   await tab('prompt');
@@ -93,7 +96,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('every request carried the key', api.asked.every((a) => a.auth === 'Bearer ' + KEY));
 
   console.log('\nLayouts');
-  for (const [w, h, cls, cols] of [[1280, 900, 'desktop', 12], [820, 1180, 'tablet', 8], [390, 844, 'phone', 4]]) {
+  for (const [w, h, cls, cols] of [[DESK_W, 900, 'desktop', 12], [TAB_W, 1180, 'tablet', 8], [390, 844, 'phone', 4]]) {
     await size(w, h); await sleep(700);
     const f = JSON.parse(await js(`var L=document.querySelector('.lay'), g=L.querySelector('.lay-grid'), r=g.getBoundingClientRect();
       var cards=[...g.children]; var spill=cards.filter(function(e){ var b=e.getBoundingClientRect(); return b.right>r.right+1||b.left<r.left-1; }).length;
@@ -109,7 +112,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
     await js(`document.querySelector('.lay-card[data-card="strength"]').scrollIntoView({block:'start'}); 1`); await sleep(300);
     await shot('quant-market-' + w + '-c');
   }
-  await size(1280, 900); await sleep(600);
+  await size(DESK_W, 900); await sleep(600);
   await js(`document.querySelector('.tb-scroll-visible').scrollTop = 0; 1`);
 
   console.log('\nLive prices and the ticker panel');
@@ -153,7 +156,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('Reset layout restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 8`, 3000));
   await size(390, 844); await sleep(700);
   await js(`document.querySelector('.lay-card[data-card="analogs"] [data-act="hide"]').click(); 1`); await sleep(2200);
-  await size(1280, 900); await sleep(700);
+  await size(DESK_W, 900); await sleep(700);
   const two = JSON.parse(await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_layout'].market);`));
   ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analogs' && two.desktop.hidden.length === 0 && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
 
