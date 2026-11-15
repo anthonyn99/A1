@@ -84,7 +84,9 @@ var CSS = [
 '.seg button[aria-pressed=true]{background:var(--s3);color:var(--tx);box-shadow:inset 0 0 0 1px var(--bdl)}',
 '.bar .sp{flex:1}',
 '.count{font:500 12px var(--f);color:var(--txm);font-variant-numeric:tabular-nums;white-space:nowrap}',
-'.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 22px 18px}',
+'.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 22px 18px;scrollbar-width:thin;scrollbar-color:var(--bdl) transparent}',
+/* A1's scrollbar (Shared/scrollbar.js) cannot reach into a shadow root: the same thin dark bar, here. */
+'.body::-webkit-scrollbar{width:10px}.body::-webkit-scrollbar-track{background:transparent}.body::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:10px;border:3px solid var(--s1)}',
 '.sec{padding-top:16px}',
 '.sh{display:flex;align-items:baseline;gap:8px;margin:0 2px 10px}',
 '.st{font:700 10px/1 var(--f);letter-spacing:1.4px;text-transform:uppercase;color:var(--txm)}',
