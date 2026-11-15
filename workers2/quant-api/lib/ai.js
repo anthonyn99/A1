@@ -29,6 +29,8 @@ export const TIMING = { firstSign: 8000, firstText: 25_000, stream: 60_000, once
 export const BODY_MAX = 80_000, MAX_TOKENS = 1500, MODELS_TTL = 7 * DAY, FACTS_MAX = 200;
 // A provider under either bar on the graded question set is not used for answers.
 export const EVAL_BAR = { numeric: 0.85, verdict: 0.80 };
+// Strategy Lab (A1-Priv phase-09b): a provider under 90% exact specs is not asked to write one (`job: 'spec'`).
+export const LAB_BAR = 0.9;
 // Fact packs that hold account figures: never sent to Gemini, whatever the page says.
 export const PRIVATE_PACKS = new Set(['portfolio', 'journal']);
 
@@ -92,6 +94,8 @@ export async function failedEvals(env) {
   catch (e) { if (noTable(e)) return {}; throw e; }
   const out = {};
   for (const r of rows) {
+    // Strategy Lab's graded set (A1-Priv tools/quant-lab-eval.mjs) is stored as 'lab:<provider>': its own bar, only for spec writing.
+    if (String(r.provider).startsWith('lab:')) { if (r.numeric < LAB_BAR) out[r.provider] = 'under the bar on the strategy set (exact ' + Math.round(r.numeric * 100) + '%)'; continue; }
     const why = [];
     if (r.numeric < EVAL_BAR.numeric) why.push('numeric ' + Math.round(r.numeric * 100) + '%');
     if (r.verdict < EVAL_BAR.verdict) why.push('verdict ' + Math.round(r.verdict * 100) + '%');
@@ -224,12 +228,13 @@ async function tryOnce(env, L, P, model, p) {
  * The fast lane over prompt `p` → streams to `write` and resolves
  * { ok, provider, model, tried } (stream), or { ok, text, … } (write = null).
  */
-export async function runChain(env, L, p, { write = null, forced = null, now = Date.now() } = {}) {
+export async function runChain(env, L, p, { write = null, forced = null, job = null, now = Date.now() } = {}) {
   const [rows, bad] = await Promise.all([modelRows(env), failedEvals(env)]);
   const tried = [];
   for (const P of order(env, L, forced)) {
     // A provider under the bar is left out of answers; asking for it by name (the eval run itself) still reaches it.
     if (bad[P.id] && !forced) { tried.push({ provider: P.id, why: bad[P.id] }); continue; }
+    if (job === 'spec' && bad['lab:' + P.id] && !forced) { tried.push({ provider: P.id, why: bad['lab:' + P.id] }); continue; }
     const model = await modelFor(env, L, P, rows, now);
     const r = write ? await tryStream(env, L, P, model, p, write) : await tryOnce(env, L, P, model, p);
     if (r.ok) return { ok: true, provider: P.id, model, tried, ...r };
@@ -242,17 +247,17 @@ export async function runChain(env, L, p, { write = null, forced = null, now = D
 }
 export async function chat(env, req, ctx) {
   const b = await bodyOf(req, BODY_MAX), p = buildPrompt(b);
-  const forced = b.provider ? String(b.provider) : null;
+  const forced = b.provider ? String(b.provider) : null, job = b.job === 'spec' ? 'spec' : null;
   if (forced && !PROVIDERS.some((P) => P.id === forced)) throw fail(400, 'no such provider: ' + forced.slice(0, 20));
   const L = await Ledger.load(env);
   if (b.stream === false) {
     let r;
-    try { r = await runChain(env, L, p, { forced }); } finally { await L.flush(); }
+    try { r = await runChain(env, L, p, { forced, job }); } finally { await L.flush(); }
     if (!r.ok) throw fail(503, 'no AI provider answered', { tried: r.tried });
     return json({ ok: true, text: r.text, provider: r.provider, model: r.model, tried: r.tried });
   }
   return sseResponse(ctx, async (write) => {
-    const r = await runChain(env, L, p, { write, forced });
+    const r = await runChain(env, L, p, { write, forced, job });
     if (r.gone) return;
     await write(r.ok ? sseEvent('done', { provider: r.provider, model: r.model, firstMs: r.firstMs, ms: r.ms, tried: r.tried }) : sseEvent('fail', { tried: r.tried }));
   }, () => L.flush());
