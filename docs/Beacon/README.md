@@ -19,6 +19,7 @@ Every A1 program that has profiles or sends notifications:
 | Shield | `shield` | Devices ▸ All A1 devices ▸ Manage | `body[data-profile]` | none |
 | Shruti | `shruti` | Settings ▸ Profile ▸ Devices | `body[data-profile]` | none |
 | StudyOS (Veda) | `studyos` | the devices icon beside the lock | always `veda` | its own `studyos_fcm_tokens/<token>` |
+| ORCA (Veda's repo `DesktopORCA`, both UIs) | `orca` | the devices icon after the lock in the header | `body[data-profile]` (only rendered once a profile is open) | none; its lock is a server session, so `app/web/static/beacon-host.js` hands Beacon `lockState` (`/lock/status`) and `lockNow` (`/lock/lock`, then the gate) |
 
 Left out on purpose:
 - TradeHub, Insight, Vault, RiftIQ, Everwell and OneInbox have one profile and send no notifications.
@@ -52,6 +53,8 @@ button.onclick = () => Beacon.open({ app: 'example' });   // the panel
 | `pushList` | `{ coll, app, label, owner }`: a token collection of the program's own for the panel to read (StudyOS) |
 | `firebase` | `() => Promise<{ db, fs? }>`, the program's Firestore, or `'lifehub'` to wait for `window.LifeHubFirebase` (MAGI, Shruti, StudyOS). Default: `LifeHubFirebase` if set, else the page's `[DEFAULT]` app if it is A1's project, else a memory-cache app of Beacon's own |
 | `onRemoved()` | the program's own clean-up when this device is removed |
+| `lockState(profile)` | for a lock that is not Guardian's markers: resolves `[{ id, label, owner, open, bio }]`, added to the Guardian locks Beacon reads itself (ORCA) |
+| `lockNow(reason)` | locks this device the program's own way when a Lock or Remove arrives (ORCA ends its session); runs last, since it may leave the page. A page with `lockNow` carries out commands even without Guardian |
 | `delay` | ms before the first check-in (default 3000, after the program has booted) |
 
 ### API

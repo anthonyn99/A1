@@ -63,6 +63,20 @@ ok('TaskHub: hands Beacon the notification app’s Firestore and push state', /w
 ok('TaskHub: a new push token or main re-checks in', (idx.match(/Beacon\.refresh\('taskhub'\)/g) || []).length >= 3);
 ok('StudyOS: reports its own push token', /window\._sosPushToken = token/.test(read('V1/StudyOS/js/push.js')));
 
+// ORCA (Veda's repo, ../ORCA): both UIs load Beacon unpinned on signed-in
+// pages, beacon-host.js declares it with its own lock, and the header has the button.
+const ORCA = path.join(ROOT, '..', 'ORCA');
+if (fs.existsSync(ORCA)) {
+  console.log('\nORCA');
+  const o = (rel) => fs.readFileSync(path.join(ORCA, rel), 'utf8');
+  const ts = o('worker/src/web/html.ts'), py = o('app/web/templates/base.html'), host = o('app/web/static/beacon-host.js');
+  ok('Worker layout loads the one live beacon.js and beacon-host.js', /BEACON_SRC = "https:\/\/anthonyn99\.github\.io\/A1\/Beacon\/beacon\.js"/.test(ts) && /<script src="\$\{BEACON_SRC\}"><\/script>/.test(ts) && /beacon-host\.js" defer/.test(ts));
+  ok('Python layout too, signed-in pages only', /\{% if profile %\}<script src="https:\/\/anthonyn99\.github\.io\/A1\/Beacon\/beacon\.js"><\/script>/.test(py) && /beacon-host\.js" defer/.test(py));
+  ok('both headers have the devices button', /data-beacon-open/.test(ts) && /data-beacon-open/.test(py));
+  ok("beacon-host mounts 'orca' with its server lock (lockState + lockNow)", /Beacon\.mount\("orca"/.test(host) && /lockState:/.test(host) && /\/lock\/status/.test(host) && /lockNow:/.test(host) && /\/lock\/lock/.test(host));
+  ok('and opens the panel from the button', /Beacon\.open\(\{ app: "orca"/.test(host));
+}
+
 console.log('\nNothing else builds it');
 const scan = (dir, out) => {
   for (const f of fs.readdirSync(path.join(ROOT, dir))) {
