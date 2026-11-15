@@ -400,6 +400,33 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
   }
 
   // ═════════════════════════════════════════════════════════════════════════
+  console.log('\nA program with its own lock (ORCA: lockState / lockNow)');
+  {
+    const st = fakeStore();
+    const o = device(st, { guardian: false, url: 'https://orca.vedapatel05.workers.dev/', ls: { th_device_id: 'dev_orca1' } });
+    o.__locked = 0;
+    o.Beacon.mount('orca', { label: 'ORCA', delay: 999999, profile: 'veda',
+      lockState: async (p) => [{ id: p + '_orca', label: 'ORCA', open: !o.__locked, bio: false }],
+      lockNow: async (why) => { o.__locked++; o.__why = why; } });
+    let r = await o.Beacon.checkIn('orca', true);
+    const e = r.wrote && doc(st, 'veda').devices.dev_orca1.apps.orca;
+    ok('its own lock is reported, owned by the profile', e && e.locks.length === 1 && e.locks[0].id === 'veda_orca' && e.locks[0].owner === 'veda' && e.locks[0].open === true, e);
+    const pc = device(st, { ls: { th_device_id: 'dev_vpc', td6_mainDash: 'veda' } });
+    pc.Beacon.mount('taskhub', { delay: 999999, profile: 'veda' });
+    await pc.Beacon.lock('veda', 'dev_orca1', 'veda');
+    r = await o.Beacon.checkIn('orca', true);
+    ok('a Lock reaches it without Guardian: lockNow runs, the command clears', o.__locked === 1 && o.__why === 'remote' && !(doc(st, 'veda').cmd || {}).dev_orca1, [o.__locked, doc(st, 'veda').cmd]);
+    ok('and it reports itself locked', doc(st, 'veda').devices.dev_orca1.apps.orca.locks[0].open === false);
+    const L = await pc.Beacon.list('veda');
+    await pc.Beacon.remove(L.devices.find((d) => d.id === 'dev_orca1'));
+    r = await o.Beacon.checkIn('orca', true);
+    ok('a Remove reaches it too: lockNow runs and the tombstone clears', r.removed && o.__locked === 2 && o.__why === 'removed' && !(doc(st, 'veda').gone || {}).dev_orca1, [r, o.__locked, doc(st, 'veda').gone]);
+    const bad = device(st, { guardian: false, url: 'https://orca.vedapatel05.workers.dev/', ls: { th_device_id: 'dev_orca2' } });
+    bad.Beacon.mount('orca', { delay: 999999, profile: 'veda', lockState: async () => { throw new Error('offline'); } });
+    r = await bad.Beacon.checkIn('orca', true);
+    ok('a lockState that fails just reports no lock', r.wrote && doc(st, 'veda').devices.dev_orca2.apps.orca.locks.length === 0, r);
+  }
+
   console.log('\nGuardian.lockDevice (the real Guardian)');
   {
     const w = device(fakeStore(), { guardian: 'real' });
