@@ -22,7 +22,7 @@ export async function getWanted(env) {
 }
 
 export async function postWanted(env, req) {
-  const b = await bodyOf(req);
+  const b = (await bodyOf(req, 8_000)) || {};
   const what = clip(b.what, WHAT_MAX), words = clip(b.words, WORDS_MAX), kind = KINDS.includes(b.kind) ? b.kind : 'control';
   if (!what) throw fail(400, 'what is missing');
   const at = Date.now();
