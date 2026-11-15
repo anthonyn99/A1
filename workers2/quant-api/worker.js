@@ -31,7 +31,8 @@
 //   POST /signals                  { signals }   new signals; one already stored is left as it is
 //   POST /grades                   { grades }    what happened to open signals
 //   GET/PUT /calibration           the setups' measured table (lib/backtest.js)
-//   GET/POST/DELETE /paper         signals followed on paper
+//   GET/POST/DELETE /paper         signals followed on paper (watched ideas)
+//   /paper/…                       paper trading on Alpaca's PAPER account (lib/paper.js: the only order code)
 //   GET/POST /backtests, GET/DELETE /backtests/:id   saved strategy backtests
 //   GET  /dossier?symbol&cik       the ticker dossier's parts (lib/dossier.js; at most 6 provider calls)
 //   GET  /fundamentals?symbols     basic financials for the nightly ideas (at most 25 symbols)
