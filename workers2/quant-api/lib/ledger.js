@@ -27,7 +27,7 @@ export const CAPS = {
   workersai: 150,   // Workers AI's free daily allowance is small
   // Neo Quant's hearing (lib/hear.js): Groq's Whisper has its own allowance (about 2,000 a day), apart from its chat.
   'whisper-groq': 1500,
-  'whisper-workersai': 100,
+  'whisper-workersai': 1000,   // account 3's own allowance (workers3/quant-hear): about 4,000 short clips a day
 };
 export const SKIP_MS = 5 * 60_000;
 export const FAILS_TO_SKIP = 3;
