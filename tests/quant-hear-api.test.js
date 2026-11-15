@@ -93,8 +93,8 @@ const GROQ = 'api.groq.com', FLASH = 'gemini-3.8-flash', LITE = 'gemini-3.5-flas
   P.plan[GROQ] = [{ status: 429, body: { error: { message: 'rate limit' } } }];
   P.plan[FLASH] = [{ body: gemText('What changed?') }];
   r = await call(env, CLIP);
-  ok('Groq refusing, Workers AI not bound: Gemini audio hears it', r.status === 200 && r.body.text === 'What changed?' && r.body.provider === 'gemini' && r.body.model === FLASH, JSON.stringify(r.body));
-  ok('...what was tried says why each rung was passed', r.body.tried.map((t) => t.provider + ':' + t.why).join('|') === 'groq:HTTP 429|workersai:Workers AI is not bound (needs Tony\'s yes)', JSON.stringify(r.body.tried));
+  ok('Groq refusing, Workers AI not set up: Gemini audio hears it', r.status === 200 && r.body.text === 'What changed?' && r.body.provider === 'gemini' && r.body.model === FLASH, JSON.stringify(r.body));
+  ok('...what was tried says why each rung was passed', r.body.tried.map((t) => t.provider + ':' + t.why).join('|') === 'groq:HTTP 429|workersai:Workers AI hearing is not set up (HEAR_URL / HEAR_SECRET)', JSON.stringify(r.body.tried));
   const gb = JSON.parse((P.bodies.find((b) => b.key === FLASH) || {}).body || '{}');
   const parts = (gb.contents || [])[0] ? gb.contents[0].parts : [];
   ok('...Gemini got the audio inline (type without its codec) and the transcribe instruction', parts.some((p) => p.inline_data && p.inline_data.mime_type === 'audio/webm' && p.inline_data.data === CLIP.audio) && /Transcribe/.test(JSON.stringify(gb.systemInstruction)), JSON.stringify(gb).slice(0, 300));
@@ -107,6 +107,25 @@ const GROQ = 'api.groq.com', FLASH = 'gemini-3.8-flash', LITE = 'gemini-3.5-flas
   ok('Groq down, Workers AI bound: Workers AI Whisper hears it', r.status === 200 && r.body.text === 'Debrief me.' && r.body.provider === 'workersai' && P.calls.includes('ai:@cf/openai/whisper-large-v3-turbo') && P.wai.audio === CLIP.audio && /NVDA/.test(P.wai.initial_prompt), JSON.stringify(r.body));
   ok('...each rung counted', (await usage(env))['whisper-groq'] === 1 && (await usage(env))['whisper-workersai'] === 1, JSON.stringify(await usage(env)));
 
+  // Account 3 (A1 workers3/quant-hear): quant-api has no AI binding; it calls the hearing worker with the shared key.
+  const HEAR = 'quant-hear.test.workers.dev';
+  env = await mkEnv({ GROQ_KEY: 'gk', GEMINI_KEY: 'gm', HEAR_URL: 'https://' + HEAR + '/', HEAR_SECRET: 'hs_test_123' }); P.reset();
+  P.plan[GROQ] = [{ status: 500 }];
+  P.plan[HEAR] = [{ body: { ok: true, text: 'What changed?', segments: [{ text: 'What changed?', no_speech_prob: 0.05 }] } }];
+  const seen = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => { if (String(url).includes(HEAR)) seen.push({ url: String(url), key: new Headers(init.headers || {}).get('x-hear-key'), body: JSON.parse(init.body) }); return realFetch(url, init); };
+  r = await call(env, CLIP);
+  globalThis.fetch = realFetch;
+  ok('Groq down: the account 3 hearing worker hears it (Workers AI there, not on quant-api)', r.status === 200 && r.body.text === 'What changed?' && r.body.provider === 'workersai' && !env.AI, JSON.stringify(r.body));
+  ok('...asked at /whisper with the shared key, the clip and the hint (no trailing-slash doubling)', seen.length === 1 && seen[0].url === 'https://' + HEAR + '/whisper' && seen[0].key === 'hs_test_123' && seen[0].body.audio === CLIP.audio && /NVDA/.test(seen[0].body.initial_prompt));
+  env = await mkEnv({ GROQ_KEY: 'gk', GEMINI_KEY: 'gm', HEAR_URL: 'https://' + HEAR, HEAR_SECRET: 'hs_test_123' }); P.reset();
+  P.plan[GROQ] = [{ status: 500 }];
+  P.plan[HEAR] = [{ status: 502, body: { ok: false, error: '4006: daily free allocation of neurons used up' } }];
+  P.plan[FLASH] = [{ body: gemText('Debrief me.') }];
+  r = await call(env, CLIP);
+  ok('...account 3\'s allowance spent: its why is said, and Gemini hears it', r.status === 200 && r.body.provider === 'gemini' && /neurons used up \(HTTP 502\)/.test(r.body.tried[1].why), JSON.stringify(r.body.tried));
+
   env = await mkEnv(); P.reset();
   P.plan[GROQ] = [{ status: 500 }]; P.plan[FLASH] = [{ status: 429, body: '{"error":{"status":"RESOURCE_EXHAUSTED"}}' }]; P.plan[LITE] = [{ status: 503 }];
   r = await call(env, CLIP);
@@ -114,7 +133,7 @@ const GROQ = 'api.groq.com', FLASH = 'gemini-3.8-flash', LITE = 'gemini-3.5-flas
 
   env = await mkEnv({}); P.reset();
   r = await call(env, CLIP);
-  ok('no key for any rung: 503 that says so', r.status === 503 && r.body.tried.map((t) => t.why).join('|') === 'no GROQ_KEY|Workers AI is not bound (needs Tony\'s yes)|no GEMINI_KEY' && P.calls.length === 0, JSON.stringify(r.body));
+  ok('no key for any rung: 503 that says so', r.status === 503 && r.body.tried.map((t) => t.why).join('|') === 'no GROQ_KEY|Workers AI hearing is not set up (HEAR_URL / HEAR_SECRET)|no GEMINI_KEY' && P.calls.length === 0, JSON.stringify(r.body));
 
   env = await mkEnv(); P.reset();
   P.plan[GROQ] = [{ body: { text: 'Thank you.', segments: [{ text: 'Thank you.', no_speech_prob: 0.95 }] } }];
