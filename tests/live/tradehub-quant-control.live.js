@@ -174,6 +174,8 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
     const card = await js(`var c=[...document.querySelectorAll('[data-lay="charts"] .nq-cv-host')].pop(); return c ? JSON.stringify({ halo: !!c.querySelector('.nq-halo'), facts: !!c.querySelector('[data-nq-cv="facts"]'), w: Math.round(c.getBoundingClientRect().width), vw: innerWidth }) : 'null';`).then(JSON.parse);
     ok(`${w} px: a dossier card goes on Charts' grid, marked with a Halo, its facts drawn, inside the screen`, placed && card && card.halo && card.facts && card.w <= card.vw, JSON.stringify(card));
     ok(`${w} px: no sideways scroll`, await noScroll());
+    await js(`var d=document.querySelector('[data-nq-dock]'); if(d && !d.hidden) document.querySelector('[data-nq-close]').click(); var c=[...document.querySelectorAll('[data-lay="charts"] .nq-cv-host')].pop(); if(c) c.scrollIntoView({block:'center'}); 1`);
+    await sleep(300);
     await shot('control-canvas-' + w);
   }
   await size(1504, 900);
