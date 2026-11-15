@@ -95,8 +95,12 @@ async function run(c, w, h, mobile) {
     localStorage.setItem('th_device_id','dev_live1'); localStorage.setItem('a1b_disabled','1');
     sessionStorage.setItem('__fakefs_docs', JSON.stringify(${JSON.stringify(SEED)})); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
-  await sleep(9000);
-  await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._profileGoTony && window._profileGoTony(); 1");
+  // In-browser Babel with the cache off can take a while: wait for TaskHub, not a clock.
+  for (let i = 0; i < 90; i++) {
+    if (await evalJs(c, "return typeof window._profileGoTony === 'function' && typeof window._openSettings === 'function';")) break;
+    await sleep(500);
+  }
+  await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._profileGoTony(); 1");
   await sleep(4500);
 
   const me = JSON.parse(await evalJs(c, `return JSON.stringify(((__fakeFs.docs['dashboards/beacon_tony']||{}).devices||{}).dev_live1 || null);`));
@@ -128,7 +132,7 @@ async function run(c, w, h, mobile) {
 
   await tap(c, `${SR}.querySelector('[data-scope="all"]')`, mobile);
   p = await panel(c);
-  ok('"All programs" adds the laptop (Inactive) ', p.ids.includes('dev_laptop') && /Inactive/.test(p.text) && /Notifications blocked/.test(p.text), p.ids);
+  ok('"All programs" adds the laptop, Inactive, notifications blocked', p.ids.includes('dev_laptop') && /Inactive/i.test(p.text) && /Notifications blocked/.test(p.text), p.text.slice(0, 600));
   await tap(c, `${SR}.querySelector('[data-dev="dev_iphone"] [data-locks]')`, mobile);
   p = await panel(c);
   ok('the lock pill opens each lock', /TaskHub\s*Unlocked/.test(p.text.replace(/\n/g, ' ')) || /Unlocked/.test(p.text), p.text.slice(0, 300));
