@@ -90,7 +90,10 @@ async function load(c, w, h, mobile, keepStorage) {
 }
 // Scroll a thing into the middle of the view before measuring it.
 const see = (c, js) => evalJs(c, `var e=(${js}); if(e) e.scrollIntoView({block:'center'}); 1`).then(() => sleep(300));
+// The phone's tabs live in the drawer (2026-11-15): open it first.
+const openDrawer = async (c) => { await evalJs(c, "var m=document.querySelector('.tb-mobile-header'); if(m&&!m.classList.contains('is-open')) document.querySelector('.tb-mtop-burger').click(); 1"); await sleep(400); };
 async function goTo(c, scope, id) {
+  if (scope === MOB) await openDrawer(c);
   const r = await rect(c, tab(scope, id));
   if (r) await click(c, r.x, r.y);
   await sleep(600);
@@ -159,7 +162,7 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('wordmark is #dbd0f5', (await css(c, '.tb-desktop-header .suite-title', 'color')) === 'rgb(219, 208, 245)');
   ok('no Fraunces / DM fonts loaded', (await evalJs(c, "return [...document.querySelectorAll('link[href*=\"fonts.googleapis\"]')].map(l=>l.href).join(' ');")).search(/Fraunces|DM\+Sans|Bebas/) < 0);
   ok('body is data-hoverfx="magi"', (await evalJs(c, "return document.body.dataset.hoverfx;")) === 'magi');
-  // Centred pill bar since 2026-11-06: the active tab is a purple-tinted pill, purple label.
+  // The sidebar since 2026-11-15 (a pill bar before): the active tab is purple-tinted, purple label.
   ok('active tab is a purple pill', (await evalJs(c, `var e=${tab(DESK, 'portfolio')}; return e.classList.contains('active') && getComputedStyle(e).color==='rgb(192, 174, 234)';`)));
   ok('Connect button: solid purple, dark label, no halo', await evalJs(c, `var b=[...document.querySelectorAll('button')].find(b=>/Connect to Webull/.test(b.textContent)); if(!b) return false; var s=getComputedStyle(b); return s.backgroundColor==='rgb(192, 174, 234)'&&s.color==='rgb(26, 26, 29)'&&s.boxShadow==='none';`));
   const pb = await rect(c, tab(DESK, 'journal'));
@@ -175,33 +178,35 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('seven tabs', t0.length === 7, JSON.stringify(t0));
   ok('tabs are a dsort list', await evalJs(c, "return document.querySelector('.tb-desktop-header nav').classList.contains('dsort');"));
   const a = await rect(c, tab(DESK, 'journal')), b = await rect(c, tab(DESK, 'playbook'));
-  await mouseDrag(c, a.x, a.y, b.right - a.x - 4, 0);
+  // The tabs are a vertical list in the sidebar since 2026-11-15.
+  await mouseDrag(c, a.x, a.y, 0, b.bottom - a.y - 4);
   const t1 = await tabs(c, DESK);
   const want = t0.filter((x) => x !== 'journal'); want.splice(want.indexOf('playbook') + 1, 0, 'journal');
   ok('mouse drag moves Journal after Playbook', JSON.stringify(t1) === JSON.stringify(want), JSON.stringify(t1));
   ok('order saved (tb_nav_order_v1)', JSON.stringify(await savedNav(c)) === JSON.stringify(want), JSON.stringify(await savedNav(c)));
   ok('the drop did not navigate', (await evalJs(c, `var e=${tab(DESK, 'portfolio')}; return e.classList.contains('active') && getComputedStyle(e).color==='rgb(192, 174, 234)';`)));
-  ok('phone tabs follow the new order', JSON.stringify(await tabs(c, MOB)) === JSON.stringify(want));
+  ok('phone tabs (the drawer) follow the new order', JSON.stringify(await tabs(c, MOB)) === JSON.stringify(want));
   const n = await rect(c, tab(DESK, 'news'));
   await click(c, n.x, n.y);
   ok('a plain click navigates', (await evalJs(c, `var e=${tab(DESK, 'news')}; return e.classList.contains('active') && getComputedStyle(e).color==='rgb(192, 174, 234)';`)));
   // Opening a tab never moves anything in the header (the bold label is reserved).
-  const geo = () => evalJs(c, `return [...document.querySelectorAll('${DESK} .tb-navtab, ${DESK} .tb-snav')].map(e=>{var r=e.getBoundingClientRect();return r.left.toFixed(2)+'/'+r.width.toFixed(2);}).join(',');`);
+  const geo = () => evalJs(c, `return [...document.querySelectorAll('${DESK} .tb-navtab, ${DESK} .tb-snav')].map(e=>{var r=e.getBoundingClientRect();return r.left.toFixed(2)+'/'+r.top.toFixed(2)+'/'+r.width.toFixed(2)+'/'+r.height.toFixed(2);}).join(',');`);
   const g0 = await geo(); let moved = null;
   for (const id of await tabs(c, DESK)) { await evalJs(c, `${tab(DESK, id)}.click(); return 1;`); await sleep(400); if ((await geo()) !== g0) { moved = id; break; } }
-  ok('opening any tab never shifts the header', !moved, moved);
+  ok('opening any tab never shifts the sidebar', !moved, moved);
   await load(c, 1440, 900, false, true);
   ok('reload keeps the order', JSON.stringify(await tabs(c, DESK)) === JSON.stringify(want));
 
   // ── 3. phone tab drag ────────────────────────────────────────────────────
   console.log('phone tabs');
   await load(c, 400, 860, true);
+  await openDrawer(c);
   const m0 = await tabs(c, MOB);
   const ma = await rect(c, tab(MOB, 'journal')), mb = await rect(c, tab(MOB, 'catalysts'));
-  await touchDrag(c, ma.x, ma.y, mb.right - ma.x - 4, 0, 0);
-  ok('a quick swipe does not reorder', JSON.stringify(await tabs(c, MOB)) === JSON.stringify(m0), JSON.stringify(await tabs(c, MOB)));
+  await touchDrag(c, ma.x, ma.y, 0, mb.bottom - ma.y - 4, 0);
+  ok('a quick swipe does not reorder (it scrolls the drawer)', JSON.stringify(await tabs(c, MOB)) === JSON.stringify(m0), JSON.stringify(await tabs(c, MOB)));
   const ma2 = await rect(c, tab(MOB, 'journal')), mb2 = await rect(c, tab(MOB, 'catalysts'));
-  await touchDrag(c, ma2.x, ma2.y, mb2.right - ma2.x - 4, 0, 420);
+  await touchDrag(c, ma2.x, ma2.y, 0, mb2.bottom - ma2.y - 4, 420);
   const m1 = await tabs(c, MOB);
   const mwant = m0.filter((x) => x !== 'journal'); mwant.splice(mwant.indexOf('catalysts') + 1, 0, 'journal');
   ok('a held finger drags Journal after Catalysts', JSON.stringify(m1) === JSON.stringify(mwant), JSON.stringify(m1));
