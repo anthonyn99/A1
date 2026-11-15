@@ -96,6 +96,35 @@ function autoReply(body) {
   const g = facts.find((x) => x.pack === 'market' && x !== f);
   return `VERDICT: WATCH. The engine has no GO here yet [${f ? f.id : 'F1'}].\nWHY: ${f ? f.text + ' [' + f.id + ']' : 'No facts.'}${g ? '\n' + g.text + ' [' + g.id + ']' : ''}\nRISK: The setup can fail at the open.\nWATCH: A close back above the first resistance.`;
 }
+/* ── Phase 9C: quant-api's paper routes (lib/paper.js), Alpaca paper played here ── */
+function paperRoutes(pp, posted, req, u, p) {
+  const m = req.method, body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
+  (posted.pp = posted.pp || []).push([m, p, m === 'GET' ? null : body()]);
+  if (p === '/paper/account' && m === 'GET') return { json: { ok: true, paper: true, kill: pp.kill, account: pp.account, clock: { is_open: true, next_open: '2026-11-16T09:30:00-05:00' } } };
+  if (p === '/paper/positions' && m === 'GET') return { json: { ok: true, paper: true, positions: pp.positions } };
+  if (p === '/paper/orders' && m === 'GET') return { json: { ok: true, paper: true, orders: u.searchParams.get('status') === 'closed' ? pp.closed : pp.orders } };
+  if (p === '/paper/activities' && m === 'GET') return { json: { ok: true, fills: pp.fills } };
+  if (p === '/paper/log' && m === 'GET') return { json: { ok: true, orders: pp.log } };
+  if (p === '/paper/runs' && m === 'GET') return { json: { ok: true, runs: pp.runs } };
+  if (p === '/paper/orders' && m === 'POST') {
+    const b = body();
+    if (pp.kill && !b.closing) return { status: 422, json: { ok: false, error: 'the kill switch is on: only closing orders and cancels go out' } };
+    const id = 'ord' + (pp.next++), o = { id, status: 'accepted', submitted_at: new Date(CLOCK).toISOString(), ...b.order };
+    pp.orders.unshift(o);
+    pp.log.unshift({ id: 'c' + id, at: CLOCK, who: b.who, reason: b.reason || null, symbol: o.symbol, side: o.side, type: o.type, qty: o.qty, body: b.order, status: 'accepted', alpaca_id: id, run: b.run || null });
+    return { json: { ok: true, paper: true, order: o } };
+  }
+  const o = /^\/paper\/orders\/([\w-]+)$/.exec(p);
+  if (o && m === 'DELETE') { const x = pp.orders.find((y) => y.id === o[1]); pp.orders = pp.orders.filter((y) => y.id !== o[1]); if (x) pp.closed.unshift({ ...x, status: 'canceled' }); return { json: { ok: true, canceled: o[1] } }; }
+  if (o && m === 'PATCH') { const x = pp.orders.find((y) => y.id === o[1]); Object.assign(x, body()); return { json: { ok: true, order: x } }; }
+  const ps = /^\/paper\/positions\/([A-Z.]+)$/.exec(p);
+  if (ps && m === 'DELETE') { pp.positions = pp.positions.filter((y) => y.symbol !== ps[1]); return { json: { ok: true, order: { symbol: ps[1] } } }; }
+  if (p === '/paper/kill' && m === 'POST') { const b = body(); pp.kill = b.on !== false; let n = 0; if (pp.kill) { n = pp.orders.length; pp.closed.unshift(...pp.orders.map((x) => ({ ...x, status: 'canceled' }))); pp.orders = []; pp.runs.forEach((r) => { if (r.state === 'running') r.state = 'paused'; }); } return { json: { ok: true, kill: pp.kill, canceled: n } }; }
+  if (p === '/paper/runs' && m === 'POST') { const b = body(), run = { id: 'rlive' + (pp.next++) + 'x', name: b.name, created: CLOCK - 30 * 86400000, spec: b.spec, capital: b.capital, limits: { maxPositions: 5, maxPositionPct: 20, maxOrdersDay: 20, dailyLossPct: 3, maxDrawdownPct: 15, ...(b.limits || {}) }, state: 'running', by: b.who || 'tony', equity: [], stats: null }; pp.runs.unshift(run); return { json: { ok: true, run } }; }
+  const rn = /^\/paper\/runs\/([\w]+)$/.exec(p);
+  if (rn && m === 'PATCH') { const b = body(), r = pp.runs.find((x) => x.id === rn[1]); if (b.state) r.state = b.state; return { json: { ok: true, run: r } }; }
+  return null;
+}
 function aiRoutes(state, posted, req, u, p) {
   const body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
   if ((p === '/ai/chat' || p === '/ai/gemini') && req.method === 'POST') {
@@ -156,7 +185,10 @@ function quantApi() {
     // Phase 8: memory cards, conversations ({ id, title, created, pinned, turns: [] }), Drive.
     cards: [], convs: [], drive: { configured: true, connected: false, email: null, files: [] },
     // Phase 9: Neo Quant's planned answers, the stored brief, the snapshot before (What changed?), the browser units.
-    ai: { plan: [], brief: null }, prevSnapshot: null, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
+    ai: { plan: [], brief: null }, prevSnapshot: null,
+    // Phase 9C: quant-api's /paper/… over Alpaca paper, played here.
+    pp: { kill: false, account: { equity: 100000, last_equity: 99600, cash: 98000, buying_power: 392000, daytrade_count: 0 }, positions: [{ symbol: 'NVDA', qty: 10, side: 'long', avg: 160, price: 164, value: 1640, pnl: 40, pnlPct: 0.025, dayPnl: 12 }],
+      orders: [], closed: [], log: [], runs: [], fills: [], next: 1 }, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*', 'https://orca.vedapatel05.workers.dev/*'],
     handle(req) {
@@ -193,6 +225,7 @@ function quantApi() {
       if (p === '/signals' && req.method === 'POST') { const b = JSON.parse(req.postData); (posted.signals = posted.signals || []).push(b); for (const x of b.signals) if (!state.signals.some((y) => y.id === x.id)) state.signals.push({ ...x, done: false }); return { json: { ok: true, sent: b.signals.length } }; }
       // Phase 6: calibration, paper trades, saved backtests.
       if (p === '/calibration' && req.method === 'GET') return { json: { ok: true, calibration: state.calibration } };
+      if (p.startsWith('/paper/')) { const r = paperRoutes(state.pp, posted, req, u, p); if (r) return r; }
       if (p === '/paper' && req.method === 'GET') return { json: { ok: true, paper: state.paper } };
       if (p === '/paper' && req.method === 'POST') { const s = JSON.parse(req.postData).signal; (posted.paper = posted.paper || []).push(s); if (!state.paper.some((x) => x.id === s.id)) state.paper.unshift({ ...s, followed: CLOCK, paper: true }); return { json: { ok: true, id: s.id } }; }
       if (p === '/paper' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.paper = state.paper.filter((x) => x.id !== id); return { json: { ok: true } }; }
