@@ -121,7 +121,7 @@ export async function getTurnsSince(env, url) {
 export async function getConversation(env, id) {
   const conv = await guarded(env.DB.prepare('SELECT * FROM history WHERE id = ?').bind(id).first());
   if (!conv) throw fail(404, 'no such conversation');
-  const turns = (await env.DB.prepare('SELECT * FROM history_turns WHERE conv = ? ORDER BY at ASC, id ASC').bind(id).all()).results || [];
+  const turns = (await env.DB.prepare('SELECT * FROM history_turns WHERE conv = ? ORDER BY at ASC, rowid ASC').bind(id).all()).results || [];
   return json({ ok: true, conversation: { id: conv.id, title: conv.title, created: conv.created, pinned: !!conv.pinned },
     turns: turns.map((t) => ({ id: t.id, at: t.at, role: t.role, text: t.text, verdict: t.verdict, facts: parse(t.facts, []), tickers: parse(t.tickers, []), mode: t.mode, model: t.model })) });
 }

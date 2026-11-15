@@ -77,7 +77,7 @@ export async function historyOld(env, url) {
   const convs = (await env.DB.prepare('SELECT h.*, COALESCE(MAX(t.at), h.created) AS updated FROM history h LEFT JOIN history_turns t ON t.conv = h.id '
     + 'WHERE h.pinned = 0 GROUP BY h.id HAVING COALESCE(MAX(t.at), h.created) < ? ORDER BY updated ASC LIMIT ?').bind(cut, HISTORY_OLD_MAX).all()).results || [];
   if (!convs.length) return json({ ok: true, conversations: [], before: cut, more: false });
-  const turns = (await env.DB.prepare('SELECT * FROM history_turns WHERE conv IN (SELECT value FROM json_each(?)) ORDER BY at ASC').bind(JSON.stringify(convs.map((c) => c.id))).all()).results || [];
+  const turns = (await env.DB.prepare('SELECT * FROM history_turns WHERE conv IN (SELECT value FROM json_each(?)) ORDER BY at ASC, rowid ASC').bind(JSON.stringify(convs.map((c) => c.id))).all()).results || [];
   const by = {};
   for (const t of turns) (by[t.conv] = by[t.conv] || []).push(t);
   return json({ ok: true, conversations: convs.map((c) => ({ ...c, turns: by[c.id] || [] })), before: cut, more: convs.length === HISTORY_OLD_MAX });
