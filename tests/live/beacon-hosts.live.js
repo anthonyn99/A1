@@ -27,13 +27,13 @@ const shot = async (c, name) => {
 // page, app, the profile to use, how to choose it, how to press the program's button.
 const HOSTS = [
   { page: 'mylist.html', app: 'mylist', who: 'veda',
-    choose: "chooseProfile('veda'); 1",
+    choose: "ML.chooseProfile('veda'); 1",
     press: "document.getElementById('devices-btn').click(); 1" },
   { page: 'magi.html', app: 'magi', who: 'tony',
     choose: "1",
     press: "document.getElementById('devBtn').click(); 1" },
   { page: 'shield.html', app: 'shield', who: 'tony',
-    choose: "enterProfile('tony'); 1",
+    choose: "document.getElementById('pf-t').click(); 1",
     press: "(function(){ var b=[].slice.call(document.querySelectorAll('[data-view=\"devices\"]'))[0]; if(b) b.click(); })(); 1",
     press2: "var x=document.getElementById('a-beacon'); if(!x) throw new Error('no All A1 devices button'); x.click(); 1" },
   { page: 'shruti.html', app: 'shruti', who: 'tony', pick: "sessionStorage.setItem('shruti.pick','tony');",
