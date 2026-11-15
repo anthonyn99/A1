@@ -140,6 +140,9 @@
       if (token && window._fbSaveFcmToken) {
         await window._fbSaveFcmToken(token);
         _fcmReady = true;
+        // Beacon (A1 Beacon/beacon.js) lists this device under StudyOS by it.
+        window._sosPushToken = token;
+        try { if (window.Beacon) window.Beacon.refresh('studyos'); } catch (e) {}
       }
       // Foreground messages don't auto-display — show them ourselves.
       msgMod.onMessage(messaging, function (payload) {
