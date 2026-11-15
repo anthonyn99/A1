@@ -108,7 +108,7 @@ var CSS = [
 /* Sections */
 '.sec{padding-top:20px}',
 '.sh{display:flex;align-items:center;gap:10px;margin:0 4px 9px;min-height:22px}',
-'.st{font:700 10.5px/1 var(--f);letter-spacing:1.3px;text-transform:uppercase;color:var(--txm)}',
+'.st{white-space:nowrap;font:700 10.5px/1 var(--f);letter-spacing:1.3px;text-transform:uppercase;color:var(--txm)}',
 '.sn{font:400 12px/1.4 var(--f);color:var(--txm)}',
 '.sh .sp{flex:1}',
 '.lnk{border:0;background:none;padding:4px 2px;font:600 12px/1 var(--f);color:var(--acl);cursor:pointer;white-space:nowrap}',
@@ -215,6 +215,7 @@ var CSS = [
 '  input{min-height:46px;font-size:16px}',
 '  .kinds button{min-height:42px;flex:1;justify-content:center}',
 '  .lnk{padding:10px 4px}',
+'  .sh{flex-wrap:wrap;row-gap:4px}.sh .sn{order:3;flex-basis:100%}',
 '}',
 '@media (pointer:coarse){.g{width:28px;height:28px}}'
 ].join('\n');
@@ -587,7 +588,7 @@ function row(d) {
     '<span class="dic">' + kindIcon(d) + (active ? '<i class="live" title="Active now"></i>' : '') + '</span>' +
     '<span class="dt"><span class="dn"><span class="nm">' + esc(devName(d)) + '</span>' +
       (me ? '<span class="tag">This device</span>' : '') + (stale && d.owner === 'neutral' ? '<span class="tag n">Neutral</span>' : '') + '</span>' +
-    '<span class="dm" title="' + esc(d.seen ? 'Last active ' + fullTime(d.seen) : '') + '">' + esc(sub) + (sub && when ? ' · ' : '') + when + '</span></span>' +
+    '<span class="dm" title="' + esc(d.seen ? 'Last active ' + fullTime(d.seen) : '') + '">' + when + (sub && when ? ' · ' : '') + esc(sub) + '</span></span>' +
     '<span class="gl">' + glyphs(rows) + '</span><span class="cv">' + I.chev + '</span></button>';
   if (open) h += details(d, rows, me);
   return h + '</div>';
