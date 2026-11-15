@@ -140,6 +140,8 @@ async function route(req, env, url, ctx) {
   if (p === '/paper' && m === 'GET') return getPaper(env);
   if (p === '/paper' && m === 'POST') return postPaper(env, req);
   if (p === '/paper' && m === 'DELETE') return deletePaper(env, url);
+  // Paper trading (Phase 9C, lib/paper.js): the only order code, Alpaca PAPER only.
+  if (p.startsWith('/paper/')) return paperRoute(req, env, url, p, m);
   if (p === '/backtests' && m === 'GET') return listBacktests(env);
   if (p === '/backtests' && m === 'POST') return postBacktest(env, req);
   if (p === '/dossier' && m === 'GET') return getDossier(env, url, ctx, later);
