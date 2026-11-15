@@ -139,8 +139,27 @@ function aiRoutes(state, posted, req, u, p) {
   if (p === '/brief' && req.method === 'GET') return { json: { ok: true, brief: state.ai.brief } };
   if (p === '/brief' && req.method === 'POST') { const b = body(); (posted.briefs = posted.briefs || []).push(b); if (b.kind === 'daily') state.ai.brief = { day: b.day, kind: b.kind, at: CLOCK, ...b.body }; return { json: { ok: true } }; }
   if (p === '/ai/models') return { json: { ok: true, keys: { groq: true, gemini: true }, models: [], evals: [], bar: { numeric: 0.85, verdict: 0.8 } } };
+  // Phase 10: hearing. state.ai.heard = the transcript (a list: used in order, the last repeats), or { fail: tried }.
+  if (p === '/ai/hear' && req.method === 'POST') {
+    const b = body() || {};
+    (posted.hear = posted.hear || []).push({ mime: b.mime, bytes: Math.floor(String(b.audio || '').length * 3 / 4), watchlist: b.watchlist });
+    const list = state.ai.heard || ['Is NVDA a buy here?'];
+    const next = list.length > 1 ? list.shift() : list[0];
+    if (next && next.fail) return { status: 503, json: { ok: false, error: 'nothing could transcribe that', tried: next.fail } };
+    return { json: { ok: true, text: next, provider: 'groq', model: 'whisper-large-v3-turbo', ms: 420, tried: [] } };
+  }
   return null;
 }
+/** A short quiet tone as WAV (what the fake ORCA speaks): `sec` seconds at 16 kHz. */
+function toneWav(sec) {
+  const n = Math.floor(16000 * sec), b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12);
+  b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28);
+  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin(i * 2 * Math.PI * 220 / 16000) * 1500), 44 + i * 2);
+  return b;
+}
+const TONE = toneWav(0.45).toString('base64');
 
 /** Phase 8's routes over `state` (memory cards, conversations, Drive), or null for another path. */
 function memoryRoutes(state, posted, req, u, p) {
@@ -199,6 +218,8 @@ function quantApi() {
         (posted.orca = posted.orca || []).push({ p: ou.pathname, method: req.method, body: req.postData || null });
         if (ou.pathname === '/v1/models') return { json: { object: 'list', data: state.orca.models } };
         if (ou.pathname === '/v1/chat/completions') return { json: { choices: [{ message: { content: 'VERDICT: WAIT. From a browser unit.\nWHY: Nothing more to add.' } }] } };
+        // Phase 10: the voice (Edge with word timings; Aura without).
+        if (ou.pathname === '/v1/audio/speech') { const b = JSON.parse(req.postData || '{}'), w = String(b.input || '').split(/\s+/).filter(Boolean); return { json: { format: 'mp3', engine: b.model === 'aura' ? 'aura' : 'edge', voice: b.voice, words: b.model === 'aura' ? null : w.map((x, i) => [i * 0.04, 0.04, x]), audio: TONE } }; }
         return { status: 404, json: {} };
       }
       if (!req.url.includes('quant-api')) return { json: { ok: true } };
