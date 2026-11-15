@@ -4663,12 +4663,16 @@ export function igWhy(status, body) {
   if (status === 403) return 'expired';
   return 'unavailable';
 }
+// Since ~2026-11-15 Instagram answers its web API with the HTML app shell
+// (200, text/html) unless the request carries what Instagram's own page sends
+// with it; with these it answers JSON again (probed live with Tony's session).
+const IG_WEB_HDR = { 'X-ASBD-ID': '129477', 'X-IG-WWW-Claim': '0', 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty' };
 async function igApi(path, s) {
   let r;
   try {
     r = await fetch('https://www.instagram.com/api/v1/' + path, { redirect: 'manual', headers: {
       'User-Agent': YT_UA, Accept: '*/*', 'Accept-Language': 'en-US,en;q=0.9', Referer: 'https://www.instagram.com/',
-      'X-IG-App-ID': IG_APP_ID, 'X-Requested-With': 'XMLHttpRequest',
+      'X-IG-App-ID': IG_APP_ID, 'X-Requested-With': 'XMLHttpRequest', ...IG_WEB_HDR,
       Cookie: 'sessionid=' + encodeURIComponent(s.sid) + '; ds_user_id=' + s.uid } });
   } catch (e) { return { why: 'unreachable' }; }
   const text = await r.text().catch(() => '');
@@ -4679,28 +4683,6 @@ async function igApi(path, s) {
   try { said.msg = String(JSON.parse(text).message || '').slice(0, 120); } catch (e) {}
   if (r.status !== 200) return { why: igWhy(r.status, text), said };
   try { return { j: JSON.parse(text) }; } catch (e) { return { why: 'expired', said }; }   // an HTML page here is the login page
-}
-// TEMP (2026-11-15): which read-only routes still answer JSON for this session.
-async function igProbe(s) {
-  const extra = { 'X-ASBD-ID': '129477', 'X-IG-WWW-Claim': '0', 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty' };
-  const routes = [
-    ['www', 'https://www.instagram.com/api/v1/feed/saved/posts/', {}],
-    ['www+hdr', 'https://www.instagram.com/api/v1/feed/saved/posts/', extra],
-    ['i', 'https://i.instagram.com/api/v1/feed/saved/posts/', {}],
-    ['all', 'https://www.instagram.com/api/v1/feed/saved/all/', {}],
-    ['colls', 'https://www.instagram.com/api/v1/collections/list/', {}],
-    ['me', 'https://www.instagram.com/api/v1/accounts/current_user/?edit=true', {}],
-    ['web', 'https://www.instagram.com/api/v1/web/accounts/edit/', {}],
-  ];
-  return Promise.all(routes.map(async ([n, u, h]) => {
-    try {
-      const r = await fetch(u, { redirect: 'manual', headers: Object.assign({ 'User-Agent': YT_UA, Accept: '*/*', 'Accept-Language': 'en-US,en;q=0.9', Referer: 'https://www.instagram.com/',
-        'X-IG-App-ID': IG_APP_ID, 'X-Requested-With': 'XMLHttpRequest', Cookie: 'sessionid=' + encodeURIComponent(s.sid) + '; ds_user_id=' + s.uid }, h) });
-      const t = await r.text(); let k = '';
-      try { const j = JSON.parse(t); k = Object.keys(j).slice(0, 8).join(',') + '|' + String(j.status || '') + '|' + String(j.message || '').slice(0, 60); } catch (e) { k = 'non-json ' + t.length; }
-      return n + ' ' + r.status + ' ' + String(r.headers.get('location') || '').replace(/[?#].*$/, '') + ' ' + k;
-    } catch (e) { return n + ' err'; }
-  }));
 }
 async function igSess(env, key) {
   if (!env.TOKEN_CACHE) return { why: 'no-kv' };
@@ -4716,7 +4698,7 @@ async function handleIgConnect(body, env) {
   let old = null; try { old = await env.TOKEN_CACHE.get(IG_SESS_KEY, 'json'); } catch (e) {}
   if (old && old.uid && old.uid !== p.uid && (await sha256(String((body && body.key) || ''))) !== old.kh) return json({ ok: false, error: 'other-account' }, 403);
   const t = await igApi('feed/saved/posts/', p);
-  if (!t.j) { console.log('ig/connect refused', JSON.stringify(t.said || {})); console.log('ig/probe', JSON.stringify(await igProbe(p))); return json({ ok: false, error: t.why, said: t.said }); }
+  if (!t.j) { console.log('ig/connect refused', JSON.stringify(t.said || {})); return json({ ok: false, error: t.why, said: t.said }); }
   const key = b64u(crypto.getRandomValues(new Uint8Array(24)));
   await env.TOKEN_CACHE.put(IG_SESS_KEY, JSON.stringify({ sid: p.sid, uid: p.uid, kh: await sha256(key), at: Date.now() }));
   return json({ ok: true, key });
