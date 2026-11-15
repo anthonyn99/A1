@@ -203,8 +203,7 @@ async function run(c, w, h, mobile) {
   if (!only || only === 390) await run(c, 390, 844, true);
   const mine = errs.filter((e) => /beacon|Beacon/.test(e));
   ok('no page errors from Beacon', !mine.length, mine.join(' | '));
+  if (fail) console.log('\nPage exceptions:\n' + errs.slice(0, 20).join('\n'));
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
-})().catch((e) => { console.error(e); console.log('Page exceptions:
-' + (global.__errs || []).slice(0, 20).join('
-')); process.exit(1); });
+})().catch((e) => { console.error(e); console.log('Page exceptions:\n' + (global.__errs || []).slice(0, 20).join('\n')); process.exit(1); });
