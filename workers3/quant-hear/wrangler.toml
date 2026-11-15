@@ -1,0 +1,13 @@
+name = "quant-hear"
+# Neo Quant's hearing backup (worker.js): Workers AI Whisper on Cloudflare
+# "Anthony Account 3", called only by quant-api (account 2, lib/hear.js).
+# Deploys via .github/workflows/deploy-workers3.yml; no account_id here on purpose.
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Workers AI: this account's own free allowance (10,000 neurons a day).
+[ai]
+binding = "AI"
+
+# Secret (wrangler secret put HEAR_SECRET, with CLOUDFLARE_ACCOUNT_ID = account 3):
+#   HEAR_SECRET   the shared key quant-api sends (x-hear-key); the same value is quant-api's HEAR_SECRET.
