@@ -82,7 +82,7 @@ const panel = (c) => evalJs(c, `const R=${SR}; if(!R) return 'null';
     rect: { l: b.left, r: b.right, t: b.top, btm: b.bottom, w: b.width },
     vw: innerWidth, vh: innerHeight,
     spill: Math.max(sheet.scrollWidth - sheet.clientWidth, body.scrollWidth - body.clientWidth),
-    cardSpill: cards.map(x=>{ const r=x.getBoundingClientRect(); const e=[...x.querySelectorAll('*')].find(e=>{ const q=e.getBoundingClientRect(); return q.width && (q.right>r.right+1 || q.left<r.left-1); }); return e ? x.getAttribute('data-dev')+':'+(e.className.baseVal!==undefined?'svg':e.className||e.tagName)+':'+Math.round(e.getBoundingClientRect().right-r.right) : ''; }).filter(Boolean).join(' ') || false,
+    cardSpill: cards.map(x=>{ const r=x.getBoundingClientRect(); const clipped=(e)=>{ for(let a=e.parentElement; a && a!==x; a=a.parentElement){ if(getComputedStyle(a).overflow!=='visible'){ const q=a.getBoundingClientRect(); if(q.right<=r.right+1 && q.left>=r.left-1) return true; } } return false; }; const e=[...x.querySelectorAll('*')].find(e=>{ const q=e.getBoundingClientRect(); return q.width && (q.right>r.right+1 || q.left<r.left-1) && !clipped(e); }); return e ? x.getAttribute('data-dev')+':'+(e.className.baseVal!==undefined?'svg':e.className||e.tagName)+':'+Math.round(e.getBoundingClientRect().right-r.right) : ''; }).filter(Boolean).join(' ') || false,
     actH: acts ? acts.getBoundingClientRect().height : 0,
     font: getComputedStyle(R.querySelector('h2')).fontFamily });`).then(JSON.parse);
 
