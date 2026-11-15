@@ -10,7 +10,7 @@
 //   3. Save (one write), reload, the saved run back, Open, Compare
 //   4. Cancel stops a run; Duplicate
 //   5. 1280, 820 and 390 px: no sideways scroll, charts drawn
-//   6. Scorecard with the measured table; Follow on paper and the Paper view
+//   6. Scorecard with the measured table; Watch as an idea (Phase 6's Follow on paper) and the watched ideas
 //   7. no main-thread task over 50 ms during a run; no uncaught error
 //
 // Run: node tests/live/tradehub-quant-backtest.live.js   (SHOTS_DIR=… for screenshots)
@@ -153,7 +153,7 @@ const SPEC = { v: 1, name: 'Live dip', horizon: 'swing', universe: { symbols: ['
   await js(`document.querySelector('[data-sc-sig="sgo00001"]').click(); return 1;`);
   await until(`document.querySelector('[data-sc-follow]')`, 8000);
   await js(`document.querySelector('[data-sc-follow]').click(); return 1;`);
-  ok('"Follow on paper" is one write, then says it is on paper', await until(`document.querySelector('[data-sc-follow]').textContent === 'On paper'`, 5000) && asked('/paper', 'POST') === 1 && api.posted.paper[0].id === 'sgo00001');
+  ok('"Watch as an idea" is one write, then says it is watched', await until(`document.querySelector('[data-sc-follow]').textContent === 'Watched'`, 5000) && asked('/paper', 'POST') === 1 && api.posted.paper[0].id === 'sgo00001');
   await js(`document.querySelector('[data-tkp-close]').click(); return 1;`);
   await js(`document.querySelector('[data-sc-view="paper"]').click(); return 1;`);
   ok('the Paper view lists it, graded like any signal', await until(`document.querySelector('[data-sc-prow="sgo00001"]')`, 5000));
