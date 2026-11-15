@@ -51,6 +51,7 @@ const fakeFetch = async (url, init = {}) => {
   if (p === '/v2/account') return res({ status: 'ACTIVE', currency: 'USD', equity: '100000', last_equity: '99500', cash: '100000', buying_power: '400000', long_market_value: '0', short_market_value: '0', pattern_day_trader: false, daytrade_count: 0, shorting_enabled: true, trading_blocked: false, multiplier: '4' });
   if (p === '/v2/clock') return res({ is_open: false, next_open: '2026-11-16T09:30:00-05:00' });
   if (p === '/v2/positions' && method === 'GET') return res([{ symbol: 'NVDA', qty: '10', side: 'long', avg_entry_price: '100', current_price: '104', market_value: '1040', unrealized_pl: '40', unrealized_plpc: '0.04', unrealized_intraday_pl: '12' }]);
+  if (p.startsWith('/v2/positions/') && method === 'GET') { const sym = p.split('/').pop(); return sym === 'NVDA' ? res({ symbol: 'NVDA', qty: '10', side: 'long' }) : res({ message: 'position does not exist' }, 404); }
   if (p.startsWith('/v2/positions/') && method === 'DELETE') return res({ id: 'close' + (A.next++), symbol: p.split('/').pop(), side: 'sell', type: 'market', status: 'accepted' });
   if (p === '/v2/orders' && method === 'POST') {
     const b = JSON.parse(init.body);
@@ -62,6 +63,7 @@ const fakeFetch = async (url, init = {}) => {
   if (p === '/v2/orders' && method === 'GET') return res([...A.orders.values()].filter((o) => o.status !== 'canceled'));
   if (p === '/v2/orders' && method === 'DELETE') { const n = [...A.orders.values()].filter((o) => o.status !== 'canceled'); n.forEach((o) => { o.status = 'canceled'; }); return res(n.map((o) => ({ id: o.id, status: 200 })), 207); }
   const m = /^\/v2\/orders\/([\w-]+)$/.exec(p);
+  if (m && method === 'GET') { const o = A.orders.get(m[1]); return o ? res(o) : res({ message: 'order not found' }, 404); }
   if (m && method === 'PATCH') { const o = A.orders.get(m[1]); if (!o) return res({ message: 'order not found' }, 404); Object.assign(o, JSON.parse(init.body)); return res(o); }
   if (m && method === 'DELETE') { const o = A.orders.get(m[1]); if (!o) return res({ message: 'order not found' }, 404); o.status = 'canceled'; return new Response(null, { status: 204 }); }
   if (p === '/v2/account/activities/FILL') return res([{ id: 'act1', transaction_time: '2026-11-16T14:30:01Z', order_id: 'a1', symbol: 'NVDA', side: 'buy', qty: '10', price: '100.5', type: 'fill' }]);
@@ -118,8 +120,12 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
 
   console.log('\nReplace, cancel, close');
   const id = r.body.order.id;
-  r = await tryCall(() => P.replace(env, req({ limit_price: 99.5, who: 'tony' }, 'PATCH'), id));
+  r = await tryCall(() => P.replace(env, req({ limit_price: 99.5, who: 'tony' }, 'PATCH'), id, { priceOf: async () => 101 }));
   ok('replace: the new limit at Alpaca, logged', r.ok && A.orders.get(id).limit_price === '99.5' && env.DB.sql.prepare("SELECT COUNT(*) AS n FROM paper_orders WHERE status = 'replaced'").get().n === 1);
+  r = await tryCall(() => P.replace(env, req({ qty: 100000, who: 'tony' }, 'PATCH'), id, { priceOf: async () => 101 }));
+  ok('a change is checked as the order it becomes: 100,000 shares is over 25% of the account', !r.ok && /25%/.test(r.error) && A.orders.get(id).qty === 10);
+  r = await tryCall(() => P.replace(env, req({ limit_price: 99 }, 'PATCH'), id, { priceOf: async () => 101 }));
+  ok('...and a change with no author is refused (never taken as Tony\'s)', !r.ok && r.status === 400 && /who/.test(r.error));
   r = await tryCall(() => P.cancel(env, id));
   ok('cancel: canceled at Alpaca and in the log', r.ok && A.orders.get(id).status === 'canceled');
   r = await tryCall(() => P.closePosition(env, 'NVDA'));
@@ -155,12 +161,32 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
   r = await tryCall(() => P.place(env, req({ order: { ...order, limit_price: 96 }, who: 'tony' }), { priceOf: async () => 101 }));
   ok('...then a new order is refused', !r.ok && /kill switch/.test(r.error));
   r = await tryCall(() => P.place(env, req({ order: { ...order, side: 'sell', limit_price: 104 }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
-  ok('...a closing order still goes out', r.ok);
-  ok('...no run can be resumed or started', !(await tryCall(() => P.changeRun(env, req({ state: 'running', who: 'tony' }, 'PATCH'), run))).ok && !(await tryCall(() => P.startRun(env, req({ name: 'x', spec: { a: 1 }, capital: 5000 })))).ok);
+  ok('...a closing order still goes out (checked against the real position: sell 10 of 10 long NVDA)', r.ok, JSON.stringify(r));
+  r = await tryCall(() => P.place(env, req({ order: { ...order, qty: 5000 }, who: 'neo', reason: 'x', closing: true }), { priceOf: async () => 101 }));
+  ok('..."closing" said of a BUY on a long position is refused: closing is checked, never trusted', !r.ok && /does not only close/.test(r.error));
+  r = await tryCall(() => P.place(env, req({ order: { ...order, side: 'sell', qty: 50 }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
+  ok('...as is selling more than is held (it would open a short)', !r.ok && /does not only close/.test(r.error));
+  r = await tryCall(() => P.place(env, req({ order: { ...order, symbol: 'AMD', side: 'sell' }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
+  ok('...and "closing" a position that is not there', !r.ok && /does not only close/.test(r.error));
+  ok('...no run can be resumed or started', !(await tryCall(() => P.changeRun(env, req({ state: 'running', who: 'tony' }, 'PATCH'), run))).ok && !(await tryCall(() => P.startRun(env, req({ name: 'x', spec: { a: 1 }, capital: 5000, who: 'tony' })))).ok);
   r = await tryCall(() => P.kill(env, req({ on: false })));
   ok('off again', r.ok && r.body.kill === false && (await read(await P.account(env))).kill === false);
   r = await tryCall(() => P.changeRun(env, req({ state: 'stopped', who: 'tony' }, 'PATCH'), run));
   ok('stop; a stopped run stays stopped', r.ok && r.body.run.state === 'stopped' && !(await tryCall(() => P.changeRun(env, req({ state: 'running', who: 'tony' }, 'PATCH'), run))).ok);
+
+  console.log('\nFail closed');
+  A.plan.push({ path: '/v2/account', method: 'GET', status: 500, body: { message: 'down' } });
+  r = await tryCall(() => P.place(env, req({ order: { ...order, limit_price: 95 }, who: 'tony' }), { priceOf: async () => 101 }));
+  ok('the account cannot be read: no new order (it cannot be sized against the account)', !r.ok && r.status === 503 && /could not be read/.test(r.error));
+  r = await tryCall(() => P.place(env, req({ order: { symbol: 'NVDA', side: 'buy', type: 'market', time_in_force: 'day', qty: 50000 }, who: 'tony' }), { priceOf: async () => null }));
+  ok('no price for a market order in shares: refused, never sent unchecked', !r.ok && r.status === 503 && /no current price/.test(r.error));
+  ok('starting or changing a run without an author is refused', !(await tryCall(() => P.startRun(env, req({ name: 'x', spec: { a: 1 }, capital: 5000 })))).ok);
+  A.plan.push({ path: '/v2/orders', method: 'DELETE', status: 500, body: { message: 'down' } });
+  r = await tryCall(() => P.kill(env, req({ on: true })));
+  ok('a cancel-all Alpaca did not take is said (the switch and the pauses still hold), never reported as done', !r.ok && r.status === 502 && /did not cancel/.test(r.error) && (await read(await P.account(env))).kill === true);
+  r = await tryCall(() => P.kill(env, req({ on: true })));
+  ok('...pressed again it goes through, and says how many positions are left without a stop', r.ok && r.body.unprotected === 1);
+  await P.kill(env, req({ on: false }));
 
   console.log('\nFills, equity, the log');
   await P.postFills(env, req({ fills: [{ id: 'act1', at: 1, order: 'a1', run, symbol: 'NVDA', side: 'buy', qty: 10, price: 100.5 }, { id: 'act1', at: 1, symbol: 'NVDA', side: 'buy', qty: 10, price: 100.5 }] }));
