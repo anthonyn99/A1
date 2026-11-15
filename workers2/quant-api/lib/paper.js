@@ -122,7 +122,8 @@ const must = (r, what) => { if (!r.ok) throw fail(r.status === 429 ? 429 : r.sta
 const noTable = (e) => /no such table/i.test(String(e && e.message));
 async function db(p) { try { return await p; } catch (e) { if (noTable(e)) throw fail(503, 'the paper tables are not there yet (D1 migration 0010_paper.sql)'); throw e; } }
 async function killOn(env) { const r = await db(env.DB.prepare("SELECT v FROM meta WHERE k = 'paper_kill'").first()); return !!(r && r.v === '1'); }
-const dayNY = (t) => new Date(t - 5 * 3_600_000).toISOString().slice(0, 10);
+const NY_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+const dayNY = (t) => NY_DAY.format(new Date(t));   // daylight saving included
 
 /* ── routes ───────────────────────────────────────────────────────────────── */
 export async function probe(env, fetchFn) {
@@ -164,18 +165,22 @@ export async function log(env, url) {
 
 /** POST /paper/orders: checked (kill switch, the order's own rules, 25% of equity, the run's limits), logged, sent. */
 export async function place(env, req, { fetchFn = fetch, now = Date.now(), priceOf = null } = {}) {
-  const b = await bodyOf(req, 8000), o = b && b.order, who = WHO.includes(b && b.who) ? b.who : null;
-  if (!who) throw fail(400, 'who is tony, run or neo');
+  const b = await bodyOf(req, 8000), o = b && b.order, who = whoOf(b);
   const reason = String((b && b.reason) || '').trim().slice(0, 400);
   if (who !== 'tony' && !reason) throw fail(400, 'an order from a strategy or Neo Quant carries its reason');
   const runId = b && b.run ? String(b.run) : null;
   if (runId && !RUN_RE.test(runId)) throw fail(400, 'not a run id');
-  const closing = !!(b && b.closing);
+  // "closing" lifts the kill switch and the size caps, so it is CHECKED against the real position, never trusted.
+  const closing = !!(b && b.closing) && o && SYM_RE.test(String(o.symbol || '')) && await closesPosition(env, o, fetchFn);
+  if (b && b.closing && !closing) throw fail(422, 'that order does not only close a position (the side, the size or the position is not there)');
   const [kill, acct] = await Promise.all([killOn(env), alpaca(env, '/v2/account', {}, fetchFn)]);
   const equity = acct.ok ? num(acct.body.equity) : null;
   const price = priceOf ? await priceOf(o && o.symbol) : null;
   const chk = checkOrder(o, { price, equity, kill, closing, stale: !!(b && b.stale) });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  // The size checks fail closed: without the account's equity, or a price to size a share order, nothing new goes out.
+  if (!closing && !pos(equity)) throw fail(503, 'the paper account could not be read, so the order cannot be sized against it: try again');
+  if (!closing && o.notional == null && !pos(num(o.limit_price) || num(o.stop_price) || price)) throw fail(503, 'no current price to size this order against the limits: try again, or give a limit price');
   if (runId) {
     const run = await db(env.DB.prepare('SELECT * FROM paper_runs WHERE id = ?').bind(runId).first());
     if (!run) throw fail(404, 'no such run');
@@ -197,14 +202,31 @@ export async function place(env, req, { fetchFn = fetch, now = Date.now(), price
   await db(env.DB.prepare('UPDATE paper_orders SET alpaca_id = ?, status = ?, error = ? WHERE id = ?').bind(r.ok ? r.body.id : null, r.ok ? r.body.status : 'refused', r.ok ? null : String((r.body && r.body.message) || r.status).slice(0, 300), id).run());
   return json({ ok: true, paper: true, order: must(r, 'the order') });
 }
-export async function replace(env, req, id, fetchFn) {
+/** PATCH an order: the order AS CHANGED passes every check again (its rules, the kill switch, 25% of equity, its run's limits). */
+export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, now = Date.now() } = {}) {
   if (!/^[\w-]{1,64}$/.test(id)) throw fail(400, 'not an order id');
-  const b = await bodyOf(req, 2000), patch = {};
+  const b = await bodyOf(req, 2000), who = whoOf(b), patch = {};
   for (const k of ['qty', 'limit_price', 'stop_price', 'trail']) if (b && b[k] != null) { const v = num(b[k]); if (!pos(v)) throw fail(400, k + ' must be above zero'); patch[k] = String(v); }
   if (!Object.keys(patch).length) throw fail(400, 'nothing to change');
+  const [cur, kill, acct] = await Promise.all([alpaca(env, '/v2/orders/' + id, {}, fetchFn), killOn(env), alpaca(env, '/v2/account', {}, fetchFn)]);
+  const was = must(cur, 'the order');
+  const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: num(patch.qty || was.qty), limit_price: num(patch.limit_price || was.limit_price), stop_price: num(patch.stop_price || was.stop_price),
+    ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: num(patch.trail || was.trail_percent) } : { trail_price: num(patch.trail || was.trail_price) }) : {}), extended_hours: !!was.extended_hours };
+  const equity = acct.ok ? num(acct.body.equity) : null, price = priceOf ? await priceOf(was.symbol) : null;
+  if (!pos(equity)) throw fail(503, 'the paper account could not be read, so the change cannot be checked: try again');
+  const chk = checkOrder(next, { price, equity, kill });
+  if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  const orig = await db(env.DB.prepare('SELECT run FROM paper_orders WHERE alpaca_id = ? ORDER BY at LIMIT 1').bind(id).first());
+  const runId = orig && orig.run;
+  if (runId) {
+    const run = await db(env.DB.prepare('SELECT * FROM paper_runs WHERE id = ?').bind(runId).first());
+    const L = run ? JSON.parse(run.limits || '{}') : {}, ref = next.limit_price || next.stop_price || price;
+    if (run && run.state !== 'running') throw fail(409, `the run is ${run.state}: its orders can be cancelled, not changed`);
+    if (run && pos(ref) && next.qty * ref > run.capital * (L.maxPositionPct || DEFAULT_LIMITS.maxPositionPct) / 100) throw fail(409, `over the run's position limit (${L.maxPositionPct}% of its ${run.capital} capital)`);
+  }
   const r = must(await alpaca(env, '/v2/orders/' + id, { method: 'PATCH', body: JSON.stringify(patch) }, fetchFn), 'the change');
-  await db(env.DB.prepare('INSERT OR IGNORE INTO paper_orders (id, at, day, run, who, reason, symbol, side, type, qty, body, status, alpaca_id) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind('x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), Date.now(), dayNY(Date.now()), WHO.includes(b.who) ? b.who : 'tony', 'replaced ' + id, r.symbol, r.side, r.type, num(r.qty), JSON.stringify(patch), 'replaced', r.id).run());
+  await db(env.DB.prepare('INSERT OR IGNORE INTO paper_orders (id, at, day, run, who, reason, symbol, side, type, qty, body, status, alpaca_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind('x' + now.toString(36) + Math.random().toString(36).slice(2, 6), now, dayNY(now), runId || null, who, 'replaced ' + id, r.symbol, r.side, r.type, num(r.qty), JSON.stringify(patch), 'replaced', r.id).run());
   return json({ ok: true, paper: true, order: r });
 }
 export async function cancel(env, id, fetchFn) {
@@ -225,19 +247,34 @@ export async function kill(env, req, fetchFn) {
   await db(env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('paper_kill', on ? '1' : '0', now).run());
   if (!on) return json({ ok: true, kill: false });
   const [c] = await Promise.all([alpaca(env, '/v2/orders', { method: 'DELETE' }, fetchFn), db(env.DB.prepare("UPDATE paper_runs SET state = 'paused', updated = ? WHERE state = 'running'").bind(now).run())]);
-  return json({ ok: true, kill: true, canceled: Array.isArray(c.body) ? c.body.length : 0 });
+  // The runs are paused and only closing orders go out either way; a cancel-all Alpaca did not take is said, never reported as done.
+  if (!c.ok) throw fail(502, 'the kill switch is on and every run is paused, but Alpaca did not cancel the open orders (HTTP ' + c.status + '): press it again', { kill: true });
+  // Cancelling everything also cancels the bracket stops on open positions: say how many positions are left without one.
+  const held = await alpaca(env, '/v2/positions', {}, fetchFn);
+  return json({ ok: true, kill: true, canceled: Array.isArray(c.body) ? c.body.length : 0, unprotected: held.ok && Array.isArray(held.body) ? held.body.length : null });
 }
 
 /* ── strategy runs ────────────────────────────────────────────────────────── */
+/** Who acts: required on every write (a missing author is never taken as Tony's). */
+function whoOf(b) { if (!b || !WHO.includes(b.who)) throw fail(400, 'who is tony, run or neo'); return b.who; }
+/** Does `o` only close (part of) the account's position in its symbol? Checked against Alpaca, never taken from the caller. */
+async function closesPosition(env, o, fetchFn) {
+  if (!o || (o.order_class && o.order_class !== 'simple') || o.notional != null) return false;
+  const r = await alpaca(env, '/v2/positions/' + o.symbol, {}, fetchFn);
+  if (!r.ok) return false;
+  const held = Math.abs(num(r.body.qty)), long = r.body.side === 'long', q = num(o.qty);
+  return pos(q) && q <= held && (long ? o.side === 'sell' : o.side === 'buy');
+}
 const runOut = (r) => ({ ...r, spec: JSON.parse(r.spec || 'null'), limits: JSON.parse(r.limits || '{}'), stats: JSON.parse(r.stats || 'null') });
 export async function runs(env) {
   const rows = (await db(env.DB.prepare('SELECT * FROM paper_runs ORDER BY created DESC LIMIT 100').all())).results || [];
-  const eq = (await db(env.DB.prepare('SELECT run, day, equity FROM paper_equity ORDER BY day').all())).results || [];
+  // The newest 400 days of each listed run (not the whole table).
+  const ids = rows.map((r) => r.id), eq = ids.length ? ((await db(env.DB.prepare(`SELECT run, day, equity FROM paper_equity WHERE run IN (${ids.map(() => '?').join(',')}) ORDER BY day DESC LIMIT ?`).bind(...ids, 400 * ids.length).all())).results || []).reverse() : [];
   return json({ ok: true, runs: rows.map((r) => ({ ...runOut(r), equity: eq.filter((x) => x.run === r.id).map((x) => [x.day, x.equity]) })) });
 }
 export async function startRun(env, req) {
   const b = await bodyOf(req, 12000), now = Date.now();
-  const name = String((b && b.name) || '').trim().slice(0, 80), capital = num(b && b.capital), who = WHO.includes(b && b.who) ? b.who : 'tony';
+  const name = String((b && b.name) || '').trim().slice(0, 80), capital = num(b && b.capital), who = whoOf(b);
   if (!name) throw fail(400, 'a name is needed');
   if (!(capital >= 1000 && capital <= 1e7)) throw fail(400, 'capital is from 1,000 to 10,000,000');
   if (!b.spec || typeof b.spec !== 'object' || JSON.stringify(b.spec).length > 8000) throw fail(400, 'a spec (up to 8 KB) is needed');
@@ -252,7 +289,7 @@ export async function startRun(env, req) {
 }
 export async function changeRun(env, req, id) {
   if (!RUN_RE.test(id)) throw fail(400, 'not a run id');
-  const b = await bodyOf(req, 4000), who = WHO.includes(b && b.who) ? b.who : 'tony', now = Date.now();
+  const b = await bodyOf(req, 4000), who = whoOf(b), now = Date.now();
   const run = await db(env.DB.prepare('SELECT * FROM paper_runs WHERE id = ?').bind(id).first());
   if (!run) throw fail(404, 'no such run');
   if (run.state === 'stopped') throw fail(409, 'a stopped run stays stopped (start a new one)');
