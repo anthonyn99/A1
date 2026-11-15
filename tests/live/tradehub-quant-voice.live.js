@@ -129,7 +129,8 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   await until(`!document.querySelector('[data-nq-dock]').hidden`, 4000);
   await js(`document.querySelector('[data-nq-dock] [data-nq-hands]').click(); document.querySelector('[data-nq-close]').click(); 1`);
   await untilNode(() => hear().length > hd + 1, 30000);
-  ok('hands-free with the dock closed by hand: the next turns leave it closed', await js(`return document.querySelector('[data-nq-dock]').hidden;`) && hear().length > hd + 1);
+  const dockHidden = await js(`return document.querySelector('[data-nq-dock]').hidden;`);
+  ok('hands-free with the dock closed by hand: the next turns leave it closed', dockHidden && hear().length > hd + 1, JSON.stringify({ dockHidden, turns: hear().length - hd, mode: await mode() }));
   await js(`window.dispatchEvent(new CustomEvent('tb-neo-open')); 1`); await sleep(300);
   await js(`document.querySelector('[data-nq-dock] [data-nq-hands]').click(); 1`);
   await until(`(document.querySelector('[data-nq-mic]').dataset.mode||'off')==='off'`, 15000);
