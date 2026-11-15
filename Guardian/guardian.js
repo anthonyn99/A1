@@ -1156,6 +1156,31 @@ function lockNow(ids) {
   });
 }
 
+// Every unlock on this device, for every lock, whether or not this page
+// defines it: Beacon's "Lock" and "Remove" (Beacon/beacon.js). Guardian's
+// markers go from every store, and so do the old programs' markers, which
+// adoption would otherwise read as "already unlocked here". Each lock this
+// page defines re-gates now; other open tabs follow through the storage event.
+var OLD_MARKERS = /^(?:al_unlocked(?:at|v)?_|tj_unlocked|bj_unlocked|ml_unlocked_|magi\.[a-z]+\.lock_session$)/;
+function lockDevice(reason) {
+  [function () { return localStorage; }, function () { return sessionStorage; }].forEach(function (get) {
+    try {
+      var st = get(), dead = [];
+      for (var i = 0; i < st.length; i++) { var k = st.key(i); if (k && (k.indexOf('gd.u.') === 0 || OLD_MARKERS.test(k))) dead.push(k); }
+      dead.forEach(function (k) { st.removeItem(k); });
+    } catch (e) {}
+  });
+  Object.keys(MEM).forEach(function (k) { if (k.indexOf('gd.u.') === 0) delete MEM[k]; });
+  try {
+    document.cookie.split('; ').forEach(function (p) {
+      var n = p.split('=')[0];
+      if (n && (n.indexOf('gdu.') === 0 || OLD_MARKERS.test(n))) document.cookie = n + '=; path=/; Max-Age=0';
+    });
+  } catch (e) {}
+  lockNow(Object.keys(DEFS).filter(function (id) { return cacheGet(DEFS[id]).h === true; }));
+  emit('device-locked', { reason: reason || 'manual' });
+}
+
 // Background: a password changed on another device re-locks this one.
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refresh(); });
 window.addEventListener('focus', function () { refresh(); });
@@ -1179,6 +1204,7 @@ window.Guardian = {
   removeLock: removeLock,
   verify: verify,
   lockNow: lockNow,
+  lockDevice: lockDevice,
   isLocked: isLocked,
   isUnlocked: isUnlocked,
   mustBlock: mustBlock,
