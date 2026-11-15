@@ -1157,7 +1157,9 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Beacon (docs/Beacon/README.md): this device in A1's device list (Devices ▸
      All A1 devices). Shield's own device list above it stays Shield's. -->
 <script src="Beacon/beacon.js"></script>
-<script>if (window.Beacon) Beacon.mount('shield', { label: 'Shield', profileAttr: 'data-profile' });</script>
+<script>if (window.Beacon) Beacon.mount('shield', { label: 'Shield', profileAttr: 'data-profile',
+  // S.profile is null at the picker, where body[data-profile] still says 'tony'.
+  profile: function () { return window.S && window.S.profile; } });</script>
 <script src="Shared/apphead.js"></script>
 <script src="Shared/profilepick.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.

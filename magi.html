@@ -5702,7 +5702,9 @@ body { max-width: 2000px; margin-inline: auto; }
      devices button beside Help). Its Firebase is MAGI's own, through
      window.LifeHubFirebase. MAGI's loopback console never checks in. -->
 <script src="Beacon/beacon.js"></script>
-<script>if (window.Beacon) Beacon.mount('magi', { label: 'MAGI', profileAttr: 'data-profile', firebase: 'lifehub' });</script>
+<script>if (window.Beacon) Beacon.mount('magi', { label: 'MAGI', firebase: 'lifehub',
+  // Only once a profile is open (hideLock): the picker's default is not a choice.
+  profile: function () { try { return PROFILE.unlocked ? PROFILE.id : null; } catch (e) { return null; } } });</script>
 <!-- MAGI's drag to reorder and corner resize grip, shared with every A1
      program (theme overhaul phase 11): one copy of the code, at the root. -->
 <script src="Shared/dragsort.js"></script>
@@ -28203,6 +28205,7 @@ function hideLock() {
   // The profile is open. Everything that touches the network for this person
   // -- the engine, Firestore, the token -- was held until this line.
   PROFILE.unlocked = true;
+  try { if (window.Beacon) Beacon.refresh('magi'); } catch (e) {}
   GATE.open = null;
   GATE.picking = false;
   syncLockBtn();

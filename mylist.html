@@ -845,7 +845,10 @@ body { max-width: 2000px; margin-inline: auto; }
 <script src="Beacon/beacon.js"></script>
 <script>
 if (window.Beacon) Beacon.mount('mylist', {
+  // activeProfile is null while the picker is up (body[data-profile] then says
+  // 'tony' only for the colours); the attribute is watched for the switch.
   label: 'MyList', fcm: true, profileAttr: 'data-profile',
+  profile: function () { return window.activeProfile; },
   push: function () {
     return { on: /^token OK/.test(window._mlFcmStatus || ''), coll: 'fcm_tokens', id: Beacon.deviceId(),
       route: (function () { try { return localStorage.getItem('td6_mainDash') || 'all'; } catch (e) { return 'all'; } })() };
