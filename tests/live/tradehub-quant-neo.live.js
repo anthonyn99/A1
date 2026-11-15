@@ -132,7 +132,7 @@ const ok = (name, cond, extra) => {
   await ask('Why is TSLA down today?');
   await doneA();
   const g = ai()[n1];
-  ok('research goes to Gemini with search', g && g.p === '/ai/gemini' && g.body.job === 'search');
+  ok('research goes to Gemini with search', g && g.p === '/ai/gemini' && g.body.job === 'search', JSON.stringify(ai().slice(Math.max(0, n1 - 2)).map((x) => [x.p, x.body && x.body.job])) + ' | ' + (await js(`return ${lastA()}.innerText.slice(0, 300);`)));
   ok('...with no account figure on its sheet', g && !g.body.facts.some((f) => f.private || f.pack === 'portfolio' || f.pack === 'journal'));
   await js(`window.__opened=[]; ${lastA()}.querySelector('[data-nq-deep]').click(); 1`);
   ok('Deep dive hands the question to MAGI (#tb=)', await until(`window.__opened.some(function(o){return /#tb=/.test(o[0]) || /magi/i.test(o[1]);})`, 3000), await js(`return JSON.stringify(window.__opened);`));
