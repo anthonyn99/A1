@@ -65,7 +65,7 @@ function realD1({ skip = [] } = {}) {
   for (let i = 0; i < WA.WANTED_MAX + 5; i++) await call(env, 'POST', '/wanted', { what: 'thing ' + i, words: 'w' });
   r = await call(env, 'GET', '/wanted');
   ok('kept small: at most ' + WA.WANTED_MAX + ' rows (the oldest go)', r.body.wanted.length === WA.WANTED_MAX && !r.body.wanted.some((x) => x.what === 'crypto'));
-  r = await call(env, 'DELETE', '/wanted?what=' + encodeURIComponent('thing 3'));
+  r = await call(env, 'DELETE', '/wanted?what=' + encodeURIComponent('thing 50'));
   ok('one row deleted by its what', r.status === 200 && r.body.deleted === 1);
   r = await call(env, 'DELETE', '/wanted');
   ok('a DELETE that names nothing is refused (no accidental clear)', r.status === 400);
