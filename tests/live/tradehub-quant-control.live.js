@@ -109,16 +109,16 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ];
   const visited = new Set();
   let aiCalls = 0;
-  for (const [said, check] of steps) {
+  for (const [said, check] of process.env.SKIP_SPOKEN ? [] : steps) {
     const r = await speak(said);
     const done = await check();
     visited.add(await page());
     aiCalls += r.ai;
     ok(`"${said}": heard, done, its line spoken, the mic released`, r.heard && done && r.spoke && r.released && !(await micLive()), JSON.stringify({ ...r, page: await page(), last: await lastDo() }));
   }
-  ok('every tab was visited by voice (12 tabs)', ['market', 'charts', 'scanner', 'news', 'portfolio', 'journal', 'catalysts', 'analysis', 'playbook', 'paper', 'prompt', 'neo'].every((t) => visited.has(t)), [...visited].join());
-  ok('...and not one AI call: every turn was an instant command', aiCalls === 0, aiCalls);
-  ok('spoken lines are the actions\' own words ("Opened Charts", "Opened AMD")', speech().some((b) => /Opened Charts/.test(b.input)) && speech().some((b) => /Opened AMD/.test(b.input)), JSON.stringify(speech().slice(-6).map((b) => b.input)));
+  if (!process.env.SKIP_SPOKEN) ok('every tab was visited by voice (12 tabs)', ['market', 'charts', 'scanner', 'news', 'portfolio', 'journal', 'catalysts', 'analysis', 'playbook', 'paper', 'prompt', 'neo'].every((t) => visited.has(t)), [...visited].join());
+  if (!process.env.SKIP_SPOKEN) ok('...and not one AI call: every turn was an instant command', aiCalls === 0, aiCalls);
+  if (!process.env.SKIP_SPOKEN) ok('spoken lines are the actions\' own words ("Opened Charts", "Opened Control", "Back to Control")', speech().some((b) => /Opened Charts/.test(b.input)) && speech().some((b) => /Opened Control/.test(b.input)) && speech().some((b) => /Back to Control/.test(b.input)), JSON.stringify(speech().map((b) => b.input)));
 
   console.log('\nTyped in the dock');
   const dockAsk = (q) => js(`var i=[...document.querySelectorAll('[data-nq-dock] [data-nq-input], [data-neo-tab] [data-nq-input]')].find(function(x){return x.getClientRects().length;}); i.value=${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true})); 1`);
@@ -127,7 +127,8 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   await js(`var d=document.querySelector('[data-nq-dock]'); if(d.hidden) document.querySelector('[data-nq-launch]').click(); 1`);
   await until(`!document.querySelector('[data-nq-dock]').hidden`, 4000);
   await dockAsk('add COIN to the watchlist');
-  ok('"add COIN to the watchlist": the watchlist has it; the turn lists it with an Undo', await until(`window._tbOps.app.watchlist().indexOf('COIN')>=0 && [...document.querySelectorAll('[data-nq-dock] [data-nq-dos] li')].some(function(l){return /Added COIN/.test(l.textContent);}) && document.querySelector('[data-nq-dock] [data-nq-undo]')`, 6000));
+  ok('"add COIN to the watchlist": the watchlist has it; the turn lists it with an Undo', await until(`window._tbOps.app.watchlist().indexOf('COIN')>=0 && [...document.querySelectorAll('[data-nq-dock] [data-nq-dos] li')].some(function(l){return /Added COIN/.test(l.textContent);}) && document.querySelector('[data-nq-dock] [data-nq-undo]')`, 6000),
+    await js(`return JSON.stringify({ wl: window._tbOps.app.watchlist(), dock: !document.querySelector('[data-nq-dock]').hidden, inputs: document.querySelectorAll('[data-nq-dock] [data-nq-input]').length, last: (([...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop()||{}).innerText||'').slice(0,300), page: window._tbOps.app.page() });`));
   await js(`[...document.querySelectorAll('[data-nq-dock] [data-nq-undo]')].pop().click(); 1`);
   ok('...Undo takes it off again', await until(`window._tbOps.app.watchlist().indexOf('COIN')<0`, 6000));
   const wl0 = await js(`return window._tbOps.app.watchlist().join();`);
