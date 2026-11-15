@@ -65,8 +65,8 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   /** One spoken turn from the button `sel`: → what happened. */
   async function turn(sel, label) {
     const h0 = hear().length, a0 = ai().length, s0 = speech().length;
-    await js(`[...document.querySelectorAll('${sel}')].find(function(b){ return b.offsetParent; }).click(); 1`);
-    const listening = await until(`[...document.querySelectorAll('[data-nq-micon],[data-nq-micdot]')].some(function(d){ return !d.hidden && d.offsetParent; })`, 4000);
+    await js(`[...document.querySelectorAll('${sel}')].find(function(b){ return b.getClientRects().length; }).click(); 1`);
+    const listening = await until(`[...document.querySelectorAll('[data-nq-micon],[data-nq-micdot]')].some(function(d){ return !d.hidden && d.getClientRects().length; })`, 4000);
     const heardOk = await untilNode(() => hear().length > h0, 16000);
     const asked = await untilNode(() => ai().length > a0, 8000);
     const spoke = await untilNode(() => speech().length > s0, 8000);
@@ -103,7 +103,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
     for (const t of tabs) {
       await goTab(t);
       const sel = t === 'neo' ? '[data-neo-tab] [data-nq-talk]' : '[data-nq-mic]';
-      const there = await until(`[...document.querySelectorAll('${sel}')].some(function(b){ return b.offsetParent; })`, 5000);
+      const there = await until(`[...document.querySelectorAll('${sel}')].some(function(b){ return b.getClientRects().length; })`, 5000);
       ok(`${w} px ${t}: a mic to talk with`, there);
       if (there) await turn(sel, `${w} ${t}`);
     }
