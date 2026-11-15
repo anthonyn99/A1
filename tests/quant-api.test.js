@@ -682,7 +682,8 @@ globalThis.fetch = async (url, init = {}) => {
   // §1 rule 2 as amended by Phase 9C: Webull stays read-only; the ONLY order code is lib/paper.js, for Alpaca PAPER.
   const WDIR = path.join(__dirname, '..', 'workers2', 'quant-api');
   const files = ['worker.js', ...fs.readdirSync(path.join(WDIR, 'lib')).map((f) => 'lib/' + f), ...fs.readdirSync(path.join(WDIR, 'providers')).map((f) => 'providers/' + f)].filter((f) => f.endsWith('.js'));
-  const read = (f) => fs.readFileSync(path.join(WDIR, f), 'utf8');
+  // Code only: comments that SAY "never Webull, never api.alpaca.markets" are not calls.
+  const read = (f) => fs.readFileSync(path.join(WDIR, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
   const others = files.filter((f) => f !== 'lib/paper.js');
   ok('no Alpaca LIVE trading host anywhere in the worker (api.alpaca.markets)', files.every((f) => !/(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))), files.filter((f) => /(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))).join());
   ok('the paper host and order paths only in lib/paper.js', others.every((f) => !/paper-api\.alpaca|\/v2\/orders|\/v2\/positions|placeOrder/.test(read(f))), others.filter((f) => /paper-api\.alpaca|\/v2\/orders|\/v2\/positions/.test(read(f))).join());
