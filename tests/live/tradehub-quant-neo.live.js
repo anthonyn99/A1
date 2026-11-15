@@ -5,8 +5,9 @@
 //   2. a question streams in: verdict chip, labelled sections, cited facts (a tap shows one);
 //      the request carried the asked-for packs; the conversation kept one row per turn
 //   3. a number not on the sheet: one retry with the same model, then struck with a note
-//   4. every provider failing: what was tried and why, never a made-up reply
-//   5. the browser units are never called without a press; a press lists them, another asks one
+//   4. every provider failing (no browser unit up): what was tried and why, never a made-up reply
+//   5. the backup: with the fast lane down, a browser unit answers, with no account figures;
+//      otherwise the units only on a press: a press lists them, another asks one
 //   6. research goes to Gemini with search, with no account figure on its sheet
 //   7. Deep dive hands the question to MAGI
 //   8. the Neo Quant tab: the same conversation, the brief, What changed?, recent conversations;
@@ -97,17 +98,32 @@ const ok = (name, cond, extra) => {
   ok('...and the follow-up carried the conversation so far', ai()[n0].body.messages.length === 3);
 
   console.log('\nAll failed');
+  // The fast lane failing with no browser unit up (the PC off): the backup cannot answer either.
+  ok('no ORCA call so far (three answers and a retry)', orca().length === 0, JSON.stringify(orca()));
+  const unitsUp = api.state.orca.models;
+  api.state.orca.models = unitsUp.map((m) => ({ ...m, routable: false }));
   api.state.ai.plan.push({ fail: [{ provider: 'groq', why: 'HTTP 503' }, { provider: 'cerebras', why: 'no first token in 8 s' }] });
   await ask('What about AMD?');
   await doneA();
   const fl = await js(`var a=${lastA()}; return JSON.stringify({ state: a.dataset.state, text: a.innerText, chip: !!a.querySelector('[data-nq-verdict]') });`).then(JSON.parse);
-  ok('every provider failing: what was tried and why, no reply text, no verdict', fl.state === 'failed' && /Groq: HTTP 503/.test(fl.text) && /Cerebras: no first token/.test(fl.text) && !fl.chip && !/VERDICT/.test(fl.text), JSON.stringify(fl));
+  ok('every provider failing, no unit up: what was tried and why, no reply text, no verdict', fl.state === 'failed' && /Groq: HTTP 503/.test(fl.text) && /Cerebras: no first token/.test(fl.text) && /PC/.test(fl.text) && !fl.chip && !/VERDICT/.test(fl.text), JSON.stringify(fl));
   ok('...with Try again and Ask the units', await js(`var a=${lastA()}; return !!a.querySelector('[data-nq-retry]') && !!a.querySelector('[data-nq-askunits]');`));
+  ok('...the backup only listed the units (asked none)', orca().length === 1 && orca()[0].p === '/v1/models', JSON.stringify(orca()));
 
-  console.log('\nThe browser units: only on a press');
-  ok('no ORCA call so far (three answers, a retry and a failure)', orca().length === 0, JSON.stringify(orca()));
+  console.log('\nThe backup: a browser unit answers when the fast lane fails (Tony 2026-11-15)');
+  api.state.orca.models = unitsUp;
+  api.state.ai.plan.push({ fail: [{ provider: 'groq', why: 'HTTP 429' }] });
+  await ask('How is my portfolio doing?');
+  await doneA();
+  const bk = await js(`var a=${lastA()}; return JSON.stringify({ state: a.dataset.state, text: a.innerText });`).then(JSON.parse);
+  ok('the backup answers, labelled with its unit, saying the account figures were left out', bk.state === 'done' && /Backup · DeepSeek \(browser\)/.test(bk.text) && /account figures were left out/.test(bk.text), JSON.stringify(bk));
+  const bq = orca().filter((x) => x.p === '/v1/chat/completions').map((x) => JSON.parse(x.body));
+  ok('...one unit asked, the question alone, no account figure in what it was sent', bq.length === 1 && bq[0].model === 'deepseek/free' && bq[0].messages.filter((m) => m.role === 'user').length === 1 && !/52,310|Equity|win rate/i.test(bq[0].messages[0].content), JSON.stringify(bq.map((b) => b.messages.length)));
+
+  console.log('\nThe browser units: on a press');
+  const o0 = orca().length;
   await js(`${lastA()}.querySelector('[data-nq-askunits]').click(); 1`);
-  ok('a press lists the units that are up (not the offline one)', await until(`${lastA()}.querySelectorAll('[data-nq-unit]').length === 2`, 5000) && orca().length === 1 && orca()[0].p === '/v1/models');
+  ok('a press lists the units that are up (not the offline one)', await until(`${lastA()}.querySelectorAll('[data-nq-unit]').length === 2`, 5000) && orca().length === o0 + 1 && orca()[o0].p === '/v1/models');
   await js(`${lastA()}.querySelector('[data-nq-unit="deepseek/free"]').click(); 1`);
   ok('another press asks that unit; its reply is shown as the browser unit\'s', await until(`(function(){var a=${lastA()}; return a.dataset.state==='done' && /browser unit/i.test(a.innerText);})()`, 8000) && orca().some((x) => x.p === '/v1/chat/completions' && JSON.parse(x.body).model === 'deepseek/free'));
 
