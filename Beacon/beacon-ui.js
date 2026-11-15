@@ -139,7 +139,7 @@ var CSS = [
 '.inl p{margin:0;font:400 13px/1.5 var(--f);color:var(--txd)}',
 '.inl p b{color:var(--tx);font-weight:600}',
 '.inl .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}',
-'label.fl{display:flex;flex-direction:column;gap:6px;font:700 9.5px/1 var(--f);letter-spacing:1px;text-transform:uppercase;color:var(--txm)}',
+'.fl{display:flex;flex-direction:column;gap:6px;font:700 9.5px/1 var(--f);letter-spacing:1px;text-transform:uppercase;color:var(--txm)}',
 'input{width:100%;background:var(--bg);border:1px solid var(--bdl);border-radius:var(--rb);color:var(--tx);font:600 14.5px var(--f);padding:11px 13px;outline:none}',
 'input:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ring)}',
 '.kinds{display:flex;gap:6px;flex-wrap:wrap}',
@@ -309,6 +309,7 @@ function wire(p) {
   ov.addEventListener('click', function (e) { if (e.target === ov && down) close(); down = null; });
   p.onKey = function (e) {
     if (P !== p || e.key !== 'Escape') return;
+    if (window.Guardian && window.Guardian.isOpen && window.Guardian.isOpen()) return;
     e.stopPropagation(); e.preventDefault();
     if (p.form) { p.form = null; render(); } else close();
   };
@@ -482,7 +483,7 @@ function form(d, f, me) {
   var n = esc(devName(d));
   if (f.type === 'rename') {
     return '<div class="inl"><label class="fl">Name<input type="text" maxlength="60" value="' + esc(d.name || '') + '" placeholder="' + n + '" autocomplete="off" spellcheck="false"></label>' +
-      '<div class="fl" style="display:flex;flex-direction:column;gap:6px;font:700 9.5px/1 var(--f);letter-spacing:1px;text-transform:uppercase;color:var(--txm)">Type<div class="kinds">' +
+      '<div class="fl">Type<div class="kinds">' +
       KINDS.map(function (k) { return '<button type="button" data-kind="' + k[0] + '" aria-pressed="' + ((f.kind === k[0] || (f.kind === 'computer' && k[0] === 'desktop')) ? 'true' : 'false') + '">' + I[k[0]] + k[1] + '</button>'; }).join('') +
       '</div></div><div class="row"><button class="b" data-cancel>Cancel</button><button class="b solid" data-ok>Save</button></div></div>';
   }
