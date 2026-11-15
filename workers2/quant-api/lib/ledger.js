@@ -25,6 +25,9 @@ export const CAPS = {
   github: 100,      // GitHub Models, free tier
   nvidia: 400,
   workersai: 150,   // Workers AI's free daily allowance is small
+  // Neo Quant's hearing (lib/hear.js): Groq's Whisper has its own allowance (about 2,000 a day), apart from its chat.
+  'whisper-groq': 1500,
+  'whisper-workersai': 100,
 };
 export const SKIP_MS = 5 * 60_000;
 export const FAILS_TO_SKIP = 3;

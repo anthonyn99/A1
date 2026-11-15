@@ -65,6 +65,7 @@ import * as mem from './lib/memory.js';
 import * as arc from './lib/archive.js';
 import * as ai from './lib/ai.js';
 import * as gem from './lib/gemini.js';
+import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
 import { getBrief, postBrief } from './lib/brief.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
@@ -183,6 +184,7 @@ async function route(req, env, url, ctx) {
   if (p === '/ai/chat' && m === 'POST') return ai.chat(env, req, ctx);
   if (p === '/ai/gemini' && m === 'POST') return gem.gemini(env, req, ctx);
   if (p === '/ai/gemini/discover' && m === 'POST') return gem.discoverRoute(env);
+  if (p === '/ai/hear' && m === 'POST') return hear(env, req);
   if (p === '/ai/models' && m === 'GET') return ai.getModels(env);
   if (p === '/ai/evals' && m === 'GET') return ai.getEvals(env, url);
   if (p === '/ai/evals' && m === 'POST') return ai.postEval(env, req);
