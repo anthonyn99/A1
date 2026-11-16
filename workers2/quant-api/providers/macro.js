@@ -65,3 +65,26 @@ export function parseEarnings(rows, day) {
   }
   return out;
 }
+
+// Past release days from FRED's release calendar (the page newshub reads for the
+// schedule; it lists 2025 on, so studies have about two years). rid per kind.
+export const RIDS = { cpi: 10, ppi: 46, jobs: 50, pce: 54, gdp: 53, retail: 9 };
+export const FIRST_YEAR = 2025;
+const MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+const DATE_OR_LINK = /(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,?\s+([A-Z][a-z]+)\s+(\d{1,2}),\s+(\d{4})|href="\/release\?rid=(\d+)"/g;
+/** FRED's calendar page → the days release `rid` came out in `year` (dates and links paired in order). */
+export function parseFredCalendar(html, rid, year) {
+  const out = new Set(), re = new RegExp(DATE_OR_LINK.source, 'g');
+  let cur = null, m;
+  while ((m = re.exec(String(html || '')))) {
+    if (m[1]) { const mo = MONTHS[m[1].toLowerCase()]; cur = mo ? `${m[3]}-${String(mo).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}` : null; }
+    else if (cur && Number(m[4]) === rid && cur.slice(0, 4) === String(year)) out.add(cur);
+  }
+  return [...out].sort();
+}
+/** One kind's release days in one year (one FRED call). */
+export async function releaseDays(L, kind, year) {
+  const rid = RIDS[kind];
+  const html = await call(L, 'fred', `https://fred.stlouisfed.org/releases/calendar?rid=${rid}&y=${year}`, { text: true, timeout: 15000 });
+  return parseFredCalendar(html, rid, year);
+}

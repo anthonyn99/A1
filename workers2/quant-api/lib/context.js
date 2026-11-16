@@ -7,6 +7,8 @@
 //                              logged once a day (iv_log)
 //   GET  /macro                { series: { ID: [[day, v]…] }, names, at }   FRED, each series refreshed
 //                              at most every MACRO_TTL (≤ 7 calls a refresh)
+//   GET  /macro/dates          { dates: { kind: [day…] } }   past release days (FRED's calendar, 2025 on);
+//                              a past year is kept once read after it ended, this year read again weekly
 //   GET  /earnings?symbols=A,B { reports: { SYM: [{ day, time, eps, est }] } }   no outside call
 //   POST /earnings/fetch       { mode: 'nightly' | 'backfill', max } → { asked, stored, oldest, done }
 //                              nightly: the last 7 weekdays not yet asked (today only after 20:00 New York);
@@ -86,6 +88,38 @@ export async function getMacro(env) {
   let at = 0;
   for (const [id, r] of have) { if (!M.SERIES[id]) continue; series[id] = parse(r.body) || []; at = Math.max(at, r.at); }
   return json({ ok: true, series, names: M.SERIES, at: at || null, notes });
+}
+
+/* ── /macro/dates ───────────────────────────────────────────────────────── */
+export const DATES_TTL = 7 * DAY, DATES_PER_CALL = 20;
+export async function getMacroDates(env) {
+  const now = Date.now(), year = Number(nyDate(now).slice(0, 4));
+  const rows = (await guarded(env.DB.prepare("SELECT id, at, body FROM macro_series WHERE id LIKE 'dates:%'").all())).results || [];
+  const have = new Map(rows.map((r) => [r.id, r]));
+  const want = [];
+  for (const kind of Object.keys(M.RIDS)) for (let y = M.FIRST_YEAR; y <= year; y++) {
+    const id = `dates:${kind}:${y}`, r = have.get(id);
+    const final = r && Number(nyDate(r.at).slice(0, 4)) > y;   // read after the year ended
+    if (!r || (!final && now - r.at > DATES_TTL)) want.push([id, kind, y]);
+  }
+  const notes = [];
+  if (want.length) {
+    const L = await Ledger.load(env, now), stmts = [];
+    for (const [id, kind, y] of want.slice(0, DATES_PER_CALL)) {
+      try {
+        const days = await M.releaseDays(L, kind, y);
+        if (!days.length) notes.push(id + ': none listed');
+        have.set(id, { id, at: now, body: JSON.stringify(days) });
+        stmts.push(env.DB.prepare('INSERT INTO macro_series (id, at, body) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET at = excluded.at, body = excluded.body').bind(id, now, JSON.stringify(days)));
+      } catch (e) { if (!(e instanceof ProviderError)) throw e; notes.push(id + ': ' + e.message); }
+    }
+    await L.flush();
+    if (stmts.length) await batch(env, stmts);
+  }
+  const dates = {};
+  for (const [id, r] of have) { const kind = id.split(':')[1]; if (!M.RIDS[kind]) continue; dates[kind] = (dates[kind] || []).concat(parse(r.body) || []); }
+  for (const k of Object.keys(dates)) dates[k] = [...new Set(dates[k])].sort();
+  return json({ ok: true, dates, from: M.FIRST_YEAR, notes });
 }
 
 /* ── /earnings ──────────────────────────────────────────────────────────── */
