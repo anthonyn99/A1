@@ -55,7 +55,7 @@
     --text:       #ECECEE;
     --text2:      #AFB0B5;
     --text3:      #76777C;
-    --sidebar-w:  268px;
+    --sidebar-w:  236px;
     --radius:     6px;
     --font:       'IBM Plex Mono', monospace;
     --font-mono:  'IBM Plex Mono', monospace;
@@ -269,20 +269,6 @@
 #bj-root .entry-pin svg { width: 13px; height: 13px; display: block; }
 #bj-root .entry-delete:hover { color: var(--red); background: #f8717118; }
 
-#bj-root #bj-sidebar-stats {
-    padding: 8px 16px;
-    border-top: 1px solid var(--border);
-    font-size: 9px;
-    color: var(--text3);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-family: var(--font-mono);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-#bj-root #bj-entry-count { color: var(--purple); font-weight: 700; }
 
   /* ── MAIN ── */
 #bj-root #bj-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-height: 0; min-width: 0; }

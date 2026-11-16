@@ -39,12 +39,9 @@ var html = `
   <div class="search-wrap">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input id="bj-search-box" type="text" placeholder="Search entries…" />
+    <button type="button" class="search-clear" id="bj-search-clear" title="Clear search" aria-label="Clear search" data-noglow hidden><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div id="bj-entries-list"></div>
-  <div id="bj-sidebar-stats">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-    <span id="bj-entry-count">0</span> entries
-  </div>
 </div>
 
 <!-- MAIN -->
@@ -1239,8 +1236,8 @@ function _bjRenderTrashBtn() {
     btn.id = 'bj-trash-btn';
     btn.className = 'docx-trash-btn';
     btn.onclick = () => { if (window._docxOpenTrash) window._docxOpenTrash('bj'); };
-    const stats = document.getElementById('bj-sidebar-stats');
-    if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
+    const sidebar = document.getElementById('bj-sidebar');
+    if (sidebar) sidebar.appendChild(btn);
   }
   const n = state.entries.filter(e => e.trashed && _bjInFolder(e)).length;
   btn.innerHTML = window.TNI.trash + '<span>Trash</span>' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
@@ -1352,8 +1349,6 @@ function renderSidebar() {
     }
     list.appendChild(div);
   });
-  const ec = document.getElementById('bj-entry-count');
-  if (ec) ec.textContent = live.length;
   _bjRenderTagChips(live);
   _bjRenderTrashBtn();
 }
@@ -3513,6 +3508,20 @@ document.getElementById('bj-new-entry-btn').addEventListener('click', () => {
   document.getElementById('bj-template-modal').classList.add('open');
 });
 document.getElementById('bj-search-box').addEventListener('input', renderSidebar);
+// The search box's clear button: shown only while there is text; one click
+// empties it, re-lists every entry and leaves the cursor in the box.
+(function() {
+  var box = document.getElementById('bj-search-box'), x = document.getElementById('bj-search-clear');
+  if (!box || !x) return;
+  var sync = function() { x.hidden = !box.value; };
+  box.addEventListener('input', sync);
+  // Code that empties the box (a folder change, OurJournal) sets .value and
+  // fires nothing: re-check whenever the list redraws.
+  new MutationObserver(sync).observe(document.getElementById('bj-entries-list'), { childList: true });
+  box.addEventListener('keydown', function(e) { if (e.key === 'Escape' && box.value) { e.preventDefault(); e.stopPropagation(); box.value = ''; sync(); renderSidebar(); } });
+  x.addEventListener('pointerdown', function(e) { e.preventDefault(); });   // keep the box focused
+  x.addEventListener('click', function() { box.value = ''; sync(); renderSidebar(); box.focus(); });
+})();
 
 loadState(); purgeExpiredTrash();
 // Mounted on a folder: open that folder's page, not the last one open anywhere.

@@ -52,7 +52,7 @@
     --text:       #f4f3f0;
     --text2:      #adadb2;
     --text3:      #8d8d94;
-    --sidebar-w:  268px;
+    --sidebar-w:  236px;
     --radius:     6px;
     --font:       'Inter', system-ui, -apple-system, sans-serif;
     --font-mono:  'IBM Plex Mono', ui-monospace, monospace;
@@ -286,20 +286,6 @@
 #tj-root .entry-pin svg { width: 13px; height: 13px; display: block; }
 #tj-root .entry-delete:hover { color: var(--red); background: transparent; }
 
-#tj-root #tj-sidebar-stats {
-    padding: 8px 16px;
-    border-top: 1px solid var(--border);
-    font-size: 10px;
-    color: var(--text3);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-family: var(--font);
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-#tj-root #tj-entry-count { color: var(--ac); font-weight: 700; }
 
   /* ── MAIN ── */
 #tj-root #tj-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-height: 0; min-width: 0; }
