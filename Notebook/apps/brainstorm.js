@@ -100,8 +100,6 @@ var html = `
     <button class="tb-btn lock-btn" id="bj-btn-lock" style="display:none;" aria-label="Lock this entry">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.4"/></svg>
     </button>
-    <div class="toolbar-sep"></div>
-
   </div>
 
   <div id="bj-content-area">
