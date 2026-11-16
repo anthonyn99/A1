@@ -186,6 +186,8 @@ const RULES = { rules: [
   ok('...and now it checks: the 11:30 trade has no stop', await until(`[...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /PLTR trade from 11:30 AM has no stop/.test(x.innerText);})`, 8000), await text('[data-ed-rules]'));
 
   console.log('\nNeo Quant');
+  await js(`import('./TradeHub/neo/app.js').then(function(m){ window.__tbNeoApp = m.getNeoApp(); }); 1`);
+  await until(`window.__tbNeoApp && window.__tbNeoApp.session`, 10000);
   await js(`window.__tbNeoApp.session.say('show risk'); 1`);
   ok('"show risk" → Portfolio ▸ Risk, no AI call', await until(`window._tbOps.app.page()==='portfolio' && document.querySelector('[data-risk-view]')`, 8000));
   await js(`window.__tbNeoApp.session.say('my edge'); 1`);
