@@ -1323,7 +1323,7 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
   }
 }
 @media (min-width: 901px) and (prefers-reduced-motion: reduce) {
-  #tj-root #tj-root #tj-sidebar, #bj-root #bj-root #bj-sidebar,
+  #tj-root #tj-sidebar, #bj-root #bj-sidebar,
   #tj-root.tj-fullscreen #tj-sidebar, #bj-root.bj-fullscreen #bj-sidebar { transition: none !important; }
 }
 
