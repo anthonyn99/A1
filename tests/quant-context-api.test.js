@@ -118,7 +118,7 @@ globalThis.fetch = async (url) => {
   ok('daily expiries: the 6 nearest, then the monthlies (third Fridays) to 120 days, 10 at most', exps.length <= 10 && exps.slice(0, 6).join() === '2026-11-16,2026-11-17,2026-11-18,2026-11-19,2026-11-20,2026-11-23' && exps.includes('2026-12-18') && exps.includes('2027-02-19'), JSON.stringify(exps));
   ok('a monthly whose Friday is a holiday: the Thursday before it (Jan 14)', exps.includes('2027-01-14') && !exps.includes('2027-01-15'), JSON.stringify(exps));
   ok('the text scan (with its jumps) gives exactly the parsed result', JSON.stringify(mt) === JSON.stringify(mc), JSON.stringify(mt && mt.expiries.map((e) => e.exp)));
-  ok('monthly(): third Fridays and holiday Thursdays only', O.monthly('2026-12-18') && O.monthly('2027-01-14') && !O.monthly('2026-12-17') && !O.monthly('2026-12-11'));
+  ok('monthly(): third Fridays, and the Thursday before one only when that Friday has no expiry', O.monthly('2026-12-18') && O.monthly('2027-01-14') && !O.monthly('2026-12-17', (d) => d === '2026-12-18') && !O.monthly('2026-12-11'));
   ok('index symbols are not asked (their chains are 10+ MB)', !O.canAsk('^VIX') && !O.canAsk('_SPX') && O.canAsk('BRK.B'));
 
   console.log('\n/options: cached, at most 2 CBOE calls a symbol a day');

@@ -25,8 +25,13 @@ const ymd = (d) => d.slice(2).replace(/-/g, '');
 /** Is 'YYYY-MM-DD' a month's third Friday (the standard monthly expiry)? */
 export const thirdFriday = (d) => { const x = new Date(d + 'T12:00:00Z'), day = x.getUTCDate(); return x.getUTCDay() === 5 && day >= 15 && day <= 21; };
 const dayBefore = (d) => new Date(Date.parse(d + 'T12:00:00Z') - DAY).toISOString().slice(0, 10);
-/** A monthly expiry: the third Friday, or the Thursday before it when that Friday is a holiday (Juneteenth 2026). */
-export const monthly = (d) => thirdFriday(d) || (new Date(d + 'T12:00:00Z').getUTCDay() === 4 && thirdFriday(new Date(Date.parse(d + 'T12:00:00Z') + DAY).toISOString().slice(0, 10)));
+/** A monthly expiry: the third Friday, or the Thursday before it when that Friday is a holiday
+ *  (Juneteenth 2026), i.e. when `has(friday)` says the chain lists no expiry that Friday. */
+export const monthly = (d, has = () => false) => {
+  if (thirdFriday(d)) return true;
+  const fri = new Date(Date.parse(d + 'T12:00:00Z') + DAY).toISOString().slice(0, 10);
+  return new Date(d + 'T12:00:00Z').getUTCDay() === 4 && thirdFriday(fri) && !has(fri);
+};
 /** The third Fridays after `after` up to `last` ('YYYY-MM-DD'), ascending. */
 export function thirdFridays(after, last) {
   const out = [];
@@ -41,7 +46,8 @@ export function thirdFridays(after, last) {
 /** Which expiries are kept: the NEAR_EXPIRIES nearest, then the monthlies (third
  *  Fridays) up to MAX_DAYS, at most MAX_EXPIRIES in all. */
 export function pickExpiries(sorted) {
-  const near = sorted.slice(0, NEAR_EXPIRIES), rest = sorted.slice(NEAR_EXPIRIES).filter(monthly);
+  const all = new Set(sorted), has = (d) => all.has(d);
+  const near = sorted.slice(0, NEAR_EXPIRIES), rest = sorted.slice(NEAR_EXPIRIES).filter((d) => monthly(d, has));
   return near.concat(rest).slice(0, MAX_EXPIRIES);
 }
 
