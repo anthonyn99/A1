@@ -85,7 +85,7 @@ export function compactChain(j, now = Date.now()) {
  */
 export function compactText(text, sym, now = Date.now()) {
   const t = String(text || ''), tail = t.slice(Math.max(0, t.lastIndexOf('"current_price"')));
-  const num = (key) => { const m = new RegExp('"' + key + '"\s*:\s*(-?[\d.]+)').exec(tail); return m ? Number(m[1]) : NaN; };
+  const num = (key) => { const m = new RegExp('"' + key + '"\\s*:\\s*(-?[\\d.]+)').exec(tail); return m ? Number(m[1]) : NaN; };
   const spot = num('current_price');
   if (!(spot > 0)) return null;
   const c = collector(sym, spot, now), KEY = '"option":', seen = [];
