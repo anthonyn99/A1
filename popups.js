@@ -138,7 +138,7 @@
     if (attr.length > 1) attr = Array.from(new Set(attr));
     for (var i = 0; i < add.length; i++) {
       var n = add[i];
-      if (!n.isConnected) continue;
+      if (!n.isConnected || optedOut(n)) continue;   // inside data-a1-popup="off": no style read at all
       var size = n.getElementsByTagName ? n.getElementsByTagName('*').length : 0;
       scanTree(n, size <= 600 ? 64 : 4);
     }
@@ -146,7 +146,7 @@
       var el = attr[j];
       if (!el.isConnected) continue;
       if (el.hasAttribute('data-a1-scrim')) untagIfGone(el);
-      else scanTree(el, 1);
+      else if (!optedOut(el)) scanTree(el, 1);
     }
   }
   function queue() {
