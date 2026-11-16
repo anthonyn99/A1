@@ -234,6 +234,13 @@ function memoryRoutes(state, posted, req, u, p) {
  *   state.ideas      what GET /ideas answers (Phase 7); state.dossier: symbol → GET /dossier's answer
  * `asked` lists every request's path; `posted` the snapshots and watchlists sent.
  */
+// quant-api's default alert config (workers2/quant-api/lib/alerts.js DEFAULT_CFG).
+const ALERT_CFG = () => ({
+  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true },
+  quiet: { on: false, from: '22:00', to: '07:00', tz: 'America/Denver' },
+  marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true },
+  mute: {}, cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false }, speak: true,
+});
 function quantApi() {
   const asked = [], posted = { snapshots: [], watchlists: [] };
   const state = { snapshot: FIXTURE, watchlist: WATCHLIST, quotes: true, drawings: {}, alerts: [], signals: [], calibration: null, paper: [], backtests: [], ideas: null, dossier: {},
@@ -277,7 +284,24 @@ function quantApi() {
       }
       if (p === '/drawings' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, symbol: sym, drawings: state.drawings[sym] || [], at: state.drawings[sym] ? 1 : null } }; }
       if (p === '/drawings' && req.method === 'PUT') { const b = JSON.parse(req.postData); state.drawings[b.symbol] = b.drawings; (posted.drawings = posted.drawings || []).push(b); return { json: { ok: true, n: b.drawings.length, at: CLOCK } }; }
-      if (p === '/alerts' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, alerts: state.alerts.filter((a) => !sym || a.symbol === sym) } }; }
+      // Phase 14: GET answers rules as quant-api's ruleOf does (kind, params, enabled, cooldownMin) and the config;
+      // /alerts/… plays the bell's fires, the config, the catalysts, Send test and the order.
+      if (p === '/alerts' && req.method === 'GET') {
+        const sym = u.searchParams.get('symbol');
+        const out = state.alerts.filter((a) => !sym || a.symbol === sym).map((a) => {
+          const legacy = !a.kind || a.kind === 'level' || a.kind === 'price';
+          return { ...a, kind: legacy ? 'price' : a.kind, symbol: a.symbol || null, enabled: a.enabled !== false && a.active !== 0, cooldownMin: a.cooldownMin == null ? 30 : a.cooldownMin, quiet: !!a.quiet,
+            params: legacy ? { ...(a.params || {}), price: a.price ?? (a.params || {}).price ?? null, lo: a.lo ?? null, hi: a.hi ?? null, dir: (a.params && a.params.dir) || (a.price == null && a.lo != null ? 'enter' : 'cross'), holds: !!(a.params && a.params.holds) } : (a.params || {}) };
+        });
+        return { json: { ok: true, alerts: out, config: state.alertCfg || ALERT_CFG() } };
+      }
+      if (p === '/alerts/fires') return { json: { ok: true, fires: state.alertFires || [], unseen: (state.alertFires || []).filter((f) => !f.seen).length } };
+      if (p === '/alerts/seen') { (state.alertFires || []).forEach((f) => { f.seen = true; }); posted.seen = (posted.seen || 0) + 1; return { json: { ok: true } }; }
+      if (p === '/alerts/config' && req.method === 'PUT') { state.alertCfg = JSON.parse(req.postData).config; (posted.alertCfg = posted.alertCfg || []).push(state.alertCfg); return { json: { ok: true, config: state.alertCfg } }; }
+      if (p === '/alerts/config') return { json: { ok: true, config: state.alertCfg || ALERT_CFG() } };
+      if (p === '/alerts/catalysts') { (posted.catalysts = posted.catalysts || []).push(JSON.parse(req.postData).items); return { json: { ok: true } }; }
+      if (p === '/alerts/test') { posted.tests = (posted.tests || 0) + 1; return { json: state.pushTest || { ok: true, sent: 2, failed: 0, devices: ['Tony PC', 'Pixel 9'] } }; }
+      if (p === '/alerts/order') { const ids = JSON.parse(req.postData).ids; state.alerts = ids.map((id) => state.alerts.find((a) => a.id === id)).filter(Boolean).concat(state.alerts.filter((a) => !ids.includes(a.id))); (posted.orders = posted.orders || []).push(ids); return { json: { ok: true } }; }
       if (p === '/alerts' && req.method === 'POST') { const a = JSON.parse(req.postData).alert, id = a.id || 'a' + (state.alerts.length + 1) + '_' + Math.round(Math.random() * 1e6); state.alerts = state.alerts.filter((x) => x.id !== id).concat([{ ...a, id, active: 1 }]); (posted.alerts = posted.alerts || []).push({ ...a, id }); return { json: { ok: true, id } }; }
       if (p === '/alerts' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.alerts = state.alerts.filter((x) => x.id !== id); return { json: { ok: true, id } }; }
       if (p === '/signals' && req.method === 'GET') return { json: { ok: true, signals: state.signals } };
