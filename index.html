@@ -8833,6 +8833,49 @@ function CR_rows(list,o){
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   TRADEHUB ALERTS ON TONY'S TASKHUB (read-only) — A1-Priv quant Phase 14.
+   taskhub-reminders /quant-push writes dashboards/quant_alerts_tony when an
+   alert's kind has "TaskHub card" on in TradeHub ▸ Control ▸ Alerts (a target
+   or stop hit on a signal he took, a catalyst about to land, by default):
+   { items: JSON text [{ id, at, title, body, url, kind }] }, the last 20 of the
+   last 24 hours. Each shows on the local day it fired, in Tony's week only, as
+   an event row; a tap opens TradeHub at the alert. Nothing here writes, so
+   undo and drag never see these rows. Names are QA_-prefixed (one babel scope).
+   ══════════════════════════════════════════════════════════════════════════ */
+const QA_COLOR="#d4a843";
+function QA_useCards(){
+  const[doc,setQaDoc]=useState(()=>window._qaAlerts||null);
+  useEffect(()=>{
+    const h=e=>setQaDoc(e.detail||null);
+    window.addEventListener("qa-alerts-update",h);
+    if(window._qaAlerts)setQaDoc(window._qaAlerts);
+    return()=>window.removeEventListener("qa-alerts-update",h);
+  },[]);
+  let items=[];
+  try{items=JSON.parse((doc&&doc.items)||"[]");}catch(e){items=[];}
+  const now=Date.now(),out={};
+  (Array.isArray(items)?items:[]).filter(x=>x&&x.id&&x.title&&now-Number(x.at)<86400000)
+    .sort((a,b)=>Number(a.at)-Number(b.at))
+    .forEach(x=>{const k=CR_dayKey(Number(x.at));(out[k]=out[k]||[]).push(x);});
+  return out;
+}
+function QA_rows(list,o){
+  return (list||[]).map(x=>{
+    const d=new Date(Number(x.at));
+    const time=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    const url=String(x.url||"").indexOf("https://a1-priv.av1.workers.dev/tradehub.html")===0?x.url:"https://a1-priv.av1.workers.dev/tradehub.html";
+    return React.createElement("div",{key:x.id,role:"link",tabIndex:0,"data-qa-card":x.kind||"",title:(x.body||x.title)+" · TradeHub alert · open in TradeHub",
+        onClick:()=>{if(!o.edit)window.open(url,"_blank","noopener");},
+        onKeyDown:e=>{if(!o.edit&&(e.key==="Enter"||e.key===" ")){e.preventDefault();window.open(url,"_blank","noopener");}},
+        style:{...(o.card||{}),borderLeft:"3px solid "+QA_COLOR,display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:o.dim==null?1:o.dim,cursor:o.edit?"default":"pointer"}},
+      React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:QA_COLOR,marginTop:5,flexShrink:0}}),
+      React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+        React.createElement("span",{style:{float:"right",marginLeft:5,fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
+        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},x.title)));
+  });
+}
+
 function Root(){
   return React.createElement(App,null);
 }
@@ -8847,6 +8890,8 @@ function App(){
   const ecByDay=EC_byDay(EC_useCards());
   // Claude reset times from MAGI — read-only, see CR_* above.
   const crByDay=CR_useResets("tony");
+  // TradeHub alerts that asked for a TaskHub card — read-only, see QA_* above.
+  const qaByDay=QA_useCards();
   useEffect(()=>{
     document.body.style.background="#1a1a1d";
     document.documentElement.style.background="#1a1a1d";
@@ -10652,8 +10697,9 @@ function App(){
               pvRender(pvMatches,k,dayTX,false),
               /* Claude resets sit below the ProView cards (Tony, 2026-10-30). */
               CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,box:{del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
+              QA_rows(qaByDay[k],{card:wkEventCard(null,false),edit:edit,tx:T.TXD,dim:dimA,fit:wkTitleFit}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
-              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!(qaByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -10733,8 +10779,9 @@ function App(){
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,true),
               CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,box:{del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
+              QA_rows(qaByDay[k],{card:wkEventCard(null,false),edit:edit,tx:T.TXD,dim:dimA,fit:wkTitleFit,compact:true}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
-              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!(qaByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
@@ -11440,6 +11487,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
   let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
+  let _qaUnsub        = null;   // TradeHub alerts' TaskHub cards, Tony's (read-only)
   let _neoTonyUnsub   = null;   // Tony's Neo AI settings (dashboards/neo_tony)
   let _alUnsubscribe  = null;
   let _oiUnsubscribe  = null;
@@ -12891,6 +12939,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window.dispatchEvent(new CustomEvent('cr-resets-update', { detail: { profile: p, data } }));
     }, (err) => { console.warn('[ClaudeResets] onSnapshot error:', err); }));
 
+    // ── TradeHub alerts' TaskHub cards (read-only) ────────────────────────
+    // Written by workers/taskhub-reminders /quant-push (A1-Priv quant Phase 14).
+    // Tony's only; TaskHub listens and renders, see QA_useCards.
+    if (_qaUnsub) { try { _qaUnsub(); } catch (e) {} }
+    _qaUnsub = onSnapshot(doc(db, 'dashboards/quant_alerts_tony'), (snap) => {
+      window._qaAlerts = snap.exists() ? snap.data() : null;
+      window.dispatchEvent(new CustomEvent('qa-alerts-update', { detail: window._qaAlerts }));
+    }, (err) => { console.warn('[TradeHubAlerts] onSnapshot error:', err); });
+
     // Remove one Claude reset (edit-mode ×). The id goes in the doc's
     // `dismissed` map, which the worker reads on its next post so the reset is
     // never re-armed, and its push reminder is deleted now. The next reset has
@@ -13223,6 +13280,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_ewWorkUnsub)    { _ewWorkUnsub();    _ewWorkUnsub    = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     _crUnsubs.forEach(u => { try { u(); } catch (e) {} }); _crUnsubs = [];
+    if (_qaUnsub) { try { _qaUnsub(); } catch (e) {} _qaUnsub = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
     if (window._rlUnsubscribe) { window._rlUnsubscribe(); window._rlUnsubscribe = null; }
