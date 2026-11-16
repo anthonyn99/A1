@@ -45,7 +45,7 @@ function cboe(sym, now, iv30 = 31.5) {
   }
   return { timestamp: 'x', data: { symbol: sym, current_price: 100, iv30, options } };
 }
-const W = { calls: [], down: new Set(), cboeNow: Date.now() };
+const W = { calls: [], down: new Set(), cboeNow: Date.now(), nasdaqNoData: false, lateEps: null };
 const res = (body, status = 200, text = false) => new Response(text ? body : JSON.stringify(body), { status, headers: { 'content-type': text ? 'text/csv' : 'application/json' } });
 globalThis.fetch = async (url) => {
   const u = String(url);
@@ -60,8 +60,10 @@ globalThis.fetch = async (url) => {
   if (h === 'fred') { const id = /id=([A-Z0-9]+)/.exec(u)[1]; return res('observation_date,' + id + '\n2026-11-12,3.20\n2026-11-13,.\n2026-11-14,3.23\n', 200, true); }
   if (h === 'nasdaq') {
     const d = /date=(\d{4}-\d{2}-\d{2})/.exec(u)[1];
-    return res({ data: { rows: [
-      { symbol: 'BIG', time: 'time-after-hours', eps: '$1.23', epsForecast: '$1.10', marketCap: '$90,000,000,000' },
+    // Throttled the way the review feared: HTTP 200 with no data and another status code.
+    if (W.nasdaqNoData) return res({ data: null, message: null, status: { rCode: 400 } });
+    return res({ status: { rCode: 200 }, data: { asOf: d, rows: [
+      { symbol: 'BIG', time: 'time-after-hours', eps: W.lateEps && W.lateEps.day === d ? W.lateEps.eps : '$1.23', epsForecast: '$1.10', marketCap: '$90,000,000,000' },
       { symbol: 'LOSS', time: 'time-pre-market', eps: '($0.45)', epsForecast: '($0.50)', marketCap: '$6,000,000,000' },
       { symbol: 'TINY', time: 'time-pre-market', eps: '$0.10', epsForecast: '$0.09', marketCap: '$300,000,000' },
       { symbol: 'NOCAP', time: 'time-not-supplied', eps: '', epsForecast: '$0.20', marketCap: '' },
@@ -89,7 +91,7 @@ globalThis.fetch = async (url) => {
   const now = Date.UTC(2026, 10, 16, 15);
   const cc = O.compactChain(cboe('AAPL', now), now);
   ok('expiries within 120 days only (3 of 4), sorted', cc.expiries.length === 3 && cc.expiries[0].exp < cc.expiries[1].exp, cc.expiries.map((e) => e.exp));
-  ok('strikes within ±30% of spot (60 and 140 dropped), each side by strike', cc.expiries.every((e) => e.c.map((r) => r[0]).join() === '90,95,100,105,110' && e.p.length === 5));
+  ok('strikes within ±20% of spot (60 and 140 dropped), each side by strike', cc.expiries.every((e) => e.c.map((r) => r[0]).join() === '90,95,100,105,110' && e.p.length === 5));
   ok('row = [k, bid, ask, iv, oi, vol, delta, gamma]', JSON.stringify(cc.expiries[0].c[2]) === JSON.stringify([100, 1.1, 1.3, 0.3, 100, 10, 0.5, 0.05]), JSON.stringify(cc.expiries[0].c[2]));
   ok('iv30 31.5 (percent) → 0.315; spot, delayed', cc.iv30 === 0.315 && cc.spot === 100 && cc.delayed === true && cc.symbol === 'AAPL');
   ok('OCC symbols parsed', JSON.stringify(O.parseOcc('AAPL261116C00275000')) === JSON.stringify({ root: 'AAPL', exp: '2026-11-16', type: 'C', k: 275 }) && O.parseOcc('junk') === null);
@@ -100,6 +102,23 @@ globalThis.fetch = async (url) => {
   ok('the text scan gives exactly the parsed result (CBOE\'s spacing)', JSON.stringify(ct) === JSON.stringify(O.compactChain(raw, now)), JSON.stringify(ct).slice(0, 200));
   ok('another root in the same chain ("B1AAPL…") is left out', ct.expiries.every((e) => e.c.length === 5));
   ok('no price in the text → null', O.compactText('{"data":{"options":[]}}', 'AAPL', now) === null);
+  // A SPY-like chain: an expiry every weekday for 130 days, so the 6 nearest then the monthlies are picked,
+  // and the text scan JUMPS to each monthly; the June-like monthly sits on the Thursday before a holiday Friday.
+  const many = { timestamp: 'x', data: { symbol: 'SPYX', current_price: 100, iv30: 20, options: [] } };
+  const t0 = Date.UTC(2026, 10, 16, 15);
+  for (let n = 0; n <= 130; n++) {
+    const t = t0 + n * 86400000, w = new Date(t).getUTCDay();
+    if (w === 0 || w === 6) continue;
+    const day = new Date(t).toISOString().slice(0, 10);
+    if (day === '2027-01-15') continue;   // the third Friday of January "a holiday": its monthly is Thursday the 14th
+    for (const k of [85, 100, 115]) for (const cp of ['C', 'P']) many.data.options.push({ option: `SPYX${ymd(t)}${cp}${String(k * 1000).padStart(8, '0')}`, bid: 1, ask: 1.2, iv: 0.2, open_interest: 10, volume: 1, delta: cp === 'C' ? 0.5 : -0.5, gamma: 0.03 });
+  }
+  const mc = O.compactChain(many, t0), mt = O.compactText(JSON.stringify(many).replace(/":/g, '": ').replace(/,"/g, ', "'), 'SPYX', t0);
+  const exps = mc.expiries.map((e) => e.exp);
+  ok('daily expiries: the 6 nearest, then the monthlies (third Fridays) to 120 days, 10 at most', exps.length <= 10 && exps.slice(0, 6).join() === '2026-11-16,2026-11-17,2026-11-18,2026-11-19,2026-11-20,2026-11-23' && exps.includes('2026-12-18') && exps.includes('2027-02-19'), JSON.stringify(exps));
+  ok('a monthly whose Friday is a holiday: the Thursday before it (Jan 14)', exps.includes('2027-01-14') && !exps.includes('2027-01-15'), JSON.stringify(exps));
+  ok('the text scan (with its jumps) gives exactly the parsed result', JSON.stringify(mt) === JSON.stringify(mc), JSON.stringify(mt && mt.expiries.map((e) => e.exp)));
+  ok('monthly(): third Fridays and holiday Thursdays only', O.monthly('2026-12-18') && O.monthly('2027-01-14') && !O.monthly('2026-12-17') && !O.monthly('2026-12-11'));
   ok('index symbols are not asked (their chains are 10+ MB)', !O.canAsk('^VIX') && !O.canAsk('_SPX') && O.canAsk('BRK.B'));
 
   console.log('\n/options: cached, at most 2 CBOE calls a symbol a day');
@@ -122,9 +141,21 @@ globalThis.fetch = async (url) => {
   W.down.add('cboe');
   r = await call(env, 'GET', '/options?symbol=AMD');
   ok('CBOE down and nothing cached: no chain, the reason said', r.status === 200 && r.body.chain === null && /CBOE/.test(r.body.note || ''), JSON.stringify(r.body));
+  const amd1 = cboeCalls();
+  for (let i = 0; i < 4; i++) await call(env, 'GET', '/options?symbol=AMD');
+  ok('a failed fetch still uses its call: asked again at once, CBOE is not called', cboeCalls() === amd1, cboeCalls() - amd1);
+  env.DB.sql.prepare("UPDATE options_cache SET at = at - 4*3600000 WHERE symbol='AMD'").run();
+  for (let i = 0; i < 4; i++) { await call(env, 'GET', '/options?symbol=AMD'); env.DB.sql.prepare("UPDATE options_cache SET at = at - 4*3600000 WHERE symbol='AMD'").run(); }
+  ok('a ticker CBOE cannot answer costs at most 2 calls a day', cboeCalls() - amd1 === 1, cboeCalls() - amd1);
   W.down.delete('cboe');
+  // Two requests at once: one reservation wins, the other reads the cache.
+  W.cboeNow = Date.now();
+  const before2 = cboeCalls();
+  await Promise.all([call(env, 'GET', '/options?symbol=MSFT'), call(env, 'GET', '/options?symbol=MSFT')]);
+  ok('two requests at once: one CBOE call, calls = 1', cboeCalls() - before2 === 1 && env.DB.sql.prepare("SELECT calls FROM options_cache WHERE symbol='MSFT'").get().calls === 1, cboeCalls() - before2);
+  const bIdx0 = cboeCalls();
   r = await call(env, 'GET', '/options?symbol=%5EVIX');
-  ok('an index symbol: no CBOE call, says it is not asked', r.status === 200 && r.body.chain === null && /not asked/.test(r.body.note) && cboeCalls() === 3, JSON.stringify(r.body));
+  ok('an index symbol: no CBOE call, says it is not asked', r.status === 200 && r.body.chain === null && /not asked/.test(r.body.note) && cboeCalls() === bIdx0, JSON.stringify(r.body));
   r = await call(env, 'GET', '/options');
   ok('no symbol → 400', r.status === 400);
 
@@ -150,16 +181,24 @@ globalThis.fetch = async (url) => {
   ok('CPI days come back sorted', Array.isArray(r.body.dates.cpi) && r.body.dates.cpi.join() === cpi26.join(), JSON.stringify(r.body.dates.cpi));
   const d1 = W.calls.length; await call(env, 'GET', '/macro/dates');
   ok('asked again the same week: no call when everything was read', kinds * years > 20 || W.calls.length === d1);
+  // A past year read after it ended is final, unless it came back empty (a changed or blocked page).
+  env.DB.sql.prepare("INSERT OR REPLACE INTO macro_series (id, at, body) VALUES ('dates:cpi:2025', ?, '[]')").run(Date.UTC(2026, 0, 5));
+  env.DB.sql.prepare("INSERT OR REPLACE INTO macro_series (id, at, body) VALUES ('dates:ppi:2025', ?, '[\"2025-01-15\"]')").run(Date.UTC(2026, 0, 5));
+  const d2 = W.calls.length; await call(env, 'GET', '/macro/dates');
+  const asked25 = W.calls.slice(d2).filter((u) => /y=2025/.test(u)).map((u) => /rid=(\d+)/.exec(u)[1]);
+  ok('an empty past year is read again; a full one read after it ended is final', asked25.includes('10') && !asked25.includes('46'), JSON.stringify(asked25));
 
   console.log('\n/earnings: Nasdaq by date, resumable, never a day twice');
   const at20 = Date.UTC(2026, 10, 17, 2);   // 21:00 New York on Mon Nov 16
   const nightly = C.daysToAsk('nightly', new Set(), { now: at20 });
   ok('nightly after 20:00 New York: today and the 6 weekdays before (7)', nightly.length === 7 && nightly[0] === '2026-11-16' && !nightly.some((d) => [0, 6].includes(new Date(d + 'T12:00:00Z').getUTCDay())), JSON.stringify(nightly));
   ok('nightly before 20:00: from yesterday', C.daysToAsk('nightly', new Set(), { now: Date.UTC(2026, 10, 16, 18) })[0] === '2026-11-13');
-  ok('a day already asked is never asked again', !C.daysToAsk('nightly', new Set(['2026-11-16']), { now: at20 }).includes('2026-11-16'));
-  const bf = C.daysToAsk('backfill', new Set(), { now: at20, max: 5, oldest: '2026-11-06' });
-  ok('backfill walks back from the oldest day asked', bf[0] === '2026-11-05' && bf.length === 5, JSON.stringify(bf));
-  ok('never further back than 10 years', C.daysToAsk('backfill', new Set(), { now: at20, max: 40, oldest: '2016-11-20' }).every((d) => d >= '2016-11-15'));
+  ok('nightly reads the last 3 weekdays again (EPS filled in late), not the older ones it has', (() => { const x = C.daysToAsk('nightly', new Set(['2026-11-16', '2026-11-13', '2026-11-12', '2026-11-11', '2026-11-10', '2026-11-09', '2026-11-06']), { now: at20 }); return x.join() === '2026-11-16,2026-11-13,2026-11-12'; })());
+  const askedSet = new Set(['2026-11-16', '2026-11-13', '2026-11-12', '2026-11-06', '2026-11-05']);
+  const bf = C.daysToAsk('backfill', askedSet, { now: at20, max: 5 });
+  ok('backfill: the newest weekdays never asked, so every hole is filled (Nov 11 to 9, then Nov 4…)', bf.join() === '2026-11-11,2026-11-10,2026-11-09,2026-11-04,2026-11-03', JSON.stringify(bf));
+  ok('backfill never asks a day already asked', bf.every((d) => !askedSet.has(d)));
+  ok('never further back than 10 years', (() => { const all = new Set(); for (let t = Date.UTC(2016, 11, 1); t < Date.UTC(2026, 10, 17); t += 86400000) all.add(new Date(t).toISOString().slice(0, 10)); return C.daysToAsk('backfill', all, { now: at20, max: 40 }).every((d) => d >= '2016-11-15'); })());
   const nb = W.calls.length;
   r = await call(env, 'POST', '/earnings/fetch', { mode: 'backfill', max: 3 });
   ok('backfill: 3 days asked, one Nasdaq call each', r.status === 200 && r.body.asked.length === 3 && W.calls.slice(nb).filter((u) => /nasdaq/.test(u)).length === 3, JSON.stringify(r.body));
@@ -167,6 +206,14 @@ globalThis.fetch = async (url) => {
   const first = r.body.asked;
   r = await call(env, 'POST', '/earnings/fetch', { mode: 'backfill', max: 3 });
   ok('resumed: the next 3 days back, none repeated', r.body.asked.length === 3 && r.body.asked.every((d) => !first.includes(d) && d < first[first.length - 1]), JSON.stringify([first, r.body.asked]));
+  // An EPS Nasdaq had not filled in: a later read fills it; a later blank never wipes one.
+  const dLate = first[0];
+  W.lateEps = { day: dLate, eps: '' };
+  const fixed0 = env.DB.sql.prepare("SELECT eps FROM earnings WHERE symbol='BIG' AND day=?").get(dLate).eps;
+  env.DB.sql.prepare("DELETE FROM earnings_days WHERE day=?").run(dLate);
+  await call(env, 'POST', '/earnings/fetch', { mode: 'backfill', max: 1 });
+  ok('a blank EPS on a later read never wipes the stored one', env.DB.sql.prepare("SELECT eps FROM earnings WHERE symbol='BIG' AND day=?").get(dLate).eps === fixed0 && fixed0 === 1.23);
+  W.lateEps = null;
   r = await call(env, 'GET', '/earnings?symbols=BIG,LOSS,NONE');
   const big = r.body.reports.BIG;
   ok('GET: each symbol\'s reports, oldest first, with time and EPS', big.length === 6 && big[0].day < big[5].day && big[0].time === 'amc' && big[0].eps === 1.23 && big[0].est === 1.1 && r.body.reports.NONE.length === 0, JSON.stringify(big[0]));
@@ -176,6 +223,11 @@ globalThis.fetch = async (url) => {
   r = await call(env, 'POST', '/earnings/fetch', { mode: 'backfill', max: 3 });
   ok('Nasdaq down: stops, says so, marks nothing asked', r.body.asked.length === 0 && /Nasdaq/.test(r.body.stop || '') && env.DB.sql.prepare('SELECT COUNT(*) n FROM earnings_days').get().n === 6, JSON.stringify(r.body));
   W.down.delete('nasdaq');
+  W.nasdaqNoData = true;
+  r = await call(env, 'POST', '/earnings/fetch', { mode: 'backfill', max: 3 });
+  ok('Nasdaq answers 200 with no data (throttled): stops, the day is NOT marked asked', r.body.asked.length === 0 && /did not answer/.test(r.body.stop || '') && env.DB.sql.prepare('SELECT COUNT(*) n FROM earnings_days').get().n === 6, JSON.stringify(r.body));
+  W.nasdaqNoData = false;
+  ok('a real empty day (a holiday: asOf, rows null) is an empty day', JSON.stringify(M.parseEarnings(null, '2025-12-25')) === '[]');
 
   console.log('\nbefore the migration, the key, newshub');
   const bare = { DB: realD1({ skip: ['0012_context.sql'] }), ALLOWED_KEYS: hash(KEY) };
