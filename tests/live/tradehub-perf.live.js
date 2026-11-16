@@ -7,7 +7,7 @@
 //      50 ms and frames stay at or above 55 a second
 //   3. the same at 4x CPU throttle (a phone), with relaxed limits:
 //      a switch under 450 ms, no task over 200 ms, 30 frames a second
-//   4. a tab change is a quick settle, transform only: nothing fades, and a
+//   4. a tab change is instant: nothing moves or fades (2026-11-16), and a
 //      click on the tab already open plays nothing at all
 //   5. an 800-trade Journal opens in under 150 ms, draws more rows as it is
 //      scrolled (all 800 by the end) and runs nothing while it sits still
@@ -127,9 +127,8 @@ const PROBE = `(() => {
     document.getAnimations().forEach(function(a){ var k = a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : []; var props = {}; k.forEach(function(f){ Object.keys(f).forEach(function(p){ if(['offset','easing','composite','computedOffset'].indexOf(p)<0) props[p]=1; }); });
       var t = a.effect && a.effect.target; var pe = a.effect && a.effect.pseudoElement; out.push({ on: pe || (t && (t.className||t.tagName)) || '', props: Object.keys(props), ms: a.effect.getComputedTiming().duration }); });
     return JSON.stringify(out);`));
-  const moving = anim.filter((a) => /view-transition|tbq|tb-fade-in/.test(String(a.on)));
-  ok('a tab change settles into place', moving.length > 0, JSON.stringify(anim).slice(0, 300));
-  ok('...with a transform only, nothing fading, in under 200 ms', moving.every((a) => a.props.length && a.props.every((p) => p === 'transform') && a.ms <= 200), JSON.stringify(moving));
+  const moving = anim.filter((a) => /view-transition|tbq|tb-fade-in|lay-card|tbx-page/.test(String(a.on)));
+  ok('a tab change is there at once: nothing on the page moves or fades (Tony, 2026-11-16)', moving.length === 0, JSON.stringify(moving).slice(0, 300));
   ok('...and no view transition', !anim.some((a) => /view-transition/.test(String(a.on))));
   await sleep(400);
   const again = JSON.parse(await js(`var b = [...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(function(x){return x.offsetParent;}); var first = document.querySelector('.tbq-pane > *');
