@@ -113,7 +113,9 @@ globalThis.fetch = async (url) => {
   ok('CBOE down and nothing cached: no chain, the reason said', r.status === 200 && r.body.chain === null && /CBOE/.test(r.body.note || ''), JSON.stringify(r.body));
   W.down.delete('cboe');
   r = await call(env, 'GET', '/options?symbol=%5EVIX');
-  ok('a bad symbol → 400', r.status === 400);
+  ok('an index symbol: no CBOE call, says it is not asked', r.status === 200 && r.body.chain === null && /not asked/.test(r.body.note) && cboeCalls() === 3, JSON.stringify(r.body));
+  r = await call(env, 'GET', '/options');
+  ok('no symbol → 400', r.status === 400);
 
   console.log('\n/macro: FRED without a key');
   const before = W.calls.length;
