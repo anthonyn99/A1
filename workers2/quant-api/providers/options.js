@@ -69,9 +69,12 @@ export function compactText(text, sym, now = Date.now()) {
     if (q0 < 0 || q1 < 0) break;
     const p = c.want(t.slice(q0 + 1, q1));
     if (!p) continue;
-    const a = t.lastIndexOf('{', i), b = t.indexOf('}', q1);
-    if (a < 0 || b < 0) break;
-    try { c.add(p, JSON.parse(t.slice(a, b + 1))); } catch (e) { /* a malformed contract is left out */ }
+    const b = t.indexOf('}', q1);
+    if (b < 0) break;
+    // The few fields needed, read in place (flat object, no nesting): no JSON.parse per contract.
+    const f = (key) => { const k = t.indexOf('"' + key + '"', q1); if (k < 0 || k > b) return NaN; let s = t.indexOf(':', k) + 1; while (t.charCodeAt(s) === 32) s++; return parseFloat(t.slice(s, s + 24)); };
+    c.add(p, { bid: f('bid'), ask: f('ask'), iv: f('iv'), open_interest: f('open_interest'), volume: f('volume'), delta: f('delta'), gamma: f('gamma') });
+    i = b;
   }
   return c.done(num('iv30'));
 }
