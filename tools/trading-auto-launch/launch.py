@@ -2560,6 +2560,22 @@ if __name__ == "__main__":
     parser.add_argument("protocol_url", nargs="?", help=argparse.SUPPRESS)
     args = parser.parse_args()
     trim_logs()
+    # The Deploy button's protocol names this file by path. When the file moved (the
+    # 2026-11-03 A1 layout put it in tools/), the old registration kept pointing at the
+    # old path and the button silently did nothing. Every scheduled run puts it right.
+    if not (args.setup or args.uninstall):
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{PROTOCOL}\shell\open\command") as k:
+                registered = winreg.QueryValue(k, None) or ""
+            if str(SCRIPT_PATH).lower() not in registered.lower():
+                log(f"Deploy protocol pointed at an old path ({registered}); registering it again.")
+                _register_protocol()
+        except OSError:
+            log("Deploy protocol not registered; registering it.")
+            _register_protocol()
+        except Exception as e:
+            log(f"Deploy protocol check skipped: {e}")
 
     if args.setup:
         setup()
