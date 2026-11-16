@@ -54,6 +54,9 @@ function fakeDb() {
       if (/FROM corrections/.test(sql)) return { results: corrections.slice().reverse().slice(0, args[0]) };
       if (/FROM alerts WHERE symbol = \?/.test(sql)) return { results: [...alerts.values()].filter((a) => a.symbol === args[0]).sort((a, b) => b.created - a.created) };
       if (/^SELECT id FROM signals WHERE id IN \(SELECT value FROM json_each\(\?\)\)/.test(sql)) { const ids = JSON.parse(args[0]); return { results: ids.filter((i) => signals.has(i)).map((id) => ({ id })) }; }
+      // Phase 14: postGrades reads the hits before its batch (for the graded alerts).
+      if (/^SELECT id, symbol, setup, status, taken, done FROM signals WHERE id IN/.test(sql)) { const ids = JSON.parse(args[0]); return { results: ids.filter((i) => signals.has(i)).map((id) => { const x = signals.get(id); return { id, symbol: x.symbol, setup: x.setup, status: x.status, taken: x.taken, done: x.done }; }) }; }
+      if (/^SELECT \* FROM alerts WHERE active = 1 AND kind = \?/.test(sql)) return { results: [] };
       if (/^SELECT \* FROM signals WHERE at >= \?/.test(sql)) {
         let k = 1, rows = [...signals.values()].filter((x) => x.at >= args[0]);
         if (/AND done = \?/.test(sql)) { const d = args[k++]; rows = rows.filter((x) => x.done === d); }
