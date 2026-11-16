@@ -136,8 +136,10 @@ const SAMPLER = `(() => {
     for (let i = 0; i < 3; i++) {
       await js(`window.__mo.frames=[]; window.__mo.chartW=[]; window.__mo.on=true; 1`);
       // How long from the press until the slide is moving (it must not wait for the page's re-layout).
-      const start = await js(`return await new Promise(function(done){ var d=document.querySelector('[data-nq-dock]'), t0=performance.now(); document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
-        (function f(){ var a=d.getAnimations()[0]; if (a && a.currentTime > 0) return done(Math.round(performance.now()-t0)); if (performance.now()-t0 > 3000) return done(9999); requestAnimationFrame(f); })(); });`);
+      // The animation's own start time on the document timeline (the compositor plays it from there,
+      // whatever the main thread is doing), against the moment of the press.
+      const start = await js(`return await new Promise(function(done){ var d=document.querySelector('[data-nq-dock]'), t0=document.timeline.currentTime; document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+        var a=d.getAnimations()[0]; if (!a) return done(9999); a.ready.then(function(){ done(Math.round(a.startTime - t0)); }); });`);
       await sleep(600);
       await press(); await sleep(600);
       await js(`window.__mo.on=false; 1`);
