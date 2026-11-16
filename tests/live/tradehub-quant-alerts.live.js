@@ -58,7 +58,7 @@ const ok = (name, cond, extra) => {
     ok('the bell is drawn' + (w < 600 ? ' in the phone bar' : ' in the sidebar\'s foot'), await until(`(function(){var b=document.querySelector('${bell}'); return b && b.offsetParent; })()`, 15000));
     ok('… with the unseen count (2)', await until(`(function(){var n=document.querySelector('${bell} [data-tal-count]'); return n && !n.hidden && n.textContent==='2'; })()`, 8000),
       await js(`var n=document.querySelector('${bell} [data-tal-count]'); return n ? n.textContent + '/' + n.hidden : 'none';`));
-    if (w < 600) ok('only one bell on the phone (none in the drawer)', await js(`return document.querySelectorAll('[data-tal-bell]').length === 1;`));
+    if (w < 600) ok('only one bell shows on the phone (none in the drawer)', await js(`return [...document.querySelectorAll('[data-tal-bell]')].filter(function(b){return b.offsetParent;}).length === 1 && !document.querySelector('.tb-drawer [data-tal-bell]');`));
     ok('no sideways scroll', await noSideScroll());
     await shot(`alerts-bell-${w}`);
     await js(`document.querySelector('${bell}').click(); 1`);
@@ -114,7 +114,8 @@ const ok = (name, cond, extra) => {
   await js(`location.hash = '#alert=market'; 1`);
   ok('#alert=market opens the Market tab', await until(`window._tbOps.app.page() === 'market'`, 6000), await page());
   ok('… and the address is clean again', await until(`location.hash === ''`, 3000));
-  ok('the catalysts were sent at most once a visit (unchanged lists are not re-sent)', (api.posted.catalysts || []).length <= 3, (api.posted.catalysts || []).length);
+  // Every boot above cleared the site's storage (so its "sent" mark): at most one send a boot, never more.
+  ok('the catalysts: at most one send a visit (5 fresh visits so far)', (api.posted.catalysts || []).length <= 5, (api.posted.catalysts || []).length);
 
   console.log('\nQuant off');
   await boot({ quant: false });
