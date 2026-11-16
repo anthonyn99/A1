@@ -1501,6 +1501,12 @@ function modal(title, buildBody, buildFooter) {
     box.appendChild(f);
   }
   buildBody(b, close);
+  // A dialog's buttons answer the cursor with their own colour shift
+  // (notebook.css .docx-btn), never hoverfx's outline ring — rows re-rendered
+  // later (Trash) included.
+  var noRing = function() { box.querySelectorAll('button:not([data-noglow])').forEach(function(el) { el.setAttribute('data-noglow', ''); }); };
+  noRing();
+  try { new MutationObserver(noRing).observe(box, { childList: true, subtree: true }); } catch (e) {}
   veil.appendChild(box);
   veil.addEventListener('pointerdown', function(e) { if (e.target === veil) close(); });
   document.body.appendChild(veil);

@@ -556,6 +556,11 @@ window.Notebook = {
     }
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
     checkOptions(cfg);
+    // Menus and dialogs are appended to <body> and read its side to wear the
+    // right colours. A host that does not mark one (TradeHub) showed Tony's
+    // dialogs in the default saturated blue; notebook.css honours this only
+    // while the host sets no data-th-profile of its own.
+    try { if (document.body && !document.body.hasAttribute('data-nb-side')) document.body.setAttribute('data-nb-side', cfg.profile); } catch (e) {}
     this.mounts[cfg.key] = cfg;
     cfg.mode = cfg.mode || 'inline';
     // Always an array, and the app keeps this one, so Notebook.pin reaches it.
