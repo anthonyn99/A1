@@ -86,9 +86,14 @@
     var tall = t <= 1 && (b <= 1 || cs.height === '100%' || h >= vh * 0.9);
     return wide && tall;
   }
+  // A backdrop is always a block container; inline elements, table parts, form fields and
+  // SVG are never one, so they are not given a getComputedStyle (a Journal of 800 rows
+  // added thousands of them at once: ~45 ms a tab switch, 2026-11-16).
+  var NEVER = /^(SPAN|A|B|I|EM|STRONG|SMALL|LABEL|BUTTON|INPUT|SELECT|OPTION|TEXTAREA|IMG|BR|TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|COL|COLGROUP|CAPTION|LI|UL|OL|P|H1|H2|H3|H4|H5|H6|CODE|PRE|KBD|svg|path|g|rect|circle|line|polyline|polygon|text|tspan|use|defs|stop|linearGradient|clipPath|SCRIPT|STYLE|LINK|META|TEMPLATE|CANVAS|VIDEO|AUDIO|IFRAME)$/;
   function isScrim(el) {
     if (!el || el.nodeType !== 1 || el === doc.body || el === doc.documentElement) return false;
     if (el.classList.contains('a1-scrim')) return true;
+    if (NEVER.test(el.tagName)) return false;
     if (el.shadowRoot) return false;
     var cs = getComputedStyle(el);
     if (cs.position !== 'fixed' || cs.pointerEvents === 'none') return false;
@@ -111,6 +116,7 @@
   }
   function scanTree(root, maxDepth) {
     tag(root);
+    if (NEVER.test(root.tagName)) return;   // nothing inside a table, an SVG or inline text is a backdrop either
     var kids = root.children;
     if (!kids || maxDepth <= 0) return;
     for (var i = 0; i < kids.length; i++) scanTree(kids[i], maxDepth - 1);
