@@ -1315,16 +1315,16 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
    leaves focus order once it is out. A phone's drawer slides on its own. */
 @media (min-width: 901px) {
   #tj-root #tj-sidebar, #bj-root #bj-sidebar {
-    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear 0s;
+    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear 0s !important;
   }
   #tj-root.tj-fullscreen:not(.tj-page-fs) #tj-sidebar, #bj-root.bj-fullscreen:not(.bj-page-fs) #bj-sidebar {
     display: flex !important; margin-left: calc(-1 * var(--sidebar-w)); visibility: hidden;
-    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear .22s;
+    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear .22s !important;
   }
 }
 @media (min-width: 901px) and (prefers-reduced-motion: reduce) {
-  #tj-root #tj-sidebar, #bj-root #bj-sidebar,
-  #tj-root.tj-fullscreen #tj-sidebar, #bj-root.bj-fullscreen #bj-sidebar { transition: none; }
+  #tj-root #tj-root #tj-sidebar, #bj-root #bj-root #bj-sidebar,
+  #tj-root.tj-fullscreen #tj-sidebar, #bj-root.bj-fullscreen #bj-sidebar { transition: none !important; }
 }
 
 /* The search box's clear button (both sides): inside the box at the right,
