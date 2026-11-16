@@ -229,6 +229,8 @@ function quantApi() {
         if (ou.pathname === '/v1/audio/speech') { const b = JSON.parse(req.postData || '{}'), w = String(b.input || '').split(/\s+/).filter(Boolean); return { json: { format: 'mp3', engine: b.model === 'aura' ? 'aura' : 'edge', voice: b.voice, words: b.model === 'aura' ? null : w.map((x, i) => [i * 0.04, 0.04, x]), audio: TONE } }; }
         return { status: 404, json: {} };
       }
+      // A test can play tradeboard-api (Webull, read-only) itself: Phase 12's Portfolio ▸ Risk and reconcile.
+      if (state.tradeboard && req.url.includes('tradeboard-api')) { const r = state.tradeboard(req); if (r) return r; }
       if (!req.url.includes('quant-api')) return { json: { ok: true } };
       const u = new global.URL(req.url), p = u.pathname, auth = req.headers.Authorization || req.headers.authorization || '';
       asked.push({ p, method: req.method, auth, q: u.search });
