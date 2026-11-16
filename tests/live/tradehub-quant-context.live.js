@@ -158,6 +158,17 @@ const SAMPLER = `(() => {
   ok('Charts at 4x: the slide never waits for the charts\' re-layout (within 200 ms even here)', tc.runs.every((r) => r.start <= 200), JSON.stringify(tc.runs.map((r) => r.start)));
   ok('the chart is re-laid out once each way: its width takes two values, never one in between', tc.runs.every((r) => r.widths.length <= 2), JSON.stringify(tc.runs.map((r) => r.widths)));
   await c.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  // Full speed: the slide is on its way in the very next frame (2 frames at most).
+  const full = [];
+  for (const t of ['journal', 'charts']) {
+    await tab(t); await sleep(800);
+    for (let i = 0; i < 3; i++) {
+      full.push(await js(`return await new Promise(function(done){ var d=document.querySelector('[data-nq-dock]'), t0=document.timeline.currentTime; document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+        var a=d.getAnimations()[0]; if (!a) return done(9999); a.ready.then(function(){ done(Math.round(a.startTime - t0)); }); });`));
+      await sleep(400); await press(); await sleep(400);
+    }
+  }
+  ok('full speed, Journal and Charts: the slide starts within 2 frames of the press, every time', full.every((x) => x <= 34), JSON.stringify(full));
 
   console.log('\n3. Tablet and phone');
   for (const [w, h, sz] of [[820, 1000, 'tablet'], [390, 844, 'phone']]) {
