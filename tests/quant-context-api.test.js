@@ -53,6 +53,10 @@ globalThis.fetch = async (url) => {
   const h = /cboe\.com/.test(u) ? 'cboe' : /stlouisfed/.test(u) ? 'fred' : /nasdaq\.com/.test(u) ? 'nasdaq' : 'other';
   if (W.down.has(h)) return res({ error: 'down' }, 500);
   if (h === 'cboe') { const sym = /options\/([A-Z.]+)\.json/.exec(u)[1]; return res(cboe(sym, W.cboeNow)); }
+  if (h === 'fred' && /releases\/calendar/.test(u)) {
+    // The real page saved 2026-11-09 (CPI 2026) answers for every rid and year: only CPI rows for that year count.
+    return res(fs.readFileSync(path.join(__dirname, 'fixtures', 'macro-schedule', 'fred-10-2026.html'), 'utf8'), 200, true);
+  }
   if (h === 'fred') { const id = /id=([A-Z0-9]+)/.exec(u)[1]; return res('observation_date,' + id + '\n2026-11-12,3.20\n2026-11-13,.\n2026-11-14,3.23\n', 200, true); }
   if (h === 'nasdaq') {
     const d = /date=(\d{4}-\d{2}-\d{2})/.exec(u)[1];
@@ -126,6 +130,19 @@ globalThis.fetch = async (url) => {
   ok('names for the card', r.body.names.BAMLH0A0HYM2 === 'High-yield spread');
   const b2 = W.calls.length; await call(env, 'GET', '/macro');
   ok('asked again within 6 hours: no call', W.calls.length === b2);
+
+  console.log('\n/macro/dates: past release days from FRED\'s calendar');
+  const html = fs.readFileSync(path.join(__dirname, 'fixtures', 'macro-schedule', 'fred-10-2026.html'), 'utf8');
+  const cpi26 = M.parseFredCalendar(html, 10, 2026);
+  ok('the real CPI 2026 page: 11+ weekday dates, all in 2026', cpi26.length >= 11 && cpi26.every((d) => d.startsWith('2026-') && ![0, 6].includes(new Date(d + 'T12:00:00Z').getUTCDay())), JSON.stringify(cpi26));
+  ok('another rid on the same page → none', M.parseFredCalendar(html, 46, 2026).length === 0);
+  const d0 = W.calls.length;
+  r = await call(env, 'GET', '/macro/dates');
+  const year = new Date().getUTCFullYear(), years = year - 2025 + 1, kinds = Object.keys(M.RIDS).length;
+  ok('each kind × year from 2025 asked once (at most 20 a call)', W.calls.length - d0 === Math.min(20, kinds * years), W.calls.length - d0);
+  ok('CPI days come back sorted', Array.isArray(r.body.dates.cpi) && r.body.dates.cpi.join() === cpi26.join(), JSON.stringify(r.body.dates.cpi));
+  const d1 = W.calls.length; await call(env, 'GET', '/macro/dates');
+  ok('asked again the same week: no call when everything was read', kinds * years > 20 || W.calls.length === d1);
 
   console.log('\n/earnings: Nasdaq by date, resumable, never a day twice');
   const at20 = Date.UTC(2026, 10, 17, 2);   // 21:00 New York on Mon Nov 16
