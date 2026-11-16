@@ -52,6 +52,9 @@ var html = `
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <input id="bj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--text);min-width:0;padding:0 4px;" />
+    <!-- The phone's sync word: top of the screen, beside the title (it was a
+         small chip floating over the bottom bar). Same states as the desktop pill. -->
+    <span id="bj-bb-saved" class="nb-msync" role="status" aria-live="polite"></span>
     <button id="bj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;font-size:18px;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
   <div id="bj-toolbar" data-sb-strip>
@@ -61,6 +64,12 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
     <input id="bj-entry-title-input" type="text" placeholder="Untitled entry…" />
+    <!-- The sync word sits in a fixed slot beside the title, so "Syncing…" /
+         "Synced" / "Sync failed" never shift the controls on its right. -->
+    <span id="bj-sync-pill" class="bj-sync-pill bj-sync-idle" role="status" aria-live="polite">
+      <span class="bj-sync-dot"></span>
+      <span id="bj-sync-text">Synced</span>
+    </span>
     <div class="toolbar-sep"></div>
     <div class="mode-toggle-wrap">
       <span class="mode-toggle-label" id="bj-mode-label">VIEW</span>
@@ -91,11 +100,6 @@ var html = `
       <span class="tags-label">Tags</span>
       <input id="bj-add-tag-input" type="text" placeholder="+ add tag" maxlength="20" />
     </div>
-
-    <span id="bj-sync-pill" class="bj-sync-pill bj-sync-idle">
-      <span class="bj-sync-dot"></span>
-      <span id="bj-sync-text">Synced</span>
-    </span>
   </div>
 
   <div id="bj-content-area">
@@ -351,7 +355,6 @@ var html = `
   <button id="bj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><span>Edit</span></button>
   <button id="bj-bb-template" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg><span>Template</span></button>
   <button id="bj-bb-new" style="flex:2;background:var(--purple);color:#fff;border:none;border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;">+ New</button>
-  <span id="bj-bb-saved" style="font-size:10px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:700;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
 </div>
 </div>
 `;
@@ -434,17 +437,17 @@ function _bjSetSync(status) {
   var labels = { syncing:'Syncing…', synced:'Synced', error:'Sync failed', offline:'Offline' };
   // Idle keeps the last word, so it fades out rather than changing first.
   if (labels[shown]) txt.textContent = labels[shown];
-  // The mobile bottom bar's copy: the same dot and word.
+  // The phone header's copy: the same dot and word.
   if (bb) {
     var dot = { syncing:'#e0b874', synced:'#a4b986', error:'#d68a7c', offline:'#8d8d94' }[shown];
     clearTimeout(bb._t);
     if (dot) {
       bb.innerHTML = '<span class="bj-sync-dot" style="background:' + dot + '"></span><span>' + labels[shown] + '</span>';
       bb.style.color = shown === 'error' ? '#d68a7c' : '#adadb2';
-      bb.style.opacity = '1';
-      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; }, 2000);
+      bb.style.opacity = '1'; bb.classList.add('on');
+      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; bb.classList.remove('on'); }, 2000);
     }
-    else bb.style.opacity = '0';
+    else { bb.style.opacity = '0'; bb.classList.remove('on'); }
   }
   // "Synced" fades to idle after two seconds. Any other state cancels that:
   // a save starting inside those two seconds used to be faded out mid-Syncing.
@@ -3708,17 +3711,6 @@ loadActiveEntry = function() {
   }
 };
 
-/* Patch saveState to show mobile saved indicator */
-var bjBbSaved = document.getElementById('bj-bb-saved');
-var _origSaveState = saveState;
-saveState = function() {
-  _origSaveState();
-  if (bjBbSaved) {
-    bjBbSaved.style.opacity = '1';
-    clearTimeout(bjBbSaved._t);
-    bjBbSaved._t = setTimeout(function() { bjBbSaved.style.opacity = '0'; }, 2000);
-  }
-};
 
 /* Whiteboard: Apple Pencil — use pointer type to distinguish */
 /* Palm rejection handled in main pointerdown handler above */

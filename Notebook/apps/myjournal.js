@@ -44,6 +44,9 @@ var html = `
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <input id="tj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);min-width:0;padding:0 4px;" />
+    <!-- The phone's sync word: top of the screen, beside the title (it was a
+         small chip floating over the bottom bar). Same states as the desktop pill. -->
+    <span id="tj-bb-saved" class="nb-msync" role="status" aria-live="polite"></span>
     <button id="tj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
   <div id="tj-toolbar" data-sb-strip>
@@ -53,6 +56,12 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
     <input id="tj-entry-title-input" type="text" placeholder="Untitled entry…" />
+    <!-- The sync word sits in a fixed slot beside the title, so "Syncing…" /
+         "Synced" / "Sync failed" never shift the controls on its right. -->
+    <span id="tj-sync-pill" class="tj-sync-pill tj-sync-idle" role="status" aria-live="polite">
+      <span class="tj-sync-dot"></span>
+      <span id="tj-sync-text">Synced</span>
+    </span>
     <div class="toolbar-sep"></div>
     <div class="mode-toggle-wrap">
       <span class="mode-toggle-label" id="tj-mode-label">VIEW</span>
@@ -72,11 +81,6 @@ var html = `
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.4"/></svg>
     </button>
     <div class="toolbar-sep"></div>
-
-    <span id="tj-sync-pill" class="tj-sync-pill tj-sync-idle">
-      <span class="tj-sync-dot"></span>
-      <span id="tj-sync-text">Synced</span>
-    </span>
   </div>
 
   <div id="tj-content-area">
@@ -328,7 +332,6 @@ var html = `
 <div id="tj-bottom-bar" style="display:none;">
   <button id="tj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:11px;font-weight:500;font-family:var(--font);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">✏ Edit</button>
   <button id="tj-bb-new" style="flex:2;background:var(--purple);color:#1a1a1d;border:none;border-radius:5px;padding:7px 0;font-size:11px;font-weight:600;font-family:var(--font);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">+ New</button>
-  <span id="tj-bb-saved" style="font-size:11px;color:var(--green);font-family:var(--font);font-weight:500;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
 </div>
 </div>
 `;
@@ -412,17 +415,17 @@ function _tjSetSync(status) {
   var labels = { syncing:'Syncing…', synced:'Synced', error:'Sync failed', offline:'Offline' };
   // Idle keeps the last word, so it fades out rather than changing first.
   if (labels[shown]) txt.textContent = labels[shown];
-  // The mobile bottom bar's copy: the same dot and word.
+  // The phone header's copy: the same dot and word.
   if (bb) {
     var dot = { syncing:'#e0b874', synced:'#a4b986', error:'#d68a7c', offline:'#8d8d94' }[shown];
     clearTimeout(bb._t);
     if (dot) {
       bb.innerHTML = '<span class="tj-sync-dot" style="background:' + dot + '"></span><span>' + labels[shown] + '</span>';
       bb.style.color = shown === 'error' ? '#d68a7c' : '#adadb2';
-      bb.style.opacity = '1';
-      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; }, 2000);
+      bb.style.opacity = '1'; bb.classList.add('on');
+      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; bb.classList.remove('on'); }, 2000);
     }
-    else bb.style.opacity = '0';
+    else { bb.style.opacity = '0'; bb.classList.remove('on'); }
   }
   // "Synced" fades to idle after two seconds. Any other state cancels that:
   // a save starting inside those two seconds used to be faded out mid-Syncing.
@@ -3325,17 +3328,6 @@ loadActiveEntry = function() {
   }
 };
 
-/* Patch saveState to show mobile saved indicator */
-var tjBbSaved = document.getElementById('tj-bb-saved');
-var _origSaveState = saveState;
-saveState = function() {
-  _origSaveState();
-  if (tjBbSaved) {
-    tjBbSaved.style.opacity = '1';
-    clearTimeout(tjBbSaved._t);
-    tjBbSaved._t = setTimeout(function() { tjBbSaved.style.opacity = '0'; }, 2000);
-  }
-};
 
 /* iOS: prevent bounce scroll inside content area */
 var tjContent = document.getElementById('tj-content-area');
