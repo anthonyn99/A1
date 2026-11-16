@@ -316,8 +316,11 @@
     if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
     // A control that already answers the cursor with a filter of its own keeps
     // that answer — an inline filter here would silently replace it.
+    // Not when that filter is this file's own, still fading out from the last
+    // hover: a control re-entered inside those .15s read as "has its own" and
+    // got no hover at all (Notebook's Trash buttons, 2026-11-15).
     var cs = getComputedStyle(el);
-    if (cs.filter && cs.filter !== 'none') return;
+    if (cs.filter && cs.filter !== 'none' && !el.classList.contains('hoverfx')) return;
     cur = el;
     el.classList.add('hoverfx');
     // `filter` is first in the property list, so it pairs with the FIRST
