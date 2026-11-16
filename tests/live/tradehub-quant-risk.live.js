@@ -149,7 +149,8 @@ const RULES = { rules: [
   await shot('edge-1504');
 
   console.log('\nDismiss and mute');
-  await js(`var h=[...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].find(function(x){return /5th trade/.test(x.innerText);}); h.querySelector('[data-rw-dismiss]').click(); 1`);
+  const pressOn = (scope, re, btnSel) => until(`(function(){var h=[...document.querySelectorAll('${scope} [data-rw-head]')].find(function(x){return ${re}.test(x.textContent);}); if(!h) return false; h.querySelector('${btnSel}').click(); return true;})()`, 8000);
+  ok('the 5th-trade heads-up has Dismiss', await pressOn('[data-ed-rules]', '/5th trade/', '[data-rw-dismiss]'), await text('[data-ed-rules]'));
   ok('dismissed: gone for today', await until(`![...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /5th trade/.test(x.innerText);})`, 3000));
   ok('...and no data changed (the rules doc untouched)', await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_rules'].rules.map(function(r){return r.id+r.status;})) === JSON.stringify(['maxTradesDayactive','maxPositionPctactive','stopRequiredproposed']) && !window.__fakeFs.log.some(function(l){return /tradehub_rules/.test(l.path);});`));
   await tab('portfolio');
