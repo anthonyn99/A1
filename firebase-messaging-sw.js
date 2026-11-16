@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-11-04-plans-tap-opens-panel';
+const SW_VERSION = '2026-11-16-tradehub-alerts';
 
 // GUARDED: firebase.messaging() throws in browsers where push is unavailable —
 // notably Brave with "Use Google services for push messaging" off. At top level
@@ -209,8 +209,29 @@ function postBannerToClients(id, body, dash, kind){
   });
 }
 
+// TradeHub's alerts (kind 'quant', from taskhub-reminders /quant-push): Tony's
+// devices only, so the same strict gate as a reminder (this device's main must
+// be Tony's). Drawn as TradeHub's own card; `tag` collapses repeats of one rule;
+// a tap opens the alert's place in TradeHub (notificationclick, below). Not
+// handed to TaskHub's open windows: it is TradeHub's, not a TaskHub reminder.
+var QUANT_PAGE = 'https://a1-priv.av1.workers.dev/tradehub.html';
+function quantUrl(u){ return (typeof u === 'string' && u.indexOf(QUANT_PAGE) === 0) ? u : QUANT_PAGE; }
+function showQuant(d){
+  return shouldShowForDash('tony', 'reminder').then(function(allowed){
+    if(!allowed) return;
+    return self.registration.showNotification(d.title || 'TradeHub alert', {
+      body: d.body && d.body !== d.title ? d.body : '',
+      tag: d.tag || 'tbq',
+      renotify: true,
+      data: { kind: 'quant', url: quantUrl(d.url) },
+      icon: 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27/%3E%3Cpath%20d%3D%27M20%2066l18-20%2014%2012%2024-30%27%20fill%3D%27none%27%20stroke%3D%27%23d4a843%27%20stroke-width%3D%278%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27/%3E%3C/svg%3E'
+    });
+  });
+}
+
 if (messaging) messaging.onBackgroundMessage(function(payload){
   const d = payload.data || {};
+  if (d.kind === 'quant') return showQuant(d);
   const body  = d.body || d.title || 'Task reminder';
   const id    = d.id || '';
   const dash  = d.dash || 'all';
@@ -258,6 +279,8 @@ if (messaging) messaging.onBackgroundMessage(function(payload){
 self.addEventListener('notificationclick', function(event){
   event.notification.close();
   var d = event.notification.data || {};
+  // A TradeHub alert opens TradeHub at the alert (another site: always a new tab).
+  if (d.kind === 'quant') { event.waitUntil(clients.openWindow ? clients.openWindow(quantUrl(d.url)) : Promise.resolve()); return; }
   var plans = d.kind === 'event';
   var dash = (d.dash === 'tony' || d.dash === 'veda') ? d.dash : '';
   event.waitUntil(
