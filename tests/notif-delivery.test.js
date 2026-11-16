@@ -324,9 +324,11 @@ function finish() {
       /const here=window\._activeProfile\|\|localStorage\.getItem\('td6_lastDash'\)\|\|'';/.test(html)
   );
   check(
-    'both page surfaces use that one gate',
-    (html.match(/if\(!_dashAllowedHere\(/g) || []).length === 2,
-    'foreground onMessage + SW banner bridge'
+    'every page surface uses that one gate',
+    // A1-Priv quant Phase 14: a TradeHub alert (kind 'quant') on a focused TaskHub is
+    // gated as a reminder for Tony, through the same function.
+    (html.match(/if\(!_dashAllowedHere\(/g) || []).length === 3 && /if\(!_dashAllowedHere\('tony','reminder'\)\)return;/.test(html),
+    'foreground onMessage + SW banner bridge + TradeHub alerts'
   );
   check(
     'the closed-app OS card uses the same rule',
