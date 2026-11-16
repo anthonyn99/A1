@@ -90,7 +90,7 @@ export async function getMacro(env) {
 
 /* ── /earnings ──────────────────────────────────────────────────────────── */
 export async function getEarnings(env, url) {
-  const syms = String(url.searchParams.get('symbols') || url.searchParams.get('symbol') || '').split(',').map(symOf).filter(Boolean).slice(0, 60);
+  const syms = String(url.searchParams.get('symbols') || url.searchParams.get('symbol') || '').split(',').filter((x) => x.trim()).map(symOf).slice(0, 60);
   if (!syms.length) throw fail(400, 'symbols is needed');
   const rows = (await guarded(env.DB.prepare('SELECT symbol, day, time, eps, est FROM earnings WHERE symbol IN (SELECT value FROM json_each(?)) ORDER BY day').bind(JSON.stringify(syms)).all())).results || [];
   const reports = Object.fromEntries(syms.map((s) => [s, []]));
@@ -105,7 +105,7 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * DAY).toISO
 /** The days a fetch asks, given the days already asked (a Set) → day[] (newest first for nightly, walking back for backfill). */
 export function daysToAsk(mode, asked, { now = Date.now(), max = FETCH_MAX, oldest = null } = {}) {
   const out = [], c = nyClock(now);
-  const lastDay = c.min >= 20 * 60 ? c.date : addDays(c.date, -1);
+  const lastDay = c.minutes >= 20 * 60 ? c.date : addDays(c.date, -1);
   const floor = addDays(c.date, -Math.round(BACKFILL_YEARS * 365.25));
   if (mode === 'nightly') {
     for (let d = lastDay, seen = 0; seen < NIGHTLY_DAYS && out.length < max; d = addDays(d, -1)) {
@@ -144,6 +144,8 @@ export async function postEarningsFetch(env, req) {
     stored += rows.length; done.push(d);
   }
   await L.flush();
-  const left = mode === 'backfill' ? daysToAsk('backfill', new Set([...asked, ...done]), { now, max: 1, oldest: done.length ? done[done.length - 1] < (oldest || '9') ? done[done.length - 1] : oldest : oldest }).length : 0;
+  let newOldest = oldest;
+  for (const d of done) if (!newOldest || d < newOldest) newOldest = d;
+  const left = mode === 'backfill' ? daysToAsk('backfill', new Set([...asked, ...done]), { now, max: 1, oldest: newOldest }).length : 0;
   return json({ ok: true, mode, asked: done, stored, stop, done: mode === 'backfill' ? !left : true });
 }
