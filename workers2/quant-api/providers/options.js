@@ -8,7 +8,7 @@
 import { call, noteBad, ProviderError } from '../lib/net.js';
 
 export const URL_OF = (sym) => `https://cdn-api.cboe.com/api/global/delayed_quotes/options/${encodeURIComponent(sym)}.json`;
-export const MAX_DAYS = 120, MAX_EXPIRIES = 10, NEAR_EXPIRIES = 6, BAND = 0.3, TIMEOUT = 15000;
+export const MAX_DAYS = 120, MAX_EXPIRIES = 10, NEAR_EXPIRIES = 6, BAND = 0.2, TIMEOUT = 15000;
 export const canAsk = (s) => /^[A-Z][A-Z.]{0,5}$/.test(s);
 const OCC = /^([A-Z.]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/;
 const DAY = 86_400_000;
@@ -65,7 +65,7 @@ function collector(sym, spot, now) {
 }
 
 /** CBOE's JSON (parsed) → the compact chain: the 6 nearest expiries and the monthlies
- *  within 120 days (at most 10), strikes within ±30% of spot, each side by strike. */
+ *  within 120 days (at most 10), strikes within ±20% of spot, each side by strike. */
 export function compactChain(j, now = Date.now()) {
   const d = j && j.data;
   const spot = d && Number(d.current_price);
