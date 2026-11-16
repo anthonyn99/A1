@@ -349,6 +349,32 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   ok('budget: at most 960 cron runs a day do work (16 h × 60)', (20 - 4) * 60 === 960);
 
+  console.log('\nthe code review\'s findings (2026-11-16)');
+  {
+    const e = mkEnv();
+    const id = (await call(e, 'POST', '/alerts', { alert: { symbol: 'AMD', price: 100, params: { dir: 'above', atr: 1 }, cooldownMin: 0 } })).body.id;
+    W.prices = { AMD: 99 }; await A.check(e, MON_10);
+    W.prices = { AMD: 101 }; let x = await A.check(e, MON_10 + 60000);
+    ok('a rule fires', x.fired.length === 1);
+    await new Promise((r) => setTimeout(r, 5));
+    await call(e, 'POST', '/alerts', { alert: { id, symbol: 'AMD', price: 100.5, params: { dir: 'above', atr: 1 }, cooldownMin: 0 } });   // edited: its state starts over
+    W.prices = { AMD: 99 }; await A.check(e, MON_10 + 120000);
+    W.prices = { AMD: 101 }; x = await A.check(e, MON_10 + 180000);
+    ok('edited (state reset to generation 0), it fires again: its new key never collides with the old fire', x.fired.length === 1 && x.fired[0].rule === id, x.fired);
+    const e2 = mkEnv();
+    await call(e2, 'POST', '/alerts', { alert: { kind: 'signal' } });
+    const n0 = W.pushes.length;
+    const f = await A.raise(e2, 'signal', ['s0a01', 's0a02', 's0a03'].map((sid, i) => ({ id: sid, symbol: ['NVDA', 'AMD', 'TSLA'][i], setup: 'orb', horizon: 'day', dir: 'long', verdict: 'GO' })), MON_10);
+    ok('three new GOs at once are three alerts (no cooldown between distinct events)', f.length === 3 && W.pushes.length === n0 + 3, f.length);
+    const cid2 = (await call(e2, 'POST', '/alerts', { alert: { kind: 'catalyst', symbol: 'nvda', params: { minutes: 15 } } })).body.id;
+    ok('a catalyst rule keeps its ticker', e2.DB.sql.prepare('SELECT symbol FROM alerts WHERE id = ?').get(cid2).symbol === 'NVDA');
+    const top = e2.DB.sql.prepare('SELECT MAX(id) AS m FROM alert_fires').get().m;
+    e2.DB.sql.prepare("INSERT INTO alert_fires (rule_id, trigger_key, at, kind, title) VALUES ('x', 'late', 1, 'data', 'arrived after the page looked')").run();
+    await call(e2, 'POST', '/alerts/seen', { upTo: top });
+    const r2 = await call(e2, 'GET', '/alerts/fires');
+    ok('seen up to what the page showed: a fire that arrived after stays unseen', r2.body.unseen === 1);
+  }
+
   console.log('\nSend test');
   {
     const e = mkEnv();
