@@ -8,7 +8,7 @@
    docs/Theme/theme-overhaul-plan.md). The rules above are shared with Veda's
    Brainstorm Journal and stay as they are; this sheet only adds to them.
    In-sheet rules scope by #tj-root. The menus, dialogs and toasts are
-   appended to <body>, so they scope by body[data-th-profile="tony"], which
+   appended to <body>, so they scope by body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])), which
    is set only while Tony's profile is open. Fonts a user picks for their
    text are content, so nothing here touches the page's own type. */
 #tj-root .docx-sheet { box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(192,174,234,.10); }
@@ -20,46 +20,46 @@
 #tj-root .docx-ai-btn { color: #c0aeea; border-color: #45454c; background: transparent; }
 #tj-root .docx-ai-btn:hover { color: #dbd0f5; border-color: #c0aeea; background: transparent; }
 
-body[data-th-profile="tony"] :is(.docx-pop, .docx-wcpin, .docx-float button, .docx-tbl-bubble button,
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) :is(.docx-pop, .docx-wcpin, .docx-float button, .docx-tbl-bubble button,
   .docx-modal, .docx-ai-card, .docx-toast, .docx-find, .docx-matheditor) { font-family: 'Inter', system-ui, sans-serif; }
-body[data-th-profile="tony"] .docx-prompt-ta { font-family: 'Inter', system-ui, sans-serif; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-prompt-ta { font-family: 'Inter', system-ui, sans-serif; }
 /* Menus and dialogs: s1 boxes on a visible border, radius 8; MAGI's backdrop. */
-body[data-th-profile="tony"] :is(.docx-pop, .docx-float, .docx-tbl-bubble, .docx-wcpin, .docx-toast) { background: #232327; border-color: #45454c; border-radius: 8px; }
-body[data-th-profile="tony"] :is(.docx-mi:hover, .docx-float button:hover, .docx-tbl-bubble button:hover, .docx-wcpin button:hover) { background: #2c2c31; }
-body[data-th-profile="tony"] .docx-veil, body[data-th-profile="tony"] .docx-matheditor-overlay { background: rgba(0,0,0,.62); backdrop-filter: blur(2px); }
-body[data-th-profile="tony"] .docx-modal, body[data-th-profile="tony"] .docx-ai-card, body[data-th-profile="tony"] .docx-matheditor { background: #232327; border-color: rgba(255,255,255,.06); border-radius: 8px; }
-body[data-th-profile="tony"] .docx-modal-h { font-family: 'Manrope', system-ui, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: #dbd0f5; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) :is(.docx-pop, .docx-float, .docx-tbl-bubble, .docx-wcpin, .docx-toast) { background: #232327; border-color: #45454c; border-radius: 8px; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) :is(.docx-mi:hover, .docx-float button:hover, .docx-tbl-bubble button:hover, .docx-wcpin button:hover) { background: #2c2c31; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-veil, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-overlay { background: rgba(0,0,0,.62); backdrop-filter: blur(2px); }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-modal, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ai-card, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor { background: #232327; border-color: rgba(255,255,255,.06); border-radius: 8px; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-modal-h { font-family: 'Manrope', system-ui, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: #dbd0f5; }
 /* Find & replace: a solid box (it was a gradient). */
-body[data-th-profile="tony"] .docx-find { background: #232327; border-color: #45454c; border-radius: 8px; }
-body[data-th-profile="tony"] .docx-find button { background: transparent; border-color: #45454c; border-radius: 6px; }
-body[data-th-profile="tony"] .docx-find button:hover { background: transparent; border-color: #c0aeea; }
-body[data-th-profile="tony"] .docx-find .x, body[data-th-profile="tony"] .docx-find .x:hover { border: none; background: transparent; }
-body[data-th-profile="tony"] .docx-find .f-rall, body[data-th-profile="tony"] .docx-find .f-rall:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find { background: #232327; border-color: #45454c; border-radius: 8px; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find button { background: transparent; border-color: #45454c; border-radius: 6px; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find button:hover { background: transparent; border-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find .x, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find .x:hover { border: none; background: transparent; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find .f-rall, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-find .f-rall:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
 /* Fields: an accent border plus a 3px ring at 16%. */
-body[data-th-profile="tony"] :is(.docx-pop input[type="text"], .docx-pop input[type="search"], .docx-find input[type="text"],
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) :is(.docx-pop input[type="text"], .docx-pop input[type="search"], .docx-find input[type="text"],
   .docx-prompt-ta, .docx-ait-name, .docx-matheditor-ta, .docx-ps-row select):focus { border-color: #c0aeea; box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
 /* Buttons: MAGI's .btn. The primary is a solid accent with a dark label. */
-body[data-th-profile="tony"] .docx-btn { background: transparent; border-color: #45454c; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-body[data-th-profile="tony"] .docx-btn:hover { background: transparent; border-color: #c0aeea; box-shadow: none; }
-body[data-th-profile="tony"] .docx-btn.pri, body[data-th-profile="tony"] .docx-btn.pri:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; box-shadow: none; }
-body[data-th-profile="tony"] .docx-btn.danger { color: #d68a7c; border-color: rgba(214,138,124,.45); }
-body[data-th-profile="tony"] .docx-btn.danger:hover { background: transparent; border-color: #d68a7c; }
-body[data-th-profile="tony"] .docx-trash-row .b button:hover { border-color: #c0aeea; }
-body[data-th-profile="tony"] .docx-trash-row .b button.del:hover { border-color: #d68a7c; color: #d68a7c; }
-body[data-th-profile="tony"] .docx-matheditor-save, body[data-th-profile="tony"] .docx-matheditor-save:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
-body[data-th-profile="tony"] .docx-matheditor-discard:hover { background: transparent; border-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn { background: transparent; border-color: #45454c; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn:hover { background: transparent; border-color: #c0aeea; box-shadow: none; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.pri, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.pri:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; box-shadow: none; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger { color: #d68a7c; border-color: rgba(214,138,124,.45); }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger:hover { background: transparent; border-color: #d68a7c; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button:hover { border-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button.del:hover { border-color: #d68a7c; color: #d68a7c; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-save, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-save:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-discard:hover { background: transparent; border-color: #c0aeea; }
 /* Selected = solid accent; no washes. */
-body[data-th-profile="tony"] .docx-grid span.on { background: #c0aeea; border-color: #c0aeea; }
-body[data-th-profile="tony"] .docx-fs-float button:hover { border-color: #c0aeea; }
-body[data-th-profile="tony"] .docx-fs-float button.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
-body[data-th-profile="tony"] .docx-prompt-note { background: transparent; border-color: #45454c; }
-body[data-th-profile="tony"] .docx-prompt-note b { color: #dbd0f5; }
-body[data-th-profile="tony"] .docx-ait-item:hover { background: #2c2c31; }
-body[data-th-profile="tony"] .docx-ait-item.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
-body[data-th-profile="tony"] .docx-ait-add:hover { background: transparent; border-color: #c0aeea; color: #dbd0f5; }
-body[data-th-profile="tony"] .docx-ait-status.busy { color: #c0aeea; }
-body[data-th-profile="tony"] .docx-ai-spin { border-color: rgba(192,174,234,.22); border-top-color: #c0aeea; }
-body[data-th-profile="tony"] .docx-math-resize { background: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-grid span.on { background: #c0aeea; border-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-fs-float button:hover { border-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-fs-float button.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-prompt-note { background: transparent; border-color: #45454c; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-prompt-note b { color: #dbd0f5; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ait-item:hover { background: #2c2c31; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ait-item.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ait-add:hover { background: transparent; border-color: #c0aeea; color: #dbd0f5; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ait-status.busy { color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-ai-spin { border-color: rgba(192,174,234,.22); border-top-color: #c0aeea; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-math-resize { background: #c0aeea; }
 /* The prompt box keeps its own min / max; the grip (resizegrip.js) owns the corner. */
 .docx-ta-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .docx-ta-wrap > textarea { flex: 0 0 auto; }
@@ -189,12 +189,12 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 .docx-msep { height: 1px; background: rgba(255,255,255,.09); margin: 5px 8px; }
 .docx-mlabel { padding: 6px 12px 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .45; }
 .docx-pop input[type="text"], .docx-pop input[type="search"] { width: 100%; box-sizing: border-box; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
-.docx-pop input[type="text"]:focus, .docx-pop input[type="search"]:focus { border-color: #6f7dff; }
+.docx-pop input[type="text"]:focus, .docx-pop input[type="search"]:focus { border-color: #a9b6ef; }
 .docx-fontitem { font-size: 14px; }
 /* Table grid picker */
 .docx-grid { display: grid; grid-template-columns: repeat(8, 17px); gap: 3px; padding: 8px; }
 .docx-grid span { width: 17px; height: 17px; border: 1px solid #4A4B52; border-radius: 3px; background: #1A1B1E; }
-.docx-grid span.on { background: #5B7CFF; border-color: #7A93FF; }
+.docx-grid span.on { background: #a9b6ef; border-color: #bcc7f3; }
 .docx-grid-lbl { text-align: center; padding: 0 0 7px; font-size: 11px; opacity: .7; }
 
 /* ── Ruler (draggable margins) ── */
@@ -259,7 +259,7 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 #tj-root.tj-page-fs.tj-fs-sidebar #tj-main, #bj-root.bj-page-fs.bj-fs-sidebar #bj-main {
   left: 268px !important; width: calc(100vw - 268px) !important;
 }
-.docx-fs-float button.on { color: #fff; border-color: #6f7dff; background: rgba(70,80,120,.6); }
+.docx-fs-float button.on { color: #fff; border-color: #a9b6ef; background: rgba(169,182,239,.14); }
 /* Body-level shared Tony app nav (outside the root) — hide it in page fullscreen. */
 body.docx-page-fs #tony-app-nav { display: none !important; }
 #tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main {
@@ -281,7 +281,7 @@ body.docx-page-fs #tony-app-nav { display: none !important; }
   background: rgba(35,36,40,.9); color: #cfd0d6; border: 1px solid #45464d; border-radius: 8px;
   cursor: pointer; padding: 0; backdrop-filter: blur(6px); box-shadow: 0 4px 14px rgba(0,0,0,.4); transition: all .12s;
 }
-.docx-fs-float button:hover { color: #fff; border-color: #6f7dff; background: rgba(45,46,52,.95); }
+.docx-fs-float button:hover { color: #fff; border-color: #a9b6ef; background: rgba(45,46,52,.95); }
 
 /* ── Tags relocated into the top toolbar (Batch 12 #3) — compact & inline ── */
 #bj-root #bj-toolbar #bj-tags-row {
@@ -300,12 +300,12 @@ body.docx-page-fs #tony-app-nav { display: none !important; }
 .docx-find .row { display: flex; gap: 7px; align-items: center; }
 .docx-find-ico { display: inline-flex; opacity: .5; flex-shrink: 0; }
 .docx-find input[type="text"] { flex: 1; min-width: 0; background: #17181B; border: 1px solid #3B3C42; border-radius: 8px; color: #fff; padding: 8px 11px; font-size: 13px; outline: none; font-family: inherit; transition: border-color .12s, box-shadow .12s; }
-.docx-find input[type="text"]:focus { border-color: #6f7dff; box-shadow: 0 0 0 3px rgba(111,125,255,.15); }
+.docx-find input[type="text"]:focus { border-color: #a9b6ef; box-shadow: 0 0 0 3px rgba(169,182,239,.16); }
 .docx-find button { background: #303138; border: 1px solid #40424A; border-radius: 8px; color: #E8E8EC; padding: 7px 11px; font-size: 12px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .12s, border-color .12s; }
 .docx-find button:hover { background: #3c3e46; border-color: #55575f; }
 .docx-find .f-prev, .docx-find .f-next { padding: 7px 9px; font-size: 13px; line-height: 1; }
-.docx-find .f-rall { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
-.docx-find .f-rall:hover { background: #6E8BFF; }
+.docx-find .f-rall { background: #a9b6ef; border-color: #a9b6ef; color: #17181c; font-weight: 700; }
+.docx-find .f-rall:hover { background: #a9b6ef; filter: brightness(.92); }
 .docx-find .cnt { font-size: 11.5px; opacity: .6; min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
 .docx-find-opts { gap: 16px; padding-top: 1px; }
 .docx-find label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; opacity: .82; cursor: pointer; }
