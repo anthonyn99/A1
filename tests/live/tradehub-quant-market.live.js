@@ -4,7 +4,7 @@
 //
 //   1. switch off (the default): no Market tab, no TradeHub module fetched, no quant-api call
 //   2. ticking the switch in Control brings the tab, on this device and in the dash doc
-//   3. every card draws from the snapshot, for at most 3 quant-api requests
+//   3. every card draws from the snapshot, for at most 3 quant-api requests (+ the Macro card's own, Phase 13)
 //   4. it fits at 1280, 820 and 390 px, each with its own grid
 //   5. a live tick moves a sector tile; a ticker opens the shared panel
 //   6. a layout change is kept across a reload and written once to ONE Firestore doc
