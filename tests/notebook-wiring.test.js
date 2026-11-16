@@ -157,8 +157,8 @@ ok('the loader brings Guardian, unpinned, to a host that lacks it',
   nbSrc('notebook.js').includes("if (!w.Guardian) jobs.push(loadScript(BASE + '../Guardian/guardian.js'));"));
 ok('the DOCX group loads after both journals, where its sheets used to be (cascade order)',
   at("Notebook.load('docx')") > tjMount && at("Notebook.load('docx')") < at('TaskHub Voice Control'));
-ok('the rail\'s CSS is last in notebook.css (at 1100-1180px its --sidebar-w must win)',
-  nbSrc('notebook.css').lastIndexOf('--sidebar-w') === nbSrc('notebook.css').indexOf('#tj-root { --sidebar-w: 300px; }') + 11);
+ok('the rail\'s CSS is last in notebook.css (the roomy-screen --sidebar-w must win)',
+  nbSrc('notebook.css').lastIndexOf('--sidebar-w') === nbSrc('notebook.css').indexOf('#tj-root, #bj-root { --sidebar-w: 244px; }') + 21);
 for (const [k, src] of [['tj', nbSrc('apps/myjournal.js')], ['bj', nbSrc('apps/brainstorm.js')]]) {
   const m = src.match(new RegExp("Notebook\\.registerDocx\\('" + k + "', (\\{[\\s\\S]*?\\n\\})\\);"));
   let cfg = null; try { cfg = m && vm.runInNewContext('(' + m[1] + ')', { Notebook: { mounts: {} } }); } catch (e) {}

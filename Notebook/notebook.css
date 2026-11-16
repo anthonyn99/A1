@@ -740,7 +740,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ════════ TABLET LANDSCAPE / SMALL LAPTOP (901–1180px) ════════
    Desktop shell, but the 268px sidebar + a letter page don't both fit. */
 @media (min-width: 901px) and (max-width: 1180px) {
-  #tj-root, #bj-root { --sidebar-w: 224px; }
+  #tj-root, #bj-root { --sidebar-w: 204px; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; }
   #tj-root #tj-toolbar, #bj-root #bj-toolbar { gap: 5px; padding: 7px 9px; }
   #tj-root .tb-btn, #bj-root .tb-btn { padding: 5px 8px; font-size: 10.5px; }
@@ -1309,8 +1309,45 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
 /* Never shown. It stays because OurJournal's tab code checks it. */
 #tj-root #mjd-panel { display: none; }
 
-/* Wider sidebar on roomy screens: the title is the point, give it room. */
-@media (min-width: 1100px) { #tj-root { --sidebar-w: 300px; } }
+/* Collapsing the sidebar slides it, on a desktop (2026-11-15). It keeps its
+   width and moves out past the left edge (#tj-body clips it) while the page
+   takes the room, so nothing inside it squeezes or rewraps on the way. It
+   leaves focus order once it is out. A phone's drawer slides on its own. */
+@media (min-width: 901px) {
+  #tj-root #tj-sidebar, #bj-root #bj-sidebar {
+    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear 0s;
+  }
+  #tj-root.tj-fullscreen:not(.tj-page-fs) #tj-sidebar, #bj-root.bj-fullscreen:not(.bj-page-fs) #bj-sidebar {
+    display: flex !important; margin-left: calc(-1 * var(--sidebar-w)); visibility: hidden;
+    transition: margin-left .22s cubic-bezier(.4,0,.2,1), visibility 0s linear .22s;
+  }
+}
+@media (min-width: 901px) and (prefers-reduced-motion: reduce) {
+  #tj-root #tj-sidebar, #bj-root #bj-sidebar,
+  #tj-root.tj-fullscreen #tj-sidebar, #bj-root.bj-fullscreen #bj-sidebar { transition: none; }
+}
+
+/* The search box's clear button (both sides): inside the box at the right,
+   only while there is text. */
+#tj-root .search-wrap input, #bj-root .search-wrap input { padding-right: 30px; }
+#tj-root .search-wrap .search-clear, #bj-root .search-wrap .search-clear {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 22px; height: 22px; padding: 0; margin: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--text3); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color .15s ease, background-color .15s ease; box-shadow: none;
+}
+#tj-root .search-wrap .search-clear[hidden], #bj-root .search-wrap .search-clear[hidden] { display: none; }
+#tj-root .search-wrap .search-clear:hover, #bj-root .search-wrap .search-clear:hover { color: var(--text); background: rgba(255,255,255,.07); box-shadow: none; }
+#tj-root .search-wrap .search-clear svg, #bj-root .search-wrap .search-clear svg { position: static; transform: none; pointer-events: none; color: inherit; }
+@media (max-width: 900px) {
+  /* A finger-sized target; the box gives it room. */
+  #tj-root .search-wrap .search-clear, #bj-root .search-wrap .search-clear { width: 34px; height: 34px; right: 2px; }
+  #tj-root .search-wrap input, #bj-root .search-wrap input { padding-right: 38px; }
+}
+
+/* Wider sidebar on roomy screens, but never a third of the page. */
+@media (min-width: 1400px) { #tj-root, #bj-root { --sidebar-w: 244px; } }
 
 /* Tablet: touch sizing. */
 @media (max-width: 900px) {
