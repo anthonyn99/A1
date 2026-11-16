@@ -224,7 +224,7 @@ globalThis.fetch = async (url, opts = {}) => {
   r = await call(env, 'GET', '/alerts/fires');
   ok('seen: the count back to 0', r.body.unseen === 0 && r.body.fires.length >= 1);
   // Dedupe in the table itself.
-  const dup = await env.DB.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, title) VALUES (?, ?, ?, ?, ?) ON CONFLICT (rule_id, trigger_key) DO NOTHING').bind(pid, 'px:0:above', 1, 'price', 'x').run();
+  const dup = await env.DB.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, title) VALUES (?, ?, ?, ?, ?) ON CONFLICT (rule_id, trigger_key) DO NOTHING').bind(pid, env.DB.sql.prepare('SELECT trigger_key FROM alert_fires WHERE rule_id = ?').get(pid).trigger_key, 1, 'price', 'x').run();
   ok('alert_fires (rule_id, trigger_key) is unique: the same trigger cannot be stored twice', dup.meta.changes === 0);
 
   console.log('\ncooldown');
@@ -315,12 +315,10 @@ globalThis.fetch = async (url, opts = {}) => {
     const x = await A.check(e, now, { force: true });
     const titles = x.fired.map((f) => f.title);
     ok('CPI 10 min out (inside 15): "CPI in 10 min"', titles.includes('CPI in 10 min'), titles);
-    ok('one fire a rule a run: the data rule fires once (finnhub, down 12 min)', titles.filter((t) => /finnhub is down for 12 min/.test(t)).length === 1, titles);
+    // Data alerts are distinct events (review fix): both in one run, no cooldown between them.
+    ok('finnhub down 12 min and groq at 75% both alert in the same run; tiingo (down 3 min) never', titles.filter((t) => /finnhub is down for 12 min/.test(t)).length === 1 && titles.some((t) => /groq at 75% of today's budget/.test(t)) && !titles.some((t) => /tiingo/.test(t)), titles);
     const y = await A.check(e, now + 60000, { force: true });
-    const t2 = y.fired.map((f) => f.title);
-    ok('… inside the data rule\'s cooldown, the budget alert waits (not lost: its key is new)', !t2.some((t) => /groq/.test(t)));
-    const z = await A.check(e, now + 31 * 60000, { force: true });
-    ok('after the cooldown: "groq at 75% of today\'s budget"; tiingo (down 3 min) never', z.fired.some((f) => /groq at 75% of today's budget/.test(f.title)) && !z.fired.some((f) => /tiingo/.test(f.title)), z.fired);
+    ok('… and neither again the next minute (their keys are stored)', !y.fired.some((f) => /finnhub|groq/.test(f.title)), y.fired);
   }
 
   console.log('\na failed send is retried once on the next run');
