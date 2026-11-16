@@ -119,7 +119,7 @@ const RULES = { rules: [
   await sleep(300);
   // Every text with a $, % or R figure is blurred, except TradeHub's own limits ("the 1% risk cap", "95%").
   const LEAKS = (root) => `var out=[]; var isBlur=function(e){var cs=getComputedStyle(e); return cs.color==='rgba(0, 0, 0, 0)'&&cs.textShadow!=='none';};
-    var policy=/^(1-day 95% VaR|A 10% drawdown|A 20% drawdown)$|1% risk cap|Capped at 20%|sector 35%, a cluster 40%|bands hold half and 90%|at most 1% risk/;
+    var policy=/^(1-day 95% VaR|A 10% drawdown|A 20% drawdown)$|1% risk cap|Capped at 20%|sector 35%, a cluster 40%|bands hold half and 90%|at most 1% risk|^(no position over|no sector over|open risk to stops under|no trade risking over) \\d/;
     var w=document.createTreeWalker(${root},NodeFilter.SHOW_TEXT), n; while((n=w.nextNode())){ var e=n.parentElement, t=n.textContent; if(!e||!e.offsetParent||e.closest('input,select,option,.lay-head')) continue; if(/\\$\\d|\\d%|\\d R\\b/.test(t) && !policy.test(t) && !isBlur(e)) out.push(t.slice(0,50)); }
     return out;`;
   const leaks = await js(LEAKS(R));
@@ -154,8 +154,7 @@ const RULES = { rules: [
   ok('dismissed: gone for today', await until(`![...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /5th trade/.test(x.innerText);})`, 3000));
   ok('...and no data changed (the rules doc untouched)', await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_rules'].rules.map(function(r){return r.id+r.status;})) === JSON.stringify(['maxTradesDayactive','maxPositionPctactive','stopRequiredproposed']) && !window.__fakeFs.log.some(function(l){return /tradehub_rules/.test(l.path);});`));
   await tab('portfolio');
-  await until(`document.querySelector('[data-rk-flags] [data-rw-mute]')`, 8000);
-  await js(`var h=[...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].find(function(x){return /NVDA is 27%/.test(x.innerText);}); h.querySelector('[data-rw-mute]').click(); 1`);
+  ok('the NVDA heads-up has "Don\'t warn me about this again"', await pressOn('[data-rk-flags]', '/NVDA is 27%/', '[data-rw-mute]'), await text('[data-rk-flags]'));
   ok('"Don\'t warn me about this again": that check goes quiet', await until(`![...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].some(function(x){return /NVDA is 27%/.test(x.innerText);})`, 3000));
   ok('...the plain flag stays (information, not the rule)', await js(`return !!document.querySelector('[data-rk-flag="position"]');`));
   ok('...and the muted check is saved (one debounced write)', await until(`(window.__fakeFs.docs['dashboards/tradehub_rules'].muted||[]).indexOf('maxPositionPct') >= 0`, 5000));

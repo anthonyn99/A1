@@ -1135,18 +1135,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   }
   #tj-root #tj-mobile-lock-btn[style*="display:none"], #bj-root #bj-mobile-lock-btn[style*="display:none"] { display: none !important; }
 
-  /* ── Bottom action bar: the sync/saved chip used to sit in the flex row and
-        push the buttons off-screen. Float it above the bar instead. ── */
   #tj-root #tj-bottom-bar, #bj-root #bj-bottom-bar { gap: 8px; }
-  #tj-root #tj-bb-saved, #bj-root #bj-bb-saved {
-    position: absolute; right: 12px; top: -26px;
-    max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis;
-    /* Everwell's dot and word, no outline; the fill only keeps it legible
-       over the page it floats above. */
-    background: var(--bg2); border: 0;
-    border-radius: 4px; padding: 2px 6px; font-size: 10.5px !important;
-    pointer-events: none;
-  }
   #tj-root #tj-bb-edit, #tj-root #tj-bb-new,
   #bj-root #bj-bb-edit, #bj-root #bj-bb-template, #bj-root #bj-bb-new {
     min-height: 44px !important; font-size: 11.5px !important; letter-spacing: 0.4px;
@@ -1345,6 +1334,24 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
   #tj-root .search-wrap .search-clear, #bj-root .search-wrap .search-clear { width: 34px; height: 34px; right: 2px; }
   #tj-root .search-wrap input, #bj-root .search-wrap input { padding-right: 38px; }
 }
+
+/* The sync word (2026-11-15). Desktop: a fixed slot right after the title, so
+   "Syncing…", "Synced" and "Sync failed" (different widths) and its fade never
+   move View/Edit, Export PDF or the lock. Phone and tablet: in the top header
+   beside the title, where it is seen (it was a small chip over the bottom bar).
+   There it takes no room until it has something to say; the title is
+   left-aligned, so nothing visible moves. */
+#tj-root #tj-toolbar .tj-sync-pill, #bj-root #bj-toolbar .bj-sync-pill {
+  width: 88px; justify-content: flex-start; overflow: hidden; padding: 0 2px; margin-left: 2px;
+}
+#tj-root #tj-bb-saved, #bj-root #bj-bb-saved {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; pointer-events: none;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 12px !important; font-weight: 700; color: #adadb2;
+  transition: opacity .3s ease, max-width .3s ease;
+}
+#tj-root #tj-bb-saved.on, #bj-root #bj-bb-saved.on { max-width: 120px; padding: 0 4px; }
+#tj-root #tj-bb-saved .tj-sync-dot, #bj-root #bj-bb-saved .bj-sync-dot { width: 8px; height: 8px; }
 
 /* Wider sidebar on roomy screens, but never a third of the page. */
 @media (min-width: 1400px) { #tj-root, #bj-root { --sidebar-w: 244px; } }
