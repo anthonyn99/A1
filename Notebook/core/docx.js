@@ -1648,7 +1648,7 @@ window._docxOpenTrash = function(app) {
           // The Trash modal is shared by every journal, so the lock badge is
           // swapped for the SVG only on Veda's side — Tony's list keeps the
           // glyph it already renders.
-          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? (!_docxTony(app) ? ' <span class="docx-lock-badge">' + window.TNI.lock + '</span>' : ' 🔒') : '') + '</div>' +
+          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' <span class="docx-lock-badge" style="display:inline-flex;align-items:center;vertical-align:-.14em;opacity:.8">' + window.TNI.lock + '</span>' : '') + '</div>' +
           '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
           '<div class="b"><button class="res">Restore</button><button class="del">Delete forever</button></div>';
         row.querySelector('input').addEventListener('change', function() {
