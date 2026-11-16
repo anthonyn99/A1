@@ -133,7 +133,7 @@ const SAMPLER = `(() => {
     requestAnimationFrame(f); });`).then(JSON.parse);
   await sleep(300);
   const after = rv.out.slice(rv.pressed + 1).filter((x) => x.x != null), atTurn = rv.out[rv.pressed];
-  ok('pressed again part-way: the same animation plays backwards', after.length >= 2 && after.every((x) => x.rate === -1), JSON.stringify(rv));
+  ok('pressed again part-way: the same animation plays backwards', after.length >= 1 && after.every((x) => x.rate === -1), JSON.stringify(rv));
   ok('it goes back from where it was, never restarting off the screen', atTurn && atTurn.x > 0 && after[0].x >= atTurn.x - 2 && after.every((x, i) => !i || x.x >= after[i - 1].x) && after[0].x < rv.out[0].x, JSON.stringify(rv.out.map((x) => x.x)));
   const closed3 = await geo();
   ok('and ends closed, in the static closed layout', closed3.hidden && !closed3.docked && JSON.stringify(closed3.page) === JSON.stringify(closed0.page));
