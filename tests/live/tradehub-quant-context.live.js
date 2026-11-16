@@ -90,8 +90,11 @@ const SAMPLER = `(() => {
   await press();
   await sleep(40);
   const mid = await anims();
-  await sleep(40);   // the page re-lays out two frames after the slide starts; its cards move from then
-  const midCards = await cardAnims();
+  // The page re-lays out two frames after the slide starts; its cards' moves are collected in the page,
+  // every frame through the slide, so a slow test call never misses them.
+  const midCards = await js(`return await new Promise(function(done){ var pg=document.querySelector('#tradeboard-root .tb-scroll-visible'), seen=new Map(), t0=performance.now();
+    (function f(){ document.getAnimations().forEach(function(a){ var t=a.effect&&a.effect.target; if(t&&pg&&pg.contains(t)&&!seen.has(a)){ var k=a.effect.getKeyframes(); seen.set(a,{ props: Object.keys(Object.assign.apply(null,[{}].concat(k))).filter(function(x){return ['offset','easing','composite','computedOffset'].indexOf(x)<0;}) }); } });
+      if(performance.now()-t0<450) requestAnimationFrame(f); else done(JSON.stringify([...seen.values()])); })(); });`).then(JSON.parse);
   // The title Halo's glow while it arrives (the .nq-arrive class lights it).
   // What the glow looks like while .nq-arrive is on (set by hand for a moment on a clone-free read).
   const glowMid = await js(`var d=document.querySelector('[data-nq-dock]'), g=d.querySelector('.nq-dock-head .nq-halo .nq-glow'), had=d.classList.contains('nq-arrive'); d.classList.add('nq-arrive'); var o=g?parseFloat(getComputedStyle(g).opacity):null; if(!had) d.classList.remove('nq-arrive'); return JSON.stringify({ glow: o });`).then(JSON.parse);
@@ -106,7 +109,7 @@ const SAMPLER = `(() => {
   ok('open ends in exactly the static open layout (no pixel left over)', JSON.stringify([open1.dock, open1.page, open1.cards, open1.transform]) === JSON.stringify([open0.dock, open0.page, open0.cards, 'none']), JSON.stringify([open0, open1]));
   const glowEnd = await js(`return document.querySelector('[data-nq-dock]').classList.contains('nq-arrive');`);
   const clsSeq = await js(`window.__dockMO.disconnect(); return JSON.stringify(window.__dockCls);`).then(JSON.parse);
-  const arriveAt = clsSeq.findIndex((c) => /\bnq-arrive\b/.test(c)), arrivedAt = clsSeq.findIndex((c) => /\bnq-arrived\b/.test(c));
+  const arriveAt = clsSeq.findIndex((c) => /(^|\s)nq-arrive(\s|$)/.test(c)), arrivedAt = clsSeq.findIndex((c, i) => i > arriveAt && /(^|\s)nq-arrived(\s|$)/.test(c) && !/(^|\s)nq-arrive(\s|$)/.test(c));
   ok('the Halo glows as the panel arrives (lit while it slides in, then it settles)', arriveAt >= 0 && arrivedAt > arriveAt && glowMid.glow > 0.5 && !glowEnd, JSON.stringify({ clsSeq, glowMid, glowEnd }));
   await press(); await sleep(30);
   const closing = await anims();
