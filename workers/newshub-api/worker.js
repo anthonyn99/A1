@@ -4064,13 +4064,12 @@ async function startStagedBuildCron(env, ctx, origin, useLimitedAPIs){
   const buildId = cacheKey.replace(/[^a-zA-Z0-9]/g,'_') + '_' + Date.now().toString(36);
   const slices = sliceTickers(wl);
   const k = stageKeys(buildId);
-  await Promise.all([
-    env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
-      wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
-      sliceCount: slices.length, nextSlice: 0,
-    }), { expirationTtl: STAGE_TTL }),
-    env.NEWSHUB_CACHE.put(k.articles, '[]', { expirationTtl: STAGE_TTL }),
-  ]);
+  // Only the meta: the first fetch stage reads a missing articles key as [] (KV
+  // writes are account 1's daily limit; an empty seed was one wasted write a build).
+  await env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
+    wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
+    sliceCount: slices.length, nextSlice: 0,
+  }), { expirationTtl: STAGE_TTL });
   await kickStage(env, origin, buildId, 'fetch', 0);
 }
 
@@ -4180,13 +4179,12 @@ async function startStagedBuild(env, ctx, req, useLimitedAPIs, wl, sectors, cach
   const buildId = cacheKey.replace(/[^a-zA-Z0-9]/g,'_') + '_' + Date.now().toString(36);
   const slices = sliceTickers(wl);
   const k = stageKeys(buildId);
-  await Promise.all([
-    env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
-      wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
-      sliceCount: slices.length, nextSlice: 0,
-    }), { expirationTtl: STAGE_TTL }),
-    env.NEWSHUB_CACHE.put(k.articles, '[]', { expirationTtl: STAGE_TTL }),
-  ]);
+  // Only the meta: the first fetch stage reads a missing articles key as [] (KV
+  // writes are account 1's daily limit; an empty seed was one wasted write a build).
+  await env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
+    wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
+    sliceCount: slices.length, nextSlice: 0,
+  }), { expirationTtl: STAGE_TTL });
   // Fire the first fetch stage. Prefer the SELF binding; fall back to HTTP origin.
   // Only if NEITHER exists do we inline-build (correct, but cap-bound).
   const origin = selfOrigin(req) || env.WORKER_ORIGIN || null;
@@ -4312,10 +4310,8 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
     try {
       let events = clusterArticles(articles, wl);
       events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
-      await Promise.all([
-        env.NEWSHUB_CACHE.put(k.events, JSON.stringify(events), { expirationTtl: STAGE_TTL }),
-        env.NEWSHUB_CACHE.put(k.enriched, '[]', { expirationTtl: STAGE_TTL }),
-      ]);
+      // No empty `enriched` seed: the windows read a missing key as [] (one KV write a build saved).
+      await env.NEWSHUB_CACHE.put(k.events, JSON.stringify(events), { expirationTtl: STAGE_TTL });
       ctx.waitUntil(kickStage(env, origin, buildId, 'aiwin', 0));
       return new Response(JSON.stringify({ ok:true, stage:'ai-prep', events:events.length }),
         { headers:{...cors(),'Content-Type':'application/json'} });
@@ -4356,13 +4352,18 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
       // get raw fallback at finalize.
       await stashStageError(env, 'aiwin:'+cursor, buildId, e, windowEvents.length);
     }
-    // Status breadcrumb so /_stage-debug shows whether windows fire + why 0 enriched.
-    await env.NEWSHUB_CACHE.put('stage:winstatus', JSON.stringify({
-      buildId, window:cursor, windowEvents:windowEvents.length, availModels:winAvail,
-      windowEnriched:winEnriched, totalSoFar:enrichedSoFar.length, at:Date.now(),
-    }), { expirationTtl: DIAG_TTL }).catch(()=>{});
-
     const next = cursor + 1;
+    // Status breadcrumb so /_stage-debug shows whether windows fire + why 0 enriched.
+    // Written on the LAST window, and on any window that enriched nothing (the case it
+    // exists to explain), not on every window: it was ~4 KV writes a build for a
+    // diagnostic the next window overwrote anyway (2026-11-16, account 1's KV alert).
+    if (next >= totalWindows || (windowEvents.length && !winEnriched)){
+      await env.NEWSHUB_CACHE.put('stage:winstatus', JSON.stringify({
+        buildId, window:cursor, windowEvents:windowEvents.length, availModels:winAvail,
+        windowEnriched:winEnriched, totalSoFar:enrichedSoFar.length, at:Date.now(),
+      }), { expirationTtl: DIAG_TTL }).catch(()=>{});
+    }
+
     if (next < totalWindows){
       ctx.waitUntil(kickStage(env, origin, buildId, 'aiwin', next));
     } else {

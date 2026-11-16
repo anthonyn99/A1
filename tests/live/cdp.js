@@ -130,7 +130,13 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 // exactly as it did from file://. (magi-sync.live.js puts a fake Firestore
 // behind the real listener itself.)
 const BLOCK = ['https://www.gstatic.com/firebasejs/*', 'https://*.googleapis.com/*',
-  'https://www.google.com/recaptcha/*', 'https://www.recaptcha.net/*'];
+  'https://www.google.com/recaptcha/*', 'https://www.recaptcha.net/*',
+  // newshub-api: a test watchlist (['NVDA','MU'], ['NVDA','MU','AMD']) that reached the
+  // REAL worker started a real News build (AI calls, ~25 KV writes on account 1) and a
+  // real summary and calendar; on 2026-11-16 those runs were a large part of account 1's
+  // KV alert. Always caught now: a test's mock answers it, anything else is refused.
+  // CDP_REAL_NEWSHUB=1 lets it through on purpose.
+  ...(process.env.CDP_REAL_NEWSHUB ? [] : ['https://newshub-api.av1.workers.dev/*'])];
 
 // Guardian (Guardian/guardian.js) asks the lock worker which locks exist on
 // every page load. A test must never depend on the REAL lock records, so that
