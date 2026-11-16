@@ -87,7 +87,9 @@ const SAMPLER = `(() => {
   await js(`window.__mo.on=true; window.__mo.pan=[]; window.__mo.frames=[]; 1`);
   await press();
   await sleep(40);
-  const mid = await anims(), midCards = await cardAnims();
+  const mid = await anims();
+  await sleep(40);   // the page re-lays out two frames after the slide starts; its cards move from then
+  const midCards = await cardAnims();
   // The title Halo's glow while it arrives (the .nq-arrive class lights it).
   const glowMid = await js(`var d=document.querySelector('[data-nq-dock]'), g=d.querySelector('.nq-dock-head .nq-halo .nq-glow'); return JSON.stringify({ cls: d.classList.contains('nq-arrive'), glow: g ? parseFloat(getComputedStyle(g).opacity) : null });`).then(JSON.parse);
   await sleep(420);
