@@ -539,28 +539,8 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(noTable, '/watchlist', { key: GOOD, method: 'POST', body: { symbols: ['NVDA'] } });
   ok('a database without the drawings table still keeps the watchlist', r.status === 200 && noTable.DB.kv.get('watchlist') === '["NVDA"]');
 
-  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'nvda', kind: 'level', price: 180.5, level: 'R1 Strong', note: 'bell' } } });
-  ok('an alert rule is stored, with an id made for it', r.status === 200 && typeof r.body.id === 'string' && env.DB.alerts.size === 1);
-  const aid = r.body.id;
-  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', kind: 'level', lo: 170, hi: 172 } } });
-  ok('a zone alert (lo and hi) too', r.status === 200 && env.DB.alerts.size === 2);
-  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: aid, symbol: 'NVDA', kind: 'price', price: 181 } } });
-  ok('the same id changes it (an alert line dragged)', env.DB.alerts.size === 2 && env.DB.alerts.get(aid).price === 181 && env.DB.alerts.get(aid).kind === 'price');
-  r = await call(env, '/alerts?symbol=NVDA', { key: GOOD });
-  ok('GET lists a symbol\'s alerts', r.body.alerts.length === 2 && r.body.alerts.every((a) => a.symbol === 'NVDA'));
-  const badAlert = [];
-  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA' } } })).status);
-  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 'abc' } } })).status);
-  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 1, id: 'bad id!' } } })).status);
-  badAlert.push((await call(env, '/alerts', { key: GOOD, method: 'POST', body: {} })).status);
-  ok('refused: no price, a price that is not a number, a bad id, no alert', badAlert.join() === '400,400,400,400', badAlert.join());
-  r = await call(env, '/alerts?id=' + aid, { key: GOOD, method: 'DELETE' });
-  ok('DELETE removes one', r.status === 200 && env.DB.alerts.size === 1 && !env.DB.alerts.has(aid));
-  for (let i = env.DB.alerts.size; i < 200; i++) env.DB.alerts.set('x' + i, { id: 'x' + i, symbol: 'NVDA', created: i });
-  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { symbol: 'NVDA', price: 1 } } });
-  ok('at most 200 alerts', r.status === 400 && /200/.test(r.body.error));
-  r = await call(env, '/alerts', { key: GOOD, method: 'POST', body: { alert: { id: 'x5', symbol: 'NVDA', price: 2 } } });
-  ok('...but one of the 200 can still be changed', r.status === 200);
+  // The alert rules' routes moved to lib/alerts.js in Phase 14: tests/quant-alerts.test.js
+  // covers them on a real SQLite (a level bell, a zone, a line dragged, DELETE, the 200 cap).
 
   console.log('\nThe history check (Yahoo before 2016 vs Tiingo)');
   {

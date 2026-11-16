@@ -172,6 +172,29 @@ globalThis.fetch = async (url, opts = {}) => {
   r = await call(env, 'GET', '/alerts');
   ok('GET: every rule back as the page reads it (kind, params, symbol null for "any"), and the config', r.body.alerts.length === 7 && r.body.alerts.find((a) => a.id === sid).symbol === null && r.body.alerts.find((a) => a.id === pid).params.holds === true && r.body.config.kinds.price === true);
   ok('GET never sends the check\'s state', r.body.alerts.every((a) => !('state' in a)));
+  {
+    const zid = (await call(env, 'POST', '/alerts', { alert: { symbol: 'NVDA', kind: 'level', lo: 170, hi: 172 } })).body.id;
+    ok('a zone bell (lo and hi) too', !!zid);
+    await call(env, 'DELETE', '/alerts?id=' + zid);
+    const lid = (await call(env, 'POST', '/alerts', { alert: { symbol: 'AMD', kind: 'price', price: 150 } })).body.id;
+    env.DB.sql.prepare('UPDATE alerts SET state = ? WHERE id = ?').run('{"side":"below"}', lid);
+    await call(env, 'POST', '/alerts', { alert: { id: lid, symbol: 'AMD', kind: 'price', price: 151 } });
+    const row = env.DB.sql.prepare('SELECT price, state FROM alerts WHERE id = ?').get(lid);
+    ok('the same id changes it (an alert line dragged), and its old side is forgotten', row.price === 151 && row.state === null);
+    env.DB.sql.prepare('UPDATE alerts SET state = ? WHERE id = ?').run('{"side":"below"}', lid);
+    await call(env, 'POST', '/alerts', { alert: { id: lid, symbol: 'AMD', kind: 'price', price: 151, note: 'renamed' } });
+    ok('… a note-only change keeps its state', env.DB.sql.prepare('SELECT state FROM alerts WHERE id = ?').get(lid).state === '{"side":"below"}');
+    ok('a bad id, or no alert, is refused', (await call(env, 'POST', '/alerts', { alert: { id: 'bad id!', symbol: 'NVDA', price: 1 } })).status === 400 && (await call(env, 'POST', '/alerts', {})).status === 400);
+    r = await call(env, 'GET', '/alerts?symbol=AMD');
+    ok('GET ?symbol= lists that ticker\'s rules only', r.body.alerts.length === 1 && r.body.alerts[0].symbol === 'AMD');
+    r = await call(env, 'DELETE', '/alerts?id=' + lid);
+    ok('DELETE removes one', r.status === 200 && !env.DB.sql.prepare('SELECT 1 FROM alerts WHERE id = ?').get(lid));
+    const e2 = mkEnv();
+    for (let i = 0; i < 200; i++) e2.DB.sql.prepare("INSERT INTO alerts (id, symbol, kind, price, active, created, at) VALUES (?, 'NVDA', 'price', 1, 1, ?, 1)").run('x' + i, i);
+    r = await call(e2, 'POST', '/alerts', { alert: { symbol: 'NVDA', price: 1 } });
+    ok('at most 200 alerts', r.status === 400 && /200/.test(r.body.error));
+    ok('… but one of the 200 can still be changed', (await call(e2, 'POST', '/alerts', { alert: { id: 'x5', symbol: 'NVDA', price: 2 } })).status === 200);
+  }
   r = await call(env, 'POST', '/alerts/order', { ids: [did, rid, gid, cid, sid, pid] });
   r = await call(env, 'GET', '/alerts');
   ok('Tony\'s order is kept (A1 drag), unordered rules after', r.body.alerts[0].id === did && r.body.alerts[5].id === pid && r.body.alerts.length === 7);
