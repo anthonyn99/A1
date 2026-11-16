@@ -70,8 +70,9 @@ export function checkSignal(s) {
   return { id, symbol, setup, horizon, dir, at, expires, verdict, score: fin(score), regime: regime ? String(regime).slice(0, 40) : null, body };
 }
 
-/** POST /signals: one read (today's count) and one batch of inserts. */
-export async function postSignals(env, req) {
+/** POST /signals: one read (today's count) and one batch of inserts. `after`
+ *  (Phase 14's alerts) gets the signals that were new, after they are stored. */
+export async function postSignals(env, req, after) {
   const b = await bodyOf(req, SIGNALS_PER_CALL * (SIGNAL_BYTES + 400));
   const list = Array.isArray(b && b.signals) ? b.signals : null;
   if (!list || !list.length) throw fail(400, 'signals is empty');
@@ -87,11 +88,18 @@ export async function postSignals(env, req) {
     + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING')
     .bind(x.id, x.symbol, x.setup, x.horizon, x.dir, x.at, x.expires, x.verdict, x.score, x.regime, by, now, x.body));
   if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
+  if (after) {
+    const byId = new Map(list.map((x) => [String(x.id), x]));
+    await after(fresh.map((x) => { const s = byId.get(x.id) || {}; return { id: x.id, symbol: x.symbol, setup: x.setup, horizon: x.horizon, dir: x.dir, verdict: x.verdict, entry: s.entry, stop: s.stop }; }));
+  }
   return json({ ok: true, sent: rows.length, added: fresh.length });
 }
 
-/** POST /grades: one batch of updates; a row already done is not touched. */
-export async function postGrades(env, req) {
+/** POST /grades: one batch of updates; a row already done is not touched.
+ *  `after` (Phase 14's alerts) gets the signals Tony TOOK that just hit a
+ *  target or their stop (one more read, only when a grade says so). */
+export const HIT = ['target1', 'target2', 'stopped'];
+export async function postGrades(env, req, after) {
   const b = await bodyOf(req, GRADES_PER_CALL * 600);
   const list = Array.isArray(b && b.grades) ? b.grades : null;
   if (!list || !list.length) throw fail(400, 'grades is empty');
@@ -106,6 +114,15 @@ export async function postGrades(env, req) {
     return env.DB.prepare('UPDATE signals SET status = ?, done = ?, r = ?, taken = COALESCE(?, taken), graded_at = ?, grade = ? WHERE id = ? AND done = 0')
       .bind(g.status, g.done ? 1 : 0, fin(g.r), taken, now, grade, g.id);
   });
+  // Which hits are news: read before the batch, so a row already at that status is not raised again.
+  const hitIds = after ? list.filter((g) => HIT.includes(g.status)).map((g) => String(g.id)) : [];
+  const was = hitIds.length ? (await env.DB.prepare('SELECT id, symbol, setup, status, taken FROM signals WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(hitIds)).all()).results || [] : [];
   if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
+  if (was.length) {
+    const g = new Map(list.map((x) => [String(x.id), x]));
+    const hits = was.filter((w) => { const x = g.get(w.id); return x && w.status !== x.status && (x.taken || w.taken); })
+      .map((w) => { const x = g.get(w.id); return { id: w.id, symbol: w.symbol, setup: w.setup, status: x.status, r: fin(x.r) }; });
+    if (hits.length) await after(hits);
+  }
   return json({ ok: true, graded: list.length });
 }
