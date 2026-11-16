@@ -416,6 +416,7 @@ export async function check(env, now = Date.now(), { force = false, send = push 
   let rows;
   try { rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind IN ('price', 'level', 'catalyst', 'data')").all()).results || []; }
   catch (e) { if (noTable(e)) return { skipped: 'no alerts table' }; throw e; }
+  if (rows.length && !('params' in rows[0])) return { skipped: 'no alerts table' };   // Phase 4's table, before 0013
   // Signal, graded and regime rules come back here only to retry a failed send.
   let retryRows = [];
   try { retryRows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind IN ('signal', 'graded', 'regime') AND state LIKE '%\"retry\"%'").all()).results || []; } catch (e) { if (!noTable(e)) throw e; }

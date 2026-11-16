@@ -322,6 +322,7 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('before migration 0013 a new kind of rule is a 503 that names it', x.status === 503 && /0013_alerts/.test(x.body.error));
     x = await call(e, 'GET', '/alerts/fires');
     ok('… the bell reads empty (missing: true)', x.status === 200 && x.body.missing === true);
+    e.DB.sql.prepare("INSERT INTO alerts (id, symbol, kind, price, active, created, at) VALUES ('old', 'NVDA', 'price', 100, 1, 1, 1)").run();
     const c0 = await A.check(e, MON_10);
     ok('… and the check does nothing', c0.skipped === 'no alerts table');
   }
