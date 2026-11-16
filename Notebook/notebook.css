@@ -1086,6 +1086,17 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap { position: relative; overflow: hidden; cursor: pointer; }
 #tj-root .mode-toggle::before, #bj-root .mode-toggle::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: -240px; right: -20px; }
 #tj-root .mode-toggle-label, #bj-root .mode-toggle-label { pointer-events: none; }
+/* VIEW and EDIT are different widths, so the toggle grew and shrank and the
+   buttons beside it moved (2026-11-15). Both words are laid out, invisible and
+   zero-high, in the label's one column: it is always as wide as the wider
+   word, in whatever font the side uses. The shown word stays left-aligned. */
+#tj-root .mode-toggle-label, #bj-root .mode-toggle-label { display: inline-grid; grid-template-columns: auto; }
+#tj-root .mode-toggle-label::before, #bj-root .mode-toggle-label::before,
+#tj-root .mode-toggle-label::after, #bj-root .mode-toggle-label::after {
+  grid-area: 1 / 1; height: 0; overflow: hidden; visibility: hidden;
+}
+#tj-root .mode-toggle-label::before, #bj-root .mode-toggle-label::before { content: 'VIEW'; }
+#tj-root .mode-toggle-label::after, #bj-root .mode-toggle-label::after { content: 'EDIT'; }
 #tj-root .mode-toggle-wrap:hover { border-color: color-mix(in srgb, var(--ac) 60%, var(--border2)); }
 #bj-root .mode-toggle-wrap:hover { border-color: rgba(141,118,154,.45); }
 /* Editing: the outline stays as it is; the switch fills with the accent. */
