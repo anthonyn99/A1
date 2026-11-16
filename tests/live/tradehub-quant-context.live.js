@@ -88,6 +88,8 @@ const SAMPLER = `(() => {
   await press();
   await sleep(40);
   const mid = await anims(), midCards = await cardAnims();
+  // The title Halo's glow while it arrives (the .nq-arrive class lights it).
+  const glowMid = await js(`var d=document.querySelector('[data-nq-dock]'), g=d.querySelector('.nq-dock-head .nq-halo .nq-glow'); return JSON.stringify({ cls: d.classList.contains('nq-arrive'), glow: g ? parseFloat(getComputedStyle(g).opacity) : null });`).then(JSON.parse);
   await sleep(420);
   await js(`window.__mo.on=false; 1`);
   const open1 = await geo(), panOpen = await js(`return JSON.stringify(window.__mo.pan);`).then(JSON.parse);
@@ -97,7 +99,8 @@ const SAMPLER = `(() => {
   ok('nothing on the dock animates opacity; it stays fully opaque all the way', mid.every((a) => !a.props.includes('opacity') || a.on === 'scrim') && panOpen.every((x) => x[2] === '1'), JSON.stringify(mid.map((a) => a.props)));
   ok('open: 200 ms (never over ⅓ s)', dockA[0] && dockA[0].ms === 200);
   ok('open ends in exactly the static open layout (no pixel left over)', JSON.stringify([open1.dock, open1.page, open1.cards, open1.transform]) === JSON.stringify([open0.dock, open0.page, open0.cards, 'none']), JSON.stringify([open0, open1]));
-  ok('the Halo glows as the panel arrives', await js(`return document.querySelector('[data-nq-dock]').matches('.nq-arrived, .nq-arrive') || true;`) && /nq-arrive/.test(await js(`return document.querySelector('[data-nq-dock]').className;`) + ' nq-arrive'));
+  const glowEnd = await js(`return document.querySelector('[data-nq-dock]').classList.contains('nq-arrive');`);
+  ok('the Halo glows as the panel arrives (lit while it slides in, then it settles)', glowMid.cls && glowMid.glow > 0.5 && !glowEnd, JSON.stringify([glowMid, glowEnd]));
   await press(); await sleep(30);
   const closing = await anims();
   await sleep(300);
