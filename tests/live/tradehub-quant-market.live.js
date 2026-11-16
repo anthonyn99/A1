@@ -90,8 +90,10 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   const meta = await js(`return document.querySelector('[data-mk-meta]').innerText;`);
   ok('the meta line: as of, who built it, the bars\' day', /As of \d/.test(meta) && /scheduled runner/.test(meta) && /bars to/.test(meta), meta);
   ok('...with a freshness chip from the live stream, LIVE', await until(`document.querySelector('[data-mk-label]').dataset.mkLabel === 'LIVE'`, 6000), await js(`return document.querySelector('[data-mk-label]').dataset.mkLabel;`));
-  const visit = api.asked.slice(before).map((a) => a.p);
-  ok('the visit cost at most 3 quant-api requests', visit.length <= 3 && visit.includes('/snapshot') === false || (visit.length <= 3), visit.join());
+  // Phase 13's Macro card adds its own: /macro, /macro/dates and SPY's daily bars (the release studies).
+  const macroReq = (a) => a.p === '/macro' || a.p === '/macro/dates' || (a.p === '/bars' && /symbol=SPY&tf=1d/.test(a.q || ''));
+  const visit = api.asked.slice(before).filter((a) => !macroReq(a)).map((a) => a.p), macroVisit = api.asked.slice(before).filter(macroReq).map((a) => a.p);
+  ok('the visit cost at most 3 quant-api requests (+ the Macro card\'s, at most 4)', visit.length <= 3 && macroVisit.length <= 4, visit.join() + ' | macro: ' + macroVisit.join());
   ok('...the snapshot was not read twice (the morning check already had it)', visit.filter((p) => p === '/snapshot').length === 0 && visit.includes('/quotes'), visit.join());
   ok('every request carried the key', api.asked.every((a) => a.auth === 'Bearer ' + KEY));
 
@@ -177,7 +179,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('opening Market shows it at once', await until(`document.querySelector('[data-mk-score]') && document.querySelectorAll('[data-mk-sectors] .mk-tile').length === 12`, 8000));
   ok('...built on a device, says the meta line', /on a device/.test(await js(`return document.querySelector('[data-mk-meta]').innerText;`)));
   await sleep(1000);
-  ok('...without building again', api.asked.slice(n0).every((a) => a.p !== '/bars') && api.posted.snapshots.length === 1, api.asked.slice(n0).map((a) => a.p).join());
+  ok('...without building again (only the Macro card\'s SPY bars, never the universe\'s)', api.asked.slice(n0).every((a) => a.p !== '/bars' || /symbol=SPY&tf=1d/.test(a.q || '')) && api.asked.slice(n0).filter((a) => a.p === '/bars').length <= 2 && api.posted.snapshots.length === 1, api.asked.slice(n0).map((a) => a.p + (a.p === '/bars' ? a.q.slice(0, 22) : '')).join());
   api.state.snapshot = FIXTURE; api.state.watchlist = WATCHLIST;
 
   console.log('\nNo key, and turning it off');
