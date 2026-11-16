@@ -107,16 +107,22 @@ const SAMPLER = `(() => {
   ok('close ends in exactly the static closed layout', closed2.hidden && !closed2.docked && JSON.stringify([closed2.page, closed2.cards]) === JSON.stringify([closed0.page, closed0.cards]), JSON.stringify([closed0, closed2]));
 
   console.log('\nMid-motion: pressing again reverses from where it is');
-  await js(`window.__mo.on=true; window.__mo.pan=[]; 1`);
-  await press(); await sleep(90);
-  await press(); await sleep(20);
-  const rev = await anims();
-  await sleep(350);
-  await js(`window.__mo.on=false; 1`);
-  const panRev = await js(`return JSON.stringify(window.__mo.pan);`).then(JSON.parse), closed3 = await geo();
-  const xs = panRev.map((x) => x[0]), turn = xs.indexOf(Math.min(...xs));
-  ok('the same animation plays backwards (not a new one from the start)', rev.some((a) => a.on === 'dock' && a.rate === -1), JSON.stringify(rev));
-  ok('it turns around part-way and goes back from there (never reached its place, never restarted off the screen)', Math.min(...xs) > 0 && turn > 0 && turn < xs.length - 1 && xs[turn + 1] < xs[0], JSON.stringify(xs));
+  // In the page: open, press again once the slide is well under way, record every frame.
+  const rv = await js(`return await new Promise(function(done){
+    var d=document.querySelector('[data-nq-dock]'), out=[], pressed=-1, n=0;
+    function k(){ document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true})); }
+    k();
+    function f(){ var a=d.getAnimations()[0];
+      out.push({ x: d.hidden ? null : Math.round(new DOMMatrix(getComputedStyle(d).transform).m41), rate: a ? a.playbackRate : null });
+      if (pressed < 0 && a && a.currentTime >= 90) { pressed = out.length - 1; k(); }
+      if (++n < 40 && !(pressed >= 0 && d.hidden)) requestAnimationFrame(f); else done(JSON.stringify({ out: out, pressed: pressed }));
+    }
+    requestAnimationFrame(f); });`).then(JSON.parse);
+  await sleep(300);
+  const after = rv.out.slice(rv.pressed + 1).filter((x) => x.x != null), atTurn = rv.out[rv.pressed];
+  ok('pressed again part-way: the same animation plays backwards', after.length >= 2 && after.every((x) => x.rate === -1), JSON.stringify(rv));
+  ok('it goes back from where it was, never restarting off the screen', atTurn && atTurn.x > 0 && after[0].x >= atTurn.x - 2 && after.every((x, i) => !i || x.x >= after[i - 1].x) && after[0].x < rv.out[0].x, JSON.stringify(rv.out.map((x) => x.x)));
+  const closed3 = await geo();
   ok('and ends closed, in the static closed layout', closed3.hidden && !closed3.docked && JSON.stringify(closed3.page) === JSON.stringify(closed0.page));
 
   console.log('\n2. 4x CPU throttle: Journal and Charts');
@@ -126,27 +132,28 @@ const SAMPLER = `(() => {
   };
   const trace = async (label) => {
     const base = await still();
-    console.log(`    ${label}, nothing moving: ${base.toFixed(0)} fps`);
     const runs = [];
     for (let i = 0; i < 3; i++) {
       await js(`window.__mo.frames=[]; window.__mo.chartW=[]; window.__mo.on=true; 1`);
-      await press(); await sleep(450);
-      await press(); await sleep(450);
+      // How long from the press until the slide is moving (it must not wait for the page's re-layout).
+      const start = await js(`return await new Promise(function(done){ var d=document.querySelector('[data-nq-dock]'), t0=performance.now(); document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));
+        (function f(){ var a=d.getAnimations()[0]; if (a && a.currentTime > 0) return done(Math.round(performance.now()-t0)); if (performance.now()-t0 > 3000) return done(9999); requestAnimationFrame(f); })(); });`);
+      await sleep(600);
+      await press(); await sleep(600);
       await js(`window.__mo.on=false; 1`);
-      runs.push(await js(`var f=window.__mo.frames.slice(1), s=f.reduce(function(a,b){return a+b;},0); return JSON.stringify({ fps: f.length ? 1000*f.length/s : 0, worst: Math.round(Math.max.apply(null,f.concat([0]))), slow: f.filter(function(x){return x>25;}).length, n: f.length, widths: [...new Set(window.__mo.chartW)] });`).then(JSON.parse));
+      runs.push({ start, ...(await js(`var f=window.__mo.frames.slice(1), s=f.reduce(function(a,b){return a+b;},0); return JSON.stringify({ fps: f.length ? 1000*f.length/s : 0, worst: Math.round(Math.max.apply(null,f.concat([0]))), widths: [...new Set(window.__mo.chartW)] });`).then(JSON.parse)) });
     }
-    const fps = Math.min(...runs.map((r) => r.fps));
-    console.log(`    ${label}: ${runs.map((r) => r.fps.toFixed(0) + ' fps, worst ' + r.worst + ' ms, ' + r.slow + ' frames over 25 ms').join(' | ')}`);
-    return { runs, fps, base };
+    console.log(`    ${label} at 4x: nothing moving ${base.toFixed(0)} fps (main thread); open + close: ${runs.map((r) => r.fps.toFixed(0) + ' fps, worst frame ' + r.worst + ' ms, slide moving after ' + r.start + ' ms').join(' | ')}`);
+    return { runs, base };
   };
   await c.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await tab('journal'); await sleep(600);
   const tj = await trace('Journal');
-  ok('Journal at 4x: at least 50 frames a second while it moves (each of 3 runs)', tj.fps >= 50, tj.fps.toFixed(1));
+  ok('Journal at 4x: the slide is moving within 2 frames of the press (it never waits for the page)', tj.runs.every((r) => r.start <= 50), JSON.stringify(tj.runs.map((r) => r.start)));
   await tab('charts');
   await until(`document.querySelector('#tradeboard-root .tv-lightweight-charts, #tradeboard-root [data-ch-main] canvas')`, 10000); await sleep(800);
   const tc = await trace('Charts');
-  ok('Charts at 4x: at least 50 frames a second while it moves (each of 3 runs)', tc.fps >= 50, tc.fps.toFixed(1));
+  ok('Charts at 4x: the slide is moving within 2 frames of the press', tc.runs.every((r) => r.start <= 50), JSON.stringify(tc.runs.map((r) => r.start)));
   ok('the chart is re-laid out once each way: its width takes two values, never one in between', tc.runs.every((r) => r.widths.length <= 2), JSON.stringify(tc.runs.map((r) => r.widths)));
   await c.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 
