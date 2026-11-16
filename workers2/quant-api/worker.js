@@ -24,9 +24,8 @@
 //                                  (it also marks the drawings of symbols that left it; 30 days gone = deleted)
 //   GET  /drawings?symbol=X        { symbol, drawings, at }   Tony's drawings on that chart
 //   PUT  /drawings                 { symbol, drawings }       replace them (at most 200, 64 KB)
-//   GET  /alerts[?symbol=X]        { alerts }                 the alert rules made from charts
-//   POST /alerts                   { alert }                  add or change one (at most 200)
-//   DELETE /alerts?id=             remove one
+//   /alerts, /alerts/…             alert rules of every kind, the fires (the bell), config, catalysts,
+//                                  a test push, the check on demand (lib/alerts.js; Phase 14)
 //   GET  /signals?since&status&symbol&limit   { signals }   the scanner's ledger, newest first (lib/signals.js)
 //   POST /signals                  { signals }   new signals; one already stored is left as it is
 //   POST /grades                   { grades }    what happened to open signals
@@ -53,6 +52,9 @@
 //   GET  /macro/dates              past release days per kind (FRED's release calendar, 2025 on) for the event studies
 //   GET  /earnings?symbols=A,B     earnings history from D1; POST /earnings/fetch { mode: nightly|backfill } fills it from Nasdaq
 //
+// Cron (every minute, wrangler.toml): the alert check, which returns at once
+// unless New York is in a session (lib/alerts.js check).
+//
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
 // never sends a freshness label: the page works it out from provider, t,
 // heard, realtime and delayMs, so it can turn STALE by time alone.
@@ -76,9 +78,11 @@ import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
 import { getBrief, postBrief } from './lib/brief.js';
 import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
-import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
+import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
+import * as alerts from './lib/alerts.js';
 
-export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
+export { DRAWINGS_MAX, DRAWINGS_BYTES, DRAWINGS_KEEP_MS } from './lib/charts.js';
+export { ALERTS_MAX } from './lib/alerts.js';
 
 export { CAPS, spend, noteHealth, day } from './lib/ledger.js';
 
@@ -103,6 +107,12 @@ export default {
     } catch (e) {
       return json({ ok: false, error: e.message || String(e), ...(e.extra || {}) }, e.status || 500, cors);
     }
+  },
+  // The alert check: every minute; outside a New York session it returns before any read.
+  async scheduled(event, env, ctx) {
+    const t = (event && event.scheduledTime) || Date.now();
+    if (!alerts.inSession(t)) return;
+    ctx.waitUntil(alerts.check(env, t).catch((e) => console.warn('alert check:', e.message || e)));
   },
 };
 
@@ -135,17 +145,16 @@ async function route(req, env, url, ctx) {
   }
   if (p === '/corrections' && m === 'POST') return addCorrections(env, req);
   if (p === '/snapshot' && m === 'GET') return getSnapshot(env, url);
-  if (p === '/snapshot' && m === 'POST') return putSnapshot(env, req);
+  if (p === '/snapshot' && m === 'POST') return putSnapshot(env, req, ctx);
   if (p === '/snapshot/claim' && m === 'POST') return claimSnapshot(env, req);
   if (p === '/watchlist' && m === 'POST') return putWatchlist(env, req);
   if (p === '/drawings' && m === 'GET') return getDrawings(env, url);
   if (p === '/drawings' && m === 'PUT') return putDrawings(env, req);
-  if (p === '/alerts' && m === 'GET') return getAlerts(env, url);
-  if (p === '/alerts' && m === 'POST') return putAlert(env, req);
-  if (p === '/alerts' && m === 'DELETE') return deleteAlert(env, url);
+  if (p === '/alerts' || p.startsWith('/alerts/')) return alertsRoute(req, env, url, p, m);
   if (p === '/signals' && m === 'GET') return getSignals(env, url);
-  if (p === '/signals' && m === 'POST') return postSignals(env, req);
-  if (p === '/grades' && m === 'POST') return postGrades(env, req);
+  // New GO signals and graded signals he took raise their alerts after the answer (Phase 14).
+  if (p === '/signals' && m === 'POST') return postSignals(env, req, (fresh) => later(ctx, alerts.raise(env, 'signal', fresh).catch((e) => console.warn('signal alerts:', e.message || e))));
+  if (p === '/grades' && m === 'POST') return postGrades(env, req, (hits) => later(ctx, alerts.raise(env, 'graded', hits).catch((e) => console.warn('graded alerts:', e.message || e))));
   if (p === '/calibration' && m === 'GET') return getCalibration(env);
   if (p === '/calibration' && m === 'PUT') return putCalibration(env, req);
   if (p === '/paper' && m === 'GET') return getPaper(env);
@@ -214,6 +223,22 @@ async function route(req, env, url, ctx) {
   throw fail(404, 'no such route');
 }
 
+/* ── /alerts/… (Phase 14, lib/alerts.js) ───────────────────────────────── */
+function alertsRoute(req, env, url, p, m) {
+  if (p === '/alerts' && m === 'GET') return alerts.getAlerts(env, url);
+  if (p === '/alerts' && m === 'POST') return alerts.putAlert(env, req);
+  if (p === '/alerts' && m === 'DELETE') return alerts.deleteAlert(env, url);
+  if (p === '/alerts/order' && m === 'POST') return alerts.orderAlerts(env, req);
+  if (p === '/alerts/fires' && m === 'GET') return alerts.getFires(env, url);
+  if (p === '/alerts/seen' && m === 'POST') return alerts.seenFires(env);
+  if (p === '/alerts/config' && m === 'GET') return alerts.getConfig(env);
+  if (p === '/alerts/config' && m === 'PUT') return alerts.putConfig(env, req);
+  if (p === '/alerts/catalysts' && m === 'PUT') return alerts.putCatalysts(env, req);
+  if (p === '/alerts/test' && m === 'POST') return alerts.testPush(env);
+  if (p === '/alerts/check' && m === 'POST') return alerts.checkRoute(env, url);
+  throw fail(404, 'no such route');
+}
+
 /* ── /snapshot, /watchlist ──────────────────────────────────────────────── */
 export const SLOT_NAMES = ['premarket', 'open30', 'midday', 'close', 'nightly'];
 // Minutes after New York midnight each slot is due (A1-Priv TradeHub/core/slots.js SLOTS).
@@ -245,8 +270,10 @@ async function getSnapshot(env, url) {
   const wl = await readWatchlist(env);
   return json({ ok: true, snapshot, watchlist: wl ? wl.symbols : null, watchlistAt: wl ? wl.at : null });
 }
-/** POST /snapshot { snapshot }: keep it under its (day, slot). One write. */
-async function putSnapshot(env, req) {
+/** POST /snapshot { snapshot }: keep it under its (day, slot). One write. When
+ *  its regime label differs from the snapshot before it, the regime alerts are
+ *  raised after the answer (one more read, of that snapshot). */
+async function putSnapshot(env, req, ctx) {
   let text;
   try { text = await req.text(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
   if (text.length > SNAPSHOT_MAX + 100) throw fail(413, 'a snapshot may be at most ' + SNAPSHOT_MAX + ' bytes');
@@ -263,10 +290,21 @@ async function putSnapshot(env, req) {
   if (s.due > now + 60_000) throw fail(400, 'that slot is not due yet');
   const out = JSON.stringify(s);
   if (out.length > SNAPSHOT_MAX) throw fail(413, 'a snapshot may be at most ' + SNAPSHOT_MAX + ' bytes');
+  const label = regimeLabel(s.regime);
+  let before = null;
+  if (label) { try { before = await env.DB.prepare('SELECT day, slot, body FROM snapshots WHERE due < ? ORDER BY due DESC LIMIT 1').bind(Math.round(s.due)).first(); } catch (e) {} }
   await env.DB.prepare('INSERT INTO snapshots (day, slot, due, at, by, body) VALUES (?, ?, ?, ?, ?, ?) '
     + 'ON CONFLICT (day, slot) DO UPDATE SET due = excluded.due, at = excluded.at, by = excluded.by, body = excluded.body')
     .bind(s.day, s.slot, Math.round(s.due), now, s.by === 'runner' ? 'runner' : 'page', out).run();
+  let was = null;
+  if (before) { try { was = regimeLabel(JSON.parse(before.body).regime); } catch (e) {} }
+  if (label && was && was !== label) await later(ctx, alerts.raise(env, 'regime', [{ from: was, to: label, day: s.day, slot: s.slot }]).catch((e) => console.warn('regime alerts:', e.message || e)));
   return json({ ok: true, day: s.day, slot: s.slot });
+}
+/** A snapshot's regime label ('Risk-on', …), from its regime object or string. */
+function regimeLabel(r) {
+  const v = r && typeof r === 'object' ? (r.label || r.name) : r;
+  return typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : null;
 }
 /** POST /snapshot/claim { day, slot }: may the caller build this slot? Granted
  *  when nobody claimed it in the last CLAIM_MS (meta row `claim:day:slot`), so
