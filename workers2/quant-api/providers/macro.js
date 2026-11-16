@@ -48,9 +48,11 @@ export const MIN_CAP = 5e9;   // only companies worth $5B or more are kept (D1's
  *  companies worth MIN_CAP or more (one Nasdaq call). */
 export async function earningsOn(L, day) {
   const j = await call(L, 'nasdaq', `https://api.nasdaq.com/api/calendar/earnings?date=${day}`, { timeout: 10000, headers: { 'user-agent': UA_BROWSER, accept: 'application/json' } });
-  const rows = (j && j.data && j.data.rows) || [];
-  if (!Array.isArray(rows)) throw noteBad(L, 'nasdaq', 'no rows in the earnings calendar');
-  return parseEarnings(rows, day);
+  // A real day with no reports (a weekend, a holiday) answers asOf + rows: null + rCode 200; anything
+  // else (no data, another status, rows not a list) is a failure, so the day is NOT marked asked.
+  const d = j && j.data, rc = j && j.status && j.status.rCode;
+  if (!d || !d.asOf || (rc != null && rc !== 200) || (d.rows != null && !Array.isArray(d.rows))) throw noteBad(L, 'nasdaq', 'the earnings calendar did not answer for ' + day);
+  return parseEarnings(d.rows || [], day);
 }
 export function parseEarnings(rows, day) {
   const out = [];

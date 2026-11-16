@@ -6,6 +6,7 @@
 //     expiries: [{ exp, c: [[k, bid, ask, iv, oi, vol, delta, gamma]…], p: […] }] }
 // Index symbols (SPX, VIX…) are not asked: their chains are 10+ MB.
 import { call, noteBad, ProviderError } from '../lib/net.js';
+import { nyDate } from '../lib/time.js';
 
 export const URL_OF = (sym) => `https://cdn-api.cboe.com/api/global/delayed_quotes/options/${encodeURIComponent(sym)}.json`;
 export const MAX_DAYS = 120, MAX_EXPIRIES = 10, NEAR_EXPIRIES = 6, BAND = 0.2, TIMEOUT = 15000;
@@ -23,6 +24,9 @@ export function parseOcc(s) {
 const ymd = (d) => d.slice(2).replace(/-/g, '');
 /** Is 'YYYY-MM-DD' a month's third Friday (the standard monthly expiry)? */
 export const thirdFriday = (d) => { const x = new Date(d + 'T12:00:00Z'), day = x.getUTCDate(); return x.getUTCDay() === 5 && day >= 15 && day <= 21; };
+const dayBefore = (d) => new Date(Date.parse(d + 'T12:00:00Z') - DAY).toISOString().slice(0, 10);
+/** A monthly expiry: the third Friday, or the Thursday before it when that Friday is a holiday (Juneteenth 2026). */
+export const monthly = (d) => thirdFriday(d) || (new Date(d + 'T12:00:00Z').getUTCDay() === 4 && thirdFriday(new Date(Date.parse(d + 'T12:00:00Z') + DAY).toISOString().slice(0, 10)));
 /** The third Fridays after `after` up to `last` ('YYYY-MM-DD'), ascending. */
 export function thirdFridays(after, last) {
   const out = [];
@@ -37,7 +41,7 @@ export function thirdFridays(after, last) {
 /** Which expiries are kept: the NEAR_EXPIRIES nearest, then the monthlies (third
  *  Fridays) up to MAX_DAYS, at most MAX_EXPIRIES in all. */
 export function pickExpiries(sorted) {
-  const near = sorted.slice(0, NEAR_EXPIRIES), rest = sorted.slice(NEAR_EXPIRIES).filter(thirdFriday);
+  const near = sorted.slice(0, NEAR_EXPIRIES), rest = sorted.slice(NEAR_EXPIRIES).filter(monthly);
   return near.concat(rest).slice(0, MAX_EXPIRIES);
 }
 
@@ -45,7 +49,7 @@ export function pickExpiries(sorted) {
  *  counts (SPY's chain also lists "B1SPY…" contracts, left out). */
 function collector(sym, spot, now) {
   const by = new Map(), lo = spot * (1 - BAND), hi = spot * (1 + BAND);
-  const today = new Date(now - 5 * 3_600_000).toISOString().slice(0, 10), last = new Date(now + MAX_DAYS * DAY).toISOString().slice(0, 10);
+  const today = nyDate(now), last = new Date(now + MAX_DAYS * DAY).toISOString().slice(0, 10);
   return {
     /** Would contract `occ` be kept? (decided from its symbol alone) → its parts or null. */
     want(occ) { const p = parseOcc(occ); return p && p.root === sym && p.exp >= today && p.exp <= last && p.k >= lo && p.k <= hi ? p : null; },
@@ -114,10 +118,12 @@ export function compactText(text, sym, now = Date.now()) {
   if (pos >= 0 && lastNear) {
     for (const d of thirdFridays(lastNear, c.last)) {
       if (seen.length >= MAX_EXPIRIES) break;
-      const j = t.indexOf('"' + sym + ymd(d), pos);
+      // The Friday, or the Thursday before it when the Friday is a holiday.
+      let day = d, j = t.indexOf('"' + sym + ymd(d), pos);
+      if (j < 0) { day = dayBefore(d); j = t.indexOf('"' + sym + ymd(day), pos); }
       if (j < 0) continue;
-      seen.push(d);
-      const stop = read(t.lastIndexOf(KEY, j), (p) => p.exp === d);
+      seen.push(day);
+      const stop = read(t.lastIndexOf(KEY, j), (p) => p.exp === day);
       if (stop < 0) break;
       pos = stop;
     }
