@@ -13,8 +13,12 @@ database_name = "quant"
 database_id = "25323b25-f012-4320-85f3-2f1de7a0881c"
 migrations_dir = "migrations"
 
-# No cron yet. The alert check (market hours only) arrives with the Alerts
-# phase, after a free cron slot on this account is confirmed.
+# The alert check (lib/alerts.js, Phase 14): every minute; it returns before any
+# read unless New York is in a session (04:00 to 20:00 on a trading day), so at
+# most 960 runs a day do work. Account 2's other workers have no cron (checked
+# 2026-11-16), so this is 1 of its 5 slots.
+[triggers]
+crons = ["* * * * *"]
 
 # Secrets (wrangler secret put <NAME>, with CLOUDFLARE_ACCOUNT_ID = account 2):
 #   ALLOWED_KEYS   comma-separated SHA-256 hex of the Orca keys that may call
@@ -30,9 +34,12 @@ migrations_dir = "migrations"
 # Neo Quant's other fast-lane providers, each skipped without its key (lib/ai.js):
 #   CEREBRAS_KEY, OPENROUTER_KEY, MISTRAL_KEY, GITHUB_MODELS_KEY, NVIDIA_KEY
 #   HEAR_SECRET                 the key quant-hear (account 3) expects; the same value is set there
-# Added by later phases: PUSH_SECRET.
+#   PUSH_SECRET                 the alert check's key to taskhub-reminders /quant-push (account 1);
+#                               the same value is QUANT_PUSH_SECRET there
 
 # Neo Quant's hearing backup: Workers AI Whisper on account 3 (A1 workers3/quant-hear),
 # so this worker needs no `AI` binding (that would also add Workers AI chat to the answer chain).
 [vars]
 HEAR_URL = "https://quant-hear.anthony-account-3.workers.dev"
+# Where the alerts are pushed from (TaskHub's reminders worker: Tony's devices only).
+PUSH_URL = "https://taskhub-reminders.av1.workers.dev"

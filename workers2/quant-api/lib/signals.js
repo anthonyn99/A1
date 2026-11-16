@@ -116,11 +116,11 @@ export async function postGrades(env, req, after) {
   });
   // Which hits are news: read before the batch, so a row already at that status is not raised again.
   const hitIds = after ? list.filter((g) => HIT.includes(g.status)).map((g) => String(g.id)) : [];
-  const was = hitIds.length ? (await env.DB.prepare('SELECT id, symbol, setup, status, taken FROM signals WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(hitIds)).all()).results || [] : [];
+  const was = hitIds.length ? (await env.DB.prepare('SELECT id, symbol, setup, status, taken, done FROM signals WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(hitIds)).all()).results || [] : [];
   if (env.DB.batch) await env.DB.batch(stmts); else for (const st of stmts) await st.run();
   if (was.length) {
     const g = new Map(list.map((x) => [String(x.id), x]));
-    const hits = was.filter((w) => { const x = g.get(w.id); return x && w.status !== x.status && (x.taken || w.taken); })
+    const hits = was.filter((w) => { const x = g.get(w.id); return x && !w.done && w.status !== x.status && (x.taken || w.taken); })
       .map((w) => { const x = g.get(w.id); return { id: w.id, symbol: w.symbol, setup: w.setup, status: x.status, r: fin(x.r) }; });
     if (hits.length) await after(hits);
   }
