@@ -102,7 +102,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
       var cards=[...g.children]; var spill=cards.filter(function(e){ var b=e.getBoundingClientRect(); return b.right>r.right+1||b.left<r.left-1; }).length;
       var inner=cards.filter(function(e){ var b=e.getBoundingClientRect(); return [...e.querySelectorAll('.lay-head *')].some(function(x){ var q=x.getBoundingClientRect(); return q.width>0&&(q.right>b.right+1||q.left<b.left-1); }); }).length;
       return JSON.stringify({ cls:L.dataset.cls, cols:getComputedStyle(g).gridTemplateColumns.split(' ').length, sw:document.documentElement.scrollWidth, iw:innerWidth, n:cards.length, spill:spill, inner:inner, widths:[...new Set(cards.map(function(e){return e.dataset.w;}))].join() });`));
-    ok(`${w} px: the ${cls} grid, ${cols} columns, all 8 cards`, f.cls === cls && f.cols === cols && f.n === 8, JSON.stringify(f));
+    ok(`${w} px: the ${cls} grid, ${cols} columns, all 9 cards (Macro since Phase 13)`, f.cls === cls && f.cols === cols && f.n === 9, JSON.stringify(f));
     ok(`${w} px: no sideways scroll, nothing spills`, f.sw <= f.iw && f.spill === 0 && f.inner === 0, JSON.stringify(f));
     if (cls === 'phone') ok('on a phone every card is one full-width column', f.widths === '4', f.widths);
     await js(`document.querySelector('.tb-scroll-visible').scrollTop = 0; 1`); await sleep(200);
@@ -153,7 +153,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   await js(`var s=document.querySelector('[data-lay-add]'); s.value='volume'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').disabled`, 3000));
   await js(`document.querySelector('[data-lay-reset]').click(); 1`);
-  ok('Reset layout restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 8`, 3000));
+  ok('Reset layout restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 9`, 3000));
   await size(390, 844); await sleep(700);
   await js(`document.querySelector('.lay-card[data-card="analogs"] [data-act="hide"]').click(); 1`); await sleep(2200);
   await size(DESK_W, 900); await sleep(700);

@@ -105,7 +105,7 @@ const ok = (name, cond, extra) => {
       const s0 = await span();
       const unit = JSON.parse(await js(`var g=document.querySelector('.lay-grid'); return JSON.stringify({ x:(g.clientWidth-14*11)/12+14, y:58 });`));
       const g0 = await centre('.lay-card[data-card="breadth"] .a1-grip');
-      ok('each card carries A1\'s grip', await js(`return document.querySelectorAll('.lay-grid .lay-card .a1-grip').length === 8 && document.querySelector('.lay-card .a1-grip').getAttribute('aria-label').indexOf('Resize ')===0;`));
+      ok('each card carries A1\'s grip (9 cards with Phase 13\'s Macro)', await js(`return document.querySelectorAll('.lay-grid .lay-card .a1-grip').length === 9 && document.querySelector('.lay-card .a1-grip').getAttribute('aria-label').indexOf('Resize ')===0;`));
       await mouseDrag({ x: g0.x, y: g0.y }, { x: g0.x + unit.x * 2 + 6, y: g0.y + unit.y * 2 + 5 });
       const s1 = await span();
       const [w0, h0] = s0.split('x').map(Number), [w1, h1] = s1.split('x').map(Number);
