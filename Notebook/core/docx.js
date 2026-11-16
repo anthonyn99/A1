@@ -388,7 +388,7 @@ function showPop(anchor, build, opts) {
 function mi(label, fn, key, chk) {
   var b = document.createElement('button');
   b.className = 'docx-mi';
-  b.innerHTML = (chk !== undefined ? '<span class="chk">' + (chk ? '✓' : '') + '</span>' : '') + esc(label) + (key ? '<span class="k">' + esc(key) + '</span>' : '');
+  b.innerHTML = (chk !== undefined ? '<span class="chk">' + (chk ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px"><path d="M20 6L9 17l-5-5"/></svg>' : '') + '</span>' : '') + esc(label) + (key ? '<span class="k">' + esc(key) + '</span>' : '');
   b.addEventListener('click', function() { closePop(); fn(); });
   return b;
 }
@@ -2279,7 +2279,7 @@ function aiRunSelection(ctx, range, tool) {
     }
     ctx.history.commit();          // snapshot the new content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast(tool.name + ' — selection done ✓  press Undo to revert.');
+    docxToast(tool.name + ' — selection done. Press Undo to revert.');
   }).catch(function(e) {
     _aiFinish(ctx, app, ed, overlay, wasEditable);
     docxToast((e && e._timedOut) ? tool.name + ' timed out — please try again.' : tool.name + ' failed: network error.', true);
