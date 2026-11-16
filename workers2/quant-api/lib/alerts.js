@@ -158,8 +158,8 @@ export function evalPrice(rule, px) {
   const p = rule.params, s0 = rule.state || {};
   const s = { side: s0.side || null, pend: s0.pend || null, armed: s0.armed !== false, gen: s0.gen || 0, fired: s0.fired || null };
   if (s0.retry) s.retry = s0.retry;
-  const same = (st) => JSON.stringify(st) === JSON.stringify(s0.side === undefined && !s0.gen ? {} : s0);
-  const out = (fire, st, key) => ({ fire, key: key || null, state: st, changed: !same(st) });
+  const norm = (st) => JSON.stringify([st.side || null, st.pend || null, st.armed !== false, st.gen || 0, st.fired || null]);
+  const out = (fire, st, key) => ({ fire, key: key || null, state: st, changed: norm(st) !== norm(s0) });
   if (!Number.isFinite(px)) return out(false, s0);
   const to = sideOf(p, px);
   if (!s.armed) {
@@ -177,9 +177,9 @@ export function evalPrice(rule, px) {
 /** A rule from the page, checked → the row's values, or a thrown 400. */
 export function checkRule(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) throw fail(400, 'alert is needed');
-  let kind = a.kind == null ? 'price' : String(a.kind);
-  if (kind === 'level') kind = 'level';
-  else if (!KINDS.includes(kind)) throw fail(400, 'kind must be one of ' + KINDS.join(' '));
+  // 'level' stays as Phase 4 stored it (a ranked level's bell); it reads as a price rule.
+  const kind = a.kind == null ? 'price' : String(a.kind);
+  if (kind !== 'level' && !KINDS.includes(kind)) throw fail(400, 'kind must be one of ' + KINDS.join(' '));
   const p0 = a.params && typeof a.params === 'object' && !Array.isArray(a.params) ? a.params : {};
   const params = {};
   let symbol = '*', price = null, lo = null, hi = null;
