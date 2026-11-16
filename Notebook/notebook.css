@@ -40,12 +40,13 @@ body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) :
   .docx-prompt-ta, .docx-ait-name, .docx-matheditor-ta, .docx-ps-row select):focus { border-color: #c0aeea; box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
 /* Buttons: MAGI's .btn. The primary is a solid accent with a dark label. */
 body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn { background: transparent; border-color: #45454c; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn:hover { background: transparent; border-color: #c0aeea; box-shadow: none; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn:hover { background: rgba(192,174,234,.08); border-color: #c0aeea; color: #fff; box-shadow: none; }
 body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.pri, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.pri:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; box-shadow: none; }
 body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger { color: #d68a7c; border-color: rgba(214,138,124,.45); }
-body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger:hover { background: transparent; border-color: #d68a7c; }
-body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button:hover { border-color: #c0aeea; }
-body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button.del:hover { border-color: #d68a7c; color: #d68a7c; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger { background: transparent; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-btn.danger:hover { background: rgba(214,138,124,.10); border-color: #d68a7c; color: #e3a194; }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button:hover { border-color: #c0aeea; background: rgba(192,174,234,.08); }
+body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-trash-row .b button.del:hover { border-color: #d68a7c; color: #d68a7c; background: rgba(214,138,124,.10); }
 body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-save, body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-save:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
 body:is([data-th-profile="tony"],[data-nb-side="tony"]:not([data-th-profile])) .docx-matheditor-discard:hover { background: transparent; border-color: #c0aeea; }
 /* Selected = solid accent; no washes. */
@@ -425,20 +426,23 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-modal-h .x:hover { background: rgba(255,255,255,.08); color: #fff; }
 .docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
 .docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
-.docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.docx-btn:hover { background: #37383F; box-shadow: var(--glow-neutral); }
-.docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
-.docx-btn.pri:hover { background: #6E8BFF; box-shadow: var(--glow-blue); }
-.docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
-.docx-btn.danger:hover { background: rgba(255,123,123,.12); }
+/* Dialog buttons: no outline ring and no bloom on hover. The border and a faint
+   tint shift colour instead, both ways, every time (2026-11-15). The primary is
+   a pastel fill with a dark label, never a saturated blue. */
+.docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; transition: background-color .15s ease, border-color .15s ease, color .15s ease, filter .15s ease; }
+.docx-btn:hover { background: #34353b; border-color: #5a5b63; box-shadow: none; }
+.docx-btn.pri { background: #a9b6ef; border-color: #a9b6ef; color: #17181c; font-weight: 700; }
+.docx-btn.pri:hover { background: #a9b6ef; border-color: #a9b6ef; box-shadow: none; }
+.docx-btn.danger { background: transparent; color: #e39a8e; border-color: rgba(227,154,142,.42); }
+.docx-btn.danger:hover { background: rgba(227,154,142,.10); border-color: #e39a8e; }
 .docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .docx-trash-row .t { flex: 1; min-width: 0; overflow: hidden; }
 .docx-trash-row .t .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .docx-trash-row .t .m { font-size: 10.5px; opacity: .55; margin-top: 2px; }
 .docx-trash-row .b { display: flex; gap: 5px; flex-shrink: 0; }
-.docx-trash-row .b button { background: transparent; border: 1px solid #3B3C42; border-radius: 6px; color: #CFCFD6; padding: 4px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }
-.docx-trash-row .b button:hover { border-color: #6f7dff; color: #fff; }
-.docx-trash-row .b button.del:hover { border-color: #FF7B7B; color: #FF7B7B; }
+.docx-trash-row .b button { background: transparent; border: 1px solid #3B3C42; border-radius: 6px; color: #CFCFD6; padding: 4px 9px; font-size: 11px; cursor: pointer; font-family: inherit; transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.docx-trash-row .b button:hover { border-color: #a9b6ef; background: rgba(169,182,239,.08); color: #fff; }
+.docx-trash-row .b button.del:hover { border-color: #e39a8e; background: rgba(227,154,142,.10); color: #e39a8e; }
 .docx-empty-note { text-align: center; opacity: .5; padding: 26px 0; font-size: 13px; }
 .docx-ps-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
 .docx-ps-row label { width: 105px; font-size: 12.5px; opacity: .75; }
