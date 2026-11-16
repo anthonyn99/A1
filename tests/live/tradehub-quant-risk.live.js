@@ -99,6 +99,8 @@ const RULES = { rules: [
   console.log('\nPortfolio ▸ Risk');
   await size(1504, 950);
   await boot({ quant: true, docs });
+  await sleep(1500);
+  await js(`window.__long=[]; 1`);   // the page's own boot (the in-browser JSX compile) is not this phase's
   await tab('portfolio');
   ok('Portfolio has a Risk tab while Quant is on', await until(`[...document.querySelectorAll('.tbtabs [role=tab]')].some(function(b){return /^Risk/.test(b.textContent);})`, 10000));
   await js(`[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}).click(); 1`);
