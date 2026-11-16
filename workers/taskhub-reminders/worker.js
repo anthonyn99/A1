@@ -16,7 +16,8 @@
  *   - profilepw:<profile>        → { hash, salt, iter }
  * Passwords hashed with PBKDF2-SHA256 (never stored in plaintext).
  *
- * Secrets: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, AUTH_SETUP_KEY
+ * Secrets: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, AUTH_SETUP_KEY,
+ *          QUANT_PUSH_SECRET (TradeHub's alerts, POST /quant-push; the same value is PUSH_SECRET on quant-api)
  * KV binding: TOKEN_CACHE
  */
 
@@ -240,6 +241,15 @@ export default {
       }
     }
 
+    // TradeHub's alerts (quant-api, account 2): a push to Tony's devices only.
+    if (path === '/quant-push') {
+      try {
+        return await handleQuantPush(request, env, origin);
+      } catch (e) {
+        return json({ ok: false, error: e.message || 'server error' }, origin, 500);
+      }
+    }
+
     // Tony's MAGI engine posts TradeHub's standing prompts' answers (handleMagiAuto).
     if (path === '/magi-auto') {
       try {
@@ -347,6 +357,147 @@ export default {
     })());
   }
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRADEHUB'S ALERTS — POST /quant-push  (from quant-api, A1-Priv quant Phase 14)
+//
+//  Header x-quant-secret (QUANT_PUSH_SECRET, the same value as quant-api's
+//  PUSH_SECRET); body { title, body, url, tag, card?, kind? }. Sends to TONY'S
+//  devices only: the fcm_tokens query itself is filtered on mainDash == 'tony',
+//  so a Veda device's token is never even read on this path (a device that
+//  pressed Un-main is 'none' and is left out the same way). Same FCM call shape
+//  as the reminders (data-only, high priority), with kind 'quant' so the
+//  service worker draws it as TradeHub's and a tap opens `url`; `tag` collapses
+//  repeats of one rule on the device. A token FCM calls unregistered is pruned:
+//  its `token` field is removed (the doc and its mainDash stay, and the page
+//  writes a fresh token on its next open). `card` also lists it on Tony's
+//  TaskHub (dashboards/quant_alerts_tony: the last 20 of the last 24 hours).
+//  → { ok, sent, failed, pruned, devices: [names] }
+//  TaskHub's own reminders do not pass through here and are unchanged.
+// ══════════════════════════════════════════════════════════════════════════
+const QUANT_PAGE = 'https://a1-priv.av1.workers.dev/tradehub.html';
+const QUANT_CARDS_MAX = 20;
+async function handleQuantPush(request, env, origin) {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, origin, 405);
+  const given = request.headers.get('x-quant-secret') || '';
+  if (!env.QUANT_PUSH_SECRET || !tokensMatch(given, env.QUANT_PUSH_SECRET)) return json({ ok: false, error: 'unauthorized' }, origin, 401);
+  let b;
+  try { b = await request.json(); } catch (e) { return json({ ok: false, error: 'a JSON body is needed' }, origin, 400); }
+  const clip = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const title = clip(b && b.title, 140);
+  if (!title) return json({ ok: false, error: 'title is needed' }, origin, 400);
+  const body = clip(b.body, 400);
+  // Only TradeHub's own page may be opened by a tap.
+  const url = typeof b.url === 'string' && b.url.startsWith(QUANT_PAGE) && b.url.length <= 300 ? b.url : QUANT_PAGE;
+  const tag = /^[\w-]{1,64}$/.test(String(b.tag || '')) ? String(b.tag) : 'tbq';
+
+  const accessToken = await getGoogleAccessToken(env);
+  const projectId = env.FIREBASE_PROJECT_ID;
+  const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  const authHdr = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+
+  const docs = await quantTonyTokens(baseUrl, authHdr);
+  if (docs === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
+  const names = docs.length ? await quantDeviceNames(baseUrl, authHdr) : {};
+  let sent = 0, failed = 0, pruned = 0;
+  const devices = [];
+  await Promise.allSettled(docs.map(async (d) => {
+    const token = d.fields.token.stringValue, id = String(d.name || '').split('/').pop();
+    const r = await sendQuantFCM(projectId, token, { title, body, url, tag }, accessToken);
+    if (r.ok) { sent++; devices.push(names[id] || quantUaName(d.fields.ua && d.fields.ua.stringValue)); return; }
+    failed++;
+    if (r.dead) {
+      // Pruned: the token field only, so the device keeps its main and its record.
+      await fetch(`https://firestore.googleapis.com/v1/${d.name}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
+        .then(() => { pruned++; }).catch(() => {});
+    }
+  }));
+  if (b.card === true) {
+    await quantCard(baseUrl, authHdr, { title, body, url, kind: clip(b.kind, 20) || 'alert' }).catch((e) => console.warn('[quant-push] card:', e.message));
+  }
+  console.log(`[quant-push] "${title.slice(0, 40)}" sent ${sent}, failed ${failed}, pruned ${pruned}`);
+  return json({ ok: true, sent, failed, pruned, devices }, origin);
+}
+// Tony's device tokens: one query, filtered on mainDash == 'tony' at Firestore.
+async function quantTonyTokens(baseUrl, authHdr) {
+  const res = await fetch(`${baseUrl}:runQuery`, {
+    method: 'POST', headers: authHdr,
+    body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'fcm_tokens' }],
+      where: { fieldFilter: { field: { fieldPath: 'mainDash' }, op: 'EQUAL', value: { stringValue: 'tony' } } },
+      limit: 50,
+    } }),
+  });
+  if (!res.ok) { console.error('[quant-push] tokens query failed:', await res.text()); return null; }
+  const rows = await res.json();
+  if (!Array.isArray(rows)) return null;
+  const seen = new Set();
+  return rows.map((r) => r.document).filter((d) => {
+    const t = d && d.fields && d.fields.token && d.fields.token.stringValue;
+    // Belt and braces over the query: never a device whose main is not Tony's.
+    if (!t || seen.has(t) || !d.fields.mainDash || d.fields.mainDash.stringValue !== 'tony') return false;
+    seen.add(t); return true;
+  });
+}
+// Beacon's names for Tony's devices (dashboards/beacon_tony: devices.<id>.name, else its model).
+async function quantDeviceNames(baseUrl, authHdr) {
+  try {
+    const r = await fetch(`${baseUrl}/dashboards/beacon_tony`, { headers: authHdr });
+    if (!r.ok) return {};
+    const j = await r.json();
+    const devs = (j.fields && j.fields.devices && j.fields.devices.mapValue && j.fields.devices.mapValue.fields) || {};
+    const out = {};
+    for (const [id, v] of Object.entries(devs)) {
+      const f = (v.mapValue && v.mapValue.fields) || {};
+      const meta = (f.meta && f.meta.mapValue && f.meta.mapValue.fields) || {};
+      const n = (f.name && f.name.stringValue) || (meta.model && meta.model.stringValue) || '';
+      if (n) out[id] = n.slice(0, 60);
+    }
+    return out;
+  } catch (e) { return {}; }
+}
+function quantUaName(ua) {
+  const u = String(ua || '');
+  const os = /Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iPhone' : /Windows/.test(u) ? 'Windows' : /Mac OS/.test(u) ? 'Mac' : 'a device';
+  const br = /Edg\//.test(u) ? 'Edge' : /OPR\//.test(u) ? 'Opera' : /CriOS|Chrome\//.test(u) ? 'Chrome' : /Firefox/.test(u) ? 'Firefox' : /Safari/.test(u) ? 'Safari' : '';
+  return br ? os + ' · ' + br : os;
+}
+async function sendQuantFCM(projectId, token, m, accessToken) {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: {
+      token,
+      // Data-only, like the reminders: the service worker draws it (kind 'quant').
+      data: { id: m.tag, title: m.title, body: m.body || m.title, url: m.url, tag: m.tag, dash: 'tony', kind: 'quant' },
+      android: { priority: 'high' },
+      webpush: { headers: { Urgency: 'high', TTL: '900', Topic: crypto.randomUUID().replace(/-/g, '') } },
+    } }),
+  });
+  if (res.ok) return { ok: true };
+  const j = await res.json().catch(() => ({}));
+  const err = j.error || {};
+  const det = Array.isArray(err.details) ? err.details.find((x) => x && x.errorCode) : null;
+  const code = (det && det.errorCode) || err.status || '';
+  return { ok: false, dead: res.status === 404 || code === 'UNREGISTERED', error: err.message || String(res.status) };
+}
+// The TaskHub card: dashboards/quant_alerts_tony { items (JSON text): [{ id, at, title, body, url, kind }], at }.
+async function quantCard(baseUrl, authHdr, c) {
+  const docUrl = `${baseUrl}/dashboards/quant_alerts_tony`;
+  const now = Date.now();
+  let items = [];
+  const r = await fetch(docUrl, { headers: authHdr });
+  if (r.ok) {
+    try { const j = await r.json(); items = JSON.parse((j.fields && j.fields.items && j.fields.items.stringValue) || '[]'); } catch (e) { items = []; }
+  }
+  items = (Array.isArray(items) ? items : []).filter((x) => x && now - Number(x.at) < 86400000);
+  items.unshift({ id: 'qa' + now.toString(36), at: now, title: c.title, body: c.body, url: c.url, kind: c.kind });
+  items = items.slice(0, QUANT_CARDS_MAX);
+  await fetch(`${docUrl}?updateMask.fieldPaths=items&updateMask.fieldPaths=at`, {
+    method: 'PATCH', headers: authHdr,
+    body: JSON.stringify({ fields: { items: { stringValue: JSON.stringify(items) }, at: { integerValue: String(now) } } }),
+  });
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  TRADEHUB'S STANDING PROMPTS — POST /magi-auto  (from Tony's MAGI engine)
