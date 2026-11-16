@@ -64,6 +64,13 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
     <input id="bj-entry-title-input" type="text" placeholder="Untitled entry…" />
+    <!-- TAGS (moved into the toolbar — Batch 12 #3). Beside the title, not at the
+         right end: in edit mode its "+ add tag" field appears, and at the end it
+         pushed View/Edit, Templates and Export PDF left (2026-11-15). -->
+    <div id="bj-tags-row" style="display:none;">
+      <span class="tags-label">Tags</span>
+      <input id="bj-add-tag-input" type="text" placeholder="+ add tag" maxlength="20" />
+    </div>
     <!-- The sync word sits in a fixed slot beside the title, so "Syncing…" /
          "Synced" / "Sync failed" never shift the controls on its right. -->
     <span id="bj-sync-pill" class="bj-sync-pill bj-sync-idle" role="status" aria-live="polite">
@@ -95,11 +102,6 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
 
-    <!-- TAGS (moved into the toolbar — Batch 12 #3) -->
-    <div id="bj-tags-row" style="display:none;">
-      <span class="tags-label">Tags</span>
-      <input id="bj-add-tag-input" type="text" placeholder="+ add tag" maxlength="20" />
-    </div>
   </div>
 
   <div id="bj-content-area">
