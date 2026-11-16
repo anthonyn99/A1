@@ -409,7 +409,7 @@ async function handleQuantPush(request, env, origin) {
     if (r.dead) {
       // Pruned: the token field only, so the device keeps its main and its record.
       await fetch(`https://firestore.googleapis.com/v1/${d.name}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
-        .then(() => { pruned++; }).catch(() => {});
+        .then((res) => { if (res.ok) pruned++; }).catch(() => {});
     }
   }));
   if (b.card === true) {

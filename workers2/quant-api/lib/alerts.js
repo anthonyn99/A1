@@ -155,6 +155,9 @@ function rearms(p, fired, px) {
  * generation, so its trigger key is new (alert_fires keeps one row per key).
  */
 export function evalPrice(rule, px) {
+  // The key carries the rule's edit time (`at`): an edit resets the state to generation 0, and
+  // without it the new px:0 keys would collide with fires stored before the edit (review, 2026-11-16).
+  const ver = rule.at ? Number(rule.at).toString(36) + ':' : '';
   const p = rule.params, s0 = rule.state || {};
   const s = { side: s0.side || null, pend: s0.pend || null, armed: s0.armed !== false, gen: s0.gen || 0, fired: s0.fired || null };
   if (s0.retry) s.retry = s0.retry;
@@ -171,7 +174,7 @@ export function evalPrice(rule, px) {
   if (to === s.side) return s.pend ? out(false, { ...s, pend: null }) : out(false, s0);
   if (!wanted(p, s.side, to)) return out(false, { ...s, side: to, pend: null });
   if (p.holds && s.pend !== to) return out(false, { ...s, pend: to });
-  return out(true, { ...s, side: to, pend: null, armed: false, fired: to }, 'px:' + s.gen + ':' + to);
+  return out(true, { ...s, side: to, pend: null, armed: false, fired: to }, 'px:' + ver + s.gen + ':' + to);
 }
 
 /** A rule from the page, checked → the row's values, or a thrown 400. */
@@ -203,6 +206,7 @@ export function checkRule(a) {
       if (p0.horizon != null && p0.horizon !== '') { if (!['day', 'swing', 'invest'].includes(p0.horizon)) throw fail(400, 'horizon must be day, swing or invest'); params.horizon = p0.horizon; }
     }
   } else if (kind === 'catalyst') {
+    if (a.symbol != null && a.symbol !== '' && a.symbol !== '*') symbol = symOf(a.symbol);
     const m = num(p0.minutes);
     params.minutes = m == null || Number.isNaN(m) ? 15 : Math.max(1, Math.min(240, Math.round(m)));
   } else if (kind === 'data') {
@@ -285,9 +289,12 @@ export async function getFires(env, url) {
   } catch (e) { if (noTable(e)) return json({ ok: true, fires: [], unseen: 0, missing: true }); throw e; }
 }
 /** POST /alerts/seen: the bell's count back to 0 (one write; also trims the list to its newest 500). */
-export async function seenFires(env) {
+export async function seenFires(env, req) {
+  // upTo: the newest fire the page showed; a fire that arrived after that stays unseen.
+  let upTo = null;
+  try { const b = req ? await req.json() : null; if (b && Number.isFinite(Number(b.upTo))) upTo = Number(b.upTo); } catch (e) {}
   try {
-    const stmts = [env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0'),
+    const stmts = [upTo == null ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0') : env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id <= ?').bind(upTo),
       env.DB.prepare('DELETE FROM alert_fires WHERE id NOT IN (SELECT id FROM alert_fires ORDER BY at DESC, id DESC LIMIT 500)')];
     if (env.DB.batch) await env.DB.batch(stmts); else for (const s of stmts) await s.run();
   } catch (e) { if (noTable(e)) throw notYet(); throw e; }
@@ -356,8 +363,12 @@ export async function fire(env, items, cfg, now, { send = push } = {}) {
   for (const it of items) {
     const r = it.rule;
     if (cfg.kinds[it.kind] === false) continue;
-    if (seenRule.has(r.id)) continue;                           // one fire a rule a run
-    if (r.firedAt && r.cooldownMin > 0 && now - r.firedAt < r.cooldownMin * 60_000) continue;
+    // One fire a run and the cooldown are about repeats around a price level. Signal, graded,
+    // regime, catalyst and data alerts are distinct events, each deduped by its own key, so
+    // three new GOs at once are three alerts (review, 2026-11-16).
+    const priced = it.kind === 'price';
+    if (priced && seenRule.has(r.id)) continue;
+    if (priced && r.firedAt && r.cooldownMin > 0 && now - r.firedAt < r.cooldownMin * 60_000) continue;
     let why = null;
     if (isMuted(cfg, it.symbol, now)) why = 'muted';
     else if (r.quiet) why = 'quiet rule';
@@ -365,7 +376,11 @@ export async function fire(env, items, cfg, now, { send = push } = {}) {
     else if (cfg.marketOnly[it.kind] && !inSession(now)) why = 'outside market hours';
     const ins = await env.DB.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, symbol, title, body, url, pushed, why) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?) ON CONFLICT (rule_id, trigger_key) DO NOTHING')
       .bind(r.id, it.key, now, it.kind, it.symbol || null, clip(it.title, 140), clip(it.body, 400), it.url || PAGE_URL, why).run();
-    if (!ins || !ins.meta || ins.meta.changes !== 1) continue;  // fired for this trigger before
+    if (!ins || !ins.meta || ins.meta.changes !== 1) {          // fired for this trigger before
+      // A price rule still moves on (disarmed), so it does not retry the same key every minute.
+      if (priced && it.state) await env.DB.prepare('UPDATE alerts SET state = ? WHERE id = ?').bind(JSON.stringify(it.state), r.id).run();
+      continue;
+    }
     seenRule.add(r.id);
     const st = { ...(it.state || r.state || {}) };
     delete st.retry;

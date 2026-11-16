@@ -230,7 +230,7 @@ function alertsRoute(req, env, url, p, m) {
   if (p === '/alerts' && m === 'DELETE') return alerts.deleteAlert(env, url);
   if (p === '/alerts/order' && m === 'POST') return alerts.orderAlerts(env, req);
   if (p === '/alerts/fires' && m === 'GET') return alerts.getFires(env, url);
-  if (p === '/alerts/seen' && m === 'POST') return alerts.seenFires(env);
+  if (p === '/alerts/seen' && m === 'POST') return alerts.seenFires(env, req);
   if (p === '/alerts/config' && m === 'GET') return alerts.getConfig(env);
   if (p === '/alerts/config' && m === 'PUT') return alerts.putConfig(env, req);
   if (p === '/alerts/catalysts' && m === 'PUT') return alerts.putCatalysts(env, req);
