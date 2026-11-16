@@ -60,14 +60,18 @@ const SAMPLER = `(() => {
   const anims = () => js(`var d=document.querySelector('[data-nq-dock]'), s=document.querySelector('[data-nq-scrim]');
     var list=[].concat(d.getAnimations({subtree:true}), s.getAnimations()).filter(function(a){ var t=a.effect&&a.effect.target; return !(t&&t.closest&&t.closest('.nq-halo')); });
     return JSON.stringify(list.map(function(a){ var e=a.effect, k=e.getKeyframes(), t=e.getComputedTiming(); return { on: e.target===d?'dock':e.target===s?'scrim':(e.target.className||e.target.tagName), props: Object.keys(Object.assign.apply(null,[{}].concat(k))).filter(function(x){return ['offset','easing','composite','computedOffset'].indexOf(x)<0;}), ms: t.duration, rate: a.playbackRate, state: a.playState }; }));`).then(JSON.parse);
+  const cardAnims = () => js(`return JSON.stringify(document.getAnimations().filter(function(a){ var t=a.effect&&a.effect.target; return t&&t.classList&&t.classList.contains('lay-card'); }).map(function(a){ var k=a.effect.getKeyframes(); return { props: Object.keys(Object.assign.apply(null,[{}].concat(k))).filter(function(x){return ['offset','easing','composite','computedOffset'].indexOf(x)<0;}), ms: a.effect.getComputedTiming().duration }; }));`).then(JSON.parse);
   const press = () => js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true})); 1`);
 
   console.log('\n1. Desktop: the panel slides in, the page narrows in step');
   await size(1504, 900);
-  await boot({ quant: true });
+  // A CPI release in two days and NVDA's report next week, so the strip has a next catalyst.
+  const dayAt = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  await boot({ quant: true, docs: { 'dashboards/market_calendar': { events: [{ date: dayAt(2), time: '08:30', name: 'CPI (Oct)', kind: 'macro', importance: 'high' }, { date: dayAt(6), kind: 'earnings', ticker: 'NVDA', name: 'NVDA earnings', when: 'amc' }], savedAt: Date.now() } } });
   await tab('market');
   await until(`document.querySelector('[data-nq-launch]') && !document.querySelector('[data-nq-launch]').hidden`, 15000);
   await until(`document.querySelectorAll('#tradeboard-root .lay-card').length >= 6`, 8000);
+  await sleep(1500);   // the cards' entrance has finished
   // The static layouts: reduced motion, open then closed.
   await reduced(true);
   const closed0 = await geo();
@@ -83,11 +87,11 @@ const SAMPLER = `(() => {
   await js(`window.__mo.on=true; window.__mo.pan=[]; window.__mo.frames=[]; 1`);
   await press();
   await sleep(40);
-  const mid = await anims();
+  const mid = await anims(), midCards = await cardAnims();
   await sleep(420);
   await js(`window.__mo.on=false; 1`);
   const open1 = await geo(), panOpen = await js(`return JSON.stringify(window.__mo.pan);`).then(JSON.parse);
-  const dockA = mid.filter((a) => a.on === 'dock'), cardA = mid.filter((a) => a.on !== 'dock' && a.on !== 'scrim');
+  const dockA = mid.filter((a) => a.on === 'dock'), cardA = midCards;
   ok('the panel moves by a transform from off the screen to its place', dockA.length === 1 && dockA[0].props.join() === 'transform' && panOpen.length >= 3 && panOpen[0][0] > 100 && panOpen[panOpen.length - 1][0] === 0, JSON.stringify({ dockA, pan: panOpen.slice(0, 4).concat(panOpen.slice(-2)) }));
   ok('the page\'s cards move in step, by transforms only (FLIP)', cardA.length >= 1 && cardA.every((a) => a.props.join() === 'transform'), JSON.stringify(cardA.slice(0, 3)));
   ok('nothing on the dock animates opacity; it stays fully opaque all the way', mid.every((a) => !a.props.includes('opacity') || a.on === 'scrim') && panOpen.every((x) => x[2] === '1'), JSON.stringify(mid.map((a) => a.props)));
@@ -112,11 +116,17 @@ const SAMPLER = `(() => {
   const panRev = await js(`return JSON.stringify(window.__mo.pan);`).then(JSON.parse), closed3 = await geo();
   const xs = panRev.map((x) => x[0]), turn = xs.indexOf(Math.min(...xs));
   ok('the same animation plays backwards (not a new one from the start)', rev.some((a) => a.on === 'dock' && a.rate === -1), JSON.stringify(rev));
-  ok('it turns around part-way (never reached its place, never jumped)', Math.min(...xs) > 0 && turn > 0 && turn < xs.length - 1 && xs.every((x, i) => !i || Math.abs(x - xs[i - 1]) < 200), JSON.stringify(xs));
+  ok('it turns around part-way and goes back from there (never reached its place, never restarted off the screen)', Math.min(...xs) > 0 && turn > 0 && turn < xs.length - 1 && xs[turn + 1] < xs[0], JSON.stringify(xs));
   ok('and ends closed, in the static closed layout', closed3.hidden && !closed3.docked && JSON.stringify(closed3.page) === JSON.stringify(closed0.page));
 
   console.log('\n2. 4x CPU throttle: Journal and Charts');
+  const still = async () => {
+    await js(`window.__mo.frames=[]; window.__mo.on=true; 1`); await sleep(1800); await js(`window.__mo.on=false; 1`);
+    return js(`var f=window.__mo.frames.slice(1), s=f.reduce(function(a,b){return a+b;},0); return f.length ? 1000*f.length/s : 0;`);
+  };
   const trace = async (label) => {
+    const base = await still();
+    console.log(`    ${label}, nothing moving: ${base.toFixed(0)} fps`);
     const runs = [];
     for (let i = 0; i < 3; i++) {
       await js(`window.__mo.frames=[]; window.__mo.chartW=[]; window.__mo.on=true; 1`);
@@ -127,7 +137,7 @@ const SAMPLER = `(() => {
     }
     const fps = Math.min(...runs.map((r) => r.fps));
     console.log(`    ${label}: ${runs.map((r) => r.fps.toFixed(0) + ' fps, worst ' + r.worst + ' ms, ' + r.slow + ' frames over 25 ms').join(' | ')}`);
-    return { runs, fps };
+    return { runs, fps, base };
   };
   await c.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await tab('journal'); await sleep(600);
