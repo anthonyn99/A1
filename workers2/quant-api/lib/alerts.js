@@ -413,14 +413,12 @@ function priceItem(r, q, ev) {
 /** The cron's work. → { skipped } or { rules, quotes, fired, writes }. */
 export async function check(env, now = Date.now(), { force = false, send = push } = {}) {
   if (!force && !inSession(now)) return { skipped: 'closed' };
+  // The first read: the rules the check evaluates, and any rule (signal, graded and regime
+  // too) holding a failed send to retry. Before 0013 there is no `state` column: nothing to do.
   let rows;
-  try { rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind IN ('price', 'level', 'catalyst', 'data')").all()).results || []; }
+  try { rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND (kind IN ('price', 'level', 'catalyst', 'data') OR state LIKE '%\"retry\"%')").all()).results || []; }
   catch (e) { if (noTable(e)) return { skipped: 'no alerts table' }; throw e; }
-  if (rows.length && !('params' in rows[0])) return { skipped: 'no alerts table' };   // Phase 4's table, before 0013
-  // Signal, graded and regime rules come back here only to retry a failed send.
-  let retryRows = [];
-  try { retryRows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind IN ('signal', 'graded', 'regime') AND state LIKE '%\"retry\"%'").all()).results || []; } catch (e) { if (!noTable(e)) throw e; }
-  const rules = rows.concat(retryRows).map(ruleOf);
+  const rules = rows.map(ruleOf);
   if (!rules.length) return { rules: 0, fired: [] };
   // The second read: config, catalysts, provider health and today's usage, in one query.
   const d = utcDay(now);

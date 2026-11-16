@@ -204,10 +204,10 @@ globalThis.fetch = async (url, opts = {}) => {
   console.log('\nthe check');
   W.now = MON_10; W.prices = { NVDA: 169 };
   let c = await A.check(env.DB ? env : env, MON_10);
-  ok('first run: learns NVDA\'s side, fires nothing, 1 quote call, 2 D1 reads + the retry read', c.fired.length === 0 && W.yahooCalls === 1 && c.quotes === 1, c);
+  ok('first run: learns NVDA\'s side, fires nothing, 1 quote call', c.fired.length === 0 && W.yahooCalls === 1 && c.quotes === 1, c);
   env.DB.reads = 0; env.DB.writes = 0;
   c = await A.check(env, MON_10 + 60000);
-  ok('a quiet minute: no D1 write at all, 3 reads (rules, retries, context)', c.fired.length === 0 && env.DB.writes === 0 && env.DB.reads === 3, { reads: env.DB.reads, writes: env.DB.writes });
+  ok('a quiet minute: no D1 write at all, exactly 2 reads (rules, context)', c.fired.length === 0 && env.DB.writes === 0 && env.DB.reads === 2, { reads: env.DB.reads, writes: env.DB.writes });
   W.prices = { NVDA: 171 };
   c = await A.check(env, MON_10 + 120000);
   ok('"holds above": the first check above fires nothing (a state write only)', c.fired.length === 0 && c.writes >= 1);
