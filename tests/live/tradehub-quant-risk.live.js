@@ -87,9 +87,6 @@ const RULES = { rules: [
   c.ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
-    if (process.env.NAV_LOG && m.method === 'Page.frameRequestedNavigation') console.log('    [req] ' + m.params.reason + ' ' + m.params.url + ' ' + m.params.disposition);
-    if (process.env.NAV_LOG && m.method === 'Page.frameNavigated' && !m.params.frame.parentId) console.log('    [nav] ' + m.params.frame.url);
-    if (process.env.NAV_LOG && m.method === 'Runtime.consoleAPICalled' && m.params.type === 'warning') console.log('    [warn] ' + m.params.args.map(function(x){return x.value||x.description||'';}).join(' ').slice(0,200));
   });
   const { js, until, size, boot, tab, shot } = driver(c);
   const docs = { 'dashboards/tradeboard_journal': journal(), 'dashboards/tradehub_rules': RULES };
