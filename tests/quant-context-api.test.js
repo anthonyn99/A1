@@ -93,6 +93,13 @@ globalThis.fetch = async (url) => {
   ok('row = [k, bid, ask, iv, oi, vol, delta, gamma]', JSON.stringify(cc.expiries[0].c[2]) === JSON.stringify([100, 1.1, 1.3, 0.3, 100, 10, 0.5, 0.05]), JSON.stringify(cc.expiries[0].c[2]));
   ok('iv30 31.5 (percent) → 0.315; spot, delayed', cc.iv30 === 0.315 && cc.spot === 100 && cc.delayed === true && cc.symbol === 'AAPL');
   ok('OCC symbols parsed', JSON.stringify(O.parseOcc('AAPL261116C00275000')) === JSON.stringify({ root: 'AAPL', exp: '2026-11-16', type: 'C', k: 275 }) && O.parseOcc('junk') === null);
+  const raw = cboe('AAPL', now);
+  raw.data.options.push({ option: 'B1AAPL261120C00100000', bid: 9, ask: 9.5, iv: 0.3, open_interest: 5, volume: 5, delta: 0.5, gamma: 0.01 });
+  const spaced = JSON.stringify(raw).replace(/":/g, '": ').replace(/,"/g, ', "');   // CBOE writes "key": value, with spaces
+  const ct = O.compactText(spaced, 'AAPL', now);
+  ok('the text scan gives exactly the parsed result (CBOE\'s spacing)', JSON.stringify(ct) === JSON.stringify(O.compactChain(raw, now)), JSON.stringify(ct).slice(0, 200));
+  ok('another root in the same chain ("B1AAPL…") is left out', ct.expiries.every((e) => e.c.length === 5));
+  ok('no price in the text → null', O.compactText('{"data":{"options":[]}}', 'AAPL', now) === null);
   ok('index symbols are not asked (their chains are 10+ MB)', !O.canAsk('^VIX') && !O.canAsk('_SPX') && O.canAsk('BRK.B'));
 
   console.log('\n/options: cached, at most 2 CBOE calls a symbol a day');
