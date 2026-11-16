@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- The update check (search "A newer TaskHub is live") reads every file this page loaded from the resource timeline; the default 250 entries is not enough for Index. -->
+<script>try{performance.setResourceTimingBufferSize(2000);}catch(e){}</script>
 <!-- ── Connection warming: open TLS handshakes to Firebase's data-path hosts in
      parallel with page parse, instead of only when the module script (~4200 lines
      down) executes. Saves one full DNS+TCP+TLS round-trip on the first Firestore
@@ -18122,38 +18124,85 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── A newer TaskHub is live ───────────────────────────────────────────────
   // A tab or home-screen app left open runs the page it loaded, for days, so a
   // fix that has shipped never reaches it (the Plans fix of 2026-11-04 did not
-  // reach either of you until a reload). When the live index.html differs from
-  // the one running, say so and offer the reload — never reload on its own, as
+  // reach either of you until a reload). When the live Index differs from the
+  // one running, say so and offer the reload — never reload on its own, as
   // that could throw away something half-typed. Pending saves are flushed first.
+  //
+  // "Index" is index.html AND every script and stylesheet of ours it loaded:
+  // Notebook (both journals), Shared/, LifeHub, Guardian, Beacon, ... Checking
+  // only index.html missed every Notebook update, because notebook.js?v=<hash>
+  // keeps the same length when its hash changes (2026-11-15). Both sides.
   //
   // It compares SIZE, not time. GitHub Pages stamps every file with the deploy
   // time (Last-Modified and the first half of the ETag), so a change to any
   // other program — or an empty redeploy — looked like a new TaskHub
-  // (2026-11-09). The ETag's second half is this file's own byte size; the
-  // running page's size is what the browser decoded when it loaded it. One
-  // HEAD request to GitHub Pages: no Firebase or Cloudflare use.
+  // (2026-11-09). The ETag's second half is the file's own byte size; the
+  // running copy's size is what the browser decoded when it loaded it (the
+  // resource timeline). HEAD requests to GitHub Pages only: no Firebase or
+  // Cloudflare use. Files under another program's folder that Index merely
+  // fetched as data (.json, images) are not code and are left out.
   (function(){
     if(!/^https?:$/.test(location.protocol))return;
-    let loaded=0,shown=false;
-    try{const nav=performance.getEntriesByType('navigation')[0];loaded=(nav&&nav.decodedBodySize)||0;}catch(e){}
-    function check(){
-      if(shown||navigator.onLine===false)return;
-      fetch(location.pathname+location.search,{method:'HEAD',cache:'no-store'}).then(function(r){
+    const base=location.origin+location.pathname.replace(/[^/]*$/,'');
+    const known={};   // path -> size it had when this page loaded (0 = unknown yet)
+    let shown=false,busy=false,last=0;
+    try{const nav=performance.getEntriesByType('navigation')[0];known[location.pathname+location.search]=(nav&&nav.decodedBodySize)||0;}catch(e){}
+    function ours(url){
+      try{
+        const u=new URL(url,location.href);
+        if(u.origin!==location.origin||u.href.indexOf(base)!==0)return null;
+        if(!/\.(js|css|html)$/i.test(u.pathname))return null;
+        return u.pathname;   // ?v= stamps dropped: Pages serves the live file whatever the query
+      }catch(e){return null;}
+    }
+    function collect(){
+      try{
+        performance.getEntriesByType('resource').forEach(function(r){
+          if(r.initiatorType!=='script'&&r.initiatorType!=='link'&&r.initiatorType!=='css')return;
+          const p=ours(r.name);
+          if(p&&!(p in known))known[p]=r.decodedBodySize||0;
+        });
+      }catch(e){}
+    }
+    function liveSize(p){
+      return fetch(p,{method:'HEAD',cache:'no-store'}).then(function(r){
         const tag=r&&r.ok&&r.headers.get('etag');
         const mt=tag&&/-([0-9a-f]+)"$/i.exec(tag);
-        const live=mt?parseInt(mt[1],16):0;
-        if(!live)return;
-        // No size from the load (e.g. served by a service worker): the first
-        // check sets the baseline, so only later changes count.
-        if(!loaded){loaded=live;return;}
-        if(live===loaded)return;
+        return mt?parseInt(mt[1],16):0;
+      }).catch(function(){return 0;});
+    }
+    function check(){
+      if(shown||busy||navigator.onLine===false)return;
+      if(Date.now()-last<60000)return;   // a burst of tab switches checks once
+      busy=true;last=Date.now();
+      collect();
+      const paths=Object.keys(known);
+      // A few at a time, so a check never floods the connection.
+      let i=0,changed=null;
+      function next(){
+        if(changed||i>=paths.length)return Promise.resolve();
+        const batch=paths.slice(i,i+6);i+=6;
+        return Promise.all(batch.map(function(p){
+          return liveSize(p).then(function(live){
+            if(!live)return;
+            // No size from the load (e.g. served by a service worker): the
+            // first check sets the baseline, so only later changes count.
+            if(!known[p]){known[p]=live;return;}
+            if(live!==known[p])changed=p;
+          });
+        })).then(next);
+      }
+      next().then(function(){
+        busy=false;
+        if(!changed||shown)return;
         shown=true;
         showBanner('TaskHub has been updated. Reload to get the latest version.',{key:'th-update',action:{label:'Reload',run:function(){
           try{if(window._fbFlushAll)window._fbFlushAll();}catch(e){}
           setTimeout(function(){location.reload();},400);
         }}});
-      }).catch(function(){});
+      },function(){busy=false;});
     }
+    window._thUpdateCheck={check:function(){last=0;check();},known:known};
     setTimeout(check,20000);
     setInterval(check,15*60*1000);
     document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')check();});
