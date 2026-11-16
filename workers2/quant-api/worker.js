@@ -50,6 +50,7 @@
 //   GET/POST/DELETE /wanted        what Neo Quant was asked for and cannot do yet (lib/wanted.js)
 //   GET  /options?symbol=X         CBOE's delayed chain (compact) + our IV log; ≤ 2 CBOE calls a symbol a day (lib/context.js)
 //   GET  /macro                    rates, credit, the dollar and oil from FRED (no key), refreshed ≤ every 6 h
+//   GET  /macro/dates              past release days per kind (FRED's release calendar, 2025 on) for the event studies
 //   GET  /earnings?symbols=A,B     earnings history from D1; POST /earnings/fetch { mode: nightly|backfill } fills it from Nasdaq
 //
 // Quote and Bar are exactly A1-Priv TradeHub/core/contracts.js. The worker
@@ -74,7 +75,7 @@ import * as gem from './lib/gemini.js';
 import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
 import { getBrief, postBrief } from './lib/brief.js';
-import { getOptions, getMacro, getEarnings, postEarningsFetch } from './lib/context.js';
+import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings, getAlerts, putAlert, deleteAlert } from './lib/charts.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, ALERTS_MAX, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -203,6 +204,7 @@ async function route(req, env, url, ctx) {
   // Phase 13: options, macro and earnings context (lib/context.js).
   if (p === '/options' && m === 'GET') return getOptions(env, url);
   if (p === '/macro' && m === 'GET') return getMacro(env);
+  if (p === '/macro/dates' && m === 'GET') return getMacroDates(env);
   if (p === '/earnings' && m === 'GET') return getEarnings(env, url);
   if (p === '/earnings/fetch' && m === 'POST') return postEarningsFetch(env, req);
   if (p === '/brief' && m === 'POST') return postBrief(env, req);
