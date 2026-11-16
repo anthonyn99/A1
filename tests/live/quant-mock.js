@@ -125,6 +125,35 @@ function paperRoutes(pp, posted, req, u, p) {
   if (rn && m === 'PATCH') { const b = body(), r = pp.runs.find((x) => x.id === rn[1]); if (b.state) r.state = b.state; return { json: { ok: true, run: r } }; }
   return null;
 }
+/* ── Phase 13: options, macro and earnings context (lib/context.js) ─────── */
+// A compact chain around the fixture's price: 2 expiries, 9 strikes, calls heavier above, puts below.
+function fakeChain(sym) {
+  const row = FIXTURE.rows[sym];
+  if (!row) return null;
+  const spot = row.c, step = spot > 200 ? 5 : spot > 50 ? 2.5 : 1, mid0 = Math.round(spot / step) * step;
+  const day = (n) => new Date(CLOCK + n * 86400000).toISOString().slice(0, 10);
+  const exp = (n, iv) => {
+    const c = [], p = [];
+    for (let i = -4; i <= 4; i++) {
+      const k = mid0 + i * step, intr = (x) => Math.max(0, x), tv = spot * iv * Math.sqrt(n / 365) * 0.4 * Math.exp(-(i * i) / 8);
+      const cm = intr(spot - k) + tv, pm = intr(k - spot) + tv;
+      c.push([k, +(cm - 0.05).toFixed(2), +(cm + 0.05).toFixed(2), iv, i > 0 ? 3000 - i * 200 : 800, 200, +(0.5 - i * 0.1).toFixed(2), 0.02]);
+      p.push([k, +(pm - 0.05).toFixed(2), +(pm + 0.05).toFixed(2), iv + 0.02, i < 0 ? 3000 + i * 200 : 700, 150, +(-0.5 - i * 0.1).toFixed(2), 0.02]);
+    }
+    return { exp: day(n), c, p };
+  };
+  return { symbol: sym, spot, iv30: 0.34, at: CLOCK - 60000, delayed: true, expiries: [exp(4, 0.33), exp(32, 0.35)] };
+}
+function contextRoutes(state, u, p) {
+  if (p === '/options') { const sym = u.searchParams.get('symbol'); state.optionsAsked = (state.optionsAsked || 0) + 1; return { json: { ok: true, chain: fakeChain(sym), ivLog: [{ day: '2026-11-10', iv: 0.3 }], calls: 1, cached: false, label: '15 min delayed' } }; }
+  if (p === '/macro') {
+    const ser = (base, slope) => Array.from({ length: 40 }, (_, i) => [new Date(CLOCK - (40 - i) * 86400000).toISOString().slice(0, 10), +(base + slope * i).toFixed(3)]);
+    return { json: { ok: true, at: CLOCK - 3600000, names: {}, series: { DGS2: ser(3.6, 0), DGS10: ser(4.1, 0.002), DGS3MO: ser(4.3, 0), DFII10: ser(1.9, 0), BAMLH0A0HYM2: ser(3.1, 0.004), DTWEXBGS: ser(121, 0.05), DCOILWTICO: ser(64, -0.1) } } };
+  }
+  if (p === '/macro/dates') return { json: { ok: true, dates: { cpi: ['2025-12-10', '2026-01-13', '2026-02-11', '2026-03-11', '2026-04-10', '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12', '2026-09-11', '2026-10-15'] }, from: 2025 } };
+  if (p === '/earnings') { const syms = String(u.searchParams.get('symbols') || '').split(','); return { json: { ok: true, reports: Object.fromEntries(syms.map((s) => [s, [{ day: '2026-08-26', time: 'amc', eps: 1.0, est: 0.9 }]])), asked: null } }; }
+  return null;
+}
 function aiRoutes(state, posted, req, u, p) {
   const body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
   if ((p === '/ai/chat' || p === '/ai/gemini') && req.method === 'POST') {
@@ -280,6 +309,8 @@ function quantApi() {
       if (p === '/corrections' && req.method === 'POST') { (posted.corrections = posted.corrections || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/corrections') return { json: { ok: true, corrections: [] } };
       if (p === '/ideas') return { json: { ok: true, ideas: state.ideas, at: state.ideas ? state.ideas.at : null } };
+      const phase13 = contextRoutes(state, u, p);
+      if (phase13) return phase13;
       const phase9 = aiRoutes(state, posted, req, u, p);
       if (phase9) return phase9;
       const phase8 = memoryRoutes(state, posted, req, u, p);
