@@ -156,8 +156,8 @@ const RULES = { rules: [
   ok('the 5th-trade heads-up has Dismiss', await pressOn('[data-ed-rules]', '/5th trade/', '[data-rw-dismiss]'), await text('[data-ed-rules]'));
   ok('dismissed: gone for today', await until(`![...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /5th trade/.test(x.innerText);})`, 3000));
   ok('...and no data changed (the rules doc untouched)', await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_rules'].rules.map(function(r){return r.id+r.status;})) === JSON.stringify(['maxTradesDayactive','maxPositionPctactive','stopRequiredproposed']) && !window.__fakeFs.log.some(function(l){return /tradehub_rules/.test(l.path);});`));
-  if (process.env.NAV_LOG) console.log('    [tabs] ' + await js(`return JSON.stringify([...document.querySelectorAll('.tb-navtab[data-navid="portfolio"]')].map(function(b){return {vis:!!b.offsetParent, cls:b.className, txt:b.textContent.slice(0,30), par:(b.parentElement||{}).className};}));`));
   await tab('portfolio');
+  await js(`var b=[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}); if(b) b.click(); 1`);
   ok('the NVDA heads-up has "Don\'t warn me about this again"', await pressOn('[data-rk-flags]', '/NVDA is 27%/', '[data-rw-mute]'), await text('[data-rk-flags]'));
   ok('"Don\'t warn me about this again": that check goes quiet', await until(`![...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].some(function(x){return /NVDA is 27%/.test(x.innerText);})`, 3000));
   ok('...the plain flag stays (information, not the rule)', await js(`return !!document.querySelector('[data-rk-flag="position"]');`));
