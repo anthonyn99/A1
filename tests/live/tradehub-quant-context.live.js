@@ -155,11 +155,11 @@ const SAMPLER = `(() => {
   };
   await c.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await tab('journal'); await sleep(600);
-  // An older tab glides too (its cards, columns and buttons), not only the Quant grids.
+  // An older tab has no glide: only the panel moves (Tony, 2026-11-16).
   await press(); await sleep(60);
   const oldTab = await cardAnims();
   await sleep(400); await press(); await sleep(400);
-  ok('an older tab (Journal) moves in step too, by transforms only', oldTab.length >= 3 && oldTab.every((a) => a.props.join() === 'transform'), JSON.stringify(oldTab.slice(0, 3)));
+  ok('an older tab (Journal): nothing on the page animates, it re-lays out once (Tony, 2026-11-16)', oldTab.length === 0, JSON.stringify(oldTab.slice(0, 3)));
   const tj = await trace('Journal');
   ok('Journal at 4x: the slide never waits for the page\'s re-layout (it starts within 200 ms even here)', tj.runs.every((r) => r.start <= 200), JSON.stringify(tj.runs.map((r) => r.start)));
   await tab('charts');
