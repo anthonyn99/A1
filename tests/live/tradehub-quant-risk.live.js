@@ -32,18 +32,20 @@ function journal() {
   const doc = { savedAt: CLOCK - 3600000 };
   let n = 0;
   const add = (t) => { doc['t_' + t.id] = t; };
+  // Trades with a stop are 'manual': a stop is typed in the trade's edit box, and Webull
+  // Sync rebuilds every 'webull' trade from its legs (new id, no stop): see quant-plan §0.
   // 40 closed trades over 8 weeks, with stops: mostly +2 R and −1 R.
   for (let i = 0; i < 40; i++) {
     const d = -(i + 3), win = i % 3 !== 0, sym = ['NVDA', 'AMD', 'TSLA', 'MU'][i % 4];
-    add({ id: 'h' + i, source: 'webull', ticker: sym, createdAt: Date.parse(ny(d, 11, 0)), status: 'CLOSED', stopLoss: 99,
+    add({ id: 'h' + i, source: 'manual', ticker: sym, createdAt: Date.parse(ny(d, 11, 0)), status: 'CLOSED', stopLoss: 99,
       legs: [{ action: 'BUY', qty: 100, price: 100, fee: 0.1, datetime: ny(d, 11, 0) }, { action: 'SELL', qty: 100, price: win ? 102 : 99, fee: 0.1, datetime: ny(d, 13, 0) }] });
     n++;
   }
   // Today: five trades (9:35, 10:00, 10:30, 11:00, 11:30), the last with no stop.
-  [[9, 35], [10, 0], [10, 30], [11, 0], [11, 30]].forEach(([h, m], i) => add({ id: 'd' + i, source: 'webull', ticker: 'PLTR', createdAt: Date.parse(ny(0, h, m)), ...(i < 4 ? { stopLoss: 29 } : {}),
+  [[9, 35], [10, 0], [10, 30], [11, 0], [11, 30]].forEach(([h, m], i) => add({ id: 'd' + i, source: 'manual', ticker: 'PLTR', createdAt: Date.parse(ny(0, h, m)), ...(i < 4 ? { stopLoss: 29 } : {}),
     legs: [{ action: 'BUY', qty: 10, price: 30, fee: 0, datetime: ny(0, h, m) }, { action: 'SELL', qty: 10, price: 30.5, fee: 0, datetime: ny(0, h, m + 15) }] }));
   // The open NVDA position's trade, with its stop at 260.
-  add({ id: 'open1', source: 'webull', ticker: 'NVDA', createdAt: Date.parse(ny(-1, 10, 0)), stopLoss: 260, legs: [{ action: 'BUY', qty: 100, price: 265, fee: 0, datetime: ny(-1, 10, 0) }] });
+  add({ id: 'open1', source: 'manual', ticker: 'NVDA', createdAt: Date.parse(ny(-1, 10, 0)), stopLoss: 260, legs: [{ action: 'BUY', qty: 100, price: 265, fee: 0, datetime: ny(-1, 10, 0) }] });
   // Reconcile: a synced leg Webull filled at another price, and a typed leg that disagrees.
   add({ id: 'syn1', source: 'webull', ticker: 'AMD', createdAt: Date.parse(ny(-2, 10, 0)), legs: [{ action: 'BUY', qty: 5, price: 150.25, fee: 0, datetime: ny(-2, 10, 0), _wbOrder: 'w1' }, { action: 'SELL', qty: 5, price: 155, fee: 0, datetime: ny(-2, 14, 0), _wbOrder: 'w2' }] });
   add({ id: 'man1', source: 'manual', ticker: 'MU', createdAt: Date.parse(ny(-2, 10, 0)), legs: [{ action: 'BUY', qty: 7, price: 99, fee: 0, datetime: ny(-2, 10, 0), _wbOrder: 'w3' }, { action: 'SELL', qty: 7, price: 101, fee: 0, datetime: ny(-2, 15, 0) }] });
@@ -104,8 +106,10 @@ const RULES = { rules: [
   ok('the correlation heat grid, 3 × 3, one hue', await js(`var t=document.querySelector('[data-rk-heat]'); return !!t && t.querySelectorAll('tbody tr').length === 3 && t.querySelectorAll('tbody td').length === 9;`));
   ok('open risk: NVDA to the Journal\'s stop (260, $1,000), the others at 1.5 ATR', await js(`var r=document.querySelector('[data-rk-risk="NVDA"]'); return !!r && /your stop/.test(r.innerText) && /\\$1,000\\.00/.test(r.innerText) && /1\\.5 ATR/.test(document.querySelector('[data-rk-risk="AMD"]').innerText);`), await text('[data-rk-openrisk]'));
   ok('drawdown from the closed trades', /Worst/.test(await text('[data-rk-drawdown]')) && /Under water/.test(await text('[data-rk-drawdown]')));
-  await js(`var set=function(k,v){var i=document.querySelector('[data-rk-size="'+k+'"]'); i.value=v; i.dispatchEvent(new Event('input',{bubbles:true}));}; set('symbol','TSLA'); set('entry','400'); set('stop','390'); 1`);
-  ok('the size calculator: half-Kelly on his record, at most 1% ($1,000 → 100 shares), its sector', await until(`/Shares\\s*100\\b/.test(document.querySelector('[data-rk-size-out]').innerText) && /Consumer Discretionary/.test(document.querySelector('[data-rk-size-out]').innerText)`, 3000), await text('[data-rk-size-out]'));
+  await js(`var set=function(k,v){var i=document.querySelector('[data-rk-size="'+k+'"]'); i.value=v; i.dispatchEvent(new Event('input',{bubbles:true}));}; set('symbol','TSLA'); set('entry','100'); set('stop','95'); 1`);
+  ok('the size calculator: half-Kelly on his record, at most 1% ($1,000 on a $5 stop = 200 shares), its sector', await until(`/Shares\\s*200\\b/.test(document.querySelector('[data-rk-size-out]').innerText) && /Half-Kelly on your own record/.test(document.querySelector('[data-rk-size-out]').innerText) && /Consumer Discretionary/.test(document.querySelector('[data-rk-size-out]').innerText)`, 3000), await text('[data-rk-size-out]'));
+  await js(`var set=function(k,v){var i=document.querySelector('[data-rk-size="'+k+'"]'); i.value=v; i.dispatchEvent(new Event('input',{bubbles:true}));}; set('entry','400'); set('stop','390'); 1`);
+  ok('...a tight stop on a dear stock stops at 20% of the account (50 shares)', await until(`/Shares\\s*50\\b/.test(document.querySelector('[data-rk-size-out]').innerText) && /Capped at 20%/.test(document.querySelector('[data-rk-size-out]').innerText)`, 3000), await text('[data-rk-size-out]'));
   ok('flags: NVDA over 20%, Semiconductors over 35%', await js(`var f=[...document.querySelectorAll('[data-rk-flag]')].map(function(x){return x.dataset.rkFlag;}).sort().join(); return f === 'position,sector';`), await text('[data-rk-flags]'));
   ok('his rule as a heads-up: "NVDA is 27% of the account; your rule says 20% max."', await until(`[...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].some(function(x){return /Heads up: NVDA is 27% of the account; your rule says 20% max\\./.test(x.innerText);})`, 8000), await text('[data-rk-flags]'));
   await shot('risk-1504');
@@ -113,10 +117,13 @@ const RULES = { rules: [
   console.log('\nDisplay mode');
   await js(`window._tbOps.app.display(true); 1`);
   await sleep(300);
-  const leaks = await js(`var out=[]; var isBlur=function(e){var cs=getComputedStyle(e); return cs.color==='rgba(0, 0, 0, 0)'&&cs.textShadow!=='none';};
-    [...${R}.querySelectorAll('.lay-body *')].forEach(function(e){ if(e.children.length||!e.offsetParent) return; var t=e.textContent; if(/\\$\\d|\\d%|\\d R\\b/.test(t) && !e.closest('input') && !isBlur(e)) out.push(t.slice(0,40)); });
-    return out;`);
-  ok('every $, % and R figure on the Risk cards is blurred', leaks.length === 0, JSON.stringify(leaks.slice(0, 8)));
+  // Every text with a $, % or R figure is blurred, except TradeHub's own limits ("the 1% risk cap", "95%").
+  const LEAKS = (root) => `var out=[]; var isBlur=function(e){var cs=getComputedStyle(e); return cs.color==='rgba(0, 0, 0, 0)'&&cs.textShadow!=='none';};
+    var policy=/^(1-day 95% VaR|A 10% drawdown|A 20% drawdown)$|1% risk cap|Capped at 20%|sector 35%, a cluster 40%|bands hold half and 90%|at most 1% risk/;
+    var w=document.createTreeWalker(${root},NodeFilter.SHOW_TEXT), n; while((n=w.nextNode())){ var e=n.parentElement, t=n.textContent; if(!e||!e.offsetParent||e.closest('input,select,option,.lay-head')) continue; if(/\\$\\d|\\d%|\\d R\\b/.test(t) && !policy.test(t) && !isBlur(e)) out.push(t.slice(0,50)); }
+    return out;`;
+  const leaks = await js(LEAKS(R));
+  ok('every personal $, % and R figure on the Risk cards is blurred', leaks.length === 0, JSON.stringify(leaks.slice(0, 8)));
   ok('the sparkline hides too (tb-money-svg)', await js(`var s=document.querySelector('[data-rk-drawdown] .rk-spark'); return !s || getComputedStyle(s).opacity === '0';`));
   await js(`window._tbOps.app.display(false); 1`);
 
@@ -132,6 +139,10 @@ const RULES = { rules: [
   ok('by time of day: New York half hours', await until(`document.querySelector('[data-ed-row="11:00 AM to 11:30 AM"]')`, 3000), await text('[data-ed-table]'));
   ok('patterns: each a plain sentence, none reported under 10 trades', await until(`document.querySelector('[data-ed-patterns] [data-ed-quiet], [data-ed-patterns] [data-ed-pattern]')`, 8000), await text('[data-ed-patterns]'));
   ok('Monte Carlo: the fan and the three numbers (computed in the worker)', await until(`document.querySelector('[data-ed-montecarlo] .rk-fan') && /A 10% drawdown/.test(document.querySelector('[data-ed-montecarlo]').innerText) && /Ruin at/.test(document.querySelector('[data-ed-montecarlo]').innerText)`, 15000), await text('[data-ed-montecarlo]'));
+  await js(`window._tbOps.app.display(true); 1`); await sleep(300);
+  const eLeaks = await js(LEAKS(E));
+  ok('every personal figure on the Edge cards is blurred too', eLeaks.length === 0, JSON.stringify(eLeaks.slice(0, 8)));
+  await js(`window._tbOps.app.display(false); 1`);
   ok('rule checks: "this is your 5th trade today; your rule says 4."', await until(`[...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /this is your 5th trade today; your rule says 4\\./.test(x.innerText);})`, 8000), await text('[data-ed-rules]'));
   ok('the proposed "stop required" rule checks nothing yet (no heads-up for the trade without a stop)', !(await js(`return [...document.querySelectorAll('[data-rw-head]')].some(function(x){return /has no stop/.test(x.innerText);});`)));
   ok('how often each rule was broken, with those trades against the rest', await until(`document.querySelector('[data-ed-histrow="maxTradesDay"]')`, 3000), await text('[data-ed-rules]'));
@@ -152,12 +163,13 @@ const RULES = { rules: [
   await tab('journal');
   await until(`document.querySelector('[data-ed-reconcile] [data-ed-recsum]')`, 10000);
   const trade = (id) => js(`var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; var t=Object.values(d).find(function(x){return x&&x.id===${JSON.stringify(id)};}); return JSON.stringify(t||null);`);
-  ok('the synced leg is corrected to Webull\'s price (150.50) and logged on the trade', await until(`(function(){var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; var t=Object.values(d).find(function(x){return x&&x.id==='syn1';}); return t && t.legs[0].price === 150.5 && t.corrections && t.corrections.length === 1 && t.corrections[0].from === 150.25;})()`, 10000), await trade('syn1'));
+  const SYN = `(function(){var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; return Object.values(d).find(function(x){return x&&x.legs&&x.legs.some(function(l){return l._wbOrder==='w1';});});})()`;
+  ok('the synced leg is corrected to Webull\'s price (150.50) and logged on the trade', await until(`(function(){var t=${SYN}, l=t&&t.legs.find(function(x){return x._wbOrder==='w1';}); return l && l.price === 150.5 && t.corrections && t.corrections.length === 1 && t.corrections[0].from === 150.25 && l._corr && l._corr.length === 1;})()`, 10000), await js(`return JSON.stringify(${SYN});`));
   ok('the typed leg is only flagged, with "Use Webull\'s value"', await js(`return !!document.querySelector('[data-ed-flag="man1:0:price"] [data-ed-usewb]');`) && JSON.parse(await trade('man1')).legs[0].price === 99, await text('[data-ed-reconcile]'));
   const writesBefore = await js(`return window.__fakeFs.log.filter(function(l){return /tradeboard_journal$/.test(l.path);}).length;`);
   await js(`document.querySelector('[data-ed-flag="man1:0:price"] [data-ed-usewb]').click(); 1`);
   ok('"Use Webull\'s value": the typed leg now reads 98.50, logged as Tony\'s', await until(`(function(){var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; var t=Object.values(d).find(function(x){return x&&x.id==='man1';}); return t && t.legs[0].price === 98.5 && t.corrections && t.corrections[0].by === 'tony';})()`, 6000), await trade('man1'));
-  ok('...one write, and every other trade unchanged', await js(`var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; return Object.values(d).filter(function(x){return x&&x.corrections;}).map(function(x){return x.id;}).sort().join() === 'man1,syn1';`) && (await js(`return window.__fakeFs.log.filter(function(l){return /tradeboard_journal$/.test(l.path);}).length;`)) - writesBefore <= 1);
+  ok('...one write, and every other trade unchanged', await js(`var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; return Object.values(d).filter(function(x){return x&&x.corrections;}).length === 2 && !!d && Object.values(d).filter(function(x){return x&&x.corrections;}).some(function(x){return x.id==='man1';});`) && (await js(`return window.__fakeFs.log.filter(function(l){return /tradeboard_journal$/.test(l.path);}).length;`)) - writesBefore <= 1);
 
   console.log('\nControl ▸ My rules');
   await tab('prompt');
