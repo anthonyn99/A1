@@ -66,8 +66,8 @@ export function parseEarnings(rows, day) {
   return out;
 }
 
-// Past release days from FRED's release calendar (the page newshub reads for the
-// schedule; it lists 2025 on, so studies have about two years). rid per kind.
+// Past release days from FRED's release calendar (the page Catalysts' schedule
+// reads; it lists 2025 on, so studies have about two years). rid per kind.
 export const RIDS = { cpi: 10, ppi: 46, jobs: 50, pce: 54, gdp: 53, retail: 9 };
 export const FIRST_YEAR = 2025;
 const MONTHS = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
