@@ -19108,6 +19108,20 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── Foreground FCM message handler ────────────────────────────────────
   if(messaging){
     onMessage(messaging,payload=>{
+      // A TradeHub alert (kind 'quant', taskhub-reminders /quant-push): Tony's devices only,
+      // so the reminder gate. A banner with Open (TradeHub at the alert) and, on desktop, the
+      // OS card the service worker would draw (its tap opens the same place). Never the
+      // fired-set: one rule fires again on a new trigger under the same tag.
+      if(payload.data?.kind==='quant'){
+        const d=payload.data, url=String(d.url||'').indexOf('https://a1-priv.av1.workers.dev/tradehub.html')===0?d.url:'https://a1-priv.av1.workers.dev/tradehub.html';
+        if(!_dashAllowedHere('tony','reminder'))return;
+        if(claimContent('tony',d.title+'|'+(d.body||'')))return;
+        showBanner(d.title+(d.body&&d.body!==d.title?' · '+d.body:''),{action:{label:'Open',run:function(){window.open(url,'_blank','noopener');}}});
+        if(IS_DESKTOP&&('Notification' in window)&&Notification.permission==='granted'){
+          ensureSWRegistration().then(function(reg){ if(reg) reg.showNotification(d.title||'TradeHub alert',{body:d.body&&d.body!==d.title?d.body:'',tag:String(d.tag||'tbq'),renotify:true,data:{kind:'quant',url:url}}); }).catch(function(){});
+        }
+        return;
+      }
       const id=payload.data?.id||'';
       const title=payload.notification?.body||payload.data?.title||'TaskHub Reminder';
       // SCOPE GATE: a profile-scoped reminder (tony/veda) must NEVER banner on a
