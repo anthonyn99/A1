@@ -126,14 +126,15 @@ both sides, every host; its look is the last section of `notebook.css`
 - **index.html:** the open page covers the program nav (`html[data-nb-doc]`);
   the list shows it again. In an instance the host's own header always stays.
 - **Editing a page on a touch screen up to 1366px** (a landscape tablet too, with
-  the desktop layout) **docks the ribbon**: ONE row of 40px icons at the foot of
-  the page's column, riding right above the onscreen keyboard (visualViewport).
-  It scrolls sideways; Undo and Redo stay pinned at its right end; its first
-  button swaps in the menus (File, Edit, View...), where everything the row
-  leaves out lives. A tap on a docked button keeps the editor focused (the
-  keyboard stays up), and the caret is kept clear of the dock while typing. A
-  host's own bottom bar (StudyOS's nav) is never covered: the dock sits at the
-  foot of Notebook's column or above the keyboard, whichever is higher.
+  the desktop layout): the ribbon is ONE row of 40px icons right under the header,
+  in the page's own flow, the same on every screen and keyboard (it first sat
+  above the keyboard; browsers disagree on where that is, so it moved, Tony
+  2026-11-17). It scrolls sideways; Undo and Redo stay pinned at its right end;
+  its first button swaps in the menus (File, Edit, View...), where everything the
+  row leaves out lives. A tap on it keeps the editor focused (the keyboard stays
+  up). While the keyboard is up the page gets that much room under its last line,
+  and typing keeps the caret above the keyboard; nothing else ever scrolls the
+  page for you.
 - Desktop (a mouse above 900px) gets none of it.
 - Classes on the root, for the stylesheet only (Notebook's, not a host's):
   `nb-shell`, `nb-mlist`, `nb-mdoc`, `nb-medit`, `nb-mpage`, `nb-m`, `nb-mdock`,

@@ -10,9 +10,11 @@
        In index.html the editor covers the program nav; the list shows it.
        Reading mode adds a pencil button at the bottom right.
      - Editing a page on any touch screen up to 1366px (a landscape tablet
-       too) docks the ribbon as ONE row of icons right above the keyboard. It
-       scrolls sideways; its first button swaps it for the menus (File, Edit,
-       View...), where everything the row leaves out lives.
+       too) makes the ribbon ONE row of icons right under the header, so it
+       works the same on every screen and keyboard. It scrolls sideways; its
+       first button swaps it for the menus (File, Edit, View...), where
+       everything the row leaves out lives. (It sat above the keyboard first;
+       browsers disagree on where the keyboard is, Tony, 2026-11-17.)
    A host never calls this: Notebook wires each app it mounts (wire(key)).
    The app's own controls stay the source of truth: every button here clicks
    the app's (bottom bar, lock, export), so nothing is done twice.
@@ -41,7 +43,7 @@ var IC = {
   pdf: sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>')
 };
 
-var wired = {}, dockOwner = null, vkOwner = null;
+var wired = {};
 function $(id) { return document.getElementById(id); }
 function shown(el) { return !!el && el.getClientRects().length > 0; }
 // Onscreen keyboard height: what the visual viewport lost at the bottom. A
@@ -51,17 +53,6 @@ function keyboard() {
   if (!vv || vv.scale > 1.01) return 0;
   var k = window.innerHeight - (vv.height + vv.offsetTop);
   return k > 80 ? Math.round(k) : 0;
-}
-// Chromium (Chrome, Brave, Samsung Internet, Edge on Android) says exactly where
-// the keyboard is: with overlaysContent on (only while the dock is up, so the
-// rest of a host page behaves as before) nothing is resized or scrolled, and
-// boundingRect is the keyboard in viewport pixels. The visual viewport sums
-// were off by the browser's own top bar on Tony's phone (Brave, 2026-11-17).
-var VK = navigator.virtualKeyboard || null;
-function vkTop() {
-  if (!VK || !VK.overlaysContent) return null;
-  var r = VK.boundingRect;
-  return r && r.height > 0 ? r.y : null;
 }
 function vvBottom() {
   var vv = window.visualViewport;
@@ -189,7 +180,7 @@ function wire(K) {
     if (e.key === 'Escape' && menu) { e.stopPropagation(); closeMenus(); }
   }, true);
 
-  // ── The ribbon, docked above the keyboard ──
+  // ── The ribbon, one row under the header (its swap button) ──
   var tb = null, tog = null;
   function dockParts() {
     tb = $(K + '-page-toolbar');
@@ -211,41 +202,15 @@ function wire(K) {
     }, true);
   }
 
-  var placedOff = { x: 0, y: 0 };
-  function placeDock() {
-    if (!tb) return;
-    var main = $(K + '-main') || root, mr = main.getBoundingClientRect();
-    var kt = vkTop();
-    var kb = kt != null ? Math.max(0, Math.round(window.innerHeight - kt)) : keyboard();
+  // While the onscreen keyboard is up, the page gets that much room under its
+  // last line, so every line can be scrolled above the keyboard.
+  function kbSpace() {
+    var kb = keyboard();
     root.classList.toggle('nb-kb', kb > 0);
-    var h = tb.offsetHeight || 52;
-    // The top of the keyboard, else the foot of the page's column or of the
-    // visible screen, whichever is higher: a host's own bottom bar (StudyOS's
-    // nav) stays uncovered.
-    var foot = kt != null ? kt : Math.min(vvBottom(), mr.bottom);
-    var wantTop = foot - h, wantLeft = mr.left;
-    root.style.setProperty('--nb-dock-w', mr.width + 'px');
-    // A host's transformed box makes `fixed` relative to it: measure where the
-    // dock landed and take the difference off.
-    root.style.setProperty('--nb-dock-l', (wantLeft - placedOff.x) + 'px');
-    root.style.setProperty('--nb-dock-t', (wantTop - placedOff.y) + 'px');
-    var r = tb.getBoundingClientRect();
-    var dx = r.left - wantLeft, dy = r.top - wantTop;
-    // Only an instance can sit in a transformed box; index's overlay root never
-    // does, so it is placed as computed and never "corrected" by a stale read.
-    if (!overlay && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
-      placedOff.x += dx; placedOff.y += dy;
-      root.style.setProperty('--nb-dock-l', (wantLeft - placedOff.x) + 'px');
-      root.style.setProperty('--nb-dock-t', (wantTop - placedOff.y) + 'px');
-    }
-    // Room under the last line: the dock and the keyboard (the page scrolls
-    // behind both).
-    var wrapR = $(K + '-page-editor-wrap');
-    var under = wrapR ? Math.max(0, wrapR.getBoundingClientRect().bottom - wantTop) : h + kb;
-    root.style.setProperty('--nb-dock-space', (under + 24) + 'px');
+    root.style.setProperty('--nb-kb-space', kb + 'px');
   }
 
-  // Typing on the last visible line: keep the caret above the dock.
+  // Typing on the last visible line: keep the caret above the keyboard.
   var caretRaf = 0;
   function keepCaret() {
     if (caretRaf) return;
@@ -258,14 +223,14 @@ function wire(K) {
       var rg = sel.getRangeAt(0).cloneRange(); rg.collapse(false);
       var rect = rg.getClientRects()[0];
       if (!rect) { var n = sel.focusNode; n = n && n.nodeType === 1 ? n : n && n.parentElement; if (!n) return; rect = n.getBoundingClientRect(); }
-      var limit = tb.getBoundingClientRect().top - 12, top = wrap.getBoundingClientRect().top + 8;
+      var limit = Math.min(vvBottom(), wrap.getBoundingClientRect().bottom) - 16, top = wrap.getBoundingClientRect().top + 8;
       if (rect.bottom > limit) wrap.scrollTop += rect.bottom - limit;
       else if (rect.top < top && rect.bottom > 0) wrap.scrollTop -= top - rect.top;
     });
   }
-  // Only while typing and when the keyboard comes or goes. On every selection
-  // change it scrolled to the caret whenever the row was swapped or a control
-  // re-rendered, jumping away from where Tony was reading (2026-11-17).
+  // Only while typing. On every selection change, or when the browser's bars
+  // resized, it scrolled back to the caret while Tony was scrolling up to read
+  // (2026-11-17).
   root.addEventListener('input', function (e) { if (e.target && e.target.id === K + '-page-editor') keepCaret(); }, true);
   root.addEventListener('keydown', function (e) { if (e.target && e.target.id === K + '-page-editor' && /^(Enter|ArrowDown|ArrowUp)$/.test(e.key)) keepCaret(); }, true);
 
@@ -312,15 +277,7 @@ function wire(K) {
     fab.classList.toggle('on', !!(fabNew || fabEdit));
     fab.classList.toggle('nb-fab-new', fabNew);
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
-    if (VK) {
-      if (dock) { vkOwner = K; if (!VK.overlaysContent) { try { VK.overlaysContent = true; } catch (e) {} } }
-      else if (vkOwner === K) { vkOwner = null; try { VK.overlaysContent = false; } catch (e) {} }
-    }
-    if (dock) placeDock(); else root.classList.remove('nb-kb');
-    // Body-level bars (find, toasts) read it to stay clear of the dock.
-    // index.html runs both sides, so each side clears only the mark it set.
-    if (dock) { dockOwner = K; document.documentElement.classList.add('nb-docked'); }
-    else if (dockOwner === K) { dockOwner = null; document.documentElement.classList.remove('nb-docked'); }
+    if (dock) kbSpace(); else { root.classList.remove('nb-kb'); root.style.removeProperty('--nb-kb-space'); }
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
     var de = document.documentElement, mine = de.getAttribute('data-nb-doc') === K;
@@ -345,9 +302,8 @@ function wire(K) {
   root.addEventListener('click', function () { watchTb(); schedule(); });
   [mqShell, mqTouch].forEach(function (m) { if (m.addEventListener) m.addEventListener('change', schedule); else m.addListener(schedule); });
   window.addEventListener('resize', schedule);
-  if (VK && VK.addEventListener) VK.addEventListener('geometrychange', function () { schedule(); setTimeout(keepCaret, 30); });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', function () { schedule(); keepCaret(); });
+    window.visualViewport.addEventListener('resize', schedule);
     window.visualViewport.addEventListener('scroll', schedule);
   }
   sync();
