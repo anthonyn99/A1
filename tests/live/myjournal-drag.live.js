@@ -30,7 +30,9 @@ const SEED = {
   entries: [
     { id: 'e_a', title: 'Alpha', template: 'page', created: T0, updated: T0, tags: [], data: { html: '<p>a</p>', attachments: [] } },
     { id: 'e_b', title: 'Bravo', template: 'page', created: T0, updated: T0, tags: [], data: { html: '<p>b</p>', attachments: [] } },
-    { id: 'e_x', title: 'Trashed', template: 'page', created: T0, updated: T0, tags: [], trashed: T0, trashChangedAt: T0, data: { html: '', attachments: [] } },
+    // Trashed an hour ago: a fixed old date ages past the Trash's purge and the
+    // entry is gone before the test starts.
+    { id: 'e_x', title: 'Trashed', template: 'page', created: T0, updated: T0, tags: [], trashed: Date.now() - 3600000, trashChangedAt: Date.now() - 3600000, data: { html: '', attachments: [] } },
     { id: 'e_c', title: 'Charlie', template: 'page', created: T0, updated: T0, tags: [], data: { html: '<p>c</p>', attachments: [] } },
     { id: 'e_d', title: 'Delta', template: 'page', created: T0, updated: T0, tags: [], data: { html: '<p>d</p>', attachments: [] } },
   ],
