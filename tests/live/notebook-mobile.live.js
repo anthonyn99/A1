@@ -100,6 +100,11 @@ const only = process.argv[2];
       if (who === 'tony') ok('the program nav shows over the list', await navShown());
       else ok("Veda's header shows over the list", await js(`return getComputedStyle(document.getElementById('bj-nav-header')).display!=='none';`));
       if (label === 'phone') await shot(`${who}-${w}-list`);
+      // OurJournal and back, from the list: the list stays; no page opens by itself.
+      await tap(`${R} .oj-tab[data-oj="1"], ${R} .mjd-rail-btn.oj-tab`); await sleep(900);
+      ok('the OurJournal tab from the list: still the list', /\bnb-mlist\b/.test(await cls(K)), await cls(K));
+      await tap(`${R} .oj-tab[data-oj="0"], ${R} .mjd-rail-btn[data-sec="pages"]`); await sleep(900);
+      ok('…and back to MyJournal: still the list, no page opened by itself', /\bnb-mlist\b/.test(await cls(K)) && !/\bnb-mdoc\b/.test(await cls(K)), await cls(K));
 
       // ── open an entry: the editor ──
       await tap(`#${K}-entries-list .entry-item`); await sleep(500);
@@ -171,6 +176,25 @@ const only = process.argv[2];
       ok('the caret on the last line is kept clear of the dock', caret <= kbTb.t - 4 && caret > 56, caret + ' vs dock ' + kbTb.t);
       await js(`delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
       ok('keyboard down: the dock returns to the bottom', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1 && !/\bnb-kb\b/.test(await cls(K)));
+      // Chromium's own word for where the keyboard is (navigator.virtualKeyboard):
+      // overlaysContent is on while docked, and the dock sits right on its top edge.
+      const hasVK = await js(`return !!navigator.virtualKeyboard;`);
+      if (hasVK) {
+        ok('docked: the keyboard overlays the page (virtualKeyboard.overlaysContent on)', await js(`return navigator.virtualKeyboard.overlaysContent === true;`));
+        await js(`var vk=navigator.virtualKeyboard; Object.defineProperty(vk,'boundingRect',{configurable:true,get(){return new DOMRect(0, innerHeight-300, innerWidth, 300);}}); vk.dispatchEvent(new Event('geometrychange')); 1`);
+        await sleep(300);
+        const vkTb = await rect(`#${K}-page-toolbar`);
+        ok('the dock sits exactly on the keyboard\'s top edge (virtualKeyboard.boundingRect)', Math.abs(vkTb.b - (h - 300)) <= 1, JSON.stringify(vkTb));
+        await js(`var vk=navigator.virtualKeyboard; Object.defineProperty(vk,'boundingRect',{configurable:true,get(){return new DOMRect(0,0,0,0);}}); vk.dispatchEvent(new Event('geometrychange')); 1`);
+        await sleep(300);
+        ok('…and back to the bottom when it closes', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1);
+      }
+      // The swap button never moves the page to the caret.
+      await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); document.getElementById('${K}-page-editor-wrap').scrollTop=0; 1`);
+      await sleep(300);
+      const st0 = await js(`return document.getElementById('${K}-page-editor-wrap').scrollTop;`);
+      await tap(`#${K}-page-toolbar .nb-dock-tog`); await tap(`#${K}-page-toolbar .nb-dock-tog`); await sleep(300);
+      ok('swapping the row with the caret elsewhere leaves the page where it was (no jump)', await js(`return document.getElementById('${K}-page-editor-wrap').scrollTop;`) === st0, st0);
 
       // The bar's mode button: back to reading.
       await tap(`${R} .nb-mh-mode`);
@@ -208,7 +232,7 @@ const only = process.argv[2];
       await js(`document.getElementById('${K}-close-modal').click(); 1`); await sleep(200);
       await tap(`#${K}-hamburger`);
       await tap(`${R} .nb-fab`);
-      ok('the list\'s + opens the template picker', await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`));
+      ok('the list\'s + opens the template picker, ON TOP of the list (what a finger reaches)', await js(`var m=document.getElementById('${K}-template-modal'); if(!m.classList.contains('open')) return false; var c=m.querySelector('.template-card[data-template="page"]').getBoundingClientRect(); var t=document.elementFromPoint(c.left+c.width/2, c.top+c.height/2); return !!t && !!t.closest('#${K}-template-modal');`));
       await js(`document.querySelector('#${K}-template-modal .template-card[data-template="page"]').click(); 1`); await sleep(1200);
       k = await cls(K);
       ok('a new page opens in the editor, editing, ribbon docked', /\bnb-mdoc\b/.test(k) && /\bnb-mdock\b/.test(k) && await js(`return document.getElementById('${K}-mobile-title').value==='' && document.querySelectorAll('#${K}-entries-list .entry-item').length===3;`), k);
