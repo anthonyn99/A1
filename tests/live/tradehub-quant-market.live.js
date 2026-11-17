@@ -192,7 +192,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   await js(`window.__fakeFs.remote('dashboards/tradeboard_dashboard', { quant: false }, { merge: true }); 1`);
   await sleep(9000);   // the page ignores its own echo for 8 s after a save of that doc
   await js(`window.__fakeFs.remote('dashboards/tradeboard_dashboard', { quant: false, bump: 1 }, { merge: true }); 1`);
-  ok('switched off on another device: the tab goes and Portfolio shows', await until(`!document.querySelector('.tb-navtab[data-navid="market"]') && !document.querySelector('[data-mk]') && localStorage.getItem('tradehub_quant') === null`, 6000));
+  ok('switched off on another device: the tab goes and Portfolio shows', await until(`!document.querySelector('.tb-navtab[data-navid="market"]') && !document.querySelector('[data-mk]') && localStorage.getItem('tradehub_quant') === '0'`, 6000));   // off is '0' since Phase 15 (no key = on)
 
   console.log('\nSide effects');
   ok('no page errors', errs.length === 0, errs.join(' | '));
