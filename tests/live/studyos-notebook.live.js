@@ -201,11 +201,11 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
     var el = r.classList.contains('nb-mlist') ? r.querySelector('.nb-fab.on') : document.getElementById('stn-mobile-header');
     if (!el || !el.getClientRects().length) return false; var b=el.getBoundingClientRect(); return b.top >= host.top - 1 && b.bottom <= host.bottom + 1;`));
   await shot('studyos-notebook-phone-quick');
-  // Editing a page there: the ribbon docks at the foot of the notes, above the nav.
+  // Editing a page there: the ribbon is one row right under Notebook's header, inside the notes.
   await js(`var r=document.getElementById('stn-root'); if (r.classList.contains('nb-mlist')) { var it=document.querySelector('#stn-entries-list .entry-item'); if (it) it.click(); } 1`); await sleep(800);
   await js(`var b=document.getElementById('stn-btn-edit'); if (b && !b.checked) document.querySelector('#stn-root .nb-fab').click(); 1`); await sleep(700);
-  ok('editing on the phone docks the ribbon at the foot of the notes, above StudyOS\'s bottom nav (never over it)', await js(`var t=document.getElementById('stn-page-toolbar').getBoundingClientRect(), n=document.getElementById('sos-bottom-nav').getBoundingClientRect(), m=document.getElementById('stn-main').getBoundingClientRect();
-    return document.getElementById('stn-root').classList.contains('nb-mdock') && Math.abs(t.bottom - m.bottom) <= 1 && t.bottom <= n.top && Math.abs(t.width - m.width) <= 1 && t.height <= 56;`),
+  ok('editing on the phone puts the ribbon in one row right under Notebook\'s header, above StudyOS\'s bottom nav', await js(`var t=document.getElementById('stn-page-toolbar').getBoundingClientRect(), n=document.getElementById('sos-bottom-nav').getBoundingClientRect(), m=document.getElementById('stn-main').getBoundingClientRect(), hd=document.getElementById('stn-mobile-header').getBoundingClientRect();
+    return document.getElementById('stn-root').classList.contains('nb-mdock') && Math.abs(t.top - hd.bottom) <= 1 && t.bottom <= n.top && Math.abs(t.width - m.width) <= 1 && t.height <= 56;`),
     await js(`return JSON.stringify([document.getElementById('stn-root').className, document.getElementById('stn-page-toolbar').getBoundingClientRect(), document.getElementById('sos-bottom-nav').getBoundingClientRect()]);`));
   await shot('studyos-notebook-phone-edit');
   await js(`var b=document.getElementById('stn-btn-edit'); if (b && b.checked) document.querySelector('#stn-root .nb-mh-mode').click(); 1`); await sleep(400);
