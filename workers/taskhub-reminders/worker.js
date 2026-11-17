@@ -244,7 +244,7 @@ export default {
     // TradeHub's alerts (quant-api, account 2): a push to Tony's devices only.
     if (path === '/quant-push') {
       try {
-        return await handleQuantPush(request, env, origin);
+        return await handleQuantPush(request, env, origin, ctx);
       } catch (e) {
         return json({ ok: false, error: e.message || 'server error' }, origin, 500);
       }
@@ -377,7 +377,14 @@ export default {
 // ══════════════════════════════════════════════════════════════════════════
 const QUANT_PAGE = 'https://a1-priv.av1.workers.dev/tradehub.html';
 const QUANT_CARDS_MAX = 20;
-async function handleQuantPush(request, env, origin) {
+// Speed (2026-11-16, Tony: "I want the speed RESERV sends at"): Tony's devices and their names are
+// looked up together and kept in this isolate for QUANT_DEV_MS, so a warm push is one FCM call per
+// device and nothing else. Any failed send drops the copy, so a new or changed device is picked up
+// on the next push at the latest. The TaskHub card is written after the answer (waitUntil).
+const QUANT_DEV_MS = 5 * 60 * 1000;
+let _quantDev = null;   // { at, docs, names }
+async function handleQuantPush(request, env, origin, ctx) {
+  const t0 = Date.now();
   if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, origin, 405);
   const given = request.headers.get('x-quant-secret') || '';
   if (!env.QUANT_PUSH_SECRET || !tokensMatch(given, env.QUANT_PUSH_SECRET)) return json({ ok: false, error: 'unauthorized' }, origin, 401);
@@ -392,13 +399,19 @@ async function handleQuantPush(request, env, origin) {
   const tag = /^[\w-]{1,64}$/.test(String(b.tag || '')) ? String(b.tag) : 'tbq';
 
   const accessToken = await getGoogleAccessToken(env);
+  const tAuth = Date.now();
   const projectId = env.FIREBASE_PROJECT_ID;
   const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
   const authHdr = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
-  const docs = await quantTonyTokens(baseUrl, authHdr);
-  if (docs === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
-  const names = docs.length ? await quantDeviceNames(baseUrl, authHdr) : {};
+  const cached = !!(_quantDev && Date.now() - _quantDev.at < QUANT_DEV_MS && _quantDev.docs.length);
+  if (!cached) {
+    const [docs0, names0] = await Promise.all([quantTonyTokens(baseUrl, authHdr), quantDeviceNames(baseUrl, authHdr)]);
+    if (docs0 === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
+    _quantDev = { at: Date.now(), docs: docs0, names: names0 };
+  }
+  const { docs, names } = _quantDev;
+  const tLookup = Date.now();
   let sent = 0, failed = 0, pruned = 0;
   const devices = [];
   await Promise.allSettled(docs.map(async (d) => {
@@ -406,17 +419,21 @@ async function handleQuantPush(request, env, origin) {
     const r = await sendQuantFCM(projectId, token, { title, body, url, tag }, accessToken);
     if (r.ok) { sent++; devices.push(names[id] || quantUaName(d.fields.ua && d.fields.ua.stringValue)); return; }
     failed++;
+    _quantDev = null;   // look the devices up afresh next time
     if (r.dead) {
       // Pruned: the token field only, so the device keeps its main and its record.
       await fetch(`https://firestore.googleapis.com/v1/${d.name}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
         .then((res) => { if (res.ok) pruned++; }).catch(() => {});
     }
   }));
+  const tSend = Date.now();
   if (b.card === true) {
-    await quantCard(baseUrl, authHdr, { title, body, url, kind: clip(b.kind, 20) || 'alert' }).catch((e) => console.warn('[quant-push] card:', e.message));
+    const card = quantCard(baseUrl, authHdr, { title, body, url, kind: clip(b.kind, 20) || 'alert' }).catch((e) => console.warn('[quant-push] card:', e.message));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(card); else await card;
   }
-  console.log(`[quant-push] "${title.slice(0, 40)}" sent ${sent}, failed ${failed}, pruned ${pruned}`);
-  return json({ ok: true, sent, failed, pruned, devices }, origin);
+  const ms = { auth: tAuth - t0, lookup: tLookup - tAuth, fcm: tSend - tLookup, total: tSend - t0, cached };
+  console.log(`[quant-push] "${title.slice(0, 40)}" sent ${sent}, failed ${failed}, pruned ${pruned}, ${ms.total} ms${cached ? ' (devices cached)' : ''}`);
+  return json({ ok: true, sent, failed, pruned, devices, ms }, origin);
 }
 // Tony's device tokens: one query, filtered on mainDash == 'tony' at Firestore.
 async function quantTonyTokens(baseUrl, authHdr) {
