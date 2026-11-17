@@ -143,6 +143,7 @@ them, and its stand-ins are the browser's own dialogs.
 
 A host talks to its instance only through what this page documents: the mount
 options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.folder`, `Notebook.importPages`, `Notebook.putPage`, `Notebook.flushAll`,
+`Notebook.closeDrawer(key?)` and the window event `notebook-drawer` (`{ key, open }`, 2026-11-17: a phone host with a drawer of its own closes it when a Notebook drawer opens, and calls `closeDrawer` when its own opens, so the two never overlap; TradeHub does),
 `Notebook.pages` / `Notebook.page` (read-only, 2026-11-06: the list, and one page's `html`
 and plain `text`; a page with its own lock, not open in this session, comes without its
 words; TaskHub's Neo reads V's Notebook through them),
