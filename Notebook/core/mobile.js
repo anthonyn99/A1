@@ -41,7 +41,7 @@ var IC = {
   pdf: sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>')
 };
 
-var wired = {};
+var wired = {}, dockOwner = null;
 function $(id) { return document.getElementById(id); }
 function shown(el) { return !!el && el.getClientRects().length > 0; }
 // Onscreen keyboard height: what the visual viewport lost at the bottom. A
@@ -271,7 +271,9 @@ function wire(K) {
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
     if (dock) placeDock(); else root.classList.remove('nb-kb');
     // Body-level bars (find, toasts) read it to stay clear of the dock.
-    if (document.documentElement.classList.contains('nb-docked') !== dock) document.documentElement.classList.toggle('nb-docked', dock);
+    // index.html runs both sides, so each side clears only the mark it set.
+    if (dock) { dockOwner = K; document.documentElement.classList.add('nb-docked'); }
+    else if (dockOwner === K) { dockOwner = null; document.documentElement.classList.remove('nb-docked'); }
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
     var de = document.documentElement, mine = de.getAttribute('data-nb-doc') === K;
