@@ -1521,22 +1521,32 @@ function wcCounts(ctx) {
     charsNS: text.replace(/\s/g, '').length
   };
 }
-// Live pinned word-count widget (bottom-left), toggled per app.
+// Live pinned word-count widget, toggled per app. It sits at the bottom-left of
+// the PAGE's own column (2026-11-17): on the window it lay over the sidebar's
+// Trash, and in a host where Notebook does not fill the screen (StudyOS's notes
+// modal) it was stranded in the window's corner. In the page column it moves
+// with Notebook in every host, hides whenever no page is on screen, and keeps
+// clear of the scrollbar and the phone's round button on the right.
 function wcPinned(app) { return !!lsGet('docx_wcpin_' + app, false); }
 function updateWcPin(ctx) {
   var el = $('docx-wcpin-' + ctx.app);
   if (!el) return;
   var c = wcCounts(ctx);
   el.querySelector('.n').textContent = c.words;
+  var l = el.querySelector('.l'); if (l) l.textContent = c.words === 1 ? 'word' : 'words';
 }
 function mountWcPin(ctx) {
   if ($('docx-wcpin-' + ctx.app)) return;
   var el = document.createElement('div');
   el.id = 'docx-wcpin-' + ctx.app;
   el.className = 'docx-wcpin';
-  el.innerHTML = '<span class="n">0</span> words <button title="Unpin">' + window.TNI.x + '</button>';
+  el.className = 'docx-wcpin docx-wcpin-in';
+  el.setAttribute('role', 'status');
+  el.innerHTML = '<span class="n">0</span> <span class="l">words</span><button type="button" title="Unpin the word count" aria-label="Unpin the word count" data-noglow>' + window.TNI.x + '</button>';
   el.querySelector('button').addEventListener('click', function() { lsSet('docx_wcpin_' + ctx.app, false); el.remove(); });
-  document.body.appendChild(el);
+  // The page column: the toolbar's parent (#<key>-page-area).
+  var col = (ctx.tbEl && ctx.tbEl.parentElement) || (ctx.wrapEl && ctx.wrapEl.parentElement) || document.body;
+  col.appendChild(el);
   updateWcPin(ctx);
   if (!ctx._wcHooked) {
     ctx._wcHooked = true;
@@ -1554,7 +1564,7 @@ function wordCountModal(ctx) {
     var pinned = wcPinned(ctx.app);
     var pin = document.createElement('button');
     pin.className = 'docx-btn pri';
-    pin.textContent = pinned ? 'Unpin from screen' : 'Pin to screen (bottom-left)';
+    pin.textContent = pinned ? 'Unpin from the page' : 'Pin to the page';
     pin.addEventListener('click', function() {
       var now = !wcPinned(ctx.app);
       lsSet('docx_wcpin_' + ctx.app, now);
@@ -5116,6 +5126,7 @@ window._docxOnLoad = function(edId, docId) {
   var _ed = $(edId); if (_ed) _docxUnnestHeadings(_ed);
   if (ctx) {
     ctx._docId = docId || edId;
+    try { updateWcPin(ctx); } catch (e) {}
     if (ctx.history) {
       ctx._histSuppress = false;
       ctx.history.seed();

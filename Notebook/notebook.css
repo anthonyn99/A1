@@ -378,11 +378,32 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root .docx-toolbar .pt-btn.docx-fontfam-btn, #bj-root .docx-toolbar .pt-btn.docx-fontfam-btn { background: var(--card2, #2c2c31); border: 1px solid var(--border, #34343a); }
 #tj-root .docx-toolbar .pt-btn.docx-fontfam-btn:hover, #bj-root .docx-toolbar .pt-btn.docx-fontfam-btn:hover { border-color: var(--purple, #e0b874); background: var(--card2, #2c2c31); }
 
-/* ── Pinned live word count (bottom-left) ── */
+/* ── Pinned live word count (the page column's bottom-left; see mountWcPin) ── */
 .docx-wcpin { position: fixed; left: 16px; bottom: 16px; z-index: 100019; background: #24252A; border: 1px solid #3B3C42; border-radius: 9px; padding: 6px 8px 6px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: #D6D6DC; display: flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
 .docx-wcpin .n { font-weight: 800; color: #fff; }
 .docx-wcpin button { background: transparent; border: none; color: #8a8a94; cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 5px; }
 .docx-wcpin button:hover { color: #fff; background: rgba(255,255,255,.08); }
+/* In the page column (inside the root: restated past its padding reset). Small,
+   quiet, above the page; it never takes a click meant for the text beside it. */
+#tj-root .docx-wcpin.docx-wcpin-in, #bj-root .docx-wcpin.docx-wcpin-in {
+  position: absolute; left: 14px; right: auto; top: auto; bottom: calc(14px + var(--nb-kb-space, 0px));
+  z-index: 8; display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
+  height: 30px; padding: 0 4px 0 11px; border-radius: 8px; border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg2) 92%, transparent); color: var(--text2);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35); font-size: 12px; line-height: 1; white-space: nowrap; pointer-events: auto;
+}
+#tj-root .docx-wcpin.docx-wcpin-in .n, #bj-root .docx-wcpin.docx-wcpin-in .n { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+#tj-root .docx-wcpin.docx-wcpin-in button, #bj-root .docx-wcpin.docx-wcpin-in button {
+  width: 22px; height: 22px; padding: 0; margin: 0 0 0 2px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: none;
+}
+#tj-root .docx-wcpin.docx-wcpin-in button:hover, #bj-root .docx-wcpin.docx-wcpin-in button:hover { color: var(--text); background: rgba(255,255,255,.07); }
+#tj-root .docx-wcpin.docx-wcpin-in button svg, #bj-root .docx-wcpin.docx-wcpin-in button svg { width: 12px; height: 12px; display: block; }
+@media (max-width: 900px) {
+  /* A phone's page reaches the screen's bottom edge. */
+  #tj-root .docx-wcpin.docx-wcpin-in, #bj-root .docx-wcpin.docx-wcpin-in { left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--nb-kb-space, 0px)); }
+}
 
 /* ── Floating selection toolbar (removed; kept for legacy safety) ── */
 
@@ -654,7 +675,6 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   .docx-find { top: auto; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 8px; right: 8px; width: auto; }
   .docx-find input[type="text"] { font-size: 16px; }   /* ≥16px stops iOS zoom-on-focus */
   .docx-find button { min-height: 36px; }
-  .docx-wcpin { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); font-size: 11.5px; }
   .docx-toast { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
   .docx-fs-float { top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px; }
   .docx-fs-float button { width: 38px; height: 38px; }
