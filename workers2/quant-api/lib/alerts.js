@@ -343,7 +343,7 @@ export async function push(env, msg) {
 }
 /** POST /alerts/test: "Send test" in Control ▸ Alerts. */
 export async function testPush(env) {
-  const r = await push(env, { title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', tag: 'tbq-test-' + Date.now().toString(36) });
+  const r = await push(env, { title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', tag: 'tbq-test-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
   // Each test its own tag: one tag for every test made the second REPLACE the first, silently (Tony, 2026-11-16).
   return json({ ok: r.ok, sent: r.sent || 0, failed: r.failed || 0, devices: r.devices || [], ...(r.ms ? { ms: r.ms } : {}), ...(r.error ? { error: r.error } : {}) });
 }
