@@ -153,6 +153,14 @@ const worker = {
   ok('the phone header names the open page', await js(`var a=document.querySelector('#pb-entries-list .entry-item.active .entry-item-title'); return !!a && a.innerText === 'Rules' && document.getElementById('pb-mobile-title').value === 'Rules';`),
     await js(`return JSON.stringify([document.getElementById('pb-mobile-title').value, (document.querySelector('#pb-entries-list .entry-item.active .entry-item-title')||{}).innerText]);`));
   ok('the bottom bar sits inside the Playbook, not on the page', await js(`var b=document.getElementById('pb-bottom-bar'), r=document.getElementById('pb-root').getBoundingClientRect(), q=b.getBoundingClientRect(); return getComputedStyle(b).display === 'none' || (q.bottom <= r.bottom + 1 && q.top >= r.top);`));
+  // One drawer at a time (Tony, 2026-11-16): TradeHub's menu and the Playbook's page list.
+  const drawers = `return JSON.stringify({ tb: !!document.querySelector('.tb-mobile-header.is-open'), pb: !!document.querySelector('#pb-sidebar.pb-open') });`;
+  await js(`window._pbSetDrawer(true); 1`); await sleep(400);
+  await js(`document.querySelector('.tb-mtop-burger').click(); 1`); await sleep(500);
+  ok('opening TradeHub\'s menu closes the Playbook\'s page list', await js(drawers) === '{"tb":true,"pb":false}', await js(drawers));
+  await js(`window._pbSetDrawer(true); 1`); await sleep(500);
+  ok('...and opening the page list closes TradeHub\'s menu', await js(drawers) === '{"tb":false,"pb":true}', await js(drawers));
+  await js(`window._pbSetDrawer(false); 1`); await sleep(400);
   const s1 = await c.send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(shotPath('tradehub-playbook-phone'), Buffer.from(s1.result.data, 'base64'));
   await size(1440, 900); await sleep(800);
