@@ -404,7 +404,7 @@ function driver(c) {
       const seed = Object.assign({ 'dashboards/tradeboard_watchlist': { tickers: watchlist, trash: [] } }, docs);
       await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
         ${key ? `localStorage.setItem('tradehub.orcaKey', ${JSON.stringify(key)});` : ''}
-        ${quant ? `localStorage.setItem('tradehub_quant', '1');` : ''}
+        localStorage.setItem('tradehub_quant', '${quant ? '1' : '0'}');
         localStorage.setItem('td6_watchlist', ${JSON.stringify(JSON.stringify(watchlist))});
         var extra = ${JSON.stringify(ls)}; Object.keys(extra).forEach(function(k){ localStorage.setItem(k, extra[k]); });
         sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seed))}); 1`);

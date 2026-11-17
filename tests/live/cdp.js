@@ -136,7 +136,10 @@ const BLOCK = ['https://www.gstatic.com/firebasejs/*', 'https://*.googleapis.com
   // real summary and calendar; on 2026-11-16 those runs were a large part of account 1's
   // KV alert. Always caught now: a test's mock answers it, anything else is refused.
   // CDP_REAL_NEWSHUB=1 lets it through on purpose.
-  ...(process.env.CDP_REAL_NEWSHUB ? [] : ['https://newshub-api.av1.workers.dev/*'])];
+  ...(process.env.CDP_REAL_NEWSHUB ? [] : ['https://newshub-api.av1.workers.dev/*']),
+  // quant-api (D1, Groq, Alpaca paper): a test's mock answers it, anything else is
+  // refused, so a test never spends real allowances (Phase 15, 2026-11-17).
+  'https://quant-api.av1-2.workers.dev/*'];
 
 // Guardian (Guardian/guardian.js) asks the lock worker which locks exist on
 // every page load. A test must never depend on the REAL lock records, so that
@@ -236,7 +239,15 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       return;
     }
     // Range, as GitHub Pages answers it: audio and video can only seek with it.
-    const all = fs.readFileSync(file);
+    let all = fs.readFileSync(file);
+    // TradeHub Quant is ON by default since Phase 15 (2026-11-17; no tradehub_quant key = on).
+    // The pre-Quant TradeHub tests are the rollback drill's "old TradeHub" and must
+    // run with it OFF, so a page that never set the key gets '0' before anything
+    // runs; Quant tests set '1' themselves (quant-mock.js boot). CDP_QUANT_DEFAULT=1
+    // leaves the key alone, to see the real default.
+    if (served === 'tradehub.html' && !process.env.CDP_QUANT_DEFAULT) {
+      all = Buffer.from(all.toString('utf8').replace('<head>', `<head><script>try{if(localStorage.getItem('tradehub_quant')===null)localStorage.setItem('tradehub_quant','0')}catch(e){}</script>`));
+    }
     const range = /^bytes=(\d+)-(\d*)$/.exec((request.headers && (request.headers.Range || request.headers.range)) || '');
     if (range) {
       const a = Number(range[1]), b = Math.min(all.length - 1, range[2] ? Number(range[2]) : all.length - 1);
