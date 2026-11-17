@@ -99,9 +99,11 @@
   another program later".
 - **TradeHub Quant / Neo Quant** ("continue Quant", "next Quant phase", the
   AI quant, Market / Charts / Scanner / Neo Quant tabs): TradeHub is in
-  A1-Priv, and so is the plan. Read §0 of
-  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` and build
-  exactly the phase it names, one phase per session. A1 holds its worker
+  A1-Priv, and so is the plan. **All phases built; Phase 15 (the final test)
+  run 2026-11-17; the switch is on by default.** Read §0 of
+  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` (what is left
+  with Tony, what to do with a new ask) and `quant-README.md` beside it (the
+  contract). A1 holds its worker
   (`workers2/quant-api`, account 2, D1 only, no KV), the worker's test
   (`tests/quant-api.test.js`) and the live tests (`tests/live/tradehub-quant-*`,
   `tradehub-playbook-switch`).
