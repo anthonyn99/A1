@@ -75,7 +75,9 @@ const CH = `${TAB}.active()`;
   ok('the time zone is named once on the axis', await js(`return /^[A-Z]{2,5}$|GMT/.test(document.querySelector('[data-ch-zone]').textContent);`));
   ok('the one-line read under the chart', await until(`/trend|Mixed/.test(document.querySelector('[data-ch-read1]').textContent)`, 8000));
   const visit = api.asked.map((a) => a.p);
-  ok('a visit: the chart\'s bars, the rail\'s daily bars, drawings, alerts, one /quotes; nothing else', visit.every((p) => ['/bars', '/drawings', '/alerts', '/quotes', '/stream-keys', '/snapshot'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2, visit.join());
+  ok('a visit: the chart\'s bars, the rail\'s daily bars, drawings, alerts, one /quotes; nothing else', visit.every((p) => ['/bars', '/drawings', '/alerts', '/quotes', '/stream-keys', '/snapshot',
+    // Phase 14: the alert bell (every tab) reads the fires once a minute and sends the catalysts once a visit.
+    '/alerts/fires', '/alerts/catalysts'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2, visit.join());
 
   console.log('\nZoom and pan');
   let s = await stage();
