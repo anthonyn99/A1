@@ -58,9 +58,13 @@
   var tbLocksP = null;
   function tbLocks() {
     if (!tbLocksP) {
-      tbLocksP = (window._fbTbGet ? window._fbTbGet(TB_DOC) : Promise.resolve(null)).then(function (d) {
-        if (!d) return null;
-        try { return JSON.parse(d._applock || '{}') || {}; } catch (e) { return null; }
+      var p = tbLocksP = (window._fbTbGet ? window._fbTbGet(TB_DOC) : Promise.resolve(null)).then(function (d) {
+        var m = null;
+        if (d) { try { m = JSON.parse(d._applock || '{}') || {}; } catch (e) { m = null; } }
+        // Unknown (no doc, a failed read) still fails closed, but is asked again
+        // next time instead of being held for the minute (2026-11-17).
+        if (!m && tbLocksP === p) tbLocksP = null;
+        return m;
       });
       setTimeout(function () { tbLocksP = null; }, 60000);
     }
