@@ -41,7 +41,7 @@ var IC = {
   pdf: sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>')
 };
 
-var wired = {}, dockOwner = null;
+var wired = {}, dockOwner = null, vkOwner = null;
 function $(id) { return document.getElementById(id); }
 function shown(el) { return !!el && el.getClientRects().length > 0; }
 // Onscreen keyboard height: what the visual viewport lost at the bottom. A
@@ -51,6 +51,17 @@ function keyboard() {
   if (!vv || vv.scale > 1.01) return 0;
   var k = window.innerHeight - (vv.height + vv.offsetTop);
   return k > 80 ? Math.round(k) : 0;
+}
+// Chromium (Chrome, Brave, Samsung Internet, Edge on Android) says exactly where
+// the keyboard is: with overlaysContent on (only while the dock is up, so the
+// rest of a host page behaves as before) nothing is resized or scrolled, and
+// boundingRect is the keyboard in viewport pixels. The visual viewport sums
+// were off by the browser's own top bar on Tony's phone (Brave, 2026-11-17).
+var VK = navigator.virtualKeyboard || null;
+function vkTop() {
+  if (!VK || !VK.overlaysContent) return null;
+  var r = VK.boundingRect;
+  return r && r.height > 0 ? r.y : null;
 }
 function vvBottom() {
   var vv = window.visualViewport;
@@ -204,12 +215,14 @@ function wire(K) {
   function placeDock() {
     if (!tb) return;
     var main = $(K + '-main') || root, mr = main.getBoundingClientRect();
-    var kb = keyboard();
+    var kt = vkTop();
+    var kb = kt != null ? Math.max(0, Math.round(window.innerHeight - kt)) : keyboard();
     root.classList.toggle('nb-kb', kb > 0);
     var h = tb.offsetHeight || 52;
-    // The foot of the page's column or the top of the keyboard, whichever is
-    // higher: a host's own bottom bar (StudyOS's nav) stays uncovered.
-    var foot = Math.min(vvBottom(), mr.bottom);
+    // The top of the keyboard, else the foot of the page's column or of the
+    // visible screen, whichever is higher: a host's own bottom bar (StudyOS's
+    // nav) stays uncovered.
+    var foot = kt != null ? kt : Math.min(vvBottom(), mr.bottom);
     var wantTop = foot - h, wantLeft = mr.left;
     root.style.setProperty('--nb-dock-w', mr.width + 'px');
     // A host's transformed box makes `fixed` relative to it: measure where the
@@ -218,7 +231,9 @@ function wire(K) {
     root.style.setProperty('--nb-dock-t', (wantTop - placedOff.y) + 'px');
     var r = tb.getBoundingClientRect();
     var dx = r.left - wantLeft, dy = r.top - wantTop;
-    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+    // Only an instance can sit in a transformed box; index's overlay root never
+    // does, so it is placed as computed and never "corrected" by a stale read.
+    if (!overlay && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
       placedOff.x += dx; placedOff.y += dy;
       root.style.setProperty('--nb-dock-l', (wantLeft - placedOff.x) + 'px');
       root.style.setProperty('--nb-dock-t', (wantTop - placedOff.y) + 'px');
@@ -248,7 +263,11 @@ function wire(K) {
       else if (rect.top < top && rect.bottom > 0) wrap.scrollTop -= top - rect.top;
     });
   }
-  document.addEventListener('selectionchange', keepCaret);
+  // Only while typing and when the keyboard comes or goes. On every selection
+  // change it scrolled to the caret whenever the row was swapped or a control
+  // re-rendered, jumping away from where Tony was reading (2026-11-17).
+  root.addEventListener('input', function (e) { if (e.target && e.target.id === K + '-page-editor') keepCaret(); }, true);
+  root.addEventListener('keydown', function (e) { if (e.target && e.target.id === K + '-page-editor' && /^(Enter|ArrowDown|ArrowUp)$/.test(e.key)) keepCaret(); }, true);
 
   // ── State: one pass sets every class the stylesheet reads ──
   var raf = 0;
@@ -257,13 +276,23 @@ function wire(K) {
   // Notebook.open): the list steps aside for it.
   var lastActive = null;
   function activeId() { var a = document.querySelector('#' + K + '-entries-list .entry-item.active'); return a ? a.getAttribute('data-entry-id') : null; }
+  // OurJournal <-> MyJournal from the list: the other tab's last page must not
+  // open by itself; the list stays, on the other tab (Tony, 2026-11-17).
+  var holdList = 0;
+  root.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('.mjd-rail-btn, [id$="-oj-rail"] button') && root.classList.contains('nb-mlist')) holdList = Date.now() + 1200;
+  }, true);
   function sync() {
     var shell = mqShell.matches, touch = mqTouch.matches;
     var noentry = root.classList.contains('nb-noentry');
     var act = activeId();
+    var holding = holdList > Date.now() && shell && hasList;
+    if (holding && !noentry && sidebar && !sidebar.classList.contains(K + '-open')) {
+      var openL = window['_' + K + 'SetDrawer']; if (typeof openL === 'function') openL(true);
+    }
     if (act !== lastActive) {
       var was = lastActive; lastActive = act;
-      if (was !== null && act && shell && sidebar && sidebar.classList.contains(K + '-open')) {
+      if (!holding && was !== null && act && shell && sidebar && sidebar.classList.contains(K + '-open')) {
         var close = window['_' + K + 'SetDrawer']; if (typeof close === 'function') close(false);
       }
     }
@@ -283,6 +312,10 @@ function wire(K) {
     fab.classList.toggle('on', !!(fabNew || fabEdit));
     fab.classList.toggle('nb-fab-new', fabNew);
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
+    if (VK) {
+      if (dock) { vkOwner = K; if (!VK.overlaysContent) { try { VK.overlaysContent = true; } catch (e) {} } }
+      else if (vkOwner === K) { vkOwner = null; try { VK.overlaysContent = false; } catch (e) {} }
+    }
     if (dock) placeDock(); else root.classList.remove('nb-kb');
     // Body-level bars (find, toasts) read it to stay clear of the dock.
     // index.html runs both sides, so each side clears only the mark it set.
@@ -312,6 +345,7 @@ function wire(K) {
   root.addEventListener('click', function () { watchTb(); schedule(); });
   [mqShell, mqTouch].forEach(function (m) { if (m.addEventListener) m.addEventListener('change', schedule); else m.addListener(schedule); });
   window.addEventListener('resize', schedule);
+  if (VK && VK.addEventListener) VK.addEventListener('geometrychange', function () { schedule(); setTimeout(keepCaret, 30); });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function () { schedule(); keepCaret(); });
     window.visualViewport.addEventListener('scroll', schedule);
