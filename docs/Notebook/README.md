@@ -100,10 +100,46 @@ Notebook/
   core/md.js          markdown -> HTML helpers
   core/plans.js       Plans: the engine (window.PlansCore = Notebook.plans) and its two-sided store
   core/docx.js        the DOCX editor; per-app config through Notebook.registerDocx
+  core/mobile.js      phones and tablets: the list/editor screens, the editor bar, the docked ribbon
   apps/myjournal.*    MyJournal (written for key tj)
   apps/brainstorm.*   Brainstorm Journal (key bj)
 tni.js                the suite's icon set (root; index loads it, Notebook loads it when a host has none)
 ```
+
+## Phones and tablets
+
+Since 2026-11-17 (Tony: "the page gets the screen", Samsung Notes as the model).
+`core/mobile.js` (loaded with the docx group) wires every app Notebook mounts,
+both sides, every host; its look is the last section of `notebook.css`
+("Phones and tablets"). A host does nothing for it.
+
+- **Up to 900px (phones, portrait tablets): two screens.** The **list** (the
+  entry list, full screen, a round **+** at the bottom right) is home: it shows
+  when nothing is open and when the back arrow is tapped; opening an entry closes
+  it (so does a new page, or a host's `Notebook.open`). The **editor** is the
+  page edge to edge under ONE bar: back · title · sync word · Edit/Reading
+  (pencil/book) · New · ⋮. ⋮ holds what the desktop title bar has and the phone
+  bar has no room for: Lock, Veda's Tags (a sheet holding her tag row, which goes
+  back to the title bar when it closes), Change template, Export PDF. Reading a
+  page shows a round pencil (edit). The old bottom bar and drawer are gone; their
+  buttons stay in the markup and the new ones click them.
+- **index.html:** the open page covers the program nav (`html[data-nb-doc]`);
+  the list shows it again. In an instance the host's own header always stays.
+- **Editing a page on a touch screen up to 1366px** (a landscape tablet too, with
+  the desktop layout) **docks the ribbon**: ONE row of 40px icons at the foot of
+  the page's column, riding right above the onscreen keyboard (visualViewport).
+  It scrolls sideways; Undo and Redo stay pinned at its right end; its first
+  button swaps in the menus (File, Edit, View...), where everything the row
+  leaves out lives. A tap on a docked button keeps the editor focused (the
+  keyboard stays up), and the caret is kept clear of the dock while typing. A
+  host's own bottom bar (StudyOS's nav) is never covered: the dock sits at the
+  foot of Notebook's column or above the keyboard, whichever is higher.
+- Desktop (a mouse above 900px) gets none of it.
+- Classes on the root, for the stylesheet only (Notebook's, not a host's):
+  `nb-shell`, `nb-mlist`, `nb-mdoc`, `nb-medit`, `nb-mpage`, `nb-m`, `nb-mdock`,
+  `nb-kb`, `nb-nolist`.
+- `tests/live/notebook-mobile.live.js` proves it on both sides at phone,
+  portrait tablet, landscape tablet and desktop, and in an instance.
 
 ## Add Notebook to a program
 
