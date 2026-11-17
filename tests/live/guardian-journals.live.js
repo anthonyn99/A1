@@ -84,11 +84,16 @@ const worker = {
     const pane = () => js(`var p = document.getElementById('${K}-locked-pane'); return !!p && p.style.display !== 'none';`);
     const title = () => js(`return document.getElementById('${K}-entry-title-input').value;`);
     // What is ON SCREEN: a hidden editor (the load guard hides it behind the pane) shows nothing.
+    // Polls a condition (up to 8s): the entry paints after Guardian's async lock
+    // check, which a fixed short sleep missed (2026-11-17).
+    const waitFor = async (fn) => { for (let i = 0; i < 32; i++) { if (await fn()) return true; await sleep(250); } return false; };
     const body = () => js(`var e = document.getElementById('${K}-page-editor'); return e && e.getClientRects().length ? e.innerText : '';`);
 
     await click(`#${K}-entries-list .entry-item[data-entry-id="${LOCKED}"] .entry-item-title`); await sleep(800);
     let d = await dlg();
     if (K === 'tj') {
+      await waitFor(async () => !(await pane()) && /SECRET BODY/.test(await body()));
+      d = await dlg();
       ok('a device the old lock had unlocked opens the entry with no prompt', !d.open && !(await pane()) && /SECRET BODY/.test(await body()), JSON.stringify(d));
       ok('its old biometric came along', await js(`return JSON.parse(localStorage.getItem('gd.b.tj:${LOCKED}') || '{}').id === 'AQID';`));
     } else {
@@ -100,6 +105,7 @@ const worker = {
       await gtype('Password', 'nope'); await gclick('Unlock');
       ok('wrong password refused', /Wrong password/.test((await dlg()).err));
       await gtype('Password', 'pw1'); await gclick('Unlock'); await sleep(600);
+      await waitFor(async () => !(await dlg()).open && !(await pane()) && /SECRET BODY/.test(await body()));
       ok('right password shows the entry', !(await dlg()).open && !(await pane()) && /SECRET BODY/.test(await body()));
     }
 
@@ -137,7 +143,7 @@ const worker = {
     ok('the new lock is on the worker and marked on the entry', recs[K + ':' + OPEN] && recs[K + ':' + OPEN].pw === 'np' && await js(`return !!window.__fakeFs.docs['${J.doc}']['e_${OPEN}'].lock;`));
     // Poll: the entry re-renders once the synced lock marker lands.
     let stays = false;
-    for (let i = 0; i < 12 && !stays; i++) { stays = !(await pane()) && /Open body/.test(await body()); if (!stays) await sleep(250); }
+    stays = await waitFor(async () => !(await pane()) && /Open body/.test(await body()));
     ok('this device stays unlocked on it', stays);
     await js(`(${sr}) && Guardian.close(); return 1;`);
   }
