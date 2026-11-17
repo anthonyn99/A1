@@ -215,7 +215,7 @@ globalThis.fetch = async (url, opts = {}) => {
   c = await A.check(env, MON_10 + 180000);
   ok('the second check above fires the holds rule once, pushed', c.fired.length >= 1 && c.fired.some((f) => f.rule === pid && f.pushed === true), c.fired);
   const pushed = W.pushes.slice(before).find((p) => /170\.60/.test(p.body.title));
-  ok('the push: secret header, Tony\'s page with the chart link, tag per rule', pushed && pushed.headers['x-quant-secret'] === 's3cret' && /tradehub\.html#alert=chart:NVDA$/.test(pushed.body.url) && pushed.body.tag === 'tbq-' + pid, pushed);
+  ok('the push: secret header, Tony\'s page with the chart link, a tag per rule and trigger (so a new alert never replaces the last)', pushed && pushed.headers['x-quant-secret'] === 's3cret' && /tradehub\.html#alert=chart:NVDA$/.test(pushed.body.url) && /^tbq-[a-z0-9]+$/.test(pushed.body.tag) && pushed.body.tag.length <= 64, pushed);
   c = await A.check(env, MON_10 + 240000);
   ok('one alert fires ONCE: the next minute, still above, nothing', !c.fired.some((f) => f.rule === pid));
   r = await call(env, 'GET', '/alerts/fires');
@@ -380,6 +380,9 @@ globalThis.fetch = async (url, opts = {}) => {
     const e = mkEnv();
     const x = await call(e, 'POST', '/alerts/test');
     ok('Send test: shows which devices received it', x.status === 200 && x.body.ok && x.body.devices.join() === 'Tony PC,Pixel');
+    const t1 = W.pushes[W.pushes.length - 1].body.tag;
+    await call(e, 'POST', '/alerts/test');
+    ok('a second Send test has a NEW tag (one tag made the second replace the first, silently)', W.pushes[W.pushes.length - 1].body.tag !== t1 && /^tbq-test-/.test(t1));
     const e2 = mkEnv(); delete e2.PUSH_SECRET;
     const y = await call(e2, 'POST', '/alerts/test');
     ok('no PUSH_SECRET: says so', y.body.ok === false && /PUSH_SECRET/.test(y.body.error));
