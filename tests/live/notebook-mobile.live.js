@@ -179,10 +179,12 @@ const only = process.argv[2];
       await js(`delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
       ok('keyboard down: the room goes, the ribbon stays put', !/\bnb-kb\b/.test(await cls(K)) && Math.abs((await rect(`#${K}-page-toolbar`)).t - (await rect(`#${K}-mobile-header`)).b) <= 1);
       // Scrolling up to read while editing: never pulled back to the caret (the browser's bars resizing fire resize events).
+      // (Long enough to scroll on the tablet too.)
+      await js(`var ed=document.getElementById('${K}-page-editor'); while (document.getElementById('${K}-page-editor-wrap').scrollHeight < innerHeight * 2) ed.insertAdjacentHTML('beforeend', '<p>More text to scroll through.</p>'); 1`);
       await js(`var w=document.getElementById('${K}-page-editor-wrap'); w.scrollTop=w.scrollHeight; 1`); await sleep(200);
       await js(`document.getElementById('${K}-page-editor-wrap').scrollTop=100; window.dispatchEvent(new Event('resize')); window.visualViewport && window.visualViewport.dispatchEvent(new Event('resize')); 1`); await sleep(400);
       const stUp = await js(`return document.getElementById('${K}-page-editor-wrap').scrollTop;`);
-      ok('scrolling up while editing stays where it was put (no snap back)', stUp === 100, stUp + ' ' + await js(`return ['root','body','main','content-area','page-area','page-toolbar','page-editor-wrap','page-editor'].map(function(n){var e=document.getElementById('${K}-'+n),r=e.getBoundingClientRect();return n+':'+Math.round(r.top)+'/'+Math.round(r.height)+'/'+e.scrollHeight;}).join(' ');`));
+      ok('scrolling up while editing stays where it was put (no snap back)', stUp === 100, stUp);
       // The swap button never moves the page to the caret.
       await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); document.getElementById('${K}-page-editor-wrap').scrollTop=0; 1`);
       await sleep(300);
