@@ -169,11 +169,13 @@ const only = process.argv[2];
       await sleep(300);
       const kbTb = await rect(`#${K}-page-toolbar`);
       ok('with the keyboard up the dock rides right above it', Math.abs(kbTb.b - (h - 320)) <= 1 && /\bnb-kb\b/.test(await cls(K)), JSON.stringify(kbTb));
-      // Caret on the last line: kept above the dock.
+      // Typing on the last line: the caret is kept above the dock.
       await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
+      await js(`document.getElementById('${K}-page-editor').focus(); 1`);
+      await c.send('Input.insertText', { text: ' more' });
       await sleep(400);
       const caret = await js(`var s=getSelection(), n=s.focusNode; var r=s.getRangeAt(0).getClientRects()[0]||(n.nodeType===1?n:n.parentElement).getBoundingClientRect(); return r.bottom;`);
-      ok('the caret on the last line is kept clear of the dock', caret <= kbTb.t - 4 && caret > 56, caret + ' vs dock ' + kbTb.t);
+      ok('typing on the last line keeps the caret clear of the dock', caret <= kbTb.t - 4 && caret > 56, caret + ' vs dock ' + kbTb.t);
       await js(`delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
       ok('keyboard down: the dock returns to the bottom', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1 && !/\bnb-kb\b/.test(await cls(K)));
       // Chromium's own word for where the keyboard is (navigator.virtualKeyboard):
