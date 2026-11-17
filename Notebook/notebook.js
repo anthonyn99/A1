@@ -480,7 +480,14 @@ function addDone(cfg) {
 // place for it (detach, or a container that left the page during the mount).
 function parkBox() {
   var park = document.getElementById('nb-park');
-  if (!park) { park = document.createElement('div'); park.id = 'nb-park'; park.style.display = 'none'; document.body.appendChild(park); }
+  if (!park) {
+    park = document.createElement('div'); park.id = 'nb-park'; park.style.display = 'none';
+    // A host's own control styler must not restyle what waits here (StudyOS's
+    // wrapped the ribbon's selects while a module was closed, 2026-11-17):
+    // data-native is every styler's opt-out.
+    park.setAttribute('data-native', '');
+    document.body.appendChild(park);
+  }
   return park;
 }
 

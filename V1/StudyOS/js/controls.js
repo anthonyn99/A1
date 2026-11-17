@@ -30,7 +30,9 @@
   'use strict';
   if (window.SosControls) return;
 
-  var SKIP = '.sos-nb-host, .sos-nb-modal-host, [data-native]';
+  // V's Notebook wherever it is: its two hosts, and #nb-park, where it waits
+  // while a module is closed (enhanced there, its selects came back wrapped).
+  var SKIP = '.sos-nb-host, .sos-nb-modal-host, #nb-park, [data-native]';
   var SEL = 'select, input[type="date"], input[type="time"], input[type="number"], textarea';
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
