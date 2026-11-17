@@ -100,11 +100,6 @@ const only = process.argv[2];
       if (who === 'tony') ok('the program nav shows over the list', await navShown());
       else ok("Veda's header shows over the list", await js(`return getComputedStyle(document.getElementById('bj-nav-header')).display!=='none';`));
       if (label === 'phone') await shot(`${who}-${w}-list`);
-      // OurJournal and back, from the list: the list stays; no page opens by itself.
-      await tap(`${R} .oj-tab[data-oj="1"], ${R} .mjd-rail-btn.oj-tab`); await sleep(900);
-      ok('the OurJournal tab from the list: still the list', /\bnb-mlist\b/.test(await cls(K)), await cls(K));
-      await tap(`${R} .oj-tab[data-oj="0"], ${R} .mjd-rail-btn[data-sec="pages"]`); await sleep(900);
-      ok('…and back to MyJournal: still the list, no page opened by itself', /\bnb-mlist\b/.test(await cls(K)) && !/\bnb-mdoc\b/.test(await cls(K)), await cls(K));
 
       // ── open an entry: the editor ──
       await tap(`#${K}-entries-list .entry-item`); await sleep(500);
@@ -122,6 +117,11 @@ const only = process.argv[2];
       // ── back, and in again ──
       await tap(`#${K}-hamburger`);
       ok('back shows the list again (and the nav)', /\bnb-mlist\b/.test(await cls(K)) && (who !== 'tony' || await navShown()));
+      // OurJournal and back, from the list (an entry was open): the list stays; no page opens by itself.
+      await tap(`${R} .oj-tab[data-oj="1"], ${R} .mjd-rail-btn.oj-tab`); await sleep(900);
+      ok('the OurJournal tab from the list: still the list', /\bnb-mlist\b/.test(await cls(K)), await cls(K));
+      await tap(`${R} .oj-tab[data-oj="0"], ${R} .mjd-rail-btn[data-sec="pages"]`); await sleep(900);
+      ok('…and back to MyJournal: still the list, no page opened by itself', /\bnb-mlist\b/.test(await cls(K)) && !/\bnb-mdoc\b/.test(await cls(K)), await cls(K));
       await tap(`#${K}-entries-list .entry-item`);
       ok('tapping the entry returns to it', /\bnb-mdoc\b/.test(await cls(K)) && await js(`return document.getElementById('${K}-mobile-title').value==='Alpha plan';`));
 
