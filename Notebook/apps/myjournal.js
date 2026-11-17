@@ -66,7 +66,7 @@ var html = `
     <div class="mode-toggle-wrap">
       <span class="mode-toggle-label" id="tj-mode-label">VIEW</span>
       <label class="mode-toggle" title="Toggle Edit / View mode">
-        <input type="checkbox" id="tj-btn-edit" />
+        <input type="checkbox" id="tj-btn-edit" data-native />
         <div class="toggle-track"></div>
         <div class="toggle-knob"></div>
       </label>
@@ -147,7 +147,7 @@ var html = `
         <button class="pt-btn docx-r2" id="tj-pt-code" title="Inline code">&lt;/&gt;</button>
         <div class="pt-sep"></div>
         <!-- Color -->
-        <input type="color" class="docx-r1" id="tj-page-color-pick" value="#ECECEE" title="Text color">
+        <input type="color" class="docx-r1" id="tj-page-color-pick" data-native value="#ECECEE" title="Text color">
         <div class="pt-sep"></div>
         <!-- Lists -->
         <button class="pt-btn docx-r1" id="tj-pt-ul" title="Bullet list">&#8226;&#8212;</button>
