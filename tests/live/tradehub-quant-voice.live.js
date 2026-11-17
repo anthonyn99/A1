@@ -88,7 +88,9 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('no microphone, no hearing, no voice asked for before a press', (await js(`return window.__gum.length;`)) === 0 && hear().length === 0 && speech().length === 0);
 
   console.log('\nTalk');
+  await js(`window.__tr=[]; import('./TradeHub/neo/app.js').then(function(m){ var app=m.getNeoApp(); app.neo.on(function(){ var t=app.neo.conversation().turns, x=t[t.length-1]; if(x&&x.role==='a') window.__tr.push(x.state+':'+String(x.text||'').length+':'+(x.stage||'')); }); var f0=window.fetch; window.fetch=function(u,i){ if(/audio/speech/.test(String(u))) window.__tr.push('TTS '+JSON.parse(i.body).input.slice(0,20)); return f0.apply(this,arguments); }; }); 1`); await sleep(500);
   const first = await turn('[data-nq-mic]', '1280 Market');
+  console.log('TRACE', await js(`return JSON.stringify(window.__tr.filter(function(x,i,arr){ return i===0 || x!==arr[i-1]; }));`));
   ok('...the clip carried the watchlist (the transcriber\'s hint)', Array.isArray(first.clip.watchlist) && first.clip.watchlist.includes('NVDA'));
   ok('...the mic asked for echo cancellation, noise suppression and auto gain', await js(`var a=window.__gum[0].audio; return !!(a.echoCancellation && a.noiseSuppression && a.autoGainControl);`));
   const s1 = first.said;
