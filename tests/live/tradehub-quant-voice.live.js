@@ -77,7 +77,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
     ok(`${label}: records (pink dot), the clip goes to /ai/hear as opus, the question is asked, the answer spoken, the mic released`,
       listening && heardOk && /webm|ogg/.test(clip.mime || '') && clip.bytes > 1500 && asked && q && q.messages[q.messages.length - 1].content === 'Is NVDA a buy here?' && spoke && back && !live,
       JSON.stringify({ listening, heardOk, clip, asked, spoke, back, live }));
-    return { clip, said, asks: ai().length - a0, bodies: ai().slice(a0).map((x) => x.p + ":" + (x.body && (x.body.provider || x.body.job || "")) + ":" + (x.body && x.body.messages || []).length) };
+    return { clip, said };
   }
 
   console.log('\nNothing before a press');
@@ -88,14 +88,12 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('no microphone, no hearing, no voice asked for before a press', (await js(`return window.__gum.length;`)) === 0 && hear().length === 0 && speech().length === 0);
 
   console.log('\nTalk');
-  await js(`window.__tr=[]; window.__modes=[]; setInterval(function(){ var m=document.querySelector('[data-nq-mic]'); var v=m?(m.dataset.mode||'off'):'none'; if(window.__modes[window.__modes.length-1]!==v) window.__modes.push(v); }, 20); import('./TradeHub/neo/app.js').then(function(m){ var app=m.getNeoApp(); app.neo.on(function(){ var t=app.neo.conversation().turns, x=t[t.length-1]; if(x&&x.role==='a') window.__tr.push(x.state+':'+String(x.text||'').length+':'+(x.stage||'')); }); var f0=window.fetch; window.fetch=function(u,i){ if(String(u).indexOf('audio/speech')>=0) window.__tr.push('TTS '+JSON.parse(i.body).input.slice(0,20)); return f0.apply(this,arguments); }; }); 1`); await sleep(500);
   const first = await turn('[data-nq-mic]', '1280 Market');
-  console.log('HEARS', hear().length, 'MODES', await js(`return JSON.stringify(window.__modes||[]);`)); console.log('TRACE', await js(`return JSON.stringify(window.__tr.filter(function(x,i,arr){ return i===0 || x!==arr[i-1]; }));`));
   ok('...the clip carried the watchlist (the transcriber\'s hint)', Array.isArray(first.clip.watchlist) && first.clip.watchlist.includes('NVDA'));
   ok('...the mic asked for echo cancellation, noise suppression and auto gain', await js(`var a=window.__gum[0].audio; return !!(a.echoCancellation && a.noiseSuppression && a.autoGainControl);`));
   const s1 = first.said;
   ok('...spoken in Luna\'s voice (the default since 2026-11-15, a Fast Aura voice), worded for the ear: no citations, Nvidia named', s1.length >= 2 && s1.every((b) => b.voice === 'aura:luna' && b.model === 'aura' && !/\[F\d/.test(b.input)) && s1.some((b) => /Nvidia|watch/i.test(b.input)), JSON.stringify(s1.map((b) => [b.voice, b.input])));
-  ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10, 'asks=' + first.asks + ' ' + JSON.stringify(first.bodies).slice(0, 120) + ' said: ' + s1.map((b) => b.input).join(' | '));
+  ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10);
   const answered = await js(`var d=document.querySelector('[data-nq-dock]'), a=[...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop(); return JSON.stringify({ open: !d.hidden, state: a && a.dataset.state, verdict: a && (a.querySelector('[data-nq-verdict]')||{}).textContent });`).then(JSON.parse);
   ok('...talking opened the dock: the whole answer is on screen (brief to the ear, exact on screen)', answered.open && answered.state === 'done' && !!answered.verdict, JSON.stringify(answered));
   await shot('voice-1280');
