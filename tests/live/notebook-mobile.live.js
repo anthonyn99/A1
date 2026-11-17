@@ -105,7 +105,7 @@ const only = process.argv[2];
       await tap(`#${K}-entries-list .entry-item`); await sleep(500);
       k = await cls(K);
       ok('an entry opened: the editor is the screen (nb-mdoc), the list is gone', /\bnb-mdoc\b/.test(k) && !/\bnb-mlist\b/.test(k) && await js(`return getComputedStyle(document.getElementById('${K}-sidebar')).visibility==='hidden';`), k);
-      ok('ONE bar: back, title, Edit, New, ⋮ (lock moved into ⋮)', await js(`var h=document.getElementById('${K}-mobile-header'); var v=[...h.children].filter(x=>x.getClientRects().length && getComputedStyle(x).visibility!=='hidden'); return v.map(x=>x.id||x.className).join(',');`).then((s) => /hamburger.*mobile-title.*nb-mh-mode.*nb-mh-new.*nb-mh-more/.test(s) && !/lock/.test(s) && /Alpha plan/.test('') === false));
+      ok('ONE bar: back, title, Edit, New, ⋮ (lock moved into ⋮)', await js(`var h=document.getElementById('${K}-mobile-header'); var v=[...h.children].filter(x=>x.getClientRects().length && getComputedStyle(x).visibility!=='hidden'); return v.map(x=>x.id||x.className).join(',');`).then((s) => /hamburger.*mobile-title.*nb-mh-mode.*nb-mh-new.*nb-mh-more/.test(s) && !/lock/.test(s)));
       ok('the bar is 56px and the title reads the entry', (await rect(`#${K}-mobile-header`)).h === 56 && await js(`return document.getElementById('${K}-mobile-title').value==='Alpha plan';`));
       if (who === 'tony') ok('index: the open page covers the program nav (it uses the full height)', !(await navShown()) && (await rect(`#${K}-mobile-header`)).t === 0);
       else ok("index: the open page covers Veda's header", await js(`return getComputedStyle(document.getElementById('bj-nav-header')).display==='none';`) && (await rect(`#${K}-mobile-header`)).t === 0);
@@ -250,10 +250,16 @@ const only = process.argv[2];
     const seed = { ['dashboards/' + S]: { _order: ['e_1_alpha'], activeId: 'e_1_alpha', savedAt: T0 - 60000,
       e_e_1_alpha: { id: 'e_1_alpha', title: 'Alpha rules', template: 'page', created: T0 - 86400000, updated: T0 - 60000, tags: [], data: { html: '<p>Cut losers fast.</p>', attachments: [] }, rev: 1 } } };
     await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seed))}); 1`);
-    await c.send('Page.navigate', { url: HOST + (side === 'veda' ? '?side=veda' : '') }); await sleep(4000);
-    const present = await js(`return !!document.getElementById('${K}-root');`);
-    if (!present) { ok(`${side} instance mounted`, false, 'no #' + K + '-root'); continue; }
-    await js(`var it=document.querySelector('#${K}-entries-list .entry-item'); if(it) it.click(); 1`); await sleep(900);
+    await c.send('Page.navigate', { url: HOST }); await sleep(1500);
+    for (let i = 0; i < 60 && !(await js('return !!window.__hostReady;')); i++) await sleep(200);
+    const extra = side === 'veda' ? { profile: 'veda', key: 'vn', store: 'vn_test', title: 'Veda Notes' } : {};
+    await js('window.__mount(' + JSON.stringify(extra) + ').then(() => { window.__mounted = true; }, (e) => { window.__mountErr = String(e); }); 1');
+    for (let i = 0; i < 75 && !(await js('return !!(window.__mounted || window.__mountErr);')); i++) await sleep(200);
+    await sleep(1500);
+    const present = await js(`return !!document.getElementById('${K}-root') && !window.__mountErr;`);
+    if (!present) { ok(`${side} instance mounted`, false, await js('return window.__mountErr || "no root";')); continue; }
+    ok(`${side} instance: home is its list`, /nb-mlist/.test(await cls(K)), await cls(K));
+    await tap(`#${K}-entries-list .entry-item[data-entry-id="e_1_alpha"]`); await sleep(600);
     const k = await cls(K);
     ok(`${side} instance: wired (editor screen, one bar with Edit/New/⋮)`, /\bnb-mdoc\b/.test(k) && await js(`return !!document.querySelector('#${K}-mobile-header .nb-mh-more');`), k);
     ok(`${side} instance: the host page keeps its own header (nothing is covered)`, await js(`return !document.documentElement.hasAttribute('data-nb-doc');`));
