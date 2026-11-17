@@ -794,13 +794,14 @@ function applyZoom(app) {
     if (!wrap) return;
     // Reflow sizes the sheet to the container in CSS — zooming on top of that
     // would shrink the text all over again.
-    if (wrap.classList.contains('docx-reflow')) { wrap.style.setProperty('--docx-zoom', 1); return; }
     var zi = z;
-    if (z === 'fit') {
+    if (wrap.classList.contains('docx-reflow')) zi = 1;
+    else if (z === 'fit') {
       var avail = (wrap.clientWidth || window.innerWidth) - 30;
       zi = Math.max(0.4, Math.min(1.5, avail / pw));
     }
-    wrap.style.setProperty('--docx-zoom', zi);
+    // Unchanged: no write, so the page is not restyled for nothing.
+    if (wrap.style.getPropertyValue('--docx-zoom') !== String(zi)) wrap.style.setProperty('--docx-zoom', zi);
   });
   updateRulers(app);
   // sync all zoom selects for this app
@@ -3046,11 +3047,14 @@ function buildMenubar(ctx) {
       m.b.style.display = scratch.querySelector('.docx-mi') ? '' : 'none';
     });
   }
+  // Once the box has settled, not on every frame of a resize: collapsing the
+  // sidebar slides it for 220ms, and rebuilding all eight menus each frame made
+  // the first collapse stutter (Tony, 2026-11-17; later ones ran warm).
   if (window.ResizeObserver) {
-    var rq = false;
+    var rqT = null;
     new ResizeObserver(function() {
-      if (rq) return; rq = true;
-      requestAnimationFrame(function() { rq = false; refreshMenus(); });
+      clearTimeout(rqT);
+      rqT = setTimeout(refreshMenus, 180);
     }).observe(ctx.tbEl);
   }
   menu('File', function(p) {
@@ -5069,10 +5073,15 @@ function initApp(app) {
     wireHighlightClamp(ctx);
     if (wcPinned(app)) mountWcPin(ctx);
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
+    // One pass per frame at most (a sidebar slide resizes it every frame).
     if (window.ResizeObserver) {
+      var roq = false;
       var ro = new ResizeObserver(function() {
-        if (zAuto(app)) applyZoom(app);
-        updateRulers(app);
+        if (roq) return; roq = true;
+        requestAnimationFrame(function() {
+          roq = false;
+          if (zAuto(app)) applyZoom(app); else updateRulers(app);
+        });
       });
       ro.observe(wrapEl);
     }
