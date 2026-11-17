@@ -1539,14 +1539,19 @@ html[data-nb-doc="tj"] #tj-root { padding-top: env(safe-area-inset-top, 0px) !im
 #tj-root.nb-mdock #tj-page-editor-wrap, #bj-root.nb-mdock #bj-page-editor-wrap {
   padding-bottom: var(--nb-dock-space, 72px) !important; scroll-padding-bottom: var(--nb-dock-space, 72px);
 }
+/* A reflowed page (phones, portrait tablets) is the whole screen: the room
+   under its last line is its own, so no strip of desk shows above the dock. */
+#tj-root.nb-mdock #tj-page-editor-wrap.docx-reflow, #bj-root.nb-mdock #bj-page-editor-wrap.docx-reflow { padding-bottom: 0 !important; }
+#tj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet, #bj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet { padding-bottom: var(--nb-dock-space, 72px) !important; }
 #tj-root.nb-mdock .docx-ruler, #bj-root.nb-mdock .docx-ruler { display: none !important; }
 /* The swap button: menus <-> formatting. */
 #tj-root.nb-mdock .nb-dock-tog, #bj-root.nb-mdock .nb-dock-tog {
   flex: 0 0 auto; width: 44px; height: 40px; margin: 0 2px 0 0; padding: 0; border: 0; border-radius: 10px;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-  background: color-mix(in srgb, var(--purple) 14%, transparent); color: var(--purple); box-shadow: none !important;
+  background: transparent; color: var(--text2); box-shadow: 1px 0 0 var(--border) !important; border-radius: 10px 0 0 10px;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+#tj-root.nb-mdock .nb-dock-menus .nb-dock-tog, #bj-root.nb-mdock .nb-dock-menus .nb-dock-tog { color: var(--purple); }
 #tj-root .nb-dock-tog svg, #bj-root .nb-dock-tog svg { width: 21px; height: 21px; display: block; }
 #tj-root .nb-dock-tog .nb-i-tools, #bj-root .nb-dock-tog .nb-i-tools,
 #tj-root .nb-dock-menus .nb-dock-tog .nb-i-menus, #bj-root .nb-dock-menus .nb-dock-tog .nb-i-menus { display: none; }
