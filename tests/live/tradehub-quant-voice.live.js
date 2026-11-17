@@ -77,7 +77,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
     ok(`${label}: records (pink dot), the clip goes to /ai/hear as opus, the question is asked, the answer spoken, the mic released`,
       listening && heardOk && /webm|ogg/.test(clip.mime || '') && clip.bytes > 1500 && asked && q && q.messages[q.messages.length - 1].content === 'Is NVDA a buy here?' && spoke && back && !live,
       JSON.stringify({ listening, heardOk, clip, asked, spoke, back, live }));
-    return { clip, said };
+    return { clip, said, asks: ai().length - a0, bodies: ai().slice(a0).map((x) => (x.body && x.body.messages || []).slice(-1).map((m) => m.content).join()) };
   }
 
   console.log('\nNothing before a press');
@@ -93,7 +93,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
   ok('...the mic asked for echo cancellation, noise suppression and auto gain', await js(`var a=window.__gum[0].audio; return !!(a.echoCancellation && a.noiseSuppression && a.autoGainControl);`));
   const s1 = first.said;
   ok('...spoken in Luna\'s voice (the default since 2026-11-15, a Fast Aura voice), worded for the ear: no citations, Nvidia named', s1.length >= 2 && s1.every((b) => b.voice === 'aura:luna' && b.model === 'aura' && !/\[F\d/.test(b.input)) && s1.some((b) => /Nvidia|watch/i.test(b.input)), JSON.stringify(s1.map((b) => [b.voice, b.input])));
-  ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10, s1.map((b) => b.input).join(' | '));
+  ok('...at most the brief: no more than 45 words in all', s1.map((b) => b.input).join(' ').split(/\s+/).length <= 45 + 10, s1.map((b) => b.input).join(' | ') + ' ASKS=' + first.asks + ' ' + JSON.stringify(first.bodies));
   const answered = await js(`var d=document.querySelector('[data-nq-dock]'), a=[...document.querySelectorAll('[data-nq-dock] [data-nq-a]')].pop(); return JSON.stringify({ open: !d.hidden, state: a && a.dataset.state, verdict: a && (a.querySelector('[data-nq-verdict]')||{}).textContent });`).then(JSON.parse);
   ok('...talking opened the dock: the whole answer is on screen (brief to the ear, exact on screen)', answered.open && answered.state === 'done' && !!answered.verdict, JSON.stringify(answered));
   await shot('voice-1280');
