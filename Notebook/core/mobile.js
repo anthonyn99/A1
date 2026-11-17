@@ -280,7 +280,7 @@ function wire(K) {
   // open by itself; the list stays, on the other tab (Tony, 2026-11-17).
   var holdList = 0;
   root.addEventListener('click', function (e) {
-    if (e.target.closest && e.target.closest('.mjd-rail-btn, [id$="-oj-rail"] button') && root.classList.contains('nb-mlist')) holdList = Date.now() + 1200;
+    if (e.target.closest && e.target.closest('.oj-tab') && root.classList.contains('nb-mlist')) holdList = Date.now() + 1200;
   }, true);
   function sync() {
     var shell = mqShell.matches, touch = mqTouch.matches;
