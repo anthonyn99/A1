@@ -6,7 +6,7 @@
 //   1. nothing is asked of the microphone, quant-api's hearing or ORCA's voice before a press
 //   2. Talk on every tab at 1280, 820 and 390: the mic button (the composer's on the Neo
 //      Quant tab) records, the pink dot shows, silence sends the clip to /ai/hear (opus),
-//      the question is asked, the answer is spoken (ORCA /v1/audio/speech, Luna by default, worded
+//      the question is asked, the answer is spoken (ORCA /v1/audio/speech, Emily by default, worded
 //      for the ear, citations gone), words light up, and the mic track is stopped after
 //   3. hands-free: two turns, then it stops on its own and releases the mic
 //   4. the hearing chain failing: a clear note, the typed path still answers
