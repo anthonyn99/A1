@@ -207,7 +207,10 @@ function wire(K) {
     var kb = keyboard();
     root.classList.toggle('nb-kb', kb > 0);
     var h = tb.offsetHeight || 52;
-    var wantTop = vvBottom() - h, wantLeft = mr.left;
+    // The foot of the page's column or the top of the keyboard, whichever is
+    // higher: a host's own bottom bar (StudyOS's nav) stays uncovered.
+    var foot = Math.min(vvBottom(), mr.bottom);
+    var wantTop = foot - h, wantLeft = mr.left;
     root.style.setProperty('--nb-dock-w', mr.width + 'px');
     // A host's transformed box makes `fixed` relative to it: measure where the
     // dock landed and take the difference off.
@@ -223,7 +226,7 @@ function wire(K) {
     // Room under the last line: the dock and the keyboard (the page scrolls
     // behind both).
     var wrapR = $(K + '-page-editor-wrap');
-    var under = wrapR ? Math.max(0, wrapR.getBoundingClientRect().bottom - (vvBottom() - h)) : h + kb;
+    var under = wrapR ? Math.max(0, wrapR.getBoundingClientRect().bottom - wantTop) : h + kb;
     root.style.setProperty('--nb-dock-space', (under + 24) + 'px');
   }
 
