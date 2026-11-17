@@ -1539,7 +1539,6 @@ function mountWcPin(ctx) {
   if ($('docx-wcpin-' + ctx.app)) return;
   var el = document.createElement('div');
   el.id = 'docx-wcpin-' + ctx.app;
-  el.className = 'docx-wcpin';
   el.className = 'docx-wcpin docx-wcpin-in';
   el.setAttribute('role', 'status');
   el.innerHTML = '<span class="n">0</span> <span class="l">words</span><button type="button" title="Unpin the word count" aria-label="Unpin the word count" data-noglow>' + window.TNI.x + '</button>';
