@@ -195,10 +195,12 @@ function wire(K) {
     var vv = window.visualViewport;
     on = on && overlay && !!vv && vv.scale <= 1.01 && (vv.offsetTop > 0.5 || window.innerHeight - vv.height > 1);
     if (on) {
-      root.style.setProperty('top', Math.round(vv.offsetTop) + 'px', 'important');
-      root.style.setProperty('bottom', 'auto', 'important');
-      root.style.setProperty('height', Math.round(vv.height) + 'px', 'important');
-      root.classList.add('nb-fit');
+      // Written only when they change: the root's style is observed (sync).
+      var t = Math.round(vv.offsetTop) + 'px', h = Math.round(vv.height) + 'px';
+      if (root.style.getPropertyValue('top') !== t) root.style.setProperty('top', t, 'important');
+      if (root.style.getPropertyValue('bottom') !== 'auto') root.style.setProperty('bottom', 'auto', 'important');
+      if (root.style.getPropertyValue('height') !== h) root.style.setProperty('height', h, 'important');
+      if (!root.classList.contains('nb-fit')) root.classList.add('nb-fit');
     } else if (root.classList.contains('nb-fit')) {
       root.style.removeProperty('top'); root.style.removeProperty('bottom'); root.style.removeProperty('height');
       root.classList.remove('nb-fit');
