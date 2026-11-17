@@ -596,6 +596,19 @@ window.Notebook = {
     if (root.parentNode !== park) park.appendChild(root);
     return true;
   },
+  // Close the phone drawer (the entry list) of the app mounted under `key`, or
+  // of every mounted app when no key is given. A host with its own drawer calls
+  // it when that one opens, and listens for window 'notebook-drawer'
+  // ({ key, open }) to close its own when a Notebook drawer opens. Returns how
+  // many apps it asked.
+  closeDrawer: function (key) {
+    var keys = key ? [key] : Object.keys(this.mounts), n = 0;
+    keys.forEach(function (k) {
+      var f = window['_' + k + 'SetDrawer'];
+      if (typeof f === 'function') { try { f(false); n++; } catch (e) {} }
+    });
+    return n;
+  },
   // Open entry `id` in the app mounted under `key`, as a click on its row
   // would; opts.edit true/false switches edit/view mode. Waits for the mount
   // and for the entry to load. Resolves true once it is open, false if the
