@@ -3,13 +3,12 @@
 //
 //   • the editor's own dialogs (Page setup, Word count, Shortcuts, Trash,
 //     AI Tools ...) close on Escape, the top one only;
-//   • the template picker (New entry) closes on Escape;
+//   • the template picker (New entry, Tony's side) closes on Escape;
 //   • the search box shows its magnifier (it sat under the input);
 //   • nothing open: View/Edit and Export PDF rest dimmed and inert;
 //   • hoverfx never decorates a link or checklist box INSIDE a document, so a
 //     save can no longer write `class="hoverfx"` / `filter: brightness()` into
 //     an entry, and what older saves hold is swept when the entry is touched;
-//   • Veda's tags: "Work" and "work" are one tag;
 //   • Tony's Journal Entries ribbon: its selects are 12px with a mouse.
 //
 // Run: node tests/live/notebook-audit.live.js
@@ -80,11 +79,14 @@ const SIDES = {
     const dim = (id) => `(e => { const w = e.closest('.mode-toggle-wrap') || e, cs = getComputedStyle(w); return +cs.opacity < .5 && cs.pointerEvents === 'none'; })(document.getElementById('${id}'))`;
     ok('nothing open: View/Edit and Export PDF rest dimmed and inert', await js(`return document.getElementById('${K}-empty-state').style.display !== 'none' && ${dim(K + '-btn-edit')} && ${dim(K + '-btn-export-pdf')};`));
 
-    // Template picker: Escape closes it.
-    await click(`#${K}-new-entry-btn`);
-    ok('New entry opens the template picker', await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`));
-    await key('Escape');
-    ok('Escape closes the template picker (no entry made)', await js(`return !document.getElementById('${K}-template-modal').classList.contains('open') && document.querySelectorAll('#${K}-entries-list .entry-item').length === 2;`));
+    // Template picker: Escape closes it (Tony: Page and Journal Entries). Veda's
+    // side has one template since 2026-11-17, so there + makes a page at once.
+    if (who === 'tony') {
+      await click(`#${K}-new-entry-btn`);
+      ok('New entry opens the template picker', await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`));
+      await key('Escape');
+      ok('Escape closes the template picker (no entry made)', await js(`return !document.getElementById('${K}-template-modal').classList.contains('open') && document.querySelectorAll('#${K}-entries-list .entry-item').length === 2;`));
+    }
 
     // Open Alpha: the controls come back.
     await click(`#${K}-entries-list .entry-item`); await sleep(600);
@@ -121,11 +123,6 @@ const SIDES = {
     await key('Escape');
     ok('a second Escape closes the other', await js(`return document.querySelectorAll('.docx-veil').length === 0;`));
 
-    if (who === 'veda') {
-      await click('#bj-add-tag-input'); await c.send('Input.insertText', { text: 'Work' }); await key('Enter'); await sleep(2800);
-      const tags = await js(`return __fakeFs.docs['${doc}']['e_e_1791000000001_alpha00001'].tags;`);
-      ok('a tag that differs only in case ("Work" beside "work") is not added again', tags.filter((t) => t.toLowerCase() === 'work').length === 1, JSON.stringify(tags));
-    }
     if (who === 'tony') {
       await click('#tj-new-entry-btn'); await js(`document.querySelector('#tj-template-modal .template-card[data-template="journal-entries"]').click(); 1`); await sleep(1200);
       ok("Journal Entries' ribbon selects are 12px with a mouse (not the phone's 16px)", await js(`const s=[...document.querySelectorAll('#tj-je-toolbar select')].filter(x=>x.getBoundingClientRect().width>0); return s.length > 0 && s.every(x => getComputedStyle(x).fontSize === '12px');`),

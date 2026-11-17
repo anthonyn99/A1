@@ -136,7 +136,7 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
   ok('a page with a moved image shows the image again', await until(`document.querySelector('#stn-page-editor img[src^="data:image"]')`, 8000));
   // A new page here belongs to this module.
   await js(`document.getElementById('stn-new-entry-btn').click(); 1`); await sleep(300);
-  await js(`document.querySelector('#stn-root .template-card[data-template="page"]').click(); 1`); await sleep(500);
+  await js(`var _c=document.querySelector('#stn-root .template-card[data-template="page"]'), _m=_c&&_c.closest('[id$="-template-modal"]'); if (_m && _m.classList.contains('open')) _c.click(); 1`); await sleep(500);
   await js(`var t=document.getElementById('stn-entry-title-input'); t.value='Lecture 9'; t.dispatchEvent(new Event('input',{bubbles:true})); 1`);
   const newId = await js(`return document.querySelector('#stn-entries-list .entry-item.active').dataset.entryId;`);
   for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(S); if (D['e_' + newId] && D['e_' + newId].title === 'Lecture 9') break; }

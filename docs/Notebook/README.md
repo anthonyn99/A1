@@ -25,11 +25,10 @@ side, not an app, and every program says which side it mounted:
 
 **The two sides are the same program.** Both sidebars are **OurJournal** and
 **MyJournal**; the editor, its ribbon and menus, locks, AI tools and every other
-feature are the same. What differs is only: the header (T's / V's Notebook), the
-colours and fonts, and Veda's extra templates (Cornell, Mind Map, Structured
-Notes, ...) with what belongs to them (her Templates button), and her tags (the
-title bar's tag row and the list's tag filter; Tony chose to keep those hers,
-2026-10-28). Code, ids and data
+feature are the same. What differs is only: the header (T's / V's Notebook) and
+the colours and fonts. Since 2026-11-17 both sides and OurJournal have ONE
+template, **Page** (Tony's Journal Entries stays until he retires it), and
+Veda's tags are gone; see "Page only" below. Code, ids and data
 keep the old `tj` / `bj` and Brainstorm names. The older `{ app, key, store }`
 form still mounts, but nothing uses it; write new hosts with `profile`.
 
@@ -38,7 +37,7 @@ and store: `{ profile: 'tony', key, store, ... }` or `{ profile: 'veda', key,
 store, ... }` (2026-10-27). Both take the same options (below) and give the
 same API (`Notebook.open`, `attach` / `detach`, `cfg.entries()`). A Veda
 instance is her app (`apps/brainstorm.js`, rewritten by `rewriteBj`) in her
-look: her colours, IBM Plex Mono, her purple hover glow, her templates; her
+look: her colours, IBM Plex Mono, her purple hover glow; her
 fonts load if the host has none, and index's header (TaskHub, Gita, App Lock)
 is left out. Both sides' instances save through the same store template
 (core/fb.js `@nb-store`).
@@ -94,7 +93,8 @@ Notebook/
   notebook.js         loader, Notebook.mount, instancing (rewrite + store template)
   notebook.css        DOCX + journal shell CSS (#tj-root/#bj-root scoped) and MyJournal's rail
   core/jguard.js      JGuard + the journal touch-drag helper
-  core/viz.js/.css    VizEngine (whiteboard / mind map boards)
+  core/viz.js/.css    VizEngine (whiteboard / mind map boards); since Page only it only draws old boards for core/convert.js
+  core/convert.js     Page only: turns an entry made with a retired template into a page (backup first)
   core/oj.js/.css     OurJournal engine
   core/fb.js          the journals' Firestore layer (installed by the host)
   core/md.js          markdown -> HTML helpers
@@ -105,6 +105,35 @@ Notebook/
   apps/brainstorm.*   Brainstorm Journal (key bj)
 tni.js                the suite's icon set (root; index loads it, Notebook loads it when a host has none)
 ```
+
+## Page only
+
+Since 2026-11-17 (Tony): one template, **Page**, on both sides and in
+OurJournal; Tony's Journal Entries stays until he retires it. Veda's tags are
+gone (no tag row, no tag filter, no tags in search; an entry's old `tags` field
+is left alone in the data). With one template, New Entry (and the phone's +)
+makes a page straight away.
+
+Every entry made with a retired template (Whiteboard, Mind Map, the old canvas
+Mind Map, Notes, Cornell) becomes a page the first time an app meets it,
+`core/convert.js`:
+
+- Notes and Cornell keep their words as headed sections; a mind map becomes a
+  picture of the map plus its outline; a whiteboard a picture plus any text on
+  it; attachments go onto the page; a first line says what it was. Pictures are
+  drawn by VizEngine in a hidden, read-only board, shrunk to fit one image
+  document, and moved out of the journal on save like any page image.
+- **Backup first:** the whole entry as it was goes to
+  `dashboards/<store>_legacy_<entryId>` (`ourjournal_legacy_<id>` for a shared
+  one), and nothing changes until that write is confirmed. A first backup is
+  never overwritten. Board documents (`<store>_viz_*`, `_canvas_*`) are never
+  written.
+- The person's own entries convert as soon as they load (and after every load
+  from the cloud, in case another device made one); an OurJournal entry when it
+  is opened. A board that cannot be drawn (offline) waits for a later visit.
+- The converted entry is saved as a normal edit (a new revision).
+- `tests/live/notebook-pageonly.live.js` proves it on both sides, with the real
+  drawing engines.
 
 ## Phones and tablets
 
@@ -119,8 +148,7 @@ both sides, every host; its look is the last section of `notebook.css`
   it (so does a new page, or a host's `Notebook.open`). The **editor** is the
   page edge to edge under ONE bar: back · title · sync word · Edit/Reading
   (pencil/book) · New · ⋮. ⋮ holds what the desktop title bar has and the phone
-  bar has no room for: Lock, Veda's Tags (a sheet holding her tag row, which goes
-  back to the title bar when it closes), Change template, Export PDF. Reading a
+  bar has no room for: Lock and Export PDF. Reading a
   page shows a round pencil (edit). The old bottom bar and drawer are gone; their
   buttons stay in the markup and the new ones click them.
 - **index.html:** the open page covers the program nav (`html[data-nb-doc]`);
@@ -220,7 +248,7 @@ new host goes in its `HOSTS` list.
 | `store` | The Firestore document `dashboards/<store>`, and the prefix of its image and AI documents. Never `tony_journal` or `journal`. |
 | `container` | Where it lives. Mode `inline` (the instance default) fills the element; `overlay` covers the page. |
 | `title` | The name shown wherever MyJournal says "MyJournal". |
-| `templates` | Which template cards the New Entry picker offers. |
+| `templates` | Which template cards the New Entry picker offers (Page, and on Tony's side Journal Entries). With one card left, New Entry makes that page straight away, no picker. |
 | `features.ourjournal` | OurJournal's tab and rail. Off for an instance; offering it to another host is future work (OurJournal is wired to tj/bj). |
 | `features.locks` | Per-entry password locks, namespaced by key on the taskhub-reminders worker. Off for an instance unless turned on. |
 | `features.sidebar` | The entry list (and, on a phone, the list screen, its + button and the bar's New). On unless set to `false`, for a host that keeps its own list of pages and opens them with `Notebook.open` (Everwell). |

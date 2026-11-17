@@ -202,36 +202,32 @@ const only = process.argv[2];
       const items = await js(`var m=document.querySelector('${R} .nb-mmenu'); return m ? [...m.querySelectorAll('.nb-mmi')].map(b=>b.textContent.trim()) : null;`);
       const mr = await rect(`${R} .nb-mmenu`);
       ok('⋮ opens its menu under the button, on screen', !!items && mr.t >= 50 && mr.r <= w && mr.l >= 0, JSON.stringify(mr));
-      if (who === 'tony') ok('Tony\'s ⋮: Lock entry, Export PDF', items && items.join('|') === 'Lock entry|Export PDF', JSON.stringify(items));
-      else ok('Veda\'s ⋮: Lock entry, Tags, Change template, Export PDF', items && items.join('|') === 'Lock entry|Tags|Change template|Export PDF', JSON.stringify(items));
+      // The same on both sides since Page only (2026-11-17: no tags, no templates to change).
+      ok('⋮: Lock entry, Export PDF', items && items.join('|') === 'Lock entry|Export PDF', JSON.stringify(items));
       await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`); await sleep(150);
       ok('a tap outside closes it', await js(`return !document.querySelector('${R} .nb-mmenu');`));
-      if (who === 'veda') {
-        await tap(`${R} .nb-mh-btn.nb-mh-mode`); // editing, so tags can be added
-        await tap(`${R} .nb-mh-more`);
-        await js(`[...document.querySelectorAll('${R} .nb-mmenu .nb-mmi')].find(b=>/Tags/.test(b.textContent)).click(); 1`); await sleep(300);
-        ok('Tags opens a sheet holding her tag row (the "work" chip)', await js(`var s=document.querySelector('${R} .nb-mtags'); return !!s && !!s.querySelector('#bj-tags-row') && /work/.test(s.textContent);`));
-        await tap('#bj-add-tag-input');
-        await c.send('Input.insertText', { text: 'ideas' });
-        await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-        await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-        await sleep(2800);
-        ok('…a tag added there is saved', await js(`return (__fakeFs.docs['dashboards/journal']['e_e_1791000000001_alpha00001'].tags||[]).indexOf('ideas')>=0;`), await js(`return JSON.stringify(__fakeFs.docs['dashboards/journal']['e_e_1791000000001_alpha00001'].tags);`));
-        if (label === 'phone') await shot(`${who}-${w}-tags`);
-        await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`); await sleep(150);
-        ok('closing the sheet puts the tag row back in the title bar', await js(`var r=document.getElementById('bj-tags-row'); return !!r && r.parentNode.id==='bj-toolbar' && !document.querySelector('${R} .nb-mtags');`));
-        await tap(`${R} .nb-mh-btn.nb-mh-mode`);
-      }
-      // + in the bar, and on the list.
+      // + in the bar, and on the list. Tony's side offers Page and Journal Entries
+      // (a picker); Veda's has one template, so + makes a page at once.
+      const picker = who === 'tony';
+      const n0 = await js(`return document.querySelectorAll('#${K}-entries-list .entry-item').length;`);
       await tap(`${R} .nb-mh-new`);
-      ok('the bar\'s + opens the template picker', await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`));
-      await js(`document.getElementById('${K}-close-modal').click(); 1`); await sleep(200);
+      if (picker) {
+        ok('the bar\'s + opens the template picker', await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`));
+        await js(`document.getElementById('${K}-close-modal').click(); 1`); await sleep(200);
+      } else {
+        ok('the bar\'s + makes a page straight away (one template)', await js(`return !document.getElementById('${K}-template-modal').classList.contains('open') && document.querySelectorAll('#${K}-entries-list .entry-item').length === ${n0 + 1};`));
+      }
       await tap(`#${K}-hamburger`);
       await tap(`${R} .nb-fab`);
-      ok('the list\'s + opens the template picker, ON TOP of the list (what a finger reaches)', await js(`var m=document.getElementById('${K}-template-modal'); if(!m.classList.contains('open')) return false; var c=m.querySelector('.template-card[data-template="page"]').getBoundingClientRect(); var t=document.elementFromPoint(c.left+c.width/2, c.top+c.height/2); return !!t && !!t.closest('#${K}-template-modal');`));
-      await js(`document.querySelector('#${K}-template-modal .template-card[data-template="page"]').click(); 1`); await sleep(1200);
+      if (picker) {
+        ok('the list\'s + opens the template picker, ON TOP of the list (what a finger reaches)', await js(`var m=document.getElementById('${K}-template-modal'); if(!m.classList.contains('open')) return false; var c=m.querySelector('.template-card[data-template="page"]').getBoundingClientRect(); var t=document.elementFromPoint(c.left+c.width/2, c.top+c.height/2); return !!t && !!t.closest('#${K}-template-modal');`));
+        await js(`document.querySelector('#${K}-template-modal .template-card[data-template="page"]').click(); 1`);
+      }
+      await sleep(1200);
+      const n1 = await js(`return document.querySelectorAll('#${K}-entries-list .entry-item').length;`);
+      ok('the list\'s + adds one new page', n1 === n0 + (picker ? 1 : 2), n0 + ' -> ' + n1);
       k = await cls(K);
-      ok('a new page opens in the editor, editing, ribbon docked', /\bnb-mdoc\b/.test(k) && /\bnb-mdock\b/.test(k) && await js(`return document.getElementById('${K}-mobile-title').value==='' && document.querySelectorAll('#${K}-entries-list .entry-item').length===3;`), k);
+      ok('a new page opens in the editor, editing, ribbon docked', /\bnb-mdoc\b/.test(k) && /\bnb-mdock\b/.test(k) && await js(`return document.getElementById('${K}-mobile-title').value==='' && document.querySelectorAll('#${K}-entries-list .entry-item').length>=3;`), k);
     }
 
     // ── landscape tablet: the desktop layout, the ribbon docked ──

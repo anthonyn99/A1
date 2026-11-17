@@ -54,7 +54,7 @@ function personOf(app) {
   return (m && m.profile) || undefined;
 }
 var NAMES = { tony: 'Tony', veda: 'Veda' };
-var TEMPLATES = ['page', 'mindmap', 'whiteboard'];   // the templates BOTH journals have
+var TEMPLATES = ['page'];   // the one template (2026-11-17); older shared boards become pages when opened (core/convert.js)
 var META = ['title', 'template', 'created', 'updated', 'trashed', 'trashChangedAt', 'creator', 'ord'];
 var CLIENT = Math.random().toString(36).slice(2, 9);
 var TRASH_TTL = 30 * 24 * 3600 * 1000;

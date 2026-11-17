@@ -97,7 +97,7 @@ const SEED = { [TBDOC]: { strats: JSON.stringify(PAGES), stratsActive: JSON.stri
 
   console.log('\nWriting');
   await js(`document.getElementById('vtb-new-entry-btn').click(); 1`); await sleep(300);
-  await js(`document.querySelector('#vtb-root .template-card[data-template="page"]').click(); 1`); await sleep(500);
+  await js(`var _c=document.querySelector('#vtb-root .template-card[data-template="page"]'), _m=_c&&_c.closest('[id$="-template-modal"]'); if (_m && _m.classList.contains('open')) _c.click(); 1`); await sleep(500);
   await js(`var t=document.getElementById('vtb-entry-title-input'); t.value='Gap fill'; t.dispatchEvent(new Event('input',{bubbles:true})); 1`);
   const newId = await js(`return document.querySelector('#vtb-entries-list .entry-item.active').dataset.entryId;`);
   for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(S); if (D['e_' + newId] && D['e_' + newId].title === 'Gap fill') break; }

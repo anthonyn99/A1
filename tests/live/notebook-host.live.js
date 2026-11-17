@@ -86,9 +86,9 @@ async function side(c, name, errs) {
 
   console.log(`\n[${name}] Writing`);
   await js(`${$('new-entry-btn')}.click(); 1`); await sleep(400);
-  ok('the template picker offers only the page', await js(`return [...document.querySelectorAll('#${K}-root .template-card')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.template).join() === 'page';`),
-    await js(`return [...document.querySelectorAll('#${K}-root .template-card')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.template).join();`));
-  await js(`document.querySelector('#${K}-root .template-card[data-template="page"]').click(); 1`); await sleep(500);
+  // Page is the one template (2026-11-17): + makes a page straight away.
+  ok('+ makes a page straight away (one template, no picker)', await js(`return !document.getElementById('${K}-template-modal').classList.contains('open') && (document.querySelector('#${K}-entries-list .entry-item.active')||{dataset:{}}).dataset.entryId !== 'e_1_alpha';`));
+  await js(`var _c=document.querySelector('#${K}-root .template-card[data-template="page"]'), _m=_c&&_c.closest('[id$="-template-modal"]'); if (_m && _m.classList.contains('open')) _c.click(); 1`); await sleep(500);
   if (!(await js(`return ${$('page-editor')}.getAttribute('contenteditable')==='true';`))) { await js(`${$('btn-edit')}.click(); 1`); await sleep(300); }
   await js(`var t=${$('entry-title-input')}; t.value='Setups'; t.dispatchEvent(new Event('input',{bubbles:true}));
     var e=${$('page-editor')}; e.focus(); var r=document.createRange(); r.selectNodeContents(e); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
@@ -149,7 +149,8 @@ async function side(c, name, errs) {
 
   console.log(`\n[${name}] The size guard`);
   const nd = await js(`return window.__dialogs.length;`);
-  await js(`window._${K}AddAttachment('huge.pdf', 'application/pdf', 'data:application/pdf;base64,' + 'A'.repeat(1200000)); 1`); await sleep(300);
+  // A huge file through the page's own file picker (attachments went with the old templates).
+  await js(`if (${$('page-editor')}.getAttribute('contenteditable')!=='true') ${$('btn-edit')}.click(); var inp=document.getElementById('${K}-page-img-file'); var dt=new DataTransfer(); dt.items.add(new File([new Uint8Array(1200000)], 'huge.pdf', { type: 'application/pdf' })); inp.files=dt.files; inp.dispatchEvent(new Event('change', { bubbles: true })); 1`); await sleep(1500);
   const dl = JSON.parse(await js(`return JSON.stringify(window.__dialogs.slice(${nd}));`));
   ok('a file over 650 KB is refused, through the host\'s own dialog', dl.length === 1 && dl[0][0] === 'alert' && /huge\.pdf/.test(dl[0][1]) && /650 KB/.test(dl[0][1]), JSON.stringify(dl));
 
@@ -168,7 +169,7 @@ async function side(c, name, errs) {
   ok('mounted on a folder: only its pages (and the pinned one) are listed', R.length === 1 && R[0].id === 'daily-reminder', JSON.stringify(R));
   const newIn = async (title) => {
     await js(`${$('new-entry-btn')}.click(); 1`); await sleep(300);
-    await js(`document.querySelector('#${K}-root .template-card[data-template="page"]').click(); 1`); await sleep(400);
+    await js(`var _c=document.querySelector('#${K}-root .template-card[data-template="page"]'), _m=_c&&_c.closest('[id$="-template-modal"]'); if (_m && _m.classList.contains('open')) _c.click(); 1`); await sleep(400);
     await js(`var t=${$('entry-title-input')}; t.value=${JSON.stringify(title)}; t.dispatchEvent(new Event('input',{bubbles:true})); 1`);
     const id = await js(`return (document.querySelector('#${K}-entries-list .entry-item.active')||{dataset:{}}).dataset.entryId || null;`);
     for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_' + id] && D['e_' + id].title === title) break; }

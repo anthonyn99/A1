@@ -33,8 +33,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// The engine lives in Notebook/ (core/viz.js, the accessor in core/fb.js, JGuard in core/jguard.js); the
-// journals that configure it are apps/brainstorm.js and apps/myjournal.js; index.html hosts them.
+// The engine lives in Notebook/ (core/viz.js, the accessor in core/fb.js, JGuard in core/jguard.js). Since
+// Page only (2026-11-17) the journals no longer configure boards: core/convert.js draws old ones as pages.
 const src = ['index.html', 'Notebook/apps/brainstorm.js', 'Notebook/apps/myjournal.js','Notebook/core/viz.js', 'Notebook/core/fb.js', 'Notebook/core/jguard.js']
   .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
@@ -143,69 +143,42 @@ for (const app of [{ p: 'bj', doc: 'journal' }, { p: 'tj', doc: 'tony_journal' }
   const strip = body('    const _' + app.p + 'StripEntry = async (e0) => {');
   ok(app.p + ': the entry stripper still drops any legacy canvas before upload',
     !!strip && /canvas,\s*history,\s*\.\.\.rest/.test(strip));
-  const b = body('function _' + app.p + 'Board(kind) {');
-  ok(app.p + ': the board is wired to its own document prefix',
-    !!b && b.includes("prefix: '" + app.doc + "'"), b && b.slice(0, 160));
 }
-// What lands on the entry is a fingerprint, never a scene.
-ok('the entry carries only a fingerprint of its board',
-  /_next\.vizRev\s*=\s*_vs\.rev;\s*_next\.vizCount\s*=\s*_vs\.count;\s*_next\.vizTitle\s*=\s*_vs\.title;/.test(src));
-ok('saveCurrentEntry no longer serialises a canvas onto the entry',
-  !/_next\.canvas\s*=/.test(src));
+ok('saveCurrentEntry never serialises a canvas onto the entry', !/_next\.canvas\s*=/.test(src));
 ok('JGuard reads the fingerprint when deciding a board is empty',
   /case 'whiteboard': return d\.vizRev \? !\(d\.vizCount > 0\) : !d\.canvas;/.test(src));
-ok('JGuard still falls back to the legacy test for an unconverted board',
-  /if \(d\.vizRev && template === 'mindmap'\) return !\(d\.vizCount > 0\);[\s\S]{0,200}?d\.nodes/.test(src));
 
-console.log('\n-- the legacy mind map is intact and reachable --');
-// Veda's original canvas mind map is a template of its own, not a fallback
-// inside the new one. Every map that existed before the rebuild opens there.
-ok('the legacy template is offered in the picker',
-  /data-template="mindmap-legacy"[\s\S]{0,600}?<h3>Mind Map Legacy<\/h3>/.test(src));
-ok('the legacy editor is present', /function renderMindmap\(\)/.test(src) && /function initMindmap\(\)/.test(src));
-ok('it has its own DOM, separate from the Mind Elixir mount',
-  /id="bj-mml-canvas"/.test(src) && /id="bj-mml-area"/.test(src) && /id="bj-mm-mount"/.test(src));
-// The proposed data must never hand the editor's LIVE arrays to the entry:
-// Object.assign would alias them, and the no-op guard below would then compare
-// entry.data.nodes to itself and conclude nothing had changed — so the first
-// edit to a map saved and every later drag quietly did not.
-const legacySave = src.match(/if \(entry\.template === 'mindmap-legacy'\) \{[\s\S]{0,240}?\n  \}/);
-ok('the legacy save reads the editor arrays', !!legacySave && /mmNodes/.test(legacySave[0]) && /mmEdges/.test(legacySave[0]));
-ok('it copies them instead of aliasing them onto the entry',
-  !!legacySave && /JSON\.parse\(JSON\.stringify\(mmNodes\)\)/.test(legacySave[0]) &&
-                  /JSON\.parse\(JSON\.stringify\(mmEdges\)\)/.test(legacySave[0]),
-  legacySave && legacySave[0]);
-const route = body('function _bjLegacyTemplate(entry) {');
-ok('an existing map is routed to it by its own data, not a flag', !!route);
-if (route) {
-  ok('only an entry still carrying the old node list is routed',
-    /entry\.template !== 'mindmap'/.test(route) && /Array\.isArray\(d\.nodes\) && d\.nodes\.length/.test(route));
-  // The whole point: routing must not rewrite anything.
-  ok('routing writes nothing and converts nothing',
-    !/idbPut|_fbViz|setDoc|localStorage|saveState|entry\.data\s*=/.test(route), route);
+// Page only (2026-11-17): the journals have no boards of their own any more.
+// Every Whiteboard / Mind Map / old canvas Mind Map becomes a page, drawn by the
+// engine in a hidden, READ-ONLY board (core/convert.js); the board documents
+// stay exactly where they are, and the entry is backed up before it changes.
+console.log('\n-- page only: boards become pages, nothing is lost --');
+const conv = fs.readFileSync(path.join(__dirname, '..', 'Notebook/core/convert.js'), 'utf8');
+ok('the converter draws boards with the engine', /window\.VizEngine\.createBoard\(/.test(conv));
+ok('its board is never live (no merge, no shared writes)', /liveFor:\s*function \(\) \{ return false; \}/.test(conv));
+ok('it opens the board read-only', /B\.setEditable\(false\)/.test(conv));
+ok('its board writes no metadata back to the journal', /onMeta:\s*function \(\) \{\}/.test(conv));
+ok('the entry is backed up to its own document before anything changes',
+  /_legacy_/.test(conv) && /fbv\.set\(id, doc\)/.test(conv));
+ok('a first backup is never overwritten by a later one', /had && had\.entry/.test(conv));
+ok('a board that cannot be drawn waits (null), it is never converted blank', /return null;/.test(conv));
+ok('board pictures are shrunk to fit one image document', /function shrink\(/.test(conv) && /980000/.test(conv));
+ok('the converter never writes a board document',
+  !/writeChunked|_vizf_|_viz_'\s*\+/.test(conv));
+for (const app of ['bj', 'tj']) {
+  const one = body('function _' + app + 'ConvertOne(e) {');
+  ok(app + ': conversion only proceeds once the backup is confirmed', !!one && /backup\([\s\S]*?\.then\(function \(backedUp\) \{\s*if \(!backedUp\) return false;/.test(one), one && one.slice(0, 200));
+  ok(app + ': a converted entry is a normal edit (new revision, unsynced mark)', !!one && /e\.rev = \(e\.rev \|\| 0\) \+ 1; e\._dirty = true;/.test(one));
+  ok(app + ': an OurJournal entry is written only while OurJournal is on screen', !!one && /if \(shared\) return \(coll && state === coll\) \? write\(\) : false;/.test(one));
+  ok(app + ': no board of its own any more', !new RegExp('function _' + app + 'Board\\(').test(src) && !new RegExp('_' + app + 'Boards').test(src));
 }
-// \s* rather than \n\s*: index.html is stored LF but core.autocrlf checks it out
-// as CRLF on Windows, and a regex demanding a bare \n straight after the `{` can
-// never match `{\r\n` — this assertion was red on every Windows checkout no
-// matter what the code it guards did. \s* still pins the call to the first
-// statement in the block, which is the part worth asserting.
-ok('maps read from the local cache are routed', /state\.entries\.forEach\(entry => \{\s*_bjLegacyTemplate\(entry\);/.test(src));
-ok('maps arriving from another device are routed the same way',
-  /remoteById\[remoteEntry\.id\] = true;[\s\S]{0,300}?_bjLegacyTemplate\(remoteEntry\);/.test(src));
-ok('the legacy template has its own attachments and drop zone',
-  /tmpl: 'mindmap-legacy'/.test(src) && /zoneId: 'bj-mml-drop-zone'/.test(src));
-ok('it appears in the sidebar with a template badge', /'mindmap-legacy': 'MAP'/.test(src));
-ok('a new legacy map still starts from the original seed node',
-  /template === 'mindmap-legacy'\) entry\.data = \{ nodes: \[\{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true \}\]/.test(src));
+ok('the old canvas mind map editor is gone', !/function renderMindmap\(\)/.test(src) && !/id="bj-mml-canvas"/.test(src));
+ok('the picker offers no board templates',
+  !/data-template="(whiteboard|mindmap|mindmap-legacy|notes|cornell)"/.test(src));
 
-console.log('\n-- listeners and profile isolation --');
+console.log('\n-- listeners --');
 ok('the board watcher is keyed, so navigating swaps it instead of stacking',
   /watch:\s*\(key,\s*id,\s*cb\)\s*=>\s*\{[\s\S]{0,200}?_vizWatch\[key\]/.test(src));
-ok('leaving a template closes the board it belonged to',
-  /if \(name !== 'whiteboard' && _bjBoards\.wb\) _bjBoards\.wb\.close\(\);/.test(src) &&
-  /if \(name !== 'whiteboard' && _tjBoards\.wb\) _tjBoards\.wb\.close\(\);/.test(src));
-ok('both journals flush their boards when the page goes away',
-  /window\._bjFlushBoards/.test(src) && /window\._tjFlushBoards/.test(src));
 ok('the engine itself flushes every live board on pagehide',
   /addEventListener\('pagehide',\s*function \(\) \{ flushAll\(\); \}\)/.test(src));
 
