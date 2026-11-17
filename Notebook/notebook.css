@@ -1219,16 +1219,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .entry-delete, #bj-root .entry-delete { opacity: 1; }
 }
 
-/* ════════ Mobile drawer: scrim covers EVERYTHING, header included ════════
-   #tony-app-nav is a body-level fixed bar at z-index 10001 while #tj-root sits
-   at 9999, so the app header painted straight over an open drawer. The drawer's
-   scrim lives inside the root and cannot cross that boundary — so lift the whole
-   root above the nav for as long as the drawer is open. */
-#tj-root.tj-drawer-open { z-index: 10050 !important; }
-#bj-root.bj-drawer-open { z-index: 10050 !important; }
-body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
-  pointer-events: none !important;
-}
+/* ════════ The list on a phone or tablet ════════
+   Since 2026-11-17 the entry list is a screen of its own up to 900px, not a
+   drawer over the page ("Phones and tablets", the end of this sheet), so it
+   lifts nothing over index.html's program nav: the list shows the nav. */
 /* A 2px blur read as "slightly smudged", not "behind glass". */
 #tj-root #tj-sidebar-backdrop, #bj-root #bj-sidebar-backdrop {
   background: rgba(8, 8, 10, 0.58) !important;
@@ -1400,3 +1394,259 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
 @media not all and (pointer: coarse) {
   #tj-root #tj-je-toolbar select, #tj-root #tj-je-toolbar .pt-select { font-size: 12px !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+     Phones and tablets (Tony, 2026-11-17): both sides, every host.
+     Samsung Notes was the model: the page gets the screen. core/mobile.js
+     sets the classes these rules read on the root:
+       nb-shell  ≤900px: the list and the editor are two screens
+       nb-mlist  the list is on screen (nothing open, or Back was tapped)
+       nb-mdoc   the editor is on screen;   nb-nolist  the host keeps the list
+       nb-medit  edit mode;   nb-mpage  a page is open
+       nb-m      a touch screen up to 1366px, or any screen up to 900px
+       nb-mdock  editing a page there: the ribbon is one row above the keyboard
+       nb-kb     the onscreen keyboard is up
+     Desktop (wider, or a mouse above 900px) never gets any of them.
+     ════════════════════════════════════════════════════════════════════════ */
+/* ── nb-mobile-css ── */
+#tj-root .nb-fab, #bj-root .nb-fab { display: none; }
+#tj-root .nb-dock-tog, #bj-root .nb-dock-tog { display: none; }
+
+@media (max-width: 900px) {
+  /* ── The list: a screen of its own (home when nothing is open) ── */
+  #tj-root #tj-body, #bj-root #bj-body { position: relative; }
+  #tj-root #tj-sidebar, #bj-root #bj-sidebar {
+    position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important;
+    width: 100% !important; max-width: none !important; height: auto !important;
+    box-shadow: none !important; border-right: 0 !important; padding-top: 0 !important;
+    transform: translateX(-100%); visibility: hidden; transition: none !important;
+    z-index: 401; background: var(--bg) !important;
+  }
+  #tj-root.nb-mlist #tj-sidebar, #bj-root.nb-mlist #bj-sidebar { transform: none !important; visibility: visible; }
+  #tj-root #tj-sidebar-backdrop, #bj-root #bj-sidebar-backdrop { display: none !important; }
+  /* The + button and the bar's + replace the list's New Entry and the old bottom bar. */
+  #tj-root #tj-new-entry-btn, #bj-root #bj-new-entry-btn,
+  #tj-root #tj-bottom-bar, #bj-root #bj-bottom-bar { display: none !important; }
+  #tj-root #tj-entries-list, #bj-root #bj-entries-list { padding-bottom: 92px; }
+  #tj-root .search-wrap, #bj-root .search-wrap { margin-top: 10px; }
+  #tj-root .entry-item, #bj-root .entry-item { min-height: 58px; }
+  #tj-root .entry-item-title, #bj-root .entry-item-title { font-size: 15px !important; }
+
+  /* ── The editor's one bar: back · title · sync · Edit/Reading · New · ⋮ ── */
+  #tj-root #tj-mobile-header, #bj-root #bj-mobile-header {
+    height: 56px !important; min-height: 56px !important; padding: 0 4px 0 2px !important; gap: 0 !important;
+    background: var(--bg) !important; border-bottom: 1px solid var(--border) !important;
+  }
+  #tj-root #tj-hamburger, #bj-root #bj-hamburger { color: var(--text) !important; width: 44px; padding: 0 !important; border-radius: 12px; }
+  #tj-root #tj-hamburger svg, #bj-root #bj-hamburger svg { width: 26px; height: 26px; display: block; }
+  #tj-root.nb-nolist #tj-hamburger, #bj-root.nb-nolist #bj-hamburger { display: none !important; }
+  #tj-root #tj-mobile-title, #bj-root #bj-mobile-title { font-size: 18px !important; font-weight: 600 !important; padding: 0 6px !important; }
+  #bj-root #bj-mobile-title { font-size: 16px !important; }
+  #tj-root.nb-nolist #tj-mobile-title, #bj-root.nb-nolist #bj-mobile-title { padding-left: 12px !important; }
+  /* Lock moved into ⋮ (the bar keeps three tools, like Samsung Notes'). */
+  #tj-root #tj-mobile-lock-btn, #bj-root #bj-mobile-lock-btn { display: none !important; }
+  #tj-root .nb-mh-btn, #bj-root .nb-mh-btn {
+    flex: 0 0 44px; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--text2); cursor: pointer; box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  #tj-root .nb-mh-btn svg, #bj-root .nb-mh-btn svg { width: 22px; height: 22px; display: block; }
+  #tj-root .nb-mh-btn:active, #bj-root .nb-mh-btn:active,
+  #tj-root .nb-mh-btn.open, #bj-root .nb-mh-btn.open,
+  #tj-root #tj-hamburger:active, #bj-root #bj-hamburger:active { background: rgba(255,255,255,.08); color: var(--text); }
+  #tj-root .nb-mh-mode .nb-i-book, #bj-root .nb-mh-mode .nb-i-book { display: none; }
+  #tj-root.nb-medit .nb-mh-mode .nb-i-book, #bj-root.nb-medit .nb-mh-mode .nb-i-book { display: block; }
+  #tj-root.nb-medit .nb-mh-mode .nb-i-pencil, #bj-root.nb-medit .nb-mh-mode .nb-i-pencil { display: none; }
+  #tj-root.nb-medit .nb-mh-mode, #bj-root.nb-medit .nb-mh-mode { color: var(--purple); }
+  #tj-root.nb-noentry .nb-mh-mode, #bj-root.nb-noentry .nb-mh-mode { opacity: .35; pointer-events: none; }
+
+  /* ── The open page, edge to edge: no gutter, no frame ── */
+  #tj-root.nb-mpage #tj-content-area, #bj-root.nb-mpage #bj-content-area {
+    padding: 0 !important; --nb-cpt: 0px; --nb-cpx: 0px; overflow: hidden !important;
+  }
+  #tj-root.nb-mpage #tj-page-area, #bj-root.nb-mpage #bj-page-area { height: 100%; }
+  #tj-root #tj-page-editor-wrap, #bj-root #bj-page-editor-wrap { padding: 0 !important; }
+  #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
+    min-height: 100% !important; padding: 20px 18px calc(40px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── The round button: + on the list, the pencil while reading ── */
+  #tj-root .nb-fab.on, #bj-root .nb-fab.on { display: inline-flex; }
+  #tj-root .nb-fab, #bj-root .nb-fab {
+    position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 420;
+    width: 56px; height: 56px; margin: 0; padding: 0; border: 0; border-radius: 18px;
+    align-items: center; justify-content: center; cursor: pointer;
+    background: var(--purple); color: #1a1a1d; box-shadow: 0 8px 22px rgba(0,0,0,.45) !important;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  #bj-root .nb-fab { color: #fff; }
+  #tj-root .nb-fab svg, #bj-root .nb-fab svg { width: 25px; height: 25px; display: block; stroke-width: 2.2; }
+  #tj-root .nb-fab .nb-i-plus, #bj-root .nb-fab .nb-i-plus,
+  #tj-root .nb-fab.nb-fab-new .nb-i-pencil, #bj-root .nb-fab.nb-fab-new .nb-i-pencil { display: none; }
+  #tj-root .nb-fab.nb-fab-new .nb-i-plus, #bj-root .nb-fab.nb-fab-new .nb-i-plus { display: block; }
+  #tj-root .nb-fab:active, #bj-root .nb-fab:active { filter: brightness(.94); }
+  /* On the list it clears the Trash row at the bottom. */
+  #tj-root.nb-mlist .nb-fab, #bj-root.nb-mlist .nb-fab { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  /* A portrait tablet: the same screens, a reading margin on the page. */
+  #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
+    padding: 30px 40px calc(48px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* index.html: an open page covers the program nav; the list shows it again. */
+html[data-nb-doc] #tony-app-nav { visibility: hidden !important; }
+html[data-nb-doc="tj"] #tj-root { padding-top: env(safe-area-inset-top, 0px) !important; }
+#bj-root.nb-mdoc #bj-nav-header { display: none !important; }
+
+/* ── ⋮ and the Tags sheet (in the root, so each side's rules reach them) ── */
+#tj-root .nb-mpop, #bj-root .nb-mpop {
+  position: fixed; z-index: 100040; box-sizing: border-box; padding: 6px;
+  min-width: 228px; max-width: calc(100vw - 16px); max-height: 70dvh; overflow-y: auto;
+}
+#tj-root .nb-mpop .nb-mmi, #bj-root .nb-mpop .nb-mmi {
+  display: flex; align-items: center; gap: 13px; width: 100%; min-height: 46px; padding: 0 14px;
+  font-size: 15px; border-radius: 7px; box-shadow: none;
+}
+#tj-root .nb-mmi-ic, #bj-root .nb-mmi-ic { display: inline-flex; color: var(--text2); }
+#tj-root .nb-mmi-ic svg, #bj-root .nb-mmi-ic svg { width: 19px; height: 19px; display: block; }
+#tj-root .nb-mpop.nb-mtags, #bj-root .nb-mpop.nb-mtags { width: min(340px, calc(100vw - 16px)); padding: 12px 14px 14px; }
+#tj-root .nb-mtags .nb-mtags-h, #bj-root .nb-mtags .nb-mtags-h { padding: 0 0 10px; }
+#tj-root .nb-mtags [id$="-tags-row"], #bj-root .nb-mtags [id$="-tags-row"] {
+  display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 !important; max-width: none !important;
+}
+#tj-root .nb-mtags [id$="-tags-row"] .tags-label, #bj-root .nb-mtags [id$="-tags-row"] .tags-label { display: none; }
+#tj-root .nb-mtags [id$="-add-tag-input"], #bj-root .nb-mtags [id$="-add-tag-input"] { flex: 1 1 120px; min-height: 38px; font-size: 16px !important; }
+#tj-root .nb-mtags-note, #bj-root .nb-mtags-note { font-size: 12.5px; opacity: .6; margin-top: 10px; }
+
+/* ── Editing a page on a touch screen: the ribbon is ONE row of icons above the
+      keyboard (placed by core/mobile.js). It scrolls sideways; Undo and Redo
+      stay pinned at its right end; its first button swaps in the menus. ── */
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode, #bj-root.nb-mdock #bj-page-toolbar.edit-mode {
+  --nbt-h: 44px; --nbt-in: 40px;
+  position: fixed !important; z-index: 70 !important;
+  top: var(--nb-dock-t, auto) !important; left: var(--nb-dock-l, 0px) !important;
+  width: var(--nb-dock-w, 100%) !important; right: auto !important; bottom: auto !important;
+  margin: 0 !important; box-sizing: border-box;
+  display: flex !important; flex-wrap: nowrap !important; align-items: center; gap: 2px !important;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  background: var(--bg2) !important; border: 0 !important; border-top: 1px solid var(--border) !important; border-radius: 0 !important;
+  box-shadow: 0 -6px 18px rgba(0,0,0,.22);
+}
+#tj-root.nb-mdock.nb-kb #tj-page-toolbar.edit-mode, #bj-root.nb-mdock.nb-kb #bj-page-toolbar.edit-mode { padding-bottom: 6px !important; }
+#tj-root.nb-mdock #tj-page-editor-wrap, #bj-root.nb-mdock #bj-page-editor-wrap {
+  padding-bottom: var(--nb-dock-space, 72px) !important; scroll-padding-bottom: var(--nb-dock-space, 72px);
+}
+#tj-root.nb-mdock .docx-ruler, #bj-root.nb-mdock .docx-ruler { display: none !important; }
+/* The swap button: menus <-> formatting. */
+#tj-root.nb-mdock .nb-dock-tog, #bj-root.nb-mdock .nb-dock-tog {
+  flex: 0 0 auto; width: 44px; height: 40px; margin: 0 2px 0 0; padding: 0; border: 0; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  background: color-mix(in srgb, var(--purple) 14%, transparent); color: var(--purple); box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+#tj-root .nb-dock-tog svg, #bj-root .nb-dock-tog svg { width: 21px; height: 21px; display: block; }
+#tj-root .nb-dock-tog .nb-i-tools, #bj-root .nb-dock-tog .nb-i-tools,
+#tj-root .nb-dock-menus .nb-dock-tog .nb-i-menus, #bj-root .nb-dock-menus .nb-dock-tog .nb-i-menus { display: none; }
+#tj-root .nb-dock-menus .nb-dock-tog .nb-i-tools, #bj-root .nb-dock-menus .nb-dock-tog .nb-i-tools { display: block; }
+/* The row. Groups dissolve (display: contents), so their controls line up as
+   one strip and can be put in the order a thumb wants. */
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode .docx-ribbonrow, #bj-root.nb-mdock #bj-page-toolbar.edit-mode .docx-ribbonrow {
+  display: flex !important; flex: 1 1 auto !important; min-width: 0; flex-wrap: nowrap !important; align-items: center;
+  gap: 2px !important; padding: 0 !important; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+}
+#tj-root.nb-mdock .docx-ribbonrow::-webkit-scrollbar, #bj-root.nb-mdock .docx-ribbonrow::-webkit-scrollbar { display: none; }
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode .docx-grp:has(> :is(.docx-r1, .docx-r2)),
+#bj-root.nb-mdock #bj-page-toolbar.edit-mode .docx-grp:has(> :is(.docx-r1, .docx-r2)) { display: contents !important; }
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode .docx-grp > .pt-btn.docx-r2,
+#bj-root.nb-mdock #bj-page-toolbar.edit-mode .docx-grp > .pt-btn.docx-r2 { display: inline-flex !important; }
+#tj-root.nb-mdock .docx-grp > .docx-pagefs-btn, #bj-root.nb-mdock .docx-grp > .docx-pagefs-btn { display: none !important; }
+#tj-root.nb-mdock .docx-grp > .pt-btn, #bj-root.nb-mdock .docx-grp > .pt-btn,
+#tj-root.nb-mdock .docx-grp > .pt-select, #bj-root.nb-mdock .docx-grp > .pt-select,
+#tj-root.nb-mdock .docx-grp .pt-hl-trigger, #bj-root.nb-mdock .docx-grp .pt-hl-trigger {
+  flex: 0 0 auto; height: 40px !important; min-height: 40px !important; max-height: 40px; min-width: 40px !important;
+  border-radius: 10px !important; color: var(--text) !important; font-size: 14px !important;
+}
+#tj-root.nb-mdock .docx-grp .pt-btn svg, #bj-root.nb-mdock .docx-grp .pt-btn svg { width: 20px; height: 20px; }
+#tj-root.nb-mdock .docx-grp .pt-btn svg.docx-caret, #bj-root.nb-mdock .docx-grp .pt-btn svg.docx-caret { width: 10px; height: 10px; }
+#tj-root.nb-mdock .docx-grp > [id$="-bold"], #bj-root.nb-mdock .docx-grp > [id$="-bold"],
+#tj-root.nb-mdock .docx-grp > [id$="-italic"], #bj-root.nb-mdock .docx-grp > [id$="-italic"],
+#tj-root.nb-mdock .docx-grp > [id$="-underline"], #bj-root.nb-mdock .docx-grp > [id$="-underline"],
+#tj-root.nb-mdock .docx-grp > [id$="-strike"], #bj-root.nb-mdock .docx-grp > [id$="-strike"] { width: 40px; font-size: 18px !important; }
+#tj-root.nb-mdock .docx-grp .docx-swatch-ic svg, #bj-root.nb-mdock .docx-grp .docx-swatch-ic svg { width: 17px; height: 17px; }
+#tj-root.nb-mdock .docx-color-a, #bj-root.nb-mdock .docx-color-a { font-size: 17px; line-height: 14px; height: 15px; }
+#tj-root.nb-mdock .docx-swatch-ic .docx-color-dot, #bj-root.nb-mdock .docx-swatch-ic .docx-color-dot,
+#tj-root.nb-mdock .docx-swatch-ic .pt-hl-icon, #bj-root.nb-mdock .docx-swatch-ic .pt-hl-icon { width: 18px !important; }
+/* Paragraph style: an "H" that opens the list (the picker still names each style). */
+#tj-root.nb-mdock .docx-grp > .pt-select[id$="-block"], #bj-root.nb-mdock .docx-grp > .pt-select[id$="-block"] {
+  width: 46px !important; min-width: 46px !important; padding: 0 !important; color: transparent !important; text-indent: -999px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4d4d8' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 5v14M14 5v14M5 12h9'/%3E%3Cpath d='m17 13 2.5 2.5L22 13' stroke-width='1.8'/%3E%3C/svg%3E") !important;
+  background-position: center !important; background-size: 22px 22px !important;
+}
+#tj-root.nb-mdock .docx-grp > .pt-select[id$="-block"] option, #bj-root.nb-mdock .docx-grp > .pt-select[id$="-block"] option { color: var(--text); text-indent: 0; }
+#tj-root.nb-mdock .docx-grp > .pt-select[id$="-fontsize"], #bj-root.nb-mdock .docx-grp > .pt-select[id$="-fontsize"] {
+  width: 58px !important; min-width: 58px !important; padding: 0 20px 0 10px !important; background-position: right 7px center !important;
+}
+#tj-root.nb-mdock .docx-grp > .docx-fontfam-btn, #bj-root.nb-mdock .docx-grp > .docx-fontfam-btn { width: 104px !important; }
+#tj-root.nb-mdock .docx-grp > .docx-ai-btn, #bj-root.nb-mdock .docx-grp > .docx-ai-btn {
+  color: var(--purple) !important; background-color: color-mix(in srgb, var(--purple) 12%, transparent) !important; padding: 0 8px !important;
+}
+#tj-root.nb-mdock .docx-ai-lbl, #bj-root.nb-mdock .docx-ai-lbl,
+#tj-root.nb-mdock .docx-copyall-btn:not(.copied) .docx-copyall-lbl, #bj-root.nb-mdock .docx-copyall-btn:not(.copied) .docx-copyall-lbl { display: none !important; }
+/* The order: AI, style, size, B I U, colours, lists, image, then the rest;
+   Undo and Redo last, pinned to the right edge while the row scrolls. */
+#tj-root.nb-mdock .docx-ribbonrow .docx-grp > *, #bj-root.nb-mdock .docx-ribbonrow .docx-grp > * { order: 50; }
+#tj-root.nb-mdock .docx-grp > .docx-ai-btn, #bj-root.nb-mdock .docx-grp > .docx-ai-btn { order: 1; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-block"], #bj-root.nb-mdock .docx-grp > [id$="-pt-block"] { order: 2; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-fontsize"], #bj-root.nb-mdock .docx-grp > [id$="-pt-fontsize"] { order: 3; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-bold"], #bj-root.nb-mdock .docx-grp > [id$="-pt-bold"] { order: 4; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-italic"], #bj-root.nb-mdock .docx-grp > [id$="-pt-italic"] { order: 5; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-underline"], #bj-root.nb-mdock .docx-grp > [id$="-pt-underline"] { order: 6; }
+#tj-root.nb-mdock .docx-grp > .docx-color-btn, #bj-root.nb-mdock .docx-grp > .docx-color-btn,
+#tj-root.nb-mdock .docx-grp > [id$="-page-color-pick"], #bj-root.nb-mdock .docx-grp > [id$="-page-color-pick"] { order: 7; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-hl-wrap"], #bj-root.nb-mdock .docx-grp > [id$="-pt-hl-wrap"] { order: 8; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-ul"], #bj-root.nb-mdock .docx-grp > [id$="-pt-ul"] { order: 9; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-ol"], #bj-root.nb-mdock .docx-grp > [id$="-pt-ol"] { order: 10; }
+#tj-root.nb-mdock .docx-grp > .docx-checklist-btn, #bj-root.nb-mdock .docx-grp > .docx-checklist-btn { order: 11; }
+#tj-root.nb-mdock .docx-grp > [id$="-page-img-btn"], #bj-root.nb-mdock .docx-grp > [id$="-page-img-btn"] { order: 12; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-link"], #bj-root.nb-mdock .docx-grp > [id$="-pt-link"] { order: 13; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-alignL"], #bj-root.nb-mdock .docx-grp > [id$="-pt-alignL"] { order: 14; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-alignC"], #bj-root.nb-mdock .docx-grp > [id$="-pt-alignC"] { order: 15; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-alignR"], #bj-root.nb-mdock .docx-grp > [id$="-pt-alignR"] { order: 16; }
+#tj-root.nb-mdock .docx-grp > .docx-outdent-btn, #bj-root.nb-mdock .docx-grp > .docx-outdent-btn { order: 17; }
+#tj-root.nb-mdock .docx-grp > .docx-indent-btn, #bj-root.nb-mdock .docx-grp > .docx-indent-btn { order: 18; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-strike"], #bj-root.nb-mdock .docx-grp > [id$="-pt-strike"] { order: 19; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-code"], #bj-root.nb-mdock .docx-grp > [id$="-pt-code"] { order: 20; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-table"], #bj-root.nb-mdock .docx-grp > [id$="-pt-table"] { order: 21; }
+#tj-root.nb-mdock .docx-grp > [id$="-pt-hr"], #bj-root.nb-mdock .docx-grp > [id$="-pt-hr"] { order: 22; }
+#tj-root.nb-mdock .docx-grp > .docx-fontfam-btn, #bj-root.nb-mdock .docx-grp > .docx-fontfam-btn { order: 23; }
+#tj-root.nb-mdock .docx-grp > .docx-fs-step, #bj-root.nb-mdock .docx-grp > .docx-fs-step { order: 24; }
+#tj-root.nb-mdock .docx-grp > .docx-find-btn, #bj-root.nb-mdock .docx-grp > .docx-find-btn { order: 25; }
+#tj-root.nb-mdock .docx-grp > .docx-copyall-btn, #bj-root.nb-mdock .docx-grp > .docx-copyall-btn { order: 26; }
+#tj-root.nb-mdock .docx-grp > .pt-btn[title^="Undo"], #bj-root.nb-mdock .docx-grp > .pt-btn[title^="Undo"],
+#tj-root.nb-mdock .docx-grp > .pt-btn[title^="Redo"], #bj-root.nb-mdock .docx-grp > .pt-btn[title^="Redo"] {
+  order: 99; position: sticky; z-index: 1; background-color: var(--bg2) !important;
+}
+#tj-root.nb-mdock .docx-grp > .pt-btn[title^="Undo"], #bj-root.nb-mdock .docx-grp > .pt-btn[title^="Undo"] {
+  right: 40px; margin-left: auto !important; box-shadow: -12px 0 10px -4px var(--bg2) !important;
+}
+#tj-root.nb-mdock .docx-grp > .pt-btn[title^="Redo"], #bj-root.nb-mdock .docx-grp > .pt-btn[title^="Redo"] { right: 0; }
+#tj-root.nb-mdock .docx-grp > .pt-btn.pt-disabled[title^="Undo"], #bj-root.nb-mdock .docx-grp > .pt-btn.pt-disabled[title^="Undo"],
+#tj-root.nb-mdock .docx-grp > .pt-btn.pt-disabled[title^="Redo"], #bj-root.nb-mdock .docx-grp > .pt-btn.pt-disabled[title^="Redo"] { opacity: 1; color: color-mix(in srgb, var(--text) 30%, transparent) !important; }
+/* The menus, when swapped in: the same strip, words instead of icons. */
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode .docx-menubar, #bj-root.nb-mdock #bj-page-toolbar.edit-mode .docx-menubar { display: none !important; }
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode.nb-dock-menus .docx-menubar, #bj-root.nb-mdock #bj-page-toolbar.edit-mode.nb-dock-menus .docx-menubar {
+  display: flex !important; flex: 1 1 auto !important; width: auto !important; flex-basis: auto !important; min-width: 0;
+  margin: 0 !important; padding: 0 !important; order: 0; flex-wrap: nowrap; gap: 2px; overflow-x: auto; scrollbar-width: none;
+}
+#tj-root.nb-mdock #tj-page-toolbar.edit-mode.nb-dock-menus .docx-ribbonrow, #bj-root.nb-mdock #bj-page-toolbar.edit-mode.nb-dock-menus .docx-ribbonrow { display: none !important; }
+#tj-root.nb-mdock .docx-menubar .docx-menu-btn, #bj-root.nb-mdock .docx-menubar .docx-menu-btn {
+  flex: 0 0 auto; min-height: 40px; height: 40px; padding: 0 13px !important; font-size: 14.5px !important; border-radius: 10px; color: var(--text);
+}
+/* What used to float over the bottom of the page moves clear of the dock. */
+html.nb-docked .docx-find { top: calc(64px + env(safe-area-inset-top, 0px)); bottom: auto; }
+html.nb-docked .docx-toast { top: calc(70px + env(safe-area-inset-top, 0px)); bottom: auto; }
+html.nb-docked .docx-wcpin { display: none; }

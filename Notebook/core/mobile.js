@@ -270,6 +270,8 @@ function wire(K) {
     fab.classList.toggle('nb-fab-new', fabNew);
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
     if (dock) placeDock(); else root.classList.remove('nb-kb');
+    // Body-level bars (find, toasts) read it to stay clear of the dock.
+    if (document.documentElement.classList.contains('nb-docked') !== dock) document.documentElement.classList.toggle('nb-docked', dock);
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
     var de = document.documentElement, mine = de.getAttribute('data-nb-doc') === K;
