@@ -3635,11 +3635,13 @@ window._bjOJ = { enter: _bjOJEnter, leave: _bjOJLeave, active: _bjIsOJ };
 var bjIsMobile = false;
 
 function bjCheckMobile() {
-  bjIsMobile = window.innerWidth <= 768;
+  // The phone/tablet shell's breakpoint (notebook.css, core/mobile.js): up to
+  // 900px the entry list is a screen of its own, closed by opening an entry.
+  bjIsMobile = window.innerWidth <= 900;
   // Fix wb size slider: vertical on desktop, horizontal on mobile
   var slider = document.getElementById('bj-wb-size');
   if (slider) {
-    if (bjIsMobile) {
+    if (window.innerWidth <= 768) {
       slider.style.writingMode = 'horizontal-tb';
       slider.style.direction = 'ltr';
       slider.style.width = '72px';

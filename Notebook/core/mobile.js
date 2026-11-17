@@ -254,7 +254,8 @@ function wire(K) {
     var listOpen = shell && hasList && (noentry || !!(sidebar && sidebar.classList.contains(K + '-open')));
     var doc = shell && !listOpen;
     var ed = editing();
-    var page = !noentry && ($(K + '-page-area') || {}).style && $(K + '-page-area').style.display === 'flex';
+    var pa = $(K + '-page-area');
+    var page = !noentry && !!pa && pa.style.display === 'flex';
     var locked = shown($(K + '-locked-pane'));
     dockParts();
     var dock = touch && !!tb && tb.classList.contains('edit-mode') && page && !locked && (!shell || doc);

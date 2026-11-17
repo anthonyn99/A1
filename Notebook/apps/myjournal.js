@@ -3265,7 +3265,9 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
 var tjIsMobile = false;
 
 function tjCheckMobile() {
-  tjIsMobile = window.innerWidth <= 768;
+  // The phone/tablet shell's breakpoint (notebook.css, core/mobile.js): up to
+  // 900px the entry list is a screen of its own, closed by opening an entry.
+  tjIsMobile = window.innerWidth <= 900;
 }
 tjCheckMobile();
 window.addEventListener('resize', tjCheckMobile);

@@ -36,7 +36,7 @@ var STAMP = (src.match(/[?&]v=([^&#]+)/) || [])[1] || '';
 // What each group loads, in order. Stylesheets keep their cascade position.
 var GROUPS = {
   core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js', 'core/md.js', 'core/plans.js'],
-  docx: ['notebook.css', 'core/docx.js'],
+  docx: ['notebook.css', 'core/docx.js', 'core/mobile.js'],
   // Apps: Notebook.mount({ app }) loads one where the host calls it.
   brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js'],
   myjournal: ['apps/myjournal.css', 'apps/myjournal.js']
@@ -550,6 +550,7 @@ window.Notebook = {
         this._whenReady(function () {
           var root = document.getElementById(cfg.key + '-root');
           if (root) { root.setAttribute('data-notebook-side', cfg.profile); root.setAttribute('aria-label', cfg.side.name); }
+          if (window.NotebookMobile) window.NotebookMobile.wire(cfg.key);
         });
       } catch (e) {}
       return (cfg._ready = Promise.resolve(cfg));
@@ -571,7 +572,7 @@ window.Notebook = {
     // its failed promise, and every later mount() got that same failure back
     // until the page was reloaded.
     var self = this;
-    return (cfg._ready = instantiate(cfg).then(function (r) { addDone(cfg); return r; }, function (e) {
+    return (cfg._ready = instantiate(cfg).then(function (r) { addDone(cfg); if (window.NotebookMobile) window.NotebookMobile.wire(cfg.key); return r; }, function (e) {
       if (self.mounts[cfg.key] === cfg) delete self.mounts[cfg.key];
       [].forEach.call(document.querySelectorAll('[data-notebook="' + cfg.key + '"]'), function (n) { n.remove(); });
       var root = document.getElementById(cfg.key + '-root');
