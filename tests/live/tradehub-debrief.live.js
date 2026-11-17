@@ -156,6 +156,16 @@ const RUN = {
     await js(`window.MagiBrief.setView('brief'); 1`);
   }
 
+  // The morning opening (Trading Auto Launch's #tbdebrief) lands on Daily Report, whatever tab
+  // the Debrief was last closed on (Tony, 2026-11-17). A request past the wait opens at once.
+  console.log('\nthe morning opening');
+  await size(1440, 1000);
+  await js(`sessionStorage.setItem('tb_debrief_wait', String(Date.now() - 61 * 60 * 1000)); localStorage.setItem('tb_debrief_tab', 'movers'); 1`);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
+  const opened = await until("document.querySelector('.dbr')", 30000);
+  const on = await js(`var b=[...document.querySelectorAll('.dbr-tabs button')].find(function(x){ return x.classList.contains('on') || x.getAttribute('aria-selected')==='true'; }); return b ? b.textContent : '';`);
+  ok('the morning Debrief opens on Daily Report, not the tab it was closed on (Today’s Movers)', opened && /Daily Report/.test(on), JSON.stringify({ opened, on }));
+
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check|finnhub|workers\.dev/i.test(e));
   ok('no page errors', !real.length, real.join(' | '));
   console.log(`\n  screenshots: ${SHOTS}`);
