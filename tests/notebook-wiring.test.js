@@ -61,8 +61,9 @@ ok('the engines load in their original order (jguard, viz, oj) and fb.js last',
   files.map((f) => f.replace(/^.*\/Notebook\//, '').replace(/\?.*/, '')).join(',') === 'core/jguard.js,core/viz.css,core/viz.js,core/oj.css,core/oj.js,core/fb.js,core/md.js,core/plans.js', files.join(' '));
 ok('scripts are plain parser-blocking tags (no async/defer)', !/\b(async|defer)\b/.test(b.written[0]));
 b.win.Notebook.load('docx');
-ok('Notebook.load(\'docx\') writes the stylesheet before the module',
-  /notebook\.css\?v=abc123"><script src="[^"]*core\/docx\.js\?v=abc123"><\/script>$/.test(b.written[1] || ''), b.written[1]);
+// ...then the phone/tablet layer (core/mobile.js), which wires every app built.
+ok('Notebook.load(\'docx\') writes the stylesheet before the modules (docx, then mobile)',
+  /notebook\.css\?v=abc123"><script src="[^"]*core\/docx\.js\?v=abc123"><\/script><script src="[^"]*core\/mobile\.js\?v=abc123"><\/script>$/.test(b.written[1] || ''), b.written[1]);
 b.win.Notebook.load('docx');
 ok('a group loads once', b.written.length === 2);
 const late = boot('complete');
