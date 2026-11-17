@@ -123,7 +123,9 @@ function wire(K) {
     var pop = document.createElement('div');
     pop.className = 'docx-pop nb-mpop ' + cls;
     pop.setAttribute('data-nb-key', K);
-    document.body.appendChild(pop);
+    // Inside the root, so the side's own rules reach what it holds (Veda's tag
+    // chips are styled under #bj-root).
+    root.appendChild(pop);
     menu = pop;
     return pop;
   }
