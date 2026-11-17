@@ -131,7 +131,7 @@ const only = process.argv[2];
       ok('the pencil turns editing on, and the ribbon docks (nb-medit nb-mdock)', /\bnb-medit\b/.test(k) && /\bnb-mdock\b/.test(k) && await js(`return document.getElementById('${K}-btn-edit').checked;`), k);
       ok('…the round button goes away while editing', await js(`return !document.querySelector('${R} .nb-fab').classList.contains('on');`));
       const tb = await rect(`#${K}-page-toolbar`);
-      ok('the ribbon is ONE row at the very bottom of the screen', tb && Math.abs(tb.b - h) <= 1 && tb.h <= 56 && tb.l === 0 && Math.abs(tb.w - w) <= 1, JSON.stringify(tb));
+      ok('the ribbon is ONE row right under the header, full width', tb && Math.abs(tb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && tb.h <= 56 && tb.l === 0 && Math.abs(tb.w - w) <= 1, JSON.stringify(tb));
       ok('the menu row is not shown with it (menus are one swap away)', await js(`return getComputedStyle(document.querySelector('#${K}-page-toolbar .docx-menubar')).display==='none';`));
       const vis = await js(`var tb=document.getElementById('${K}-page-toolbar').getBoundingClientRect(); var out={}; ['bold','italic','underline'].forEach(n=>{var b=document.getElementById('${K}-pt-'+n).getBoundingClientRect(); out[n]=b.left>=tb.left && b.right<=tb.right-80 && b.height===40;}); var u=[...document.querySelectorAll('#${K}-page-toolbar .pt-btn')].find(x=>/^Undo/.test(x.title)).getBoundingClientRect(), r=[...document.querySelectorAll('#${K}-page-toolbar .pt-btn')].find(x=>/^Redo/.test(x.title)).getBoundingClientRect(); out.pinned=Math.abs(r.right-(tb.right-4))<=2 && Math.abs(u.right-r.left)<=1; out.ai=document.querySelector('#${K}-page-toolbar .docx-ai-btn').getBoundingClientRect().left < document.getElementById('${K}-pt-bold').getBoundingClientRect().left; return out;`);
       ok('B, I and U are on screen without scrolling, 40px targets', vis.bold && vis.italic && vis.underline, JSON.stringify(vis));
@@ -155,11 +155,11 @@ const only = process.argv[2];
       // The swap button: menus.
       await tap(`#${K}-page-toolbar .nb-dock-tog`);
       ok('the swap button shows the menus in the same row', await js(`var mb=document.querySelector('#${K}-page-toolbar .docx-menubar'); return getComputedStyle(mb).display==='flex' && getComputedStyle(document.querySelector('#${K}-page-toolbar .docx-ribbonrow')).display==='none' && [...mb.querySelectorAll('.docx-menu-btn')].map(b=>b.textContent).join(',').indexOf('File,Edit,View,Insert,Format')===0;`));
-      ok('…in one row, still at the bottom', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1 && (await rect(`#${K}-page-toolbar`)).h <= 56);
+      ok('…in one row, still right under the header', Math.abs((await rect(`#${K}-page-toolbar`)).t - (await rect(`#${K}-mobile-header`)).b) <= 1 && (await rect(`#${K}-page-toolbar`)).h <= 56);
       await tap(`#${K}-page-toolbar .docx-menubar .docx-menu-btn:nth-child(5)`);
       const pop = await rect('.docx-pop');
       const dockTop = (await rect(`#${K}-page-toolbar .docx-menubar .docx-menu-btn:nth-child(5)`)).t;
-      ok('a menu opens ABOVE its button in the dock, fully on screen', pop && pop.b <= dockTop + 1 && pop.t >= 0, JSON.stringify([pop, dockTop]));
+      ok('a menu opens under its button, fully on screen', pop && pop.t >= dockTop && pop.b <= h + 1, JSON.stringify([pop, dockTop]));
       await js(`document.dispatchEvent(new MouseEvent('pointerdown',{bubbles:true})); var p=document.querySelector('.docx-pop'); if(p) p.remove(); 1`);
       await tap(`#${K}-page-toolbar .nb-dock-tog`);
       ok('the swap button brings the formatting row back', await js(`return getComputedStyle(document.querySelector('#${K}-page-toolbar .docx-ribbonrow')).display==='flex';`));
@@ -168,29 +168,20 @@ const only = process.argv[2];
       await js(`window.__vvFake={height:innerHeight-320, offsetTop:0, scale:1, width:innerWidth, addEventListener(){}, removeEventListener(){}}; Object.defineProperty(window,'visualViewport',{configurable:true,get(){return window.__vvFake;}}); window.dispatchEvent(new Event('resize')); 1`);
       await sleep(300);
       const kbTb = await rect(`#${K}-page-toolbar`);
-      ok('with the keyboard up the dock rides right above it', Math.abs(kbTb.b - (h - 320)) <= 1 && /\bnb-kb\b/.test(await cls(K)), JSON.stringify(kbTb));
+      ok('with the keyboard up the ribbon stays right under the header, and the page gets room to scroll above the keyboard', Math.abs(kbTb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && /\bnb-kb\b/.test(await cls(K)) && await js(`return getComputedStyle(document.getElementById('${K}-root')).getPropertyValue('--nb-kb-space').trim()==='320px';`), JSON.stringify(kbTb));
       // Typing on the last line: the caret is kept above the dock.
       await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
       await js(`document.getElementById('${K}-page-editor').focus(); 1`);
       await c.send('Input.insertText', { text: ' more' });
       await sleep(400);
       const caret = await js(`var s=getSelection(), n=s.focusNode; var r=s.getRangeAt(0).getClientRects()[0]||(n.nodeType===1?n:n.parentElement).getBoundingClientRect(); return r.bottom;`);
-      ok('typing on the last line keeps the caret clear of the dock', caret <= kbTb.t - 4 && caret > 56, caret + ' vs dock ' + kbTb.t);
+      ok('typing on the last line keeps the caret above the keyboard', caret <= h - 320 - 4 && caret > 56, caret + ' vs keyboard top ' + (h - 320));
       await js(`delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
-      ok('keyboard down: the dock returns to the bottom', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1 && !/\bnb-kb\b/.test(await cls(K)));
-      // Chromium's own word for where the keyboard is (navigator.virtualKeyboard):
-      // overlaysContent is on while docked, and the dock sits right on its top edge.
-      const hasVK = await js(`return !!navigator.virtualKeyboard;`);
-      if (hasVK) {
-        ok('docked: the keyboard overlays the page (virtualKeyboard.overlaysContent on)', await js(`return navigator.virtualKeyboard.overlaysContent === true;`));
-        await js(`var vk=navigator.virtualKeyboard; Object.defineProperty(vk,'boundingRect',{configurable:true,get(){return new DOMRect(0, innerHeight-300, innerWidth, 300);}}); vk.dispatchEvent(new Event('geometrychange')); 1`);
-        await sleep(300);
-        const vkTb = await rect(`#${K}-page-toolbar`);
-        ok('the dock sits exactly on the keyboard\'s top edge (virtualKeyboard.boundingRect)', Math.abs(vkTb.b - (h - 300)) <= 1, JSON.stringify(vkTb));
-        await js(`var vk=navigator.virtualKeyboard; Object.defineProperty(vk,'boundingRect',{configurable:true,get(){return new DOMRect(0,0,0,0);}}); vk.dispatchEvent(new Event('geometrychange')); 1`);
-        await sleep(300);
-        ok('…and back to the bottom when it closes', Math.abs((await rect(`#${K}-page-toolbar`)).b - h) <= 1);
-      }
+      ok('keyboard down: the room goes, the ribbon stays put', !/\bnb-kb\b/.test(await cls(K)) && Math.abs((await rect(`#${K}-page-toolbar`)).t - (await rect(`#${K}-mobile-header`)).b) <= 1);
+      // Scrolling up to read while editing: never pulled back to the caret (the browser's bars resizing fire resize events).
+      await js(`var w=document.getElementById('${K}-page-editor-wrap'); w.scrollTop=w.scrollHeight; 1`); await sleep(200);
+      await js(`document.getElementById('${K}-page-editor-wrap').scrollTop=100; window.dispatchEvent(new Event('resize')); window.visualViewport && window.visualViewport.dispatchEvent(new Event('resize')); 1`); await sleep(400);
+      ok('scrolling up while editing stays where it was put (no snap back)', await js(`return document.getElementById('${K}-page-editor-wrap').scrollTop;`) === 100);
       // The swap button never moves the page to the caret.
       await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); document.getElementById('${K}-page-editor-wrap').scrollTop=0; 1`);
       await sleep(300);
@@ -250,7 +241,8 @@ const only = process.argv[2];
     await js(`document.querySelector('#${K}-entries-list .entry-item').click(); 1`); await sleep(800);
     await js(`var b=document.getElementById('${K}-btn-edit'); if(!b.checked) b.click(); 1`); await sleep(500);
     const tb = await rect(`#${K}-page-toolbar`), main = await rect(`#${K}-main`);
-    ok('editing: the ribbon docks at the bottom of the page column, one row', /\bnb-mdock\b/.test(await cls(K)) && Math.abs(tb.b - 820) <= 1 && Math.abs(tb.l - main.l) <= 1 && Math.abs(tb.w - main.w) <= 1 && tb.h <= 56, JSON.stringify([tb, main]));
+    const bar = await rect(`#${K}-toolbar`);
+    ok('editing: the ribbon is one row right under the title bar, across the page column', /\bnb-mdock\b/.test(await cls(K)) && Math.abs(tb.t - bar.b) <= 1 && Math.abs(tb.w - main.w) <= 1 && tb.h <= 56, JSON.stringify([tb, bar, main]));
     await shot(`${who}-1180-edit`);
 
     // ── desktop: untouched ──
@@ -291,7 +283,7 @@ const only = process.argv[2];
     ok(`${side} instance: the host page keeps its own header (nothing is covered)`, await js(`return !document.documentElement.hasAttribute('data-nb-doc');`));
     await js(`var b=document.getElementById('${K}-btn-edit'); if(!b.checked){ document.querySelector('#${K}-root .nb-fab').click(); } 1`); await sleep(500);
     const tb = await rect(`#${K}-page-toolbar`);
-    ok(`${side} instance: editing docks the ribbon at the bottom of the screen`, /\bnb-mdock\b/.test(await cls(K)) && Math.abs(tb.b - 915) <= 1, JSON.stringify(tb));
+    ok(`${side} instance: editing puts the ribbon in one row right under its header`, /\bnb-mdock\b/.test(await cls(K)) && Math.abs(tb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && tb.h <= 56, JSON.stringify(tb));
     await shot(`instance-${side}-412`);
   }
 
