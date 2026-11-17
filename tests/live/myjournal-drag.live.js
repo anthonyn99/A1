@@ -37,7 +37,8 @@ const SEED = {
   activeId: null, deletedIds: [],
 };
 
-const saved = (c) => evalJs(c, "return JSON.stringify(JSON.parse(localStorage.getItem('tony_journal_v3')||'{\"entries\":[]}').entries.map(e=>e.id));").then(JSON.parse);
+// The saved order: the store's _order (the fake Firestore), after the save lands.
+const saved = (c) => sleep(2600).then(() => evalJs(c, "var d=window.__fakeFs&&__fakeFs.docs['dashboards/tony_journal']; return JSON.stringify(d&&d._order||[]);")).then(JSON.parse);
 const shown = (c) => evalJs(c, "return JSON.stringify([...document.querySelectorAll('#tj-entries-list .entry-item')].map(r=>r.dataset.entryId));").then(JSON.parse);
 const rect = async (c, js) => JSON.parse(await evalJs(c, `return JSON.stringify((() => { const b = (${js}).getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height, top: b.top}; })());`));
 const row = (id) => `document.querySelector('#tj-entries-list .entry-item[data-entry-id="${id}"]')`;

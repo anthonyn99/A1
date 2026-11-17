@@ -204,8 +204,8 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
   // Editing a page there: the ribbon docks at the foot of the notes, above the nav.
   await js(`var r=document.getElementById('stn-root'); if (r.classList.contains('nb-mlist')) { var it=document.querySelector('#stn-entries-list .entry-item'); if (it) it.click(); } 1`); await sleep(800);
   await js(`var b=document.getElementById('stn-btn-edit'); if (b && !b.checked) document.querySelector('#stn-root .nb-fab').click(); 1`); await sleep(700);
-  ok('editing on the phone docks the ribbon right above StudyOS\'s bottom nav (never over it)', await js(`var t=document.getElementById('stn-page-toolbar').getBoundingClientRect(), n=document.getElementById('sos-bottom-nav').getBoundingClientRect();
-    return document.getElementById('stn-root').classList.contains('nb-mdock') && Math.abs(t.bottom - n.top) <= 2 && t.height <= 56;`),
+  ok('editing on the phone docks the ribbon at the foot of the notes, above StudyOS\'s bottom nav (never over it)', await js(`var t=document.getElementById('stn-page-toolbar').getBoundingClientRect(), n=document.getElementById('sos-bottom-nav').getBoundingClientRect(), m=document.getElementById('stn-main').getBoundingClientRect();
+    return document.getElementById('stn-root').classList.contains('nb-mdock') && Math.abs(t.bottom - m.bottom) <= 1 && t.bottom <= n.top && Math.abs(t.width - m.width) <= 1 && t.height <= 56;`),
     await js(`return JSON.stringify([document.getElementById('stn-root').className, document.getElementById('stn-page-toolbar').getBoundingClientRect(), document.getElementById('sos-bottom-nav').getBoundingClientRect()]);`));
   await shot('studyos-notebook-phone-edit');
   await js(`var b=document.getElementById('stn-btn-edit'); if (b && b.checked) document.querySelector('#stn-root .nb-mh-mode').click(); 1`); await sleep(400);
