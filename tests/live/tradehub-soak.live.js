@@ -48,7 +48,10 @@ const PROBE = `(() => {
   ok('the app is up with Quant on', await until(`document.querySelector('.tbq-on')`, 10000));
   for (const id of TABS) { await js(`window.__go('${id}'); 1`); await sleep(900); }
 
+  // Always sampled on the same tab: DOM nodes differ by tab (2,300 to 4,200), so samples taken
+  // on whichever tab was open read as growth that was not there (first 2-hour run, 2026-11-17).
   const sample = async () => {
+    await js(`window.__go('portfolio'); 1`); await sleep(1500);
     await c.send('HeapProfiler.collectGarbage'); await sleep(500); await c.send('HeapProfiler.collectGarbage');
     const m = Object.fromEntries((await c.send('Performance.getMetrics')).result.metrics.map((x) => [x.name, x.value]));
     return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, docs: m.Documents };
