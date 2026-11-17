@@ -161,6 +161,11 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
   const genMod = await js(`return (classes.find(c => c.id === 'c1').modules.find(m => m.name === 'Generated') || {}).id || null;`);
   ok('a note for a class with no target goes to a Generated Notes module, as a page there', !!genMod && gen2 && gen2.folder === genMod, JSON.stringify({ genMod, gen2 }));
   await openModule('c1', 'm1');
+  // Opened again after a close: StudyOS's own control styler must not have wrapped
+  // the ribbon's selects while the notes waited in #nb-park (Veda's screenshot,
+  // 2026-11-17: oversized bordered Paragraph / size / zoom boxes).
+  ok('reopened, the ribbon\'s selects are Notebook\'s own (no StudyOS trigger wrapped round them)', await js(`return !document.querySelector('#stn-root .sosc-trigger, #stn-root .sosc-native') && document.querySelectorAll('#stn-page-toolbar .docx-grp > .pt-select').length >= 2;`),
+    await js(`return [...document.querySelectorAll('#stn-root .sosc-trigger')].length + ' triggers';`));
   const before = await js(`return JSON.parse(localStorage.getItem('studyos_cards_c1') || '[]').length;`);
   await js(`document.getElementById('module-detail-cards-btn').click(); 1`); await sleep(800);
   const after = await js(`return JSON.parse(localStorage.getItem('studyos_cards_c1') || '[]').filter(c => !c.deletedAt).length;`);
