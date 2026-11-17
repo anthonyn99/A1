@@ -171,7 +171,7 @@ function toneWav(sec) {
   ok('…then RESPONDING', await until(`window._vdNeo.mode() === 'speaking'`, 15000), await mode());
   await sleep(900); await shot('4-speaking');
   ok('the action card shows the new task', /TASK ADDED/.test(await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`)) && /Buy milk/.test(await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`)), await js(`return document.querySelector('#vd-neo-hud .vn-cards').textContent;`));
-  ok('the caption becomes the clean transcript', (await js(`return document.querySelector('#vd-neo-hud .vn-you').textContent;`)) === 'add buy milk tomorrow');
+  ok('the caption becomes the clean transcript', (await js(`return document.querySelector('#vd-neo-hud .vn-you').textContent;`)) === 'Add buy milk tomorrow');   // tidyText: first letter up (veda-neo.js)
   ok('the task was added for tomorrow', await js(`return ((window._vdVoice.getState().data||{})[${JSON.stringify(TOMORROW)}]||[]).some(function(x){return x.title==='Buy milk';});`));
   ok('the reply asked Orca for Ryan too', orcaCalls.some(o => o.input === REPLY && o.voice === 'en-GB-RyanNeural'), JSON.stringify(orcaCalls.map(o => o.input)));
   ok('Orca refused, so the device voice (British) spoke the reply', await until(`(window.__spoken||[]).some(function(s){return s.text===${JSON.stringify(REPLY)} && /^en-GB/.test(s.lang);})`, 8000), await js(`return JSON.stringify(window.__spoken);`));
@@ -203,7 +203,7 @@ function toneWav(sec) {
   ok('switching to Tony puts Neo to sleep (mic released)', await until(`window._vdNeo.mode() === 'off'`, 4000), await mode());
   ok('the HUD is gone', !(await js(`return document.getElementById('vd-neo-hud').classList.contains('show');`)));
   ok('…and the quote banner is back', !(await js(`return document.body.classList.contains('vn-docked');`)));
-  ok('Tony\'s header has his own Neo button, off (his switch is his own)', await js(`var b=document.querySelector('#root .vd-neo-btn'); return !!b && !b.classList.contains('on');`));
+  ok('Tony\'s header has his own Neo button, off (his switch is his own)', await js(`var b=document.querySelector('#root .th-neo-btn'); return !!b && !b.classList.contains('on');`));
   const before = parsed.length; await sleep(14000);   // the fake mic loops "Neo…" every ~13 s
   ok('Neo hears nothing while Tony\'s TaskHub is open', parsed.length === before, parsed.length - before);
 
