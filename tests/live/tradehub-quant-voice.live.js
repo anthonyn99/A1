@@ -77,7 +77,7 @@ const untilNode = async (f, ms = 15000) => { const t = Date.now(); while (Date.n
     ok(`${label}: records (pink dot), the clip goes to /ai/hear as opus, the question is asked, the answer spoken, the mic released`,
       listening && heardOk && /webm|ogg/.test(clip.mime || '') && clip.bytes > 1500 && asked && q && q.messages[q.messages.length - 1].content === 'Is NVDA a buy here?' && spoke && back && !live,
       JSON.stringify({ listening, heardOk, clip, asked, spoke, back, live }));
-    return { clip, said, asks: ai().length - a0, bodies: ai().slice(a0).map((x) => (x.body && x.body.messages || []).slice(-1).map((m) => m.content).join()) };
+    return { clip, said, asks: ai().length - a0, bodies: ai().slice(a0).map((x) => x.p + ":" + (x.body && (x.body.provider || x.body.job || "")) + ":" + (x.body && x.body.messages || []).length) };
   }
 
   console.log('\nNothing before a press');
