@@ -250,9 +250,20 @@ function wire(K) {
   // ── State: one pass sets every class the stylesheet reads ──
   var raf = 0;
   function schedule() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; sync(); }); }
+  // The open entry changed while the list was up (a new page from +, a host's
+  // Notebook.open): the list steps aside for it.
+  var lastActive = null;
+  function activeId() { var a = document.querySelector('#' + K + '-entries-list .entry-item.active'); return a ? a.getAttribute('data-entry-id') : null; }
   function sync() {
     var shell = mqShell.matches, touch = mqTouch.matches;
     var noentry = root.classList.contains('nb-noentry');
+    var act = activeId();
+    if (act !== lastActive) {
+      var was = lastActive; lastActive = act;
+      if (was !== null && act && shell && sidebar && sidebar.classList.contains(K + '-open')) {
+        var close = window['_' + K + 'SetDrawer']; if (typeof close === 'function') close(false);
+      }
+    }
     var listOpen = shell && hasList && (noentry || !!(sidebar && sidebar.classList.contains(K + '-open')));
     var doc = shell && !listOpen;
     var ed = editing();
@@ -285,6 +296,8 @@ function wire(K) {
   var mo = new MutationObserver(schedule);
   mo.observe(root, { attributes: true, attributeFilter: ['class', 'style'] });
   if (sidebar) mo.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+  var list = $(K + '-entries-list');
+  if (list) mo.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   ['page-area', 'locked-pane'].forEach(function (s) { var el = $(K + '-' + s); if (el) mo.observe(el, { attributes: true, attributeFilter: ['style'] }); });
   // The page toolbar may be built later (the editor starts on first open).
   function watchTb() {
