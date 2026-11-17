@@ -71,18 +71,27 @@ async function touchDrag(c, x, y, dy, steps = 16, holdMs = 0) {
 async function load(c, w, h, mobile, keepStorage) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
+  // The journal is seeded in the fake Firestore too (fake-firebase.js), as every
+  // other journal test does: with no Firestore at all index never finished
+  // booting and the journal never opened (2026-11-17).
   if (!keepStorage) {
-    await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' }); await sleep(800);
-    await evalJs(c, `localStorage.clear(); localStorage.setItem('td6_mainDash','tony'); localStorage.setItem('tony_journal_v3', ${JSON.stringify(JSON.stringify(SEED))}); 1`);
+    await c.send('Page.navigate', { url: ORIGIN + '/A1/LifeHub/lifehub.js' }); await sleep(400);
+    const doc = { _order: SEED.entries.map((e) => e.id), activeId: null, savedAt: T0 };
+    SEED.entries.forEach((e) => { doc['e_' + e.id] = Object.assign({ rev: 1 }, e); });
+    await evalJs(c, `localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','tony'); localStorage.setItem('a1b_disabled','1');
+      var d=new Date(); localStorage.setItem('a1_sweep_day:index', d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2));
+      localStorage.setItem('tony_journal_v3', ${JSON.stringify(JSON.stringify(SEED))});
+      sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify({ 'dashboards/tony_journal': doc }))}); 1`);
   }
-  await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
-  await sleep(9000);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' }); await sleep(2500);
+  for (let i = 0; i < 120; i++) { if (await evalJs(c, "var l=document.getElementById('th-boot-loader'); return !!window._profileGoTony && (!l || l.classList.contains('th-boot-hide'));")) break; await sleep(250); }
+  await sleep(800);
   await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._tonyNav('brainstormjournal'); 1");
   await sleep(2500);
 }
 
 (async () => {
-  const c = await connect();
+  const c = await connect({ mock: require('./fake-firebase.js').firebaseMock() });
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Network.enable');
   await c.send('Network.setCacheDisabled', { cacheDisabled: true });
