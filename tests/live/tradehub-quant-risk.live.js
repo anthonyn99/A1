@@ -132,7 +132,13 @@ const RULES = { rules: [
   console.log('\nJournal ▸ Edge');
   await tab('journal');
   ok('the Journal has a Trades | Edge switch', await until(`document.querySelector('[data-journal-view]')`, 6000));
+  // At the very right of the header in both views (Tony, 2026-11-17).
+  const swRight = () => js(`var s=document.querySelector('[data-journal-view]'), a=s && s.closest('.tbp-acts'); return s ? JSON.stringify({ last: !!a && a.lastElementChild === s || (a && [...a.children].filter(function(c){ return c.offsetParent && c.tagName !== 'INPUT'; }).pop() === s), right: Math.round(s.getBoundingClientRect().right) }) : 'null';`).then(JSON.parse);
+  const swTrades = await swRight();
   await js(`[...document.querySelectorAll('[data-journal-view] button')].find(function(b){return b.textContent==='Edge';}).click(); 1`);
+  await until(`document.querySelector('[data-journal-edge]')`, 6000);
+  const swEdge = await swRight();
+  ok('...on Trades it is the last thing at the right, where it sits on Edge', swTrades && swTrades.last && swEdge && Math.abs(swTrades.right - swEdge.right) <= 1, JSON.stringify({ swTrades, swEdge }));
   ok('Edge draws its six cards', await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 6`, 10000));
   ok('the breakdown: overall over his closed trades', await until(`document.querySelector('[data-ed-row="All trades"]')`, 8000), await text('[data-ed-breakdown]'));
   await js(`var s=document.querySelector('[data-ed-by]'); s.value='ticker'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
