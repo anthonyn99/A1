@@ -338,15 +338,18 @@ export async function push(env, msg) {
     });
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (!r.ok || j.ok === false) return { ok: false, error: j.error || 'HTTP ' + r.status };
-    return { ok: (j.sent || 0) > 0, sent: j.sent || 0, failed: j.failed || 0, devices: Array.isArray(j.devices) ? j.devices : [], ...(j.sent ? {} : { error: 'no device received it' }) };
+    return { ok: (j.sent || 0) > 0, sent: j.sent || 0, failed: j.failed || 0, devices: Array.isArray(j.devices) ? j.devices : [], ...(j.ms ? { ms: j.ms } : {}), ...(j.sent ? {} : { error: 'no device received it' }) };
   } catch (e) { return { ok: false, error: e.message || String(e) }; }
 }
 /** POST /alerts/test: "Send test" in Control ▸ Alerts. */
 export async function testPush(env) {
-  const r = await push(env, { title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', tag: 'tbq-test' });
-  return json({ ok: r.ok, sent: r.sent || 0, failed: r.failed || 0, devices: r.devices || [], ...(r.error ? { error: r.error } : {}) });
+  const r = await push(env, { title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', tag: 'tbq-test-' + Date.now().toString(36) });
+  // Each test its own tag: one tag for every test made the second REPLACE the first, silently (Tony, 2026-11-16).
+  return json({ ok: r.ok, sent: r.sent || 0, failed: r.failed || 0, devices: r.devices || [], ...(r.ms ? { ms: r.ms } : {}), ...(r.error ? { error: r.error } : {}) });
 }
 export const pageUrl = (route) => PAGE_URL + '#alert=' + route;
+/** A short, stable notification tag for a rule's trigger. */
+export function tagOf(str) { let a = 5381, b = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); a = (a * 33) ^ c; b = (b * 33) ^ c; } return (a >>> 0).toString(36) + (b >>> 0).toString(36); }
 
 /* ── firing ─────────────────────────────────────────────────────────────── */
 /**
@@ -386,7 +389,8 @@ export async function fire(env, items, cfg, now, { send = push } = {}) {
     delete st.retry;
     let res = null;
     if (!why) {
-      const msg = { title: it.title, body: it.body, url: it.url, tag: 'tbq-' + r.id, card: !!cfg.cards[it.kind], kind: it.kind };
+      // A tag per rule AND trigger: each new alert is its own notification (one tag a rule made a new one replace the last).
+      const msg = { title: it.title, body: it.body, url: it.url, tag: 'tbq-' + tagOf(r.id + '|' + it.key), card: !!cfg.cards[it.kind], kind: it.kind };
       res = await send(env, msg);
       if (!res.ok) st.retry = { key: it.key, ...msg };
       await env.DB.prepare('UPDATE alert_fires SET pushed = ?, why = ?, devices = ? WHERE rule_id = ? AND trigger_key = ?')
