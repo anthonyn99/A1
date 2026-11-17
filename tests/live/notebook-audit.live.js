@@ -123,6 +123,21 @@ const SIDES = {
     await key('Escape');
     ok('a second Escape closes the other', await js(`return document.querySelectorAll('.docx-veil').length === 0;`));
 
+    // The pinned word count (2026-11-17): in the page column's bottom-left, never
+    // over the sidebar's Trash, counting the page that is open.
+    await menu('Tools', 'Word count');
+    await js(`[...document.querySelectorAll('.docx-veil .docx-btn')].find(b => /Pin to the page/.test(b.textContent)).click(); 1`); await sleep(400);
+    const pin = await js(`var p=document.getElementById('docx-wcpin-${K}'); if(!p) return null; var a=document.getElementById('${K}-page-area').getBoundingClientRect(), r=p.getBoundingClientRect(), t=(document.getElementById('${K}-trash-btn')||{getBoundingClientRect:()=>({right:-1,top:0,bottom:0,left:0})}).getBoundingClientRect();
+      return { inCol: p.parentNode.id === '${K}-page-area', left: Math.round(r.left - a.left), bottom: Math.round(a.bottom - r.bottom), clearOfTrash: r.left >= t.right || r.bottom <= t.top || r.top >= t.bottom, n: +p.querySelector('.n').textContent, h: Math.round(r.height) };`);
+    ok('the word count pins to the page column, bottom-left, clear of Trash', pin && pin.inCol && pin.left >= 10 && pin.left <= 18 && pin.bottom >= 10 && pin.bottom <= 18 && pin.clearOfTrash && pin.h <= 32, JSON.stringify(pin));
+    ok('…and counts the open page', pin && pin.n > 0, JSON.stringify(pin));
+    await click(`#${K}-entries-list .entry-item:nth-child(2)`); await sleep(800);
+    ok('opening another page shows that page\'s count', await js(`var p=document.getElementById('docx-wcpin-${K}'), ed=document.getElementById('${K}-page-editor'); return !!p && +p.querySelector('.n').textContent === (ed.innerText.trim().match(/\\S+/g) || []).length;`),
+      await js(`var p=document.getElementById('docx-wcpin-${K}'); return p && p.textContent;`));
+    await js(`document.querySelector('#docx-wcpin-${K} button').click(); 1`); await sleep(200);
+    ok('its × unpins it', await js(`return !document.getElementById('docx-wcpin-${K}');`));
+    await click(`#${K}-entries-list .entry-item`); await sleep(600);
+
     if (who === 'tony') {
       await click('#tj-new-entry-btn'); await js(`document.querySelector('#tj-template-modal .template-card[data-template="journal-entries"]').click(); 1`); await sleep(1200);
       ok("Journal Entries' ribbon selects are 12px with a mouse (not the phone's 16px)", await js(`const s=[...document.querySelectorAll('#tj-je-toolbar select')].filter(x=>x.getBoundingClientRect().width>0); return s.length > 0 && s.every(x => getComputedStyle(x).fontSize === '12px');`),
