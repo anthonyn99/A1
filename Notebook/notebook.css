@@ -1353,9 +1353,12 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
   max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; pointer-events: none;
   font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 12px !important; font-weight: 700; color: #adadb2;
-  transition: opacity .3s ease, max-width .3s ease;
+  /* A fade, as on the desktop (Tony, 2026-11-17: it slid in and out). Going
+     away, the word fades first and its slot closes after; coming in, the slot
+     opens at once and the word fades in. */
+  transition: opacity .3s ease, max-width 0s linear .3s, padding 0s linear .3s;
 }
-#tj-root #tj-bb-saved.on, #bj-root #bj-bb-saved.on { max-width: 120px; padding: 0 4px; }
+#tj-root #tj-bb-saved.on, #bj-root #bj-bb-saved.on { max-width: 120px; padding: 0 4px; transition: opacity .3s ease, max-width 0s, padding 0s; }
 #tj-root #tj-bb-saved .tj-sync-dot, #bj-root #bj-bb-saved .bj-sync-dot { width: 8px; height: 8px; }
 
 /* Wider sidebar on roomy screens, but never a third of the page. */
@@ -1420,7 +1423,8 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
     width: 100% !important; max-width: none !important; height: auto !important;
     box-shadow: none !important; border-right: 0 !important; padding-top: 0 !important;
     transform: translateX(-100%); visibility: hidden; transition: none !important;
-    z-index: 401; background: var(--bg) !important;
+    /* Under every dialog the apps open (the template picker is 300). */
+    z-index: 260; background: var(--bg) !important;
   }
   #tj-root.nb-mlist #tj-sidebar, #bj-root.nb-mlist #bj-sidebar { transform: none !important; visibility: visible; }
   #tj-root #tj-sidebar-backdrop, #bj-root #bj-sidebar-backdrop { display: none !important; }
@@ -1474,7 +1478,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   /* ── The round button: + on the list, the pencil while reading ── */
   #tj-root .nb-fab.on, #bj-root .nb-fab.on { display: inline-flex; }
   #tj-root .nb-fab, #bj-root .nb-fab {
-    position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 420;
+    position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 270;
     width: 56px; height: 56px; margin: 0; padding: 0; border: 0; border-radius: 18px;
     align-items: center; justify-content: center; cursor: pointer;
     background: var(--purple); color: #1a1a1d; box-shadow: 0 8px 22px rgba(0,0,0,.45) !important;
