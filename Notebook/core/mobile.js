@@ -180,7 +180,29 @@ function wire(K) {
   function kbSpace() {
     var kb = keyboard();
     root.classList.toggle('nb-kb', kb > 0);
-    root.style.setProperty('--nb-kb-space', kb + 'px');
+    // A screen fitted to the visible area (fitRoot) already ends at the keyboard.
+    root.style.setProperty('--nb-kb-space', (root.classList.contains('nb-fit') ? 0 : kb) + 'px');
+  }
+
+  // index.html, a page open on a phone: the screen follows the VISIBLE area.
+  // With the keyboard up, browsers pan the whole page to show the caret (a
+  // re-render near the bottom was enough), which pushed the header up under the
+  // address bar (Tony, 2026-11-17). The root's top tracks the visual viewport's
+  // offset and its height ends at the keyboard, so the header stays put and the
+  // page scrolls inside its own box. An instance lives in its host's layout and
+  // is left alone.
+  function fitRoot(on) {
+    var vv = window.visualViewport;
+    on = on && overlay && !!vv && vv.scale <= 1.01 && (vv.offsetTop > 0.5 || window.innerHeight - vv.height > 1);
+    if (on) {
+      root.style.setProperty('top', Math.round(vv.offsetTop) + 'px', 'important');
+      root.style.setProperty('bottom', 'auto', 'important');
+      root.style.setProperty('height', Math.round(vv.height) + 'px', 'important');
+      root.classList.add('nb-fit');
+    } else if (root.classList.contains('nb-fit')) {
+      root.style.removeProperty('top'); root.style.removeProperty('bottom'); root.style.removeProperty('height');
+      root.classList.remove('nb-fit');
+    }
   }
 
   // Typing on the last visible line: keep the caret above the keyboard.
@@ -250,6 +272,7 @@ function wire(K) {
     fab.classList.toggle('on', !!(fabNew || fabEdit));
     fab.classList.toggle('nb-fab-new', fabNew);
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
+    fitRoot(doc && shown(root));
     if (dock) kbSpace(); else { root.classList.remove('nb-kb'); root.style.removeProperty('--nb-kb-space'); }
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
