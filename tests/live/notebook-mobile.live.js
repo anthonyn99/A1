@@ -168,7 +168,9 @@ const only = process.argv[2];
       await js(`window.__vvFake={height:innerHeight-320, offsetTop:0, scale:1, width:innerWidth, addEventListener(){}, removeEventListener(){}}; Object.defineProperty(window,'visualViewport',{configurable:true,get(){return window.__vvFake;}}); window.dispatchEvent(new Event('resize')); 1`);
       await sleep(300);
       const kbTb = await rect(`#${K}-page-toolbar`);
-      ok('with the keyboard up the ribbon stays right under the header, and the page gets room to scroll above the keyboard', Math.abs(kbTb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && /\bnb-kb\b/.test(await cls(K)) && await js(`return getComputedStyle(document.getElementById('${K}-root')).getPropertyValue('--nb-kb-space').trim()==='320px';`), JSON.stringify(kbTb));
+      ok('with the keyboard up the ribbon stays right under the header', Math.abs(kbTb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && /\bnb-kb\b/.test(await cls(K)), JSON.stringify(kbTb));
+      // index.html: the screen is fitted to the visible area, so it ends at the keyboard.
+      ok('…and the screen ends at the keyboard (fitted to the visible area)', /\bnb-fit\b/.test(await cls(K)) && Math.abs((await rect(`#${K}-root`)).b - (h - 320)) <= 1 && Math.abs((await rect(`#${K}-page-editor-wrap`)).b - (h - 320)) <= 1, JSON.stringify(await rect(`#${K}-root`)));
       // Typing on the last line: the caret is kept above the dock.
       await js(`var ed=document.getElementById('${K}-page-editor'), last=ed.querySelector('p:last-child'); var r=document.createRange(); r.selectNodeContents(last); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
       await js(`document.getElementById('${K}-page-editor').focus(); 1`);
@@ -176,7 +178,14 @@ const only = process.argv[2];
       await sleep(400);
       const caret = await js(`var s=getSelection(), n=s.focusNode; var r=s.getRangeAt(0).getClientRects()[0]||(n.nodeType===1?n:n.parentElement).getBoundingClientRect(); return r.bottom;`);
       ok('typing on the last line keeps the caret above the keyboard', caret <= h - 320 - 4 && caret > 56, caret + ' vs keyboard top ' + (h - 320));
-      await js(`delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
+      // The browser pans the page to show the caret (the bug: the header slid up
+      // under the address bar). The screen follows the visible area instead.
+      await js(`window.__vvFake.offsetTop = 150; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
+      ok('a browser pan with the keyboard up: the header follows, still at the top of what is visible', Math.abs((await rect(`#${K}-mobile-header`)).t - 150) <= 1 && Math.abs((await rect(`#${K}-root`)).b - (h - 320 + 150)) <= 1, JSON.stringify(await rect(`#${K}-mobile-header`)));
+      await tap(`#${K}-page-toolbar .nb-dock-tog`); await tap(`#${K}-page-toolbar .nb-dock-tog`); await sleep(300);
+      ok('…and swapping the row there leaves it there', Math.abs((await rect(`#${K}-mobile-header`)).t - 150) <= 1);
+      await js(`window.__vvFake.offsetTop = 0; delete window.visualViewport; window.dispatchEvent(new Event('resize')); 1`); await sleep(300);
+      ok('keyboard down: the screen is full height again', !/\bnb-fit\b/.test(await cls(K)) && Math.abs((await rect(`#${K}-root`)).b - h) <= 1 && (await rect(`#${K}-mobile-header`)).t === 0);
       ok('keyboard down: the room goes, the ribbon stays put', !/\bnb-kb\b/.test(await cls(K)) && Math.abs((await rect(`#${K}-page-toolbar`)).t - (await rect(`#${K}-mobile-header`)).b) <= 1);
       // Scrolling up to read while editing: never pulled back to the caret (the browser's bars resizing fire resize events).
       // (Long enough to scroll on the tablet too.)
