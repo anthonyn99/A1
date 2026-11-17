@@ -989,7 +989,8 @@
     background: var(--bg);
   }
 
-  /* ── SIDEBAR: always fixed overlay, never a flex item ── */
+  /* ── SIDEBAR: a fixed overlay, never a flex item. Since 2026-11-17 notebook.css
+        ("Phones and tablets") makes it the full-screen list instead. ── */
   #tj-root #tj-sidebar {
     position: fixed !important;
     left: -100%;
@@ -1091,7 +1092,8 @@
   #tj-root #tj-sidebar-header { padding: 10px 12px 8px; }
   #tj-root #tj-sidebar-header h1 { font-size: 13px; }
 
-  /* ── BOTTOM ACTION BAR ── */
+  /* ── BOTTOM ACTION BAR (hidden since 2026-11-17: notebook.css "Phones and
+        tablets" gives the editor bar and the round button; kept, its buttons are clicked) ── */
   #tj-root #tj-bottom-bar {
     display: flex !important; position: fixed;
     bottom: 0; left: 0; right: 0;

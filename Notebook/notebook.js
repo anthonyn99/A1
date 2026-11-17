@@ -399,9 +399,10 @@ function instanceCss(cfg) {
   if (cfg.mode !== 'overlay') {
     css.push(R + '{position:relative!important;inset:auto!important;z-index:auto!important;'
       + 'display:flex!important;flex-direction:column;width:100%;height:100%;padding-top:0!important;}');
-    // What the app pins to the VIEWPORT on a phone (the sidebar drawer, its
-    // backdrop, the bottom bar) pins to the instance instead: inside a host's
-    // transformed or offset container a fixed drawer peeks out at the edge.
+    // What the app pins to the VIEWPORT on a phone pins to the instance instead:
+    // inside a host's transformed or offset container a fixed box peeks out at
+    // the edge. (Since 2026-11-17 the list is a screen of its own and the bottom
+    // bar is hidden, notebook.css "Phones and tablets"; these stay as a floor.)
     css.push('@media (max-width: 900px){' + R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop{position:absolute!important;height:100%!important;}'
       + R + ' ' + K + '-bottom-bar{position:absolute!important;}}');
   }
