@@ -180,7 +180,7 @@ function wire(K) {
     if (e.key === 'Escape' && menu) { e.stopPropagation(); closeMenus(); }
   }, true);
 
-  // ── The ribbon, docked above the keyboard ──
+  // ── The ribbon, one row under the header (its swap button) ──
   var tb = null, tog = null;
   function dockParts() {
     tb = $(K + '-page-toolbar');
