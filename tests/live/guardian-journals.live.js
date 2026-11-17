@@ -79,7 +79,11 @@ const worker = {
       var d = new Date(); localStorage.setItem('a1_sweep_day:index', d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2));
       ${K === 'tj' ? `localStorage.setItem('tj_unlockedat_${LOCKED}', '${LV + 10}'); localStorage.setItem('bio_cred_tj_${LOCKED}', JSON.stringify({ id: 'AQID', created: ${LV + 20}, v: ${LV} }));` : ''}
       sessionStorage.setItem('__fakefs_docs', JSON.stringify({ '${J.doc}': ${JSON.stringify(seed())} })); 1`);
-    await c.send('Page.navigate', { url: BASE + 'index.html' }); await sleep(9000);
+    await c.send('Page.navigate', { url: BASE + 'index.html' }); await sleep(2500);
+    // Wait for index to finish booting (a fixed 9s sometimes opened the journal
+    // before TaskHub was ready, and it never showed; 2026-11-17).
+    for (let i = 0; i < 120; i++) { if (await js("var l=document.getElementById('th-boot-loader'); return !!window._profileGoTony && (!l || l.classList.contains('th-boot-hide'));")) break; await sleep(250); }
+    await sleep(800);
     await js(`var l=document.getElementById('th-boot-loader'); if(l) l.remove(); ${J.open}; 1`); await sleep(2500);
     const pane = () => js(`var p = document.getElementById('${K}-locked-pane'); return !!p && p.style.display !== 'none';`);
     const title = () => js(`return document.getElementById('${K}-entry-title-input').value;`);
