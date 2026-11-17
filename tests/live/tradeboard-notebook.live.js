@@ -119,7 +119,10 @@ const SEED = { [TBDOC]: { strats: JSON.stringify(PAGES), stratsActive: JSON.stri
   await boot();
   ok('the notes fill the section under the nav, to the bottom', await js(`var h=document.getElementById('st-host').getBoundingClientRect(); return h.width >= 380 && h.height > 550 && h.bottom <= innerHeight + 1;`),
     await js(`return JSON.stringify(document.getElementById('st-host').getBoundingClientRect());`));
-  ok('...with Notebook\'s phone bar at the foot', await js(`var b=document.getElementById('vtb-bottom-bar'); return !!b && b.getClientRects().length > 0 && b.getBoundingClientRect().bottom <= innerHeight + 1;`));
+  // Notebook's phone layout (2026-11-17): its list with the + button, or its editor bar.
+  ok('...with Notebook\'s phone screen in it (its list and + button, or its editor bar)', await js(`var r=document.getElementById('vtb-root');
+    var el = r.classList.contains('nb-mlist') ? r.querySelector('.nb-fab.on') : document.getElementById('vtb-mobile-header');
+    return !!el && el.getClientRects().length > 0 && el.getBoundingClientRect().bottom <= innerHeight + 1;`));
   await shot('tradeboard-notebook-phone');
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
