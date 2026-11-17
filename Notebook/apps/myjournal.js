@@ -3284,6 +3284,9 @@ function tjSetDrawer(open) {
   var root = document.getElementById('tj-root');
   if (root) root.classList.toggle('tj-drawer-open', open);
   document.body.classList.toggle('tj-drawer-open', open);
+  // The host hears it (Notebook README, "Drawers"): a phone host with its own
+  // drawer closes that one, so the two never lie on top of each other.
+  try { window.dispatchEvent(new CustomEvent('notebook-drawer', { detail: { key: 'tj', open: !!open } })); } catch (e) {}
 }
 window._tjSetDrawer = tjSetDrawer;
 if (tjHamburger) {

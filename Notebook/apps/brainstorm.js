@@ -3668,6 +3668,9 @@ function bjSetDrawer(open) {
   var root = document.getElementById('bj-root');
   if (root) root.classList.toggle('bj-drawer-open', open);
   document.body.classList.toggle('bj-drawer-open', open);
+  // The host hears it (Notebook README, "Drawers"): a phone host with its own
+  // drawer closes that one, so the two never lie on top of each other.
+  try { window.dispatchEvent(new CustomEvent('notebook-drawer', { detail: { key: 'bj', open: !!open } })); } catch (e) {}
 }
 window._bjSetDrawer = bjSetDrawer;
 if (bjHamburger) {
