@@ -258,7 +258,7 @@ const only = process.argv[2];
     await sleep(1500);
     const present = await js(`return !!document.getElementById('${K}-root') && !window.__mountErr;`);
     if (!present) { ok(`${side} instance mounted`, false, await js('return window.__mountErr || "no root";')); continue; }
-    ok(`${side} instance: home is its list`, /nb-mlist/.test(await cls(K)), await cls(K));
+    ok(`${side} instance: home is its list`, /\bnb-mlist\b/.test(await cls(K)), await cls(K));
     await tap(`#${K}-entries-list .entry-item[data-entry-id="e_1_alpha"]`); await sleep(600);
     const k = await cls(K);
     ok(`${side} instance: wired (editor screen, one bar with Edit/New/⋮)`, /\bnb-mdoc\b/.test(k) && await js(`return !!document.querySelector('#${K}-mobile-header .nb-mh-more');`), k);
