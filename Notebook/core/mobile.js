@@ -6,7 +6,7 @@
        entry list, full screen, a + button at the bottom right) is home: it
        shows when nothing is open and when the back arrow is tapped. The
        EDITOR is the page, edge to edge, under one bar: back, the title, the
-       sync word, then Edit/Reading, New and ⋮ (lock, tags, template, PDF).
+       sync word, then Edit/Reading, New and ⋮ (lock, PDF).
        In index.html the editor covers the program nav; the list shows it.
        Reading mode adds a pencil button at the bottom right.
      - Editing a page on any touch screen up to 1366px (a landscape tablet
@@ -38,8 +38,6 @@ var IC = {
   tools: sv('<path d="M4 20h4"/><path d="M6 20 11.5 5h1L18 20"/><path d="M8.2 14h7.6"/><path d="M16 20h4"/>', 'nb-i-tools'),
   lock: sv('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
   unlock: sv('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.4"/>'),
-  tag: sv('<path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z"/><circle cx="7.5" cy="7.5" r="1" fill="currentColor"/>'),
-  grid: sv('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/>'),
   pdf: sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>')
 };
 
@@ -107,7 +105,7 @@ function wire(K) {
   more.addEventListener('click', function () { if (menu) closeMenus(); else openMore(); });
 
   // ── ⋮ : what the desktop title bar holds and the phone bar has no room for ──
-  var menu = null, tagsHome = null;
+  var menu = null;
   function item(icon, label, fn) {
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'docx-mi nb-mmi'; b.setAttribute('data-noglow', '');
@@ -125,8 +123,7 @@ function wire(K) {
     var pop = document.createElement('div');
     pop.className = 'docx-pop nb-mpop ' + cls;
     pop.setAttribute('data-nb-key', K);
-    // Inside the root, so the side's own rules reach what it holds (Veda's tag
-    // chips are styled under #bj-root).
+    // Inside the root, so the side's own rules reach what it holds.
     root.appendChild(pop);
     menu = pop;
     return pop;
@@ -139,37 +136,13 @@ function wire(K) {
       var locked = lockBtn.classList.contains('tl-locked');
       pop.appendChild(item(locked ? IC.lock : IC.unlock, locked ? 'Locked: manage lock' : 'Lock entry', function () { lockBtn.click(); }));
     }
-    var tags = $(K + '-tags-row');
-    if (tags && !noentry && (tags.style.display !== 'none' || tagsHome)) pop.appendChild(item(IC.tag, 'Tags', openTags));
-    var tpl = $(K + '-bb-template');
-    if (tpl && !noentry) pop.appendChild(item(IC.grid, 'Change template', function () { tpl.click(); }));
     var pdf = $(K + '-btn-export-pdf');
     if (pdf && !noentry) pop.appendChild(item(IC.pdf, 'Export PDF', function () { pdf.click(); }));
     if (!pop.children.length) { closeMenus(); return; }
     more.classList.add('open');
     place(pop, more);
   }
-  // Veda's tags live in the desktop title bar, which a phone hides: the row
-  // itself moves into this sheet while it is open, and back after.
-  function openTags() {
-    var row = $(K + '-tags-row');
-    if (!row) return;
-    var pop = openPop('nb-mtags');
-    var h = document.createElement('div'); h.className = 'docx-mlabel nb-mtags-h'; h.textContent = 'Tags';
-    pop.appendChild(h);
-    tagsHome = document.createComment('nb-tags');
-    row.parentNode.insertBefore(tagsHome, row);
-    pop.appendChild(row);
-    if (!editing()) {
-      var n = document.createElement('div'); n.className = 'nb-mtags-note';
-      n.textContent = 'Turn on editing to add or remove tags.';
-      pop.appendChild(n);
-    }
-    more.classList.add('open');
-    place(pop, more);
-  }
   function closeMenus() {
-    if (tagsHome) { var row = $(K + '-tags-row'); if (row) tagsHome.parentNode.insertBefore(row, tagsHome); tagsHome.remove(); tagsHome = null; }
     if (menu) { menu.remove(); menu = null; }
     more.classList.remove('open');
   }

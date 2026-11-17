@@ -64,13 +64,6 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
     <input id="bj-entry-title-input" type="text" placeholder="Untitled entry…" />
-    <!-- TAGS (moved into the toolbar — Batch 12 #3). Beside the title, not at the
-         right end: in edit mode its "+ add tag" field appears, and at the end it
-         pushed View/Edit, Templates and Export PDF left (2026-11-15). -->
-    <div id="bj-tags-row" style="display:none;">
-      <span class="tags-label">Tags</span>
-      <input id="bj-add-tag-input" type="text" placeholder="+ add tag" maxlength="20" />
-    </div>
     <!-- The sync word sits in a fixed slot beside the title, so "Syncing…" /
          "Synced" / "Sync failed" never shift the controls on its right. -->
     <span id="bj-sync-pill" class="bj-sync-pill bj-sync-idle" role="status" aria-live="polite">
@@ -86,11 +79,6 @@ var html = `
         <div class="toggle-knob"></div>
       </label>
     </div>
-    <div class="toolbar-sep"></div>
-    <button class="tb-btn" id="bj-btn-template">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      Templates
-    </button>
     <div class="toolbar-sep"></div>
     <button class="tb-btn" id="bj-btn-export-pdf" style="color:var(--purple);border-color:rgba(141,118,154,0.3);">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -116,111 +104,6 @@ var html = `
       <p>Create a new entry to start brainstorming, or select one from the sidebar.</p>
       <span class="empty-hint">Click "New Entry" to get started</span>
     </div>
-
-    <!-- WHITEBOARD — Excalidraw, wired by VizEngine (Notebook/core/viz.js).
-         The shell keeps its old id so showTemplate() and the lock/edit-mode
-         plumbing that reference it are untouched; everything inside it is new. -->
-    <div id="bj-wb-canvas-wrap" class="viz-shell">
-      <div class="viz-mount" id="bj-wb-mount"></div>
-    </div>
-
-    <!-- NOTES -->
-    <div id="bj-notes-area">
-      <div class="bj-drop-zone" id="bj-notes-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="bj-attach-bar" id="bj-notes-attach-bar">
-        <button class="bj-attach-btn" id="bj-notes-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-notes-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="bj-attach-chips" id="bj-notes-attach-chips"></div>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Main Ideas</div>
-        <textarea class="notes-text" id="bj-notes-main" placeholder="Write your main ideas here…" rows="5"></textarea>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Connections &amp; Links</div>
-        <textarea class="notes-text" id="bj-notes-links" placeholder="How do these ideas connect?…" rows="4"></textarea>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Questions &amp; Next Steps</div>
-        <textarea class="notes-text" id="bj-notes-questions" placeholder="Open questions and next actions…" rows="4"></textarea>
-      </div>
-      <div class="bj-attach-images" id="bj-notes-attach-images"></div>
-    </div>
-
-    <!-- CORNELL -->
-    <div id="bj-cornell-area">
-      <div class="bj-drop-zone" id="bj-cornell-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="bj-attach-bar" id="bj-cornell-attach-bar">
-        <button class="bj-attach-btn" id="bj-cornell-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-cornell-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="bj-attach-chips" id="bj-cornell-attach-chips"></div>
-      </div>
-      <div class="bj-attach-images" id="bj-cornell-attach-images"></div>
-      <div class="cornell-grid">
-        <div class="cornell-topic">
-          <input type="text" id="bj-cornell-topic" placeholder="Topic / Subject…" />
-        </div>
-        <div class="cornell-cues">
-          <span class="section-label">Cue Column</span>
-          <textarea class="cornell-ta" id="bj-cornell-cues-ta" placeholder="Key terms, questions, prompts…" style="min-height:300px;"></textarea>
-        </div>
-        <div class="cornell-notes">
-          <span class="section-label">Notes Column</span>
-          <textarea class="cornell-ta" id="bj-cornell-notes-ta" placeholder="Main content, details, facts…" style="min-height:300px;"></textarea>
-        </div>
-        <div class="cornell-summary">
-          <span class="section-label">Summary</span>
-          <textarea class="cornell-ta" id="bj-cornell-summary-ta" placeholder="Summarize the key ideas in 2–3 sentences…" rows="3"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- MIND MAP — Mind Elixir. The attach bar and drop zone are kept as they
-         were: existing entries have file attachments hanging off them. -->
-    <div id="bj-mindmap-area" class="viz-shell">
-      <div class="bj-drop-zone" id="bj-mm-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="bj-attach-bar" id="bj-mm-attach-bar">
-        <button class="bj-attach-btn" id="bj-mm-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-mm-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="bj-attach-chips" id="bj-mm-attach-chips"></div>
-      </div>
-      <div class="bj-attach-images" id="bj-mm-attach-images"></div>
-      <div class="viz-mount" id="bj-mm-mount"></div>
-    </div>
-
-    <!-- MIND MAP LEGACY — the original canvas mind map, restored verbatim.
-         Every mind map made before the Mind Elixir rebuild opens here (see
-         _bjLegacyTemplate), so nothing that existed has changed hands. -->
-    <div id="bj-mml-area">
-      <div class="bj-drop-zone" id="bj-mml-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="bj-attach-bar" id="bj-mml-attach-bar">
-        <button class="bj-attach-btn" id="bj-mml-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-mml-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="bj-attach-chips" id="bj-mml-attach-chips"></div>
-      </div>
-      <div class="bj-attach-images" id="bj-mml-attach-images"></div>
-      <div id="bj-mml-toolbar" data-sb-strip>
-          <button class="wb-btn" id="bj-mml-add-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add Node</span></button>
-          <button class="wb-btn" id="bj-mml-connect-mode"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9"/></svg><span>Connect</span></button>
-          <button class="wb-btn" id="bj-mml-delete-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Delete</span></button>
-          <div class="mml-action-sep"></div>
-          <div class="mml-palette-sep"></div>
-          <span class="mml-palette-label">Color</span>
-          <div class="mml-color-btn active" data-fill="#26272A" data-stroke="#4A4B51" style="background:#4A4B51;" title="Default"></div>
-          <div class="mml-color-btn" data-fill="#2E2535" data-stroke="#8D769A" style="background:#8D769A;" title="Purple"></div>
-          <div class="mml-color-btn" data-fill="#1a3a2a" data-stroke="#5DAF6D" style="background:#5DAF6D;" title="Green"></div>
-          <div class="mml-color-btn" data-fill="#0d2a35" data-stroke="#22d3ee" style="background:#22d3ee;" title="Cyan"></div>
-          <div class="mml-color-btn" data-fill="#3a1f1a" data-stroke="#E74C3C" style="background:#E74C3C;" title="Red"></div>
-          <div class="mml-color-btn" data-fill="#2d1f0a" data-stroke="#fb923c" style="background:#fb923c;" title="Orange"></div>
-          <div class="mml-color-btn" data-fill="#2a2510" data-stroke="#e5c84a" style="background:#e5c84a;" title="Yellow"></div>
-          <div class="mml-color-btn" data-fill="#1a2035" data-stroke="#6da8f5" style="background:#6da8f5;" title="Blue"></div>
-          <span class="mml-hint">Dbl-click to rename · Drag to move</span>
-          <div style="flex:1"></div>
-          <button class="wb-btn" id="bj-mml-img-btn" title="Add image to selected node" style="position:relative;overflow:hidden;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span>Image</span><input type="file" id="bj-mml-img-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-          <button class="wb-btn" id="bj-mml-reset"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Reset</span></button>
-        </div>
-      <div id="bj-mml-canvas-wrap">
-        <canvas id="bj-mml-canvas" height="480"></canvas>
-        <textarea id="bj-mml-node-input" placeholder="Node label…" rows="1"></textarea>
-      </div>
-    </div>
-
 
     <!-- PAGE -->
     <div id="bj-page-area">
@@ -317,31 +200,6 @@ var html = `
     </div>
     <p>Pick a format for this entry</p>
     <div class="template-grid">
-      <div class="template-card" data-template="whiteboard">
-        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></div>
-        <h3>Whiteboard</h3>
-        <p>Free-draw canvas with pen, shapes, text and undo.</p>
-      </div>
-      <div class="template-card" data-template="notes">
-        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12l-4 4H4Z"/><path d="M20 16h-4v4"/><path d="M8 9h8"/><path d="M8 13h5"/></svg></div>
-        <h3>Structured Notes</h3>
-        <p>Three sections: ideas, connections, next steps.</p>
-      </div>
-      <div class="template-card" data-template="cornell">
-        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
-        <h3>Cornell Notes</h3>
-        <p>Classic format: cues, notes, and summary.</p>
-      </div>
-      <div class="template-card" data-template="mindmap">
-        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 0 0-6 0 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1Z"/><path d="M12 5a3 3 0 0 1 6 0 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1Z"/></svg></div>
-        <h3>Mind Map</h3>
-        <p>Visual node-based map for exploring ideas.</p>
-      </div>
-      <div class="template-card" data-template="mindmap-legacy">
-        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m9.9 9.9-3-3"/><path d="m14.1 9.9 3-3"/><path d="m9.9 14.1-3 3"/><path d="m14.1 14.1 3 3"/></svg></div>
-        <h3>Mind Map Legacy</h3>
-        <p>The original free-placement canvas: drag nodes anywhere, connect any two.</p>
-      </div>
       <div class="template-card" data-template="page">
         <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
         <h3>Page</h3>
@@ -353,7 +211,6 @@ var html = `
 </div><!-- end bj-body -->
 <div id="bj-bottom-bar" style="display:none;">
   <button id="bj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><span>Edit</span></button>
-  <button id="bj-bb-template" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg><span>Template</span></button>
   <button id="bj-bb-new" style="flex:2;background:var(--purple);color:#fff;border:none;border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;">+ New</button>
 </div>
 </div>
@@ -456,28 +313,10 @@ function _bjSetSync(status) {
 }
 var _bjSyncResetTimer = null;
 
-/* Every mind map that existed before the Mind Elixir rebuild belongs to the
- * LEGACY template, and this is what sends it there.
- *
- * The test is the data itself, not a flag or a date: an entry saved as
- * 'mindmap' whose data still carries the old free-placement node list was made
- * by the old editor, so that is the editor that opens it. A mind map created
- * since the rebuild has no `nodes` array at all — its content lives in its own
- * document — so it is left alone and opens in Mind Elixir.
- *
- * Nothing is written and nothing is converted. The entry's own bytes
- * (data.nodes / data.edges, including any node images) are untouched; only the
- * template it is routed to changes, and it changes the same way on every device
- * because every device applies this same rule to the same data. If the entry is
- * later edited the new id persists naturally, and if it never is, nothing about
- * it was ever rewritten. */
-function _bjLegacyTemplate(entry) {
-  if (!entry || entry.template !== 'mindmap') return;
-  const d = entry.data;
-  if (d && Array.isArray(d.nodes) && d.nodes.length) entry.template = 'mindmap-legacy';
-}
 
 /* ── Legacy whiteboard PNGs live in IndexedDB, not localStorage ─────────────
+ * (Kept for the page-only conversion, core/convert.js: an old whiteboard is read
+ * from here when it is turned into a page.)
  * Pre-VizEngine whiteboards were one base64 PNG each, cached under
  * BJ_CANVAS_KEY(id). On Veda's Brave (2026-09-30) 17 of them held 2.4 MB, half
  * of the 5 MB localStorage EVERY A1 page shares, and the full store made saves
@@ -538,7 +377,6 @@ function loadState() {
   // Restore canvas data from localStorage into whiteboard entries (any key the
   // move below has not reached yet), then from IndexedDB.
   state.entries.forEach(entry => {
-    _bjLegacyTemplate(entry);
     if (entry.template === 'whiteboard') {
       let saved = null; try { saved = localStorage.getItem(BJ_CANVAS_KEY(entry.id)); } catch (e) {}
       if (saved && !entry.data.canvas) entry.data.canvas = saved;
@@ -674,23 +512,7 @@ function _bjApplyRemote(remote) {
     var _fa = document.activeElement;
     var _titleEl = document.getElementById('bj-entry-title-input');
     if (_titleEl && _fa === _titleEl) activeEntry.title = _titleEl.value;
-    if (activeEntry.template === 'notes') {
-      var _m = document.getElementById('bj-notes-main');
-      var _l = document.getElementById('bj-notes-links');
-      var _q = document.getElementById('bj-notes-questions');
-      if (_m && _fa === _m) activeEntry.data.main      = _m.value;
-      if (_l && _fa === _l) activeEntry.data.links     = _l.value;
-      if (_q && _fa === _q) activeEntry.data.questions = _q.value;
-    } else if (activeEntry.template === 'cornell') {
-      var _ct = document.getElementById('bj-cornell-topic');
-      var _cc = document.getElementById('bj-cornell-cues-ta');
-      var _cn = document.getElementById('bj-cornell-notes-ta');
-      var _cs = document.getElementById('bj-cornell-summary-ta');
-      if (_ct && _fa === _ct) activeEntry.data.topic   = _ct.value;
-      if (_cc && _fa === _cc) activeEntry.data.cues    = _cc.value;
-      if (_cn && _fa === _cn) activeEntry.data.notes   = _cn.value;
-      if (_cs && _fa === _cs) activeEntry.data.summary = _cs.value;
-    } else if (activeEntry.template === 'page') {
+    if (activeEntry.template === 'page') {
       var _pe = document.getElementById('bj-page-editor');
       if (_pe && (_fa === _pe || _pe.contains(_fa))) activeEntry.data.html = _pe.innerHTML;
     }
@@ -714,9 +536,6 @@ function _bjApplyRemote(remote) {
   var _winnerTrashed = {};
   remote.entries.forEach(function(remoteEntry) {
     remoteById[remoteEntry.id] = true;
-    // A mind map arriving from another device gets routed the same way one read
-    // from the local cache does — see _bjLegacyTemplate.
-    _bjLegacyTemplate(remoteEntry);
     if (_deletedSet.has(remoteEntry.id)) return;
     var local = localById[remoteEntry.id];
     var remoteUpdated = remoteEntry.updated || 0;
@@ -806,33 +625,7 @@ function _bjApplyRemote(remote) {
 
     // ── Active entry, remote is newer: apply per-field, skip focused element ──
     _activeWasUpdated = true;
-    if (remoteEntry.template === 'notes') {
-      var mainEl  = document.getElementById('bj-notes-main');
-      var linksEl = document.getElementById('bj-notes-links');
-      var questEl = document.getElementById('bj-notes-questions');
-      var titleEl = document.getElementById('bj-entry-title-input');
-      var newData = Object.assign({}, local.data);
-      var newTitle = local.title;
-      if (!_bjBusy(titleEl) && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
-      if (!_bjBusy(mainEl)  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
-      if (!_bjBusy(linksEl) && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
-      if (!_bjBusy(questEl) && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
-      localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitle, data: newData });
-    } else if (remoteEntry.template === 'cornell') {
-      var topicEl   = document.getElementById('bj-cornell-topic');
-      var cuesEl    = document.getElementById('bj-cornell-cues-ta');
-      var notesEl   = document.getElementById('bj-cornell-notes-ta');
-      var summaryEl = document.getElementById('bj-cornell-summary-ta');
-      var titleElC  = document.getElementById('bj-entry-title-input');
-      var newDataC = Object.assign({}, local.data);
-      var newTitleC = local.title;
-      if (!_bjBusy(titleElC)  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
-      if (!_bjBusy(topicEl)   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
-      if (!_bjBusy(cuesEl)    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
-      if (!_bjBusy(notesEl)   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
-      if (!_bjBusy(summaryEl) && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
-      localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitleC, data: newDataC });
-    } else if (remoteEntry.template === 'page') {
+    if (remoteEntry.template === 'page') {
       var pageEd = document.getElementById('bj-page-editor');
       var userInEditor = _bjBusy(pageEd);
       if (!userInEditor) {
@@ -957,7 +750,9 @@ function _bjApplyRemote(remote) {
   // Re-run the lock check so an entry deleted (or unlocked) on another device
   // can't leave a lock overlay stranded over a document that no longer exists.
   if (window._bjLockCheck && !_bjHidden) window._bjLockCheck();
-  if (_activeWasUpdated) { var _ae = getActive(); if (_ae && (_ae.template === 'mindmap' || _ae.template === 'mindmap-legacy')) loadActiveEntry(); }
+  // An entry made with an old template (from a device that had not updated
+  // yet) becomes a page here too.
+  _bjConvertAll();
 }
 
 // The host's onSave: called with the entry the cloud just confirmed.
@@ -1028,13 +823,8 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { id, title: '', template: template || 'notes', created: Date.now(), updated: Date.now(), tags: [], data: {} };
-  if (template === 'whiteboard') entry.data = { attachments: [] };
-  if (template === 'notes') entry.data = { main: '', links: '', questions: '', attachments: [] };
-  if (template === 'cornell') entry.data = { topic: '', cues: '', notes: '', summary: '', attachments: [] };
-  if (template === 'mindmap') entry.data = { attachments: [] };
-  if (template === 'mindmap-legacy') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
-  if (template === 'page') entry.data = { html: '', attachments: [] };
+  // Page is the one template (2026-11-17).
+  const entry = { id, title: '', template: 'page', created: Date.now(), updated: Date.now(), tags: [], data: { html: '', attachments: [] } };
   // Unsynced until the cloud confirms it — without this an authoritative resync
   // arriving in the next second would prune an entry the server has never seen.
   entry._dirty = true;
@@ -1181,17 +971,11 @@ window._bjSetPageMargins = function(m) {
   if (e && e.template === 'page') { _bjPendingMargins = { id: e.id, m: Object.assign({}, m) }; autoSave(); }
 };
 
-// ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
-let bjTagFilters = [];
-// OurJournal has no tags: a shared entry's tags read as none.
-function _bjTags(e) { return _bjIsOJ() ? [] : (e.tags || []); }
+// ── SEARCH: title + full content (tags were retired 2026-11-17) ──
 function _bjEntryText(e) {
   const d = e.data || {};
-  const parts = [e.title || '', _bjTags(e).join(' ')];
-  ['main','links','questions','topic','cues','notes','summary'].forEach(k => { if (d[k]) parts.push(d[k]); });
+  const parts = [e.title || ''];
   if (d.html) parts.push(String(d.html).replace(/<[^>]*>/g, ' '));
-  if (d.dates) Object.values(d.dates).forEach(dd => { if (dd && dd.html) parts.push(String(dd.html).replace(/<[^>]*>/g, ' ')); });
-  if (d.nodes) d.nodes.forEach(n => parts.push(n.label || ''));
   return parts.join(' ').toLowerCase();
 }
 function _bjHlTitle(text, q) {
@@ -1200,37 +984,6 @@ function _bjHlTitle(text, q) {
   const i = text.toLowerCase().indexOf(q);
   if (i < 0) return esc(text);
   return esc(text.slice(0,i)) + '<mark class="docx-hl">' + esc(text.slice(i, i+q.length)) + '</mark>' + esc(text.slice(i+q.length));
-}
-function _bjRenderTagChips(live) {
-  let row = document.getElementById('bj-tagfilter-row');
-  if (!row) {
-    row = document.createElement('div');
-    row.id = 'bj-tagfilter-row';
-    row.className = 'docx-tagchips';
-    const listEl = document.getElementById('bj-entries-list');
-    listEl.parentNode.insertBefore(row, listEl);
-  }
-  const all = [...new Set(live.reduce((a,e) => a.concat(_bjTags(e)), []))].sort((a,b)=>a.localeCompare(b));
-  bjTagFilters = bjTagFilters.filter(t => all.includes(t));
-  row.classList.toggle('on', all.length > 0);
-  row.style.display = '';
-  row.innerHTML = '';
-  if (!all.length) return;
-  const lbl = document.createElement('div');
-  lbl.className = 'docx-tagchips-lbl';
-  lbl.textContent = 'Filter by tag';
-  row.appendChild(lbl);
-  all.forEach(tag => {
-    const chip = document.createElement('button');
-    chip.className = 'docx-tagchip' + (bjTagFilters.includes(tag) ? ' on' : '');
-    chip.textContent = tag;
-    chip.title = tag;
-    chip.onclick = () => {
-      bjTagFilters = bjTagFilters.includes(tag) ? bjTagFilters.filter(t => t !== tag) : bjTagFilters.concat(tag);
-      renderSidebar();
-    };
-    row.appendChild(chip);
-  });
 }
 function _bjRenderTrashBtn() {
   let btn = document.getElementById('bj-trash-btn');
@@ -1253,17 +1006,16 @@ function renderSidebar() {
   const search = document.getElementById('bj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed && _bjInFolder(e));
   const entries = live.filter(e => {
-    // Locked entries: search title/tags only (never their hidden content)
+    // Locked entries: search the title only (never their hidden content)
     const isLocked = window._bjGetLock && window._bjGetLock(e.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(e.id));
-    const hay = isLocked ? ((e.title||'') + ' ' + _bjTags(e).join(' ')).toLowerCase() : _bjEntryText(e);
-    return (!search || hay.includes(search)) &&
-           (bjTagFilters.length === 0 || bjTagFilters.every(t => _bjTags(e).includes(t)));
+    const hay = isLocked ? (e.title || '').toLowerCase() : _bjEntryText(e);
+    return !search || hay.includes(search);
   });
   list.innerHTML = '';
   if (entries.length === 0) {
-    list.innerHTML = `<div class="list-empty">${search || bjTagFilters.length ? 'No entries match your search.' : (_bjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
+    list.innerHTML = `<div class="list-empty">${search ? 'No entries match your search.' : (_bjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
   }
-  const isDraggable = !search && bjTagFilters.length === 0;
+  const isDraggable = !search;
   let dragSrcId = null;
 
   entries.forEach(entry => {
@@ -1284,7 +1036,6 @@ function renderSidebar() {
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
-        ${_bjTags(entry).length ? `<span>· ${_bjTags(entry).slice(0,2).join(', ')}${_bjTags(entry).length > 2 ? '…' : ''}</span>` : ''}
         ${_bjIsOJ() && entry.creator && window.OJ ? `<span class="oj-by oj-by-${entry.creator}" title="Created by ${window.OJ.name(entry.creator)}">${window.OJ.name(entry.creator)}</span>` : ''}
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash" aria-label="Move to Trash">${window.TNI.x}</button>
@@ -1352,32 +1103,21 @@ function renderSidebar() {
     }
     list.appendChild(div);
   });
-  _bjRenderTagChips(live);
   _bjRenderTrashBtn();
 }
 
 function showTemplate(name) {
-  // Leaving a board flushes it and drops its remote listener. Doing it here
-  // rather than in loadActiveEntry covers every exit: another template, another
-  // entry, the empty state, and the lock screen.
-  if (name !== 'whiteboard' && _bjBoards.wb) _bjBoards.wb.close();
-  if (name !== 'mindmap'    && _bjBoards.mm) _bjBoards.mm.close();
-  document.getElementById('bj-wb-canvas-wrap').style.display = name === 'whiteboard' ? 'flex' : 'none';
-  document.getElementById('bj-notes-area').style.display = name === 'notes' ? 'flex' : 'none';
-  document.getElementById('bj-cornell-area').style.display = name === 'cornell' ? 'flex' : 'none';
-  document.getElementById('bj-mindmap-area').style.display = name === 'mindmap' ? 'flex' : 'none';
-  document.getElementById('bj-mml-area').style.display = name === 'mindmap-legacy' ? 'flex' : 'none';
+  // name: 'page', 'converting' (an old template's entry turning into a page,
+  // core/convert.js) or null (nothing open).
   document.getElementById('bj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('bj-empty-state').style.display = name ? 'none' : 'flex';
+  _bjConvertPane(name === 'converting');
   // Nothing open (the empty state): View / Edit and Export PDF have nothing to
   // act on (Export only said "No entry selected."); dimmed until an entry opens.
   var _nbRoot = document.getElementById('bj-root'); if (_nbRoot) _nbRoot.classList.toggle('nb-noentry', !name);
-  document.getElementById('bj-tags-row').style.display = name && !_bjIsOJ() ? 'flex' : 'none';
   // Page toolbar edit-mode sync
   const pt = document.getElementById('bj-page-toolbar');
   if (pt) { if (name === 'page' && isEditMode) pt.classList.add('edit-mode'); else pt.classList.remove('edit-mode'); }
-  // Attach bars for notes/cornell/mindmap
-  if (window._bjRefreshAttachBars) _bjRefreshAttachBars(name, isEditMode);
 }
 
 function loadActiveEntry() {
@@ -1387,12 +1127,12 @@ function loadActiveEntry() {
   // returns below, so the blank editor they leave behind can never be read back as
   // an entry's new content.
   _bjDomOwner = null;
-  if (!entry) { document.getElementById('bj-entry-title-input').value = ''; showTemplate(null); renderTags([]); if (_bjIsOJ() && window.OJ) window.OJ.painted('bj', null); return; }
+  if (!entry) { document.getElementById('bj-entry-title-input').value = ''; showTemplate(null); if (_bjIsOJ() && window.OJ) window.OJ.painted('bj', null); return; }
   // A shared entry's content is fetched on first open (only the index is kept
   // live for the whole list). The engine calls back here once it has it.
   if (_bjIsOJ() && window.OJ && !window.OJ.isLoaded(entry)) {
     document.getElementById('bj-entry-title-input').value = entry.title || '';
-    showTemplate(null); renderTags(entry.tags || []);
+    showTemplate(null);
     window.OJ.open('bj', entry);
     return;
   }
@@ -1400,7 +1140,6 @@ function loadActiveEntry() {
   if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) {
     document.getElementById('bj-entry-title-input').value = '';
     showTemplate(null);
-    renderTags([]);
     if (window._bjLockCheck) window._bjLockCheck();
     return;
   }
@@ -1409,34 +1148,14 @@ function loadActiveEntry() {
   // save would publish. Only ever fills an EMPTY entry. See JGuard.recover.
   if (window.JGuard && window.JGuard.recover('bj', entry)) { entry.updated = Date.now(); _bjWriteCache(); }
   document.getElementById('bj-entry-title-input').value = entry.title;
+  // Made with a template that is gone: it becomes a page first (core/convert.js),
+  // then opens as one.
+  if (window.NotebookConvert && window.NotebookConvert.legacy(entry)) {
+    showTemplate('converting');
+    _bjConvertOne(entry).then(function (ok) { if (state.activeId === entry.id && getActive() === entry && (ok || !window.NotebookConvert.legacy(entry))) loadActiveEntry(); });
+    return;
+  }
   showTemplate(entry.template);
-  renderTags(entry.tags || []);
-  if (entry.template === 'whiteboard') {
-    _bjBoard('wb').open(entry).then(function () { _bjBoard('wb').setEditable(isEditMode); });
-  }
-  if (entry.template === 'notes') {
-    document.getElementById('bj-notes-main').value = entry.data.main || '';
-    document.getElementById('bj-notes-links').value = entry.data.links || '';
-    document.getElementById('bj-notes-questions').value = entry.data.questions || '';
-    if (window._bjRenderAttachments) _bjRenderAttachments('notes');
-  }
-  if (entry.template === 'cornell') {
-    document.getElementById('bj-cornell-topic').value = entry.data.topic || '';
-    document.getElementById('bj-cornell-cues-ta').value = entry.data.cues || '';
-    document.getElementById('bj-cornell-notes-ta').value = entry.data.notes || '';
-    document.getElementById('bj-cornell-summary-ta').value = entry.data.summary || '';
-    if (window._bjRenderAttachments) _bjRenderAttachments('cornell');
-  }
-  if (entry.template === 'mindmap') {
-    _bjBoard('mm').open(entry).then(function () { _bjBoard('mm').setEditable(isEditMode); });
-    if (window._bjRenderAttachments) _bjRenderAttachments('mindmap');
-  }
-  if (entry.template === 'mindmap-legacy') {
-    mmNodes = JSON.parse(JSON.stringify(entry.data.nodes || [{ id:1, x:340, y:220, label:'Central Idea', root:true }]));
-    mmEdges = JSON.parse(JSON.stringify(entry.data.edges || []));
-    initMindmap(); renderMindmap();
-    if (window._bjRenderAttachments) _bjRenderAttachments('mindmap-legacy');
-  }
   if (entry.template === 'page') {
     const ed = document.getElementById('bj-page-editor');
     const html = entry.data.html || '';
@@ -1483,44 +1202,13 @@ function saveCurrentEntry() {
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
   if (_bjPendingMargins && _bjPendingMargins.id === entry.id) _next.margins = _bjPendingMargins.m;
-  // Visual templates keep their content in their own document (see VizEngine),
-  // so what lands on the ENTRY is a fingerprint: the board's revision, how much
-  // is on it, and a title to fall back on. That is enough for the sidebar, the
-  // auto-title, the no-op guard and the remote merge — and it keeps a drawing
-  // out of the journal document, which has one 1 MiB budget for every entry.
-  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
-    var _vb = _bjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
-    var _vs = (_vb && _vb.isOpen(entry.id)) ? _vb.stats() : null;
-    if (_vs) { _next.vizRev = _vs.rev; _next.vizCount = _vs.count; _next.vizTitle = _vs.title; }
-  }
-  if (entry.template === 'notes') {
-    _next.main = document.getElementById('bj-notes-main').value;
-    _next.links = document.getElementById('bj-notes-links').value;
-    _next.questions = document.getElementById('bj-notes-questions').value;
-  }
-  if (entry.template === 'cornell') {
-    _next.topic = document.getElementById('bj-cornell-topic').value;
-    _next.cues = document.getElementById('bj-cornell-cues-ta').value;
-    _next.notes = document.getElementById('bj-cornell-notes-ta').value;
-    _next.summary = document.getElementById('bj-cornell-summary-ta').value;
-  }
-  // COPIED, not handed over. Object.assign below puts whatever is in _next onto
-  // entry.data, so passing the live arrays would make entry.data.nodes and
-  // mmNodes the same object from the first save onwards — and the no-op guard
-  // further down, which asks whether entry.data differs from _next, would be
-  // comparing an array to itself and answering "nothing changed" forever. The
-  // symptom is precise and easy to miss: the first edit to a map saves, and
-  // every later drag only persists if some unrelated saveState() happens to run.
-  if (entry.template === 'mindmap-legacy') {
-    _next.nodes = JSON.parse(JSON.stringify(mmNodes));
-    _next.edges = JSON.parse(JSON.stringify(mmEdges));
-  }
-  if (entry.template === 'page') { _next.html = document.getElementById('bj-page-editor').innerHTML; }
+  // Only a page is ever painted (an old template's entry is converted first).
+  if (entry.template !== 'page') return;
+  _next.html = document.getElementById('bj-page-editor').innerHTML;
 
   // Auto-title: derive from content while the title is empty; a user-typed title
   // always wins. Read from the PROPOSED data above, not the stored data — otherwise a title taken from the
-  // editor is always one save out of date, which is how a whiteboard whose first
-  // text says "Launch plan" stayed "Untitled".
+  // editor is always one save out of date.
   let _title = document.getElementById('bj-entry-title-input').value;
   if (!_title.trim()) {
     const _auto = _bjAutoTitle(entry, _next);
@@ -1557,8 +1245,7 @@ function saveCurrentEntry() {
   }
 
   entry.title = _title;
-  // Merged in place rather than reassigned: attachment lists, mindmap node arrays
-  // and the whiteboard canvas are all held by reference elsewhere in this file.
+  // Merged in place rather than reassigned (the entry's data object is shared by reference).
   Object.assign(entry.data, _next);
   if (_bjPendingMargins && _bjPendingMargins.id === entry.id) _bjPendingMargins = null;
   entry.updated = Date.now();
@@ -1576,691 +1263,73 @@ function _bjAutoTitle(entry, dataOverride) {
   const d = dataOverride || entry.data || {};
   let src = '';
   if (entry.template === 'page') { const ed = document.getElementById('bj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
-  else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
-  else if (entry.template === 'cornell') src = d.topic || d.notes || d.cues || '';
-  else if (entry.template === 'mindmap-legacy') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
-  else if (entry.template === 'mindmap' || entry.template === 'whiteboard') {
-    // The board reports its own title — the mind map's root topic, or the first
-    // text on the canvas. Legacy mind maps fall back to their old root node.
-    if (d.vizTitle) src = d.vizTitle;
-    else if (entry.template === 'mindmap') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
-  }
   const line = (src||'').split('\n').map(s=>s.trim()).find(s=>s.length > 1) || '';
   if (!line) return '';
   return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
 }
 
-/* TAGS */
-function renderTags(tags) {
-  const row = document.getElementById('bj-tags-row');
-  row.querySelectorAll('.tag').forEach(t => t.remove());
-  const input = document.getElementById('bj-add-tag-input');
-  tags.forEach(tag => {
-    const span = document.createElement('span');
-    span.className = 'tag';
-    const label = document.createElement('span');
-    label.className = 'tag-txt';
-    label.textContent = tag;
-    span.appendChild(label);
-    const delBtn = document.createElement('span');
-    delBtn.className = 'tag-del';
-    delBtn.innerHTML = window.TNI.x;
-    delBtn.style.display = isEditMode ? '' : 'none';
-    delBtn.onclick = () => {
-      const e = getActive(); if (!e) return;
-      e.tags = (e.tags||[]).filter(t => t !== tag);
-      // A tag change is a real edit: bump the merge clock too, or the other device
-      // resolves the incoming copy as older and silently drops it.
-      e.updated = Date.now();
-      saveState(); renderTags(e.tags); renderSidebar();
-    };
-    span.appendChild(delBtn);
-    row.insertBefore(span, input);
-  });
-}
-document.getElementById('bj-add-tag-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault();
-    const val = e.target.value.trim().replace(/,/g,'');
-    if (!val) return;
-    const entry = getActive(); if (!entry) return;
-    entry.tags = entry.tags || [];
-    // "Work" and "work" are one tag (they made two filter chips).
-    if (!entry.tags.some(t => String(t).toLowerCase() === val.toLowerCase())) entry.tags.push(val);
-    entry.updated = Date.now();   // see the tag-delete handler above
-    e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
+/* ── PAGE ONLY (2026-11-17) ──────────────────────────────────────────────────
+ * Every entry made with a template that is gone (Whiteboard, Mind Map, the old
+ * canvas Mind Map, Notes, Cornell) becomes a page: core/convert.js builds its
+ * page and backs the entry up first (dashboards/journal_legacy_<id>); here it
+ * is saved like any edit. Veda's own entries convert as soon as they are
+ * loaded; an OurJournal entry when it is opened (its content arrives then). */
+var _bjConverting = {};
+function _bjConvertPane(on) {
+  var pane = document.getElementById('bj-convert-pane');
+  if (!pane && on) {
+    pane = document.createElement('div');
+    pane.id = 'bj-convert-pane';
+    pane.className = 'nb-convert-pane';
+    pane.innerHTML = '<div class="nb-convert-spin" aria-hidden="true"></div><div class="nb-convert-t">Turning this into a page…</div><div class="nb-convert-s">Whiteboards and mind maps become a picture with their words. The original is kept as a backup.</div>';
+    var area = document.getElementById('bj-content-area'); if (area) area.appendChild(pane);
   }
-});
-
-/* ── WHITEBOARD + MIND MAP ─────────────────────────────────────────────────
- * Both are VizEngine boards. Everything that used to live here — the 2D canvas,
- * the stroke smoother, the node hit-testing, the per-stroke PNG upload — is
- * gone; the engine above owns drawing, layout, persistence and export, and this
- * is only the wiring that gives it Veda's identity.
- * ======================================================================== */
-var _bjBoards = {};
-function _bjBoard(kind) {
-  if (_bjBoards[kind]) return _bjBoards[kind];
-  var isWb = kind === 'wb';
-  _bjBoards[kind] = window.VizEngine.createBoard({
-    kind: kind,
-    app: 'bj',
-    // dashboards/journal_viz_<id>, dashboards/journal_vizf_<hash> — alongside
-    // the legacy journal_canvas_<id> documents, which are read but never written.
-    prefix: 'journal',
-    // A shared (OurJournal) entry's board lives in ourjournal_viz_<id> — the same
-    // document MyJournal opens — and merges live with the other person's edits.
-    prefixFor: function (e) { return (_bjOJState && _bjOJState.entries.indexOf(e) >= 0 && window.OJ) ? window.OJ.NS : 'journal'; },
-    liveFor: function (e) { return !!(_bjOJState && _bjOJState.entries.indexOf(e) >= 0); },
-    shell: document.getElementById(isWb ? 'bj-wb-canvas-wrap' : 'bj-mindmap-area'),
-    mount: document.getElementById(isWb ? 'bj-wb-mount' : 'bj-mm-mount'),
-    title: isWb ? 'Whiteboard' : 'Mind Map',
-    setSync: function (s) { _bjSetSync(s); },
-    entryTitle: function () { var e = getActive(); return (e && e.title) || 'Untitled Entry'; },
-    // The board has committed a change locally; run the journal's own save so
-    // the entry's fingerprint, title and its updated stamp follow it. Debounced by
-    // autoSave, and only ever reached once per board write — never per stroke.
-    onMeta: function () { autoSave(); },
-    onPdf: function () { var e = getActive(); if (e) exportEntryAsPDF(e); }
-  });
-  return _bjBoards[kind];
+  if (pane) pane.style.display = on ? 'flex' : 'none';
 }
-window._bjFlushBoards = function () {
-  return Promise.all(Object.keys(_bjBoards).map(function (k) { return _bjBoards[k].flush(); }));
-};
-
-/* ── MIND MAP LEGACY ───────────────────────────────────────────────────────
- * Veda's original canvas mind map, restored unchanged. It is a separate
- * template from the Mind Elixir one, not a fallback inside it: the two share no
- * state, no DOM and no document. Its content lives on the entry exactly where
- * it always did (data.nodes / data.edges), so every map that existed before the
- * rebuild still opens from the same bytes it was saved as.
- * ======================================================================== */
-let mmCanvas, mmCtx, mmNodes=[], mmEdges=[], mmDragNode=null, mmDragOffset=null;
-let mmConnectMode=false, mmConnectFrom=null, mmSelectedNode=null, mmEditingNode=null, mmNextId=10;
-let mmNodeFill='#26272A', mmNodeStroke='#4A4B51';
-let mmResizing=null;    // node resize: {node, handle, startX, startY, origW, origH, origX, origY}
-let mmImgResizing=null; // image resize: {node, startX, startY, origW, origH}
-var mmImgCache = {};
-
-function initMindmap() {
-  mmCanvas = document.getElementById('bj-mml-canvas');
-  mmCtx = mmCanvas.getContext('2d');
-  mmCanvas.width  = 1200;
-  mmCanvas.height = 700;
-}
-/* Mindmap helpers */
-function mmWrapText(ctx, text, maxWidth) {
-  const hardLines = text.split('\n');
-  const lines = [];
-  for (const hard of hardLines) {
-    if (hard === '') { lines.push(''); continue; }
-    const words = hard.split(' ');
-    let cur = '';
-    for (const w of words) {
-      const test = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; }
-      else { cur = test; }
-    }
-    lines.push(cur);
-  }
-  return lines;
-}
-function mmNodeSize(ctx, node) {
-  // If node has explicit w/h set, use those
-  if (node.w && node.h) {
-    const isRoot = node.root;
-    const fontSize = isRoot ? 13 : 11;
-    ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
-    const label = node.label || 'Node';
-    const lines = mmWrapText(ctx, label, node.w - (isRoot?36:28));
-    const LINE_H = fontSize + 4;
-    const PAD_Y = isRoot ? 10 : 8;
-    return { boxW: node.w, boxH: node.h, lines, fontSize, LINE_H, PAD_Y };
-  }
-  const isRoot = node.root;
-  const fontSize = isRoot ? 13 : 11;
-  ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
-  const label = node.label || 'Node';
-  const MAX_W = node.imageData ? Math.max(160, (node.imgW||160)) : (isRoot ? 160 : 140);
-  const PAD_X = isRoot ? 18 : 14;
-  const PAD_Y = isRoot ? 10 : 8;
-  const LINE_H = fontSize + 4;
-  const singleW = ctx.measureText(label).width;
-  let boxW, lines;
-  if (singleW <= MAX_W) {
-    boxW = Math.max(singleW + PAD_X*2, isRoot ? 90 : 70);
-    lines = [label];
-  } else {
-    lines = mmWrapText(ctx, label, MAX_W);
-    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
-    boxW = widest + PAD_X*2;
-  }
-  let boxH = lines.length * LINE_H + PAD_Y*2;
-  // If node has image, expand to fit it
-  if (node.imageData) {
-    const imgW = node.imgW || 160;
-    const imgH = node.imgH || 120;
-    boxW = Math.max(boxW, imgW + PAD_X*2);
-    boxH += imgH + 8;
-  }
-  return { boxW, boxH, lines, fontSize, LINE_H, PAD_Y };
-}
-function mmExpandCanvas() {
-  if (!mmCanvas || !mmNodes.length) return;
-  const PAD = 80;
-  // Check if any node is too close to left or top edge — shift all nodes right/down
-  let minX = Infinity, minY = Infinity;
-  mmNodes.forEach(n => {
-    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
-    minX = Math.min(minX, n.x - sz.boxW/2);
-    minY = Math.min(minY, n.y - sz.boxH/2);
-  });
-  if (minX < PAD || minY < PAD) {
-    const shiftX = minX < PAD ? PAD - minX : 0;
-    const shiftY = minY < PAD ? PAD - minY : 0;
-    mmNodes.forEach(n => { n.x += shiftX; n.y += shiftY; });
-    // Keep scroll position anchored so the view doesn't jump
-    const wrap = document.getElementById('bj-mml-canvas-wrap');
-    if (wrap) { wrap.scrollLeft += shiftX; wrap.scrollTop += shiftY; }
-  }
-  // Expand right and bottom as before
-  let maxX = 1200, maxY = 700;
-  mmNodes.forEach(n => {
-    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
-    maxX = Math.max(maxX, n.x + sz.boxW/2 + PAD);
-    maxY = Math.max(maxY, n.y + sz.boxH/2 + PAD);
-  });
-  if (mmCanvas.width < maxX) mmCanvas.width = maxX;
-  if (mmCanvas.height < maxY) mmCanvas.height = maxY;
-}
-
-// Get or create cached image for a node
-function mmGetImg(node) {
-  if (!node.imageData) return null;
-  if (mmImgCache[node.id] && mmImgCache[node.id]._src === node.imageData) return mmImgCache[node.id];
-  var img = new Image();
-  img._src = node.imageData;
-  img.onload = function() { mmImgCache[node.id] = img; renderMindmap(); };
-  img.src = node.imageData;
-  return null; // will trigger re-render when loaded
-}
-
-// Resize handle positions for a node (8 handles)
-function mmGetHandles(node) {
-  const {boxW, boxH} = mmNodeSize(mmCtx, node);
-  const L = node.x - boxW/2, R = node.x + boxW/2;
-  const T = node.y - boxH/2, B = node.y + boxH/2;
-  const MX = node.x, MY = node.y;
-  return [
-    {id:'nw', x:L, y:T}, {id:'n',  x:MX, y:T}, {id:'ne', x:R, y:T},
-    {id:'e',  x:R, y:MY},
-    {id:'se', x:R, y:B}, {id:'s',  x:MX, y:B}, {id:'sw', x:L, y:B},
-    {id:'w',  x:L, y:MY},
-  ];
-}
-
-function renderMindmap() {
-  if (!mmCtx) return;
-  mmExpandCanvas();
-  const ctx = mmCtx;
-  ctx.clearRect(0,0,mmCanvas.width,mmCanvas.height);
-  ctx.fillStyle='#1B1C1E'; ctx.fillRect(0,0,mmCanvas.width,mmCanvas.height);
-  ctx.fillStyle='#3D3E4350';
-  for (let x=24; x<mmCanvas.width; x+=28) for (let y=24; y<mmCanvas.height; y+=28) {
-    ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fill();
-  }
-  mmEdges.forEach(edge => {
-    const a=mmNodes.find(n=>n.id===edge.from), b=mmNodes.find(n=>n.id===edge.to);
-    if(!a||!b) return;
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2 - 30;
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my,b.x,b.y);
-    let edgeColor = a.stroke || '#8D769A', edgeStroke;
-    if (edgeColor.startsWith('#') && edgeColor.length===7) {
-      const r=parseInt(edgeColor.slice(1,3),16),g=parseInt(edgeColor.slice(3,5),16),b2=parseInt(edgeColor.slice(5,7),16);
-      edgeStroke=`rgba(${r},${g},${b2},0.45)`;
-    } else if (edgeColor.startsWith('rgb(')) { edgeStroke=edgeColor.replace('rgb(','rgba(').replace(')',',0.45)'); }
-    else { edgeStroke='rgba(141,118,154,0.35)'; }
-    ctx.strokeStyle=edgeStroke; ctx.lineWidth=1.5; ctx.stroke();
-  });
-  mmNodes.forEach(node => {
-    const isSel=node.id===mmSelectedNode, isCF=node.id===mmConnectFrom;
-    const nodeFill=node.root?'#3a2d4a':(node.fill||'#26272A');
-    const nodeStroke=node.root?'#8D769A':(node.stroke||'#4A4B51');
-    const {boxW,boxH,lines,fontSize,LINE_H,PAD_Y} = mmNodeSize(ctx,node);
-    const rx=node.x-boxW/2, ry=node.y-boxH/2, rad=8;
-    ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetY=4;
-    ctx.beginPath();
-    ctx.moveTo(rx+rad,ry); ctx.lineTo(rx+boxW-rad,ry); ctx.quadraticCurveTo(rx+boxW,ry,rx+boxW,ry+rad);
-    ctx.lineTo(rx+boxW,ry+boxH-rad); ctx.quadraticCurveTo(rx+boxW,ry+boxH,rx+boxW-rad,ry+boxH);
-    ctx.lineTo(rx+rad,ry+boxH); ctx.quadraticCurveTo(rx,ry+boxH,rx,ry+boxH-rad);
-    ctx.lineTo(rx,ry+rad); ctx.quadraticCurveTo(rx,ry,rx+rad,ry); ctx.closePath();
-    ctx.fillStyle=isCF?'#0e3d4a':(isSel?'#3d1f1a':nodeFill); ctx.fill();
-    ctx.shadowBlur=0; ctx.shadowOffsetY=0;
-    ctx.strokeStyle=isCF?'#22d3ee':(isSel?'#E74C3C':nodeStroke);
-    ctx.lineWidth=isSel||node.root?2.5:1.5; ctx.stroke();
-    // Draw image if present
-    var img = node.imageData ? mmGetImg(node) : null;
-    if (img && img.complete) {
-      const iw = node.imgW || Math.min(boxW-20, 320);
-      const ih = node.imgH || Math.round(iw * img.naturalHeight / Math.max(img.naturalWidth,1));
-      const imgX = node.x - iw/2;
-      const textH = lines.length * LINE_H + PAD_Y*2;
-      const imgY = ry + textH;
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect ? ctx.roundRect(imgX, imgY, iw, ih, 4) : ctx.rect(imgX, imgY, iw, ih);
-      ctx.clip();
-      ctx.drawImage(img, imgX, imgY, iw, ih);
-      ctx.restore();
-      // Image SE resize handle (blue, bottom-right of image)
-      if (isSel) {
-        ctx.fillStyle = '#3b82f6';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(imgX + iw, imgY + ih, 7, 0, Math.PI*2);
-        ctx.fill(); ctx.stroke();
-        // Draw resize arrow icon inside
-        // Two short strokes, not a glyph: the resize grip has to stay crisp at
-        // any devicePixelRatio, and ⤡ fell back to whatever the system font had.
-        const _gx = imgX + iw, _gy = imgY + ih;
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(_gx - 3.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy - 3.5);
-        ctx.moveTo(_gx + 0.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy + 0.5);
-        ctx.stroke();
-      }
-    }
-    // Draw label text
-    ctx.fillStyle='#ECECEE';
-    ctx.font=`${node.root?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    const textBlockH = lines.length*LINE_H;
-    const textStartY = ry + PAD_Y + LINE_H/2;
-    lines.forEach((line,i)=>{ ctx.fillText(line, node.x, textStartY+i*LINE_H); });
-    // Draw resize handles on selected node
-    if (isSel) {
-      const handles = mmGetHandles(node);
-      handles.forEach(function(h) {
-        ctx.fillStyle = '#E74C3C';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, 5, 0, Math.PI*2);
-        ctx.fill(); ctx.stroke();
-      });
-      // Remove image button if image present
-      if (node.imageData) {
-        const _sz = mmNodeSize(ctx, node);
-        const iw2 = node.imgW || Math.min(_sz.boxW-20, 320);
-        const textH2 = _sz.lines.length*_sz.LINE_H + _sz.PAD_Y*2;
-        const imgY2 = node.y - _sz.boxH/2 + textH2;
-        ctx.fillStyle = '#E74C3C';
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(node.x - iw2/2 + 10, imgY2 + 10, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        const _cx = node.x - iw2/2 + 10, _cy = imgY2 + 10, _r = 3.2;
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(_cx - _r, _cy - _r); ctx.lineTo(_cx + _r, _cy + _r);
-        ctx.moveTo(_cx + _r, _cy - _r); ctx.lineTo(_cx - _r, _cy + _r);
-        ctx.stroke();
-      }
-    }
-  });
-}
-function getNodeAt(x,y) {
-  for (let i=mmNodes.length-1;i>=0;i--) {
-    const n=mmNodes[i];
-    if (!mmCtx) continue;
-    const {boxW,boxH}=mmNodeSize(mmCtx,n);
-    if (x>=n.x-boxW/2&&x<=n.x+boxW/2&&y>=n.y-boxH/2&&y<=n.y+boxH/2) return n;
-  } return null;
-}
-// Hit-test image SE resize handle on selected node — returns {node, imgX, imgY, iw, ih} or null
-function mmHitImgHandle(x, y) {
-  if (!mmSelectedNode) return null;
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node || !node.imageData) return null;
-  var sz = mmNodeSize(mmCtx, node);
-  var iw = node.imgW || Math.min(sz.boxW-20, 320);
-  var ih = node.imgH || 120;
-  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
-  var ry = node.y - sz.boxH/2;
-  var imgX = node.x - iw/2;
-  var imgY = ry + textH;
-  // SE handle at (imgX+iw, imgY+ih)
-  if (Math.abs(x-(imgX+iw)) <= 12 && Math.abs(y-(imgY+ih)) <= 12) {
-    return { node: node, imgX: imgX, imgY: imgY, iw: iw, ih: ih };
-  }
-  return null;
-}
-// Hit-test remove-image button (top-left of image)
-function mmHitImgRemove(x, y) {
-  if (!mmSelectedNode) return null;
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node || !node.imageData) return null;
-  var sz = mmNodeSize(mmCtx, node);
-  var iw = node.imgW || Math.min(sz.boxW-20, 320);
-  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
-  var ry = node.y - sz.boxH/2;
-  var imgX = node.x - iw/2;
-  var imgY = ry + textH;
-  if (Math.abs(x-(imgX+10)) <= 12 && Math.abs(y-(imgY+10)) <= 12) return node;
-  return null;
-}
-// Hit-test resize handles — returns handle id or null
-function mmHitHandle(x, y) {
-  if (!mmSelectedNode) return null;
-  const node = mmNodes.find(n => n.id === mmSelectedNode);
-  if (!node) return null;
-  const handles = mmGetHandles(node);
-  for (var i=0; i<handles.length; i++) {
-    var h = handles[i];
-    if (Math.abs(x-h.x) <= 8 && Math.abs(y-h.y) <= 8) return h.id;
-  }
-  return null;
-}
-
-// Hit-test edges: returns index of edge near (x,y) or -1
-function mmHitEdge(x, y) {
-  var THRESH = 8;
-  for (var i = 0; i < mmEdges.length; i++) {
-    var edge = mmEdges[i];
-    var a = mmNodes.find(function(n){return n.id===edge.from;}), b = mmNodes.find(function(n){return n.id===edge.to;});
-    if (!a || !b) continue;
-    var mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 30;
-    for (var t = 0; t <= 1; t += 0.05) {
-      var bx = (1-t)*(1-t)*a.x + 2*(1-t)*t*mx + t*t*b.x;
-      var by = (1-t)*(1-t)*a.y + 2*(1-t)*t*my + t*t*b.y;
-      if (Math.abs(x-bx) < THRESH && Math.abs(y-by) < THRESH) return i;
-    }
-  }
-  return -1;
-}
-
-(function() {
-  var mmEl = document.getElementById('bj-mml-canvas');
-
-  function mmGetXY(e) {
-    var r = mmCanvas.getBoundingClientRect();
-    var scaleX = mmCanvas.width / r.width, scaleY = mmCanvas.height / r.height;
-    return {
-      x: (e.clientX - r.left) * scaleX,
-      y: (e.clientY - r.top) * scaleY
-    };
-  }
-
-  // Cursor style by handle id
-  var HANDLE_CURSORS = {nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
-
-  mmEl.addEventListener('pointermove', function(e) {
-    if (mmImgResizing) {
-      var pos = mmGetXY(e);
-      var dx = pos.x - mmImgResizing.startX, dy = pos.y - mmImgResizing.startY;
-      var node = mmImgResizing.node;
-      var nw = Math.max(40, mmImgResizing.origW + dx*2); // *2 because centered
-      var nh = Math.max(30, mmImgResizing.origH + dy);
-      node.imgW = Math.round(nw);
-      node.imgH = Math.round(nh);
-      e.preventDefault(); renderMindmap(); return;
-    }
-    if (mmResizing) {
-      var pos = mmGetXY(e);
-      var dx = pos.x - mmResizing.startX, dy = pos.y - mmResizing.startY;
-      var node = mmResizing.node;
-      var h = mmResizing.handle;
-      var origW = mmResizing.origW, origH = mmResizing.origH;
-      var origX = mmResizing.origX, origY = mmResizing.origY;
-      var newW = origW, newH = origH, newX = origX, newY = origY;
-      var MIN = 60;
-      if (h==='e'||h==='ne'||h==='se') newW = Math.max(MIN, origW + dx);
-      if (h==='w'||h==='nw'||h==='sw') { newW = Math.max(MIN, origW - dx); newX = origX + (origW - newW)/2; }
-      if (h==='s'||h==='se'||h==='sw') newH = Math.max(MIN, origH + dy);
-      if (h==='n'||h==='ne'||h==='nw') { newH = Math.max(MIN, origH - dy); newY = origY + (origH - newH)/2; }
-      if (h==='n'||h==='s') newW = origW;
-      if (h==='e'||h==='w') newH = origH;
-      node.w = Math.round(newW); node.h = Math.round(newH);
-      node.x = Math.round(newX); node.y = Math.round(newY);
-      e.preventDefault(); renderMindmap(); return;
-    }
-    if (mmDragNode) {
-      var pos = mmGetXY(e);
-      mmDragNode.x = pos.x - mmDragOffset.x;
-      mmDragNode.y = pos.y - mmDragOffset.y;
-      e.preventDefault(); renderMindmap(); return;
-    }
-    // Update cursor
-    var pos = mmGetXY(e);
-    if (mmHitImgHandle(pos.x, pos.y)) { mmEl.style.cursor = 'se-resize'; return; }
-    var hid = mmHitHandle(pos.x, pos.y);
-    var onEdge = !getNodeAt(pos.x,pos.y) && isEditMode && mmHitEdge(pos.x,pos.y) !== -1;
-    mmEl.style.cursor = hid ? HANDLE_CURSORS[hid] : (getNodeAt(pos.x,pos.y) ? 'grab' : (onEdge ? 'pointer' : 'default'));
-  }, { passive: false });
-
-  mmEl.addEventListener('pointerdown', function(e) {
-    var pos = mmGetXY(e);
-
-    // Check resize handle first
-    var hid = mmHitHandle(pos.x, pos.y);
-    if (hid && isEditMode) {
-      var node = mmNodes.find(n => n.id === mmSelectedNode);
-      var sz = mmNodeSize(mmCtx, node);
-      mmResizing = { node, handle: hid, startX: pos.x, startY: pos.y, origW: sz.boxW, origH: sz.boxH, origX: node.x, origY: node.y };
-      mmEl.setPointerCapture(e.pointerId);
-      e.preventDefault(); return;
-    }
-
-    var node = getNodeAt(pos.x, pos.y);
-
-    if (mmConnectMode) {
-      if (node) {
-        if (!mmConnectFrom) { mmConnectFrom = node.id; renderMindmap(); }
-        else if (mmConnectFrom !== node.id) {
-          var exists = mmEdges.some(function(ed) {
-            return (ed.from===mmConnectFrom&&ed.to===node.id)||(ed.from===node.id&&ed.to===mmConnectFrom);
-          });
-          if (!exists) mmEdges.push({from:mmConnectFrom, to:node.id});
-          mmConnectFrom = null; mmConnectMode = false;
-          document.getElementById('bj-mml-connect-mode').classList.remove('active');
-          renderMindmap(); autoSave();
-        }
-      }
-      return;
-    }
-
-    if (node) {
-      // Check image SE resize handle first
-      var imgH = mmHitImgHandle(pos.x, pos.y);
-      if (imgH && isEditMode) {
-        mmImgResizing = { node: imgH.node, startX: pos.x, startY: pos.y, origW: imgH.iw, origH: imgH.ih };
-        mmEl.setPointerCapture(e.pointerId);
-        e.preventDefault(); return;
-      }
-      // Check remove-image button
-      var rmNode = mmHitImgRemove(pos.x, pos.y);
-      if (rmNode && isEditMode) {
-        rmNode.imageData = null; rmNode.imgW = null; rmNode.imgH = null;
-        delete mmImgCache[rmNode.id];
-        renderMindmap(); autoSave(); e.preventDefault(); return;
-      }
-      mmEl.setPointerCapture(e.pointerId);
-      mmSelectedNode = node.id; mmDragNode = node;
-      mmDragOffset = {x: pos.x - node.x, y: pos.y - node.y};
-      if (!node.root && node.fill) {
-        document.querySelectorAll('.mml-color-btn').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.fill === node.fill);
-        });
-        mmNodeFill = node.fill; mmNodeStroke = node.stroke || '#4A4B51';
-      }
-      e.preventDefault();
-      renderMindmap();
-    } else {
-      // Check if clicked near an edge — if so, delete it (edit mode)
-      if (isEditMode) {
-        var edgeIdx = mmHitEdge(pos.x, pos.y);
-        if (edgeIdx !== -1) {
-          mmEdges.splice(edgeIdx, 1);
-          renderMindmap(); autoSave(); e.preventDefault(); return;
-        }
-      }
-      mmSelectedNode = null; renderMindmap();
-    }
-  }, { passive: false });
-
-  mmEl.addEventListener('pointerup', function(e) {
-    if (mmImgResizing) { mmImgResizing = null; autoSave(); return; }
-    if (mmResizing) { mmResizing = null; autoSave(); return; }
-    if (mmDragNode) { mmDragNode = null; autoSave(); }
-  });
-  mmEl.addEventListener('pointercancel', function() { mmDragNode = null; mmResizing = null; mmImgResizing = null; });
-
-  // Drag-and-drop image files onto canvas
-  mmEl.addEventListener('dragover', function(e) { e.preventDefault(); mmEl.style.outline = '2px dashed #8D769A'; });
-  mmEl.addEventListener('dragleave', function() { mmEl.style.outline = ''; });
-  mmEl.addEventListener('drop', function(e) {
-    e.preventDefault(); mmEl.style.outline = '';
-    var files = e.dataTransfer.files;
-    if (!files || !files.length) return;
-    var file = files[0];
-    if (!file.type.startsWith('image/')) return;
-    var pos = mmGetXY(e);
-    var targetNode = getNodeAt(pos.x, pos.y);
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      var dataURL = ev.target.result;
-      var tmpImg = new Image();
-      tmpImg.onload = function() {
-        var maxW = 400, maxH = 320;
-        var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
-        if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
-        if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
-        if (targetNode) {
-          // Drop onto node — attach image, resize node to fit
-          targetNode.imageData = dataURL;
-          targetNode.imgW = iw; targetNode.imgH = ih;
-          // Expand node w/h to accommodate image
-          var sz = mmNodeSize(mmCtx, targetNode);
-          targetNode.w = Math.max(sz.boxW, iw + 20);
-          targetNode.h = sz.boxH; // auto-calculated via imageData path
-          delete targetNode.w; delete targetNode.h; // let mmNodeSize auto-calc with image
-          delete mmImgCache[targetNode.id];
-        } else {
-          // Drop onto empty canvas — create new image node
-          mmNextId++;
-          var node = {id:mmNextId, x:pos.x, y:pos.y, label:'Image', fill:mmNodeFill, stroke:mmNodeStroke, imageData:dataURL, imgW:iw, imgH:ih};
-          mmNodes.push(node);
-          mmSelectedNode = node.id;
-        }
-        renderMindmap(); autoSave();
+function _bjConvertOne(e) {
+  var C = window.NotebookConvert;
+  if (!C || !C.legacy(e) || _bjIsPinned(e.id)) return Promise.resolve(false);
+  if (_bjConverting[e.id]) return _bjConverting[e.id];
+  var shared = !!(_bjOJState && _bjOJState.entries.indexOf(e) >= 0);
+  var prefix = shared && window.OJ ? window.OJ.NS : 'journal';
+  var p = C.backup(prefix, e).then(function (backedUp) {
+    if (!backedUp) return false;
+    return C.page(e, { app: 'bj', prefix: 'journal', prefixFor: function () { return prefix; }, chipClass: 'bj-file-chip' }).then(function (html) {
+      if (html == null || !C.legacy(e)) return false;
+      // Still in the collection it was converted for? (a remote copy may have
+      // replaced the object meanwhile: convert that one on the next pass.)
+      var coll = shared ? _bjOJState : null;
+      var write = function () {
+        var cur = state.entries.find(function (x) { return x.id === e.id; });
+        if (cur !== e) return false;
+        e.template = 'page';
+        e.data = { html: html, attachments: [] };
+        delete e.vizRev; delete e.vizCount; delete e.vizKind; delete e.vizTitle;
+        e.updated = Date.now(); e.rev = (e.rev || 0) + 1; e._dirty = true;
+        saveState(); renderSidebar();
+        if (state.activeId === e.id && !_bjHidden) loadActiveEntry();
+        _bjFbSaveEntry(e);
+        return true;
       };
-      tmpImg.src = dataURL;
-    };
-    reader.readAsDataURL(file);
-  });
-})();
-document.getElementById('bj-mml-canvas').addEventListener('dblclick', e => {
-  if (!isEditMode) return;
-  const r=mmCanvas.getBoundingClientRect();
-  const scaleX=mmCanvas.width/r.width, scaleY=mmCanvas.height/r.height;
-  const x=(e.clientX-r.left)*scaleX, y=(e.clientY-r.top)*scaleY;
-  const node=getNodeAt(x,y); if (!node) return;
-  const inp=document.getElementById('bj-mml-node-input');
-  // Position relative to canvas element (CSS pixels), not canvas pixel coords
-  const cssX=node.x/scaleX, cssY=node.y/scaleY;
-  inp.style.display='block'; inp.style.left=(cssX-130)+'px'; inp.style.top=(cssY-18)+'px';
-  inp.value=node.label; inp.focus(); inp.select(); mmEditingNode=node;
-});
-document.getElementById('bj-mml-node-input').addEventListener('keydown', e => {
-  if (e.key==='Enter'&&!e.shiftKey) {
-    e.preventDefault();
-    const ta=e.target, start=ta.selectionStart, end=ta.selectionEnd;
-    ta.value=ta.value.substring(0,start)+'\n'+ta.value.substring(end);
-    ta.selectionStart=ta.selectionEnd=start+1;
-    ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px';
-    return;
-  }
-  if ((e.key==='Enter'&&e.shiftKey)||e.key==='Escape') {
-    if (e.key!=='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-    if (e.key==='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-    e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
-  }
-});
-document.getElementById('bj-mml-node-input').addEventListener('blur', e => {
-  if (mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-  e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
-});
-document.getElementById('bj-mml-node-input').addEventListener('input', e => {
-  e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px';
-});
-document.getElementById('bj-mml-add-node').addEventListener('click', () => {
-  mmNextId++;
-  const cx = mmCanvas ? mmCanvas.width/2 : 340;
-  const cy = mmCanvas ? mmCanvas.height/2 : 240;
-  mmNodes.push({id:mmNextId,x:cx+(Math.random()-.5)*220,y:cy+(Math.random()-.5)*160,label:'Idea',fill:mmNodeFill,stroke:mmNodeStroke});
-  renderMindmap(); autoSave();
-});
-document.querySelectorAll('.mml-color-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    mmNodeFill = this.dataset.fill;
-    mmNodeStroke = this.dataset.stroke;
-    document.querySelectorAll('.mml-color-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    // Apply to selected node if any
-    if (mmSelectedNode) {
-      const node = mmNodes.find(n => n.id === mmSelectedNode);
-      if (node && !node.root) {
-        node.fill = mmNodeFill;
-        node.stroke = mmNodeStroke;
-        renderMindmap(); autoSave();
-      }
-    }
-  });
-});
-document.getElementById('bj-mml-connect-mode').addEventListener('click', function() {
-  mmConnectMode=!mmConnectMode; mmConnectFrom=null; this.classList.toggle('active',mmConnectMode);
-});
-document.getElementById('bj-mml-delete-node').addEventListener('click', () => {
-  if (!mmSelectedNode) { (window.uiAlert || window.alert)('Select a node first.'); return; }
-  if (mmNodes.find(n=>n.id===mmSelectedNode)?.root) { (window.uiAlert || window.alert)("Can't delete the root node."); return; }
-  mmNodes=mmNodes.filter(n=>n.id!==mmSelectedNode);
-  mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
-  mmSelectedNode=null; renderMindmap(); autoSave();
-});
-document.getElementById('bj-mml-reset').addEventListener('click', async () => {
-  if (!(await window.uiConfirm('Reset the mind map?', {danger:true, okLabel:'Reset'}))) return;
-  const cx = mmCanvas ? mmCanvas.width/2 : 340;
-  const cy = mmCanvas ? mmCanvas.height/2 : 240;
-  mmNodes=[{id:1,x:cx,y:cy,label:'Central Idea',root:true}];
-  mmEdges=[]; mmNextId=10; renderMindmap(); autoSave();
-});
-
-// Mindmap: add image to selected node via file picker
-document.getElementById('bj-mml-img-file').addEventListener('change', function() {
-  var file = this.files[0]; if (!file) return;
-  if (!mmSelectedNode) { (window.uiAlert || window.alert)('Select a node first, then click Image.'); this.value=''; return; }
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node) { this.value=''; return; }
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var dataURL = e.target.result;
-    var tmpImg = new Image();
-    tmpImg.onload = function() {
-      var maxW = 400, maxH = 320;
-      var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
-      if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
-      if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
-      node.imageData = dataURL;
-      node.imgW = iw; node.imgH = ih;
-      delete mmImgCache[node.id];
-      renderMindmap(); autoSave();
-    };
-    tmpImg.src = dataURL;
-  };
-  reader.readAsDataURL(file);
-  this.value = '';
-});
-
+      if (shared) return (coll && state === coll) ? write() : false;   // OurJournal writes only while it is on screen
+      return _bjWithPersonal(write);
+    });
+  }).catch(function (err) { console.warn('[BJ] conversion failed, entry left as it is:', e.id, err); return false; })
+    .then(function (r) { delete _bjConverting[e.id]; return r; });
+  _bjConverting[e.id] = p;
+  return p;
+}
+// Veda's own entries, one after another, in the background.
+var _bjConvertRun = null;
+function _bjConvertAll() {
+  if (_bjConvertRun || !window.NotebookConvert || !window._fbViz) return;
+  var todo = [];
+  _bjWithPersonal(function () { state.entries.forEach(function (e) { if (window.NotebookConvert.legacy(e)) todo.push(e); }); });
+  if (!todo.length) return;
+  _bjConvertRun = todo.reduce(function (p, e) { return p.then(function () { return _bjConvertOne(e); }); }, Promise.resolve())
+    .then(function () { _bjConvertRun = null; }, function () { _bjConvertRun = null; });
+}
+window._bjConvertAll = _bjConvertAll;
 
 /* PAGE EDITOR */
 function updatePageToolbarState() {
@@ -2670,187 +1739,9 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
   autoSave();
 }
 
-// ── ATTACHMENT SYSTEM (Notes / Cornell / Mindmap) ────────────────────────────
-(function() {
-  // Each template stores attachments as entry.data.attachments = [{id,name,mime,data}]
-  var ATTACH_CONFIGS = [
-    { inputId: 'bj-notes-attach-input',   chipsId: 'bj-notes-attach-chips',   imgsId: 'bj-notes-attach-images',   barId: 'bj-notes-attach-bar',   tmpl: 'notes'    },
-    { inputId: 'bj-cornell-attach-input', chipsId: 'bj-cornell-attach-chips', imgsId: 'bj-cornell-attach-images', barId: 'bj-cornell-attach-bar', tmpl: 'cornell'  },
-    { inputId: 'bj-mm-attach-input',      chipsId: 'bj-mm-attach-chips',      imgsId: 'bj-mm-attach-images',      barId: 'bj-mm-attach-bar',      tmpl: 'mindmap'  },
-    { inputId: 'bj-mml-attach-input',     chipsId: 'bj-mml-attach-chips',     imgsId: 'bj-mml-attach-images',     barId: 'bj-mml-attach-bar',     tmpl: 'mindmap-legacy' },
-  ];
-
-  function getAttachments() {
-    var entry = getActive(); if (!entry) return [];
-    if (!entry.data.attachments) entry.data.attachments = [];
-    return entry.data.attachments;
-  }
-  function addAttachment(name, mime, data) {
-    var entry = getActive(); if (!entry) return;
-    if (_bjFileTooBig(name, data)) return;
-    if (!entry.data.attachments) entry.data.attachments = [];
-    var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
-    autoSave();
-    renderAttachments(entry.template);
-  }
-  function removeAttachment(id) {
-    var entry = getActive(); if (!entry) return;
-    entry.data.attachments = (entry.data.attachments || []).filter(function(a) { return a.id !== id; });
-    autoSave();
-    renderAttachments(entry.template);
-  }
-
-  function renderAttachments(tmpl) {
-    var cfg = ATTACH_CONFIGS.find(function(c) { return c.tmpl === tmpl; });
-    if (!cfg) return;
-    var chipsEl = document.getElementById(cfg.chipsId);
-    var imgsEl  = document.getElementById(cfg.imgsId);
-    if (!chipsEl || !imgsEl) return;
-    var atts = getAttachments();
-    chipsEl.innerHTML = '';
-    imgsEl.innerHTML  = '';
-    atts.forEach(function(att) {
-      var isImg = att.mime && att.mime.startsWith('image/');
-      if (isImg) {
-        var wrap = document.createElement('div');
-        wrap.className = 'bj-img-wrap';
-        wrap.setAttribute('data-id', att.id);
-        var img = document.createElement('img');
-        img.src = att.data;
-        img.style.width  = (att.w || 200) + 'px';
-        img.style.height = 'auto';
-        img.draggable = false;
-        var del = document.createElement('div');
-        del.className = 'bj-img-del';
-        del.innerHTML = window.TNI.x;
-        del.addEventListener('click', function() { removeAttachment(att.id); });
-        var rsz = document.createElement('div');
-        rsz.className = 'bj-img-resize';
-        // Resize drag
-        rsz.addEventListener('pointerdown', function(e) {
-          e.stopPropagation(); e.preventDefault();
-          rsz.setPointerCapture(e.pointerId);
-          var startX = e.clientX, startW = img.offsetWidth;
-          function onMove(ev) {
-            var nw = Math.max(60, startW + (ev.clientX - startX));
-            img.style.width = nw + 'px';
-            att.w = nw;
-          }
-          function onUp() {
-            document.removeEventListener('pointermove', onMove);
-            document.removeEventListener('pointerup', onUp);
-            autoSave();
-          }
-          document.addEventListener('pointermove', onMove);
-          document.addEventListener('pointerup', onUp);
-        });
-        wrap.appendChild(img);
-        wrap.appendChild(del);
-        wrap.appendChild(rsz);
-        // Drag to reorder within images panel
-        _bjMakeImgDraggable(wrap, imgsEl);
-        imgsEl.appendChild(wrap);
-      } else {
-        var chip = document.createElement('a');
-        chip.className = 'bj-chip';
-        chip.href = att.data;
-        chip.download = att.name;
-        chip.title = att.name;
-        chip.innerHTML = '<span class="docx-clip-wrap">' + (window._docxPaperclipSVG || window.TNI.clip) + '</span><span class="bj-chip-name">' + _bjEsc(att.name) + '</span>';
-        if (isEditMode) {
-          var delSpan = document.createElement('span');
-          delSpan.className = 'bj-chip-del';
-          delSpan.innerHTML = window.TNI.x;
-          delSpan.addEventListener('click', function(e) { e.preventDefault(); removeAttachment(att.id); });
-          chip.appendChild(delSpan);
-        }
-        chipsEl.appendChild(chip);
-      }
-    });
-  }
-
-  // Make image wrap draggable for reordering within its container
-  function _bjMakeImgDraggable(wrap, container) {
-    wrap.addEventListener('pointerdown', function(e) {
-      if (e.target.classList.contains('bj-img-resize') || e.target.classList.contains('bj-img-del')) return;
-      e.preventDefault();
-      container.querySelectorAll('.bj-img-wrap').forEach(function(w) { w.classList.remove('selected'); });
-      wrap.classList.add('selected');
-      var startX = e.clientX, startY = e.clientY;
-      var moved = false;
-      var placeholder = document.createElement('div');
-      placeholder.style.cssText = 'width:' + wrap.offsetWidth + 'px;height:' + wrap.offsetHeight + 'px;border:2px dashed var(--border);border-radius:6px;flex-shrink:0;';
-      function onMove(ev) {
-        if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 5) return;
-        moved = true;
-        wrap.style.opacity = '0.5';
-        // Find insertion point
-        var siblings = Array.from(container.children).filter(function(c) { return c !== wrap && c !== placeholder; });
-        var after = null;
-        siblings.forEach(function(s) {
-          var r = s.getBoundingClientRect();
-          if (ev.clientX > r.left + r.width / 2) after = s;
-        });
-        if (after) { container.insertBefore(placeholder, after.nextSibling); }
-        else { container.insertBefore(placeholder, container.firstChild); }
-      }
-      function onUp() {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        wrap.style.opacity = '';
-        if (moved && placeholder.parentNode) {
-          container.insertBefore(wrap, placeholder);
-          placeholder.remove();
-          // Sync order in entry.data.attachments
-          var entry = getActive(); if (!entry || !entry.data.attachments) return;
-          var orderedImgIds = Array.from(container.querySelectorAll('.bj-img-wrap')).map(function(w) { return w.getAttribute('data-id'); });
-          var nonImgs = entry.data.attachments.filter(function(a) { return !(a.mime && a.mime.startsWith('image/')); });
-          var imgs = orderedImgIds.map(function(id) { return entry.data.attachments.find(function(a) { return a.id === id; }); }).filter(Boolean);
-          entry.data.attachments = imgs.concat(nonImgs);
-          autoSave();
-        } else if (placeholder.parentNode) { placeholder.remove(); }
-      }
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
-  }
-
-  // Wire file inputs
-  ATTACH_CONFIGS.forEach(function(cfg) {
-    var input = document.getElementById(cfg.inputId);
-    if (!input) return;
-    input.addEventListener('change', function() {
-      Array.from(this.files).forEach(function(file) {
-        var reader = new FileReader();
-        reader.onload = function(e) { addAttachment(file.name, file.type, e.target.result); };
-        reader.readAsDataURL(file);
-      });
-      this.value = '';
-    });
-  });
-
-  // Show/hide attach bars with edit mode & template
-  window._bjRenderAttachments = renderAttachments;
-  window._bjRefreshAttachBars = function(tmpl, editMode) {
-    ATTACH_CONFIGS.forEach(function(cfg) {
-      var bar = document.getElementById(cfg.barId);
-      if (bar) {
-        if (cfg.tmpl === tmpl && editMode) bar.classList.add('edit-mode');
-        else bar.classList.remove('edit-mode');
-      }
-    });
-  };
-})();
-
-
-// ── DRAG & DROP FILE UPLOAD (all templates) ─────────────────────────────────
+// ── DRAG & DROP FILE UPLOAD (pages) ─────────────────────────────────
 (function() {
   var DROP_ZONES = [
-    { areaId: 'bj-notes-area',     zoneId: 'bj-notes-drop-zone',   tmpl: 'notes'      },
-    { areaId: 'bj-cornell-area',   zoneId: 'bj-cornell-drop-zone', tmpl: 'cornell'    },
-    { areaId: 'bj-mindmap-area',   zoneId: 'bj-mm-drop-zone',      tmpl: 'mindmap'    },
-    { areaId: 'bj-mml-area',       zoneId: 'bj-mml-drop-zone',     tmpl: 'mindmap-legacy' },
     { areaId: 'bj-page-area',      zoneId: 'bj-page-drop-zone',    tmpl: 'page'       },
   ];
 
@@ -2868,10 +1759,6 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
             if (typeof _bjPageInsertFileChip === 'function') _bjPageInsertFileChip(file.name, ev.target.result, file.type);
           }
           return;
-        }
-        // All other templates: use shared addAttachment
-        if (typeof window._bjAddAttachment === 'function') {
-          window._bjAddAttachment(file.name, file.type, ev.target.result);
         }
       };
       reader.readAsDataURL(file);
@@ -2922,21 +1809,6 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
     });
   });
 
-  // Expose addAttachment globally so drag-drop can call it
-  // (it's defined inside the attachment IIFE; re-expose it here)
-  var _origRefresh = window._bjRefreshAttachBars;
-  // Wrap: when attachment IIFE runs it exposes _bjRenderAttachments
-  // We need addAttachment — re-implement a thin wrapper using the same storage
-  window._bjAddAttachment = function(name, mime, data) {
-    var entry = (typeof getActive === 'function') ? getActive() : null;
-    if (!entry) return;
-    if (_bjFileTooBig(name, data)) return;
-    if (!entry.data.attachments) entry.data.attachments = [];
-    var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
-    if (typeof autoSave === 'function') autoSave();
-    if (typeof window._bjRenderAttachments === 'function') window._bjRenderAttachments(entry.template);
-  };
 })();
 
 // Image paste from clipboard
@@ -3220,7 +2092,6 @@ function autoSave() {
 // (DOM→state), then flush the pending Firebase write. Called on tab-hide/close so the
 // last few hundred ms of typing (still inside the debounce) can't be lost.
 window._bjPersistNow = function() {
-  try { if (window._bjFlushBoards) window._bjFlushBoards(); } catch(e) {}
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { return _bjFbFlush(); } catch(e) {}
 };
@@ -3306,20 +2177,12 @@ window._bjOpenEntry = function(id, opts) {
 };
 document.getElementById('bj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('bj-page-editor').addEventListener('input', autoSave);
-['bj-notes-main','bj-notes-links','bj-notes-questions','bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', autoSave);
-});
 
 /* KEYBOARD SHORTCUTS */
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault(); saveCurrentEntry();
-    if (window._bjFlushBoards) window._bjFlushBoards();
   }
-  // Undo/redo inside a board belong to the board — both editors bind their own
-  // Ctrl+Z / Ctrl+Shift+Z on their container, and a second handler here would
-  // fire for the same keystroke.
 });
 
 /* EDIT MODE */
@@ -3333,28 +2196,8 @@ function setEditMode(enabled) {
     modeLabel.textContent = enabled ? 'EDIT' : 'VIEW';
     modeLabel.classList.toggle('edit-active', enabled);
   }
-  // View mode puts Excalidraw into its own viewModeEnabled and Mind Elixir into
-  // disableEdit(), so panning, zooming and reading still work but nothing can be
-  // changed — the same contract the text templates get from readOnly.
-  if (_bjBoards.wb) _bjBoards.wb.setEditable(enabled);
-  if (_bjBoards.mm) _bjBoards.mm.setEditable(enabled);
-  // The legacy mind map gates the same way it always did: its toolbar appears
-  // in edit mode and its canvas stops taking pointer events out of it.
-  const mmlToolbar = document.getElementById('bj-mml-toolbar');
-  if (mmlToolbar) mmlToolbar.classList.toggle('edit-mode', enabled);
-  const mmlC = document.getElementById('bj-mml-canvas');
-  if (mmlC) mmlC.style.pointerEvents = enabled ? 'auto' : 'none';
-  const editableIds = [
-    'bj-entry-title-input','bj-notes-main','bj-notes-links','bj-notes-questions',
-    'bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta',
-    'bj-add-tag-input'
-  ];
-  editableIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.readOnly = !enabled;
-  });
-  const ctInput = document.getElementById('bj-cornell-topic');
-  if (ctInput) ctInput.readOnly = !enabled;
+  const titleIn = document.getElementById('bj-entry-title-input');
+  if (titleIn) titleIn.readOnly = !enabled;
   // Page editor
   const pgEd = document.getElementById('bj-page-editor');
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
@@ -3364,16 +2207,6 @@ function setEditMode(enabled) {
     if (enabled && activeEntry && activeEntry.template === 'page') pgTb.classList.add('edit-mode');
     else pgTb.classList.remove('edit-mode');
   }
-  // Show/hide attach bars for notes/cornell/mindmap
-  if (window._bjRefreshAttachBars) {
-    const ae = getActive();
-    _bjRefreshAttachBars(ae ? ae.template : null, enabled);
-  }
-  document.querySelectorAll('.tag-del').forEach(el => {
-    el.style.display = enabled ? '' : 'none';
-  });
-  const addTagInput = document.getElementById('bj-add-tag-input');
-  if (addTagInput) addTagInput.style.display = enabled ? '' : 'none';
   // Sync bottom bar edit button label
   const bbEdit = document.getElementById('bj-bb-edit');
   if (bbEdit) bbEdit.innerHTML = enabled ? window.TNI.check + '<span>Done</span>' : window.TNI.pencil + '<span>Edit</span>';
@@ -3417,14 +2250,6 @@ function setEditMode(enabled) {
     });
   }
 
-  /* bj-btn-template */
-  fastTouch(document.getElementById('bj-btn-template'), function() {
-    var entry = getActive();
-    if (!entry) { (window.uiAlert || window.alert)('Create a new entry first.'); return; }
-    document.getElementById('bj-new-entry-btn')._creating = false;
-    document.getElementById('bj-template-modal').classList.add('open');
-  });
-
   /* bj-btn-export-pdf */
   (function() {
     var bjExportBtn = document.getElementById('bj-btn-export-pdf');
@@ -3463,13 +2288,6 @@ function setEditMode(enabled) {
     }
   });
 
-  fastTouch(document.getElementById('bj-bb-template'), function() {
-    var entry = getActive();
-    if (!entry) { (window.uiAlert || window.alert)('Create a new entry first.'); return; }
-    document.getElementById('bj-new-entry-btn')._creating = false;
-    document.getElementById('bj-template-modal').classList.add('open');
-  });
-
   fastTouch(document.getElementById('bj-bb-new'), function() {
     document.getElementById('bj-new-entry-btn')._creating = true;
     document.getElementById('bj-template-modal').classList.add('open');
@@ -3478,7 +2296,6 @@ function setEditMode(enabled) {
 
 /* TOOLBAR — mouse/keyboard change handler (touchstart path handled above) */
 document.getElementById('bj-btn-edit').addEventListener('change', function() { setEditMode(this.checked); });
-/* bj-btn-template click handled by fastTouch above */
 // Escape closes the template picker (it only closed on X or a click outside).
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Escape') return;
@@ -3510,6 +2327,14 @@ document.getElementById('bj-new-entry-btn').addEventListener('click', () => {
   document.getElementById('bj-new-entry-btn')._creating=true;
   document.getElementById('bj-template-modal').classList.add('open');
 });
+// One template on this side (Page): + makes a page straight away, no picker.
+// (A host's templates option can still offer more; then the picker shows.)
+new MutationObserver(function () {
+  var m = document.getElementById('bj-template-modal');
+  if (!m.classList.contains('open')) return;
+  var cards = Array.prototype.filter.call(m.querySelectorAll('.template-card'), function (c) { return getComputedStyle(c).display !== 'none'; });
+  if (cards.length === 1) cards[0].click();
+}).observe(document.getElementById('bj-template-modal'), { attributes: true, attributeFilter: ['class'] });
 document.getElementById('bj-search-box').addEventListener('input', renderSidebar);
 // The search box's clear button: shown only while there is text; one click
 // empties it, re-lists every entry and leaves the cursor in the box.
@@ -3541,7 +2366,6 @@ window._bjSetFolder = function(folder) {
   try { _bjFbFlush(); } catch (e) {}
   if (_bjFolder !== null && state.activeId) _bjFolderActive[_bjFolder] = state.activeId;
   _bjFolder = folder; _bjCfg.folder = folder;
-  bjTagFilters = [];
   var sb = document.getElementById('bj-search-box'); if (sb) sb.value = '';
   var back = folder !== null && _bjFolderActive[folder];
   if (back && state.entries.some(function(e) { return e.id === back && !e.trashed; })) state.activeId = back;
@@ -3573,7 +2397,6 @@ function _bjOJEnter() {
   _bjPersonal = state;
   _bjOJState = window.OJ.state('bj');
   state = _bjOJState;
-  bjTagFilters = [];
   var sb = document.getElementById('bj-search-box'); if (sb) sb.value = '';
   window.OJ.enter('bj');
   _bjModeUI();
@@ -3582,10 +2405,8 @@ function _bjOJEnter() {
 function _bjOJLeave() {
   if (!_bjIsOJ()) return;
   try { saveCurrentEntry(); } catch (e) {}
-  try { if (window._bjFlushBoards) window._bjFlushBoards(); } catch (e) {}
   state = _bjPersonal; _bjPersonal = null;
   if (window.OJ) window.OJ.leave('bj');
-  bjTagFilters = [];
   var sb = document.getElementById('bj-search-box'); if (sb) sb.value = '';
   // The entry that was open may have been deleted elsewhere in the meantime.
   if (state.activeId && !state.entries.some(function(e) { return e.id === state.activeId && !e.trashed; })) {
@@ -3774,68 +2595,17 @@ function _bjOpenPrintBlob(htmlStr) {
 function exportEntryAsPDF(entry) {
   var title = entry.title || 'Untitled Entry';
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-  var tags = _bjTags(entry).length ? _bjTags(entry).join(', ') : '';
 
-  // The legacy mind map draws itself onto a 2D canvas, so its own bitmap is the
-  // export — exactly as it was before the rebuild.
-  if (entry.template === 'mindmap-legacy') {
-    var mmCv = document.getElementById('bj-mml-canvas');
-    if (!mmCv) { window.uiAlert('Open this mind map before exporting it to PDF.', { title: 'Nothing to export' }); return; }
-    var mmlHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
-      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
-      + '</head><body>'
-      + '<h1>' + _bjEsc(title) + '</h1>'
-      + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
-      + '<img src="' + mmCv.toDataURL('image/png') + '" />'
-      + '</body></html>';
-    _bjOpenPrintBlob(mmlHtml);
-    return;
-  }
-
-  // Visual templates: ask the live board to render itself. Both engines export
-  // at their own resolution with a light background, so the printed page is a
-  // clean image of the work rather than a screenshot of a dark UI.
-  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
-    var _vbrd = _bjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
-    if (!_vbrd || !_vbrd.isOpen(entry.id)) {
-      window.uiAlert('Open this ' + (entry.template === 'whiteboard' ? 'whiteboard' : 'mind map') + ' before exporting it to PDF.', { title: 'Nothing to export' });
-      return;
-    }
-    _vbrd.toPngDataUrl().then(function (dataURL) {
-      var vHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
-        + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
-        + '</head><body>'
-        + '<h1>' + _bjEsc(title) + '</h1>'
-        + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
-        + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">This board is empty.</p>')
-        + '</body></html>';
-      _bjOpenPrintBlob(vHtml);
-    });
-    return;
-  }
-
-  // Text-based templates: build styled HTML print page
+  // The page, as a styled HTML print page
   var bodyHTML = '';
   if (entry.template === 'page') {
     bodyHTML = '<div class="page-content">' + (window._docxPdfBlackText ? window._docxPdfBlackText(entry.data.html || '') : (entry.data.html || '')) + '</div>';
-  } else if (entry.template === 'notes') {
-    bodyHTML = _bjPdfSection('Main Notes', entry.data.main || '');
-    if (entry.data.links) bodyHTML += _bjPdfSection('Links & Resources', entry.data.links);
-    if (entry.data.questions) bodyHTML += _bjPdfSection('Questions', entry.data.questions);
-  } else if (entry.template === 'cornell') {
-    bodyHTML += _bjPdfSection('Topic', entry.data.topic || '');
-    bodyHTML += '<div style="display:flex;gap:20px;margin-top:16px;">';
-    bodyHTML += '<div style="flex:1;min-width:0;">' + _bjPdfSection('Cues / Keywords', entry.data.cues || '') + '</div>';
-    bodyHTML += '<div style="flex:2.5;min-width:0;">' + _bjPdfSection('Notes', entry.data.notes || '') + '</div>';
-    bodyHTML += '</div>';
-    bodyHTML += _bjPdfSection('Summary', entry.data.summary || '');
   }
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title><style>'
     + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
     + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#2d1b4e;}'
     + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
-    + '.tag{background:#ede9f4;color:#6b4fa0;border-radius:4px;padding:2px 8px;margin-left:4px;font-size:10px;font-weight:700;}'
     + '.section{margin-bottom:18px;}'
     + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #ede9f4;padding-bottom:4px;}'
     + '.section-body{white-space:pre-wrap;word-break:break-word;}'
@@ -3851,7 +2621,6 @@ function exportEntryAsPDF(entry) {
     + '</head><body>'
     + '<h1>' + _bjEsc(title) + '</h1>'
     + '<div class="meta">' + _bjEsc(date)
-    + (tags ? tags.split(',').map(function(t){ return '<span class="tag">' + _bjEsc(t.trim()) + '</span>'; }).join('') : '')
     + '</div><hr/>'
     + bodyHTML
     + (/docx-math/.test(bodyHTML) && window._docxExportMathScript ? window._docxExportMathScript() : '')
@@ -3862,9 +2631,6 @@ function exportEntryAsPDF(entry) {
 
 function _bjEsc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function _bjPdfSection(label, text) {
-  return '<div class="section"><div class="section-label">' + _bjEsc(label) + '</div><div class="section-body">' + _bjEsc(text) + '</div></div>';
 }
 
 window.showBrainstormJournal = function(caller) {

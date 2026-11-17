@@ -41,14 +41,8 @@
 #bj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
 #tj-root .entry-item-meta .oj-by-tony::before { background: #c0aeea; }
 #bj-root .entry-item-meta .oj-by-veda::before, #tj-root .entry-item-meta .oj-by-veda::before { background: #a98bbb; }
-/* Shared entries use only the templates both journals offer there (Page, Mind
-   Map, Whiteboard), and have no per-person password lock. MyJournal's own
-   collection has no boards: Whiteboard and Mind Map are OurJournal-only there. */
-#tj-root:not(.oj-on) .template-card[data-template="whiteboard"],
-#tj-root:not(.oj-on) .template-card[data-template="mindmap"],
-#bj-root.oj-on .template-card[data-template="notes"],
-#bj-root.oj-on .template-card[data-template="cornell"],
-#bj-root.oj-on .template-card[data-template="mindmap-legacy"],
+/* Shared entries are pages (the one template, 2026-11-17: Tony's Journal
+   Entries is his own), and have no per-person password lock. */
 #tj-root.oj-on .template-card[data-template="journal-entries"],
 #bj-root.oj-on #bj-btn-lock, #bj-root.oj-on #bj-mobile-lock-btn,
 #tj-root.oj-on #tj-btn-lock, #tj-root.oj-on #tj-mobile-lock-btn { display: none !important; }

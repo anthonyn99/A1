@@ -97,17 +97,6 @@ var html = `
       <span class="empty-hint">Click "New Entry" to get started</span>
     </div>
 
-    <!-- WHITEBOARD -->
-    <div id="tj-wb-canvas-wrap" class="viz-shell">
-      <div class="viz-mount" id="tj-wb-mount"></div>
-    </div>
-
-    <!-- MIND MAP — Mind Elixir. New to MyJournal; the same engine and the
-         same document model as Veda's, wearing this profile's gold tokens. -->
-    <div id="tj-mindmap-area" class="viz-shell">
-      <div class="viz-mount" id="tj-mm-mount"></div>
-    </div>
-
     <!-- PAGE -->
     <div id="tj-page-area">
       <div class="tj-drop-zone" id="tj-page-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
@@ -304,20 +293,10 @@ var html = `
     </div>
     <p>Pick a format for this entry</p>
     <div class="template-grid">
-      <div class="template-card" data-template="whiteboard">
-        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></div>
-        <h3>Whiteboard</h3>
-        <p>Free-draw canvas with pen, shapes, text and undo.</p>
-      </div>
       <div class="template-card" data-template="page">
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
         <h3>Page</h3>
         <p>Rich document: text, images, lists, tables, headings.</p>
-      </div>
-      <div class="template-card" data-template="mindmap">
-        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="9.5" width="7" height="5" rx="1.5"/><rect x="15" y="3" width="7" height="5" rx="1.5"/><rect x="15" y="16" width="7" height="5" rx="1.5"/><path d="M9 12h3v-6.5h3"/><path d="M12 12v6.5h3"/></svg></div>
-        <h3>Mind Map</h3>
-        <p>Branch one idea outwards: drag, fold and reorganise.</p>
       </div>
       <div class="template-card" data-template="journal-entries">
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
@@ -860,6 +839,9 @@ function _tjApplyRemote(remote) {
   renderSidebar();
   // Re-run lock check in case remote updated lock status on current entry
   if (window._tjLockCheck && !_tjHidden) window._tjLockCheck();
+  // An entry made with an old template (from a device that had not updated
+  // yet) becomes a page here too.
+  _tjConvertAll();
 }
 
 // The host's onSave: called with the entry the cloud just confirmed.
@@ -930,9 +912,9 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { id, title: '', template: template || 'page', created: Date.now(), updated: Date.now(), data: {} };
-  if (template === 'whiteboard') entry.data = { attachments: [] };
-  if (template === 'mindmap') entry.data = { attachments: [] };
+  // Page is the one template (2026-11-17); Journal Entries stays until Tony retires it.
+  if (template !== 'journal-entries') template = 'page';
+  const entry = { id, title: '', template: template, created: Date.now(), updated: Date.now(), data: {} };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   if (template === 'journal-entries') entry.data = { dates: {}, activeDateKey: '', dateOrder: [] };
   // Unsynced until the cloud confirms it — without this an authoritative resync
@@ -1176,12 +1158,10 @@ function renderSidebar() {
 }
 
 function showTemplate(name) {
-  // Leaving a board flushes it and drops its remote listener — see the BJ twin.
-  if (name !== 'whiteboard' && _tjBoards.wb) _tjBoards.wb.close();
-  if (name !== 'mindmap'    && _tjBoards.mm) _tjBoards.mm.close();
-  document.getElementById('tj-wb-canvas-wrap').style.display = name === 'whiteboard' ? 'flex' : 'none';
-  document.getElementById('tj-mindmap-area').style.display = name === 'mindmap' ? 'flex' : 'none';
+  // name: 'page', 'journal-entries', 'converting' (an old template's entry
+  // turning into a page, core/convert.js) or null (nothing open).
   document.getElementById('tj-page-area').style.display = name === 'page' ? 'flex' : 'none';
+  _tjConvertPane(name === 'converting');
   document.getElementById('tj-je-area').style.display = name === 'journal-entries' ? 'flex' : 'none';
   document.getElementById('tj-empty-state').style.display = name ? 'none' : 'flex';
   // Nothing open (the empty state): View / Edit and Export PDF have nothing to
@@ -1224,13 +1204,14 @@ function loadActiveEntry() {
   // anything the user still has. See JGuard.recover.
   if (window.JGuard && window.JGuard.recover('tj', entry)) { entry.updated = Date.now(); _tjWriteCache(); }
   document.getElementById('tj-entry-title-input').value = entry.title;
+  // Made with a template that is gone: it becomes a page first (core/convert.js),
+  // then opens as one.
+  if (window.NotebookConvert && window.NotebookConvert.legacy(entry)) {
+    showTemplate('converting');
+    _tjConvertOne(entry).then(function (ok) { if (state.activeId === entry.id && getActive() === entry && (ok || !window.NotebookConvert.legacy(entry))) loadActiveEntry(); });
+    return;
+  }
   showTemplate(entry.template);
-  if (entry.template === 'whiteboard') {
-    _tjBoard('wb').open(entry).then(function () { _tjBoard('wb').setEditable(isEditMode); });
-  }
-  if (entry.template === 'mindmap') {
-    _tjBoard('mm').open(entry).then(function () { _tjBoard('mm').setEditable(isEditMode); });
-  }
   if (entry.template === 'page') {
     const ed = document.getElementById('tj-page-editor');
     const html = entry.data.html || '';
@@ -1283,13 +1264,9 @@ function saveCurrentEntry() {
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
   if (_tjPendingMargins && _tjPendingMargins.id === entry.id) _next.margins = _tjPendingMargins.m;
-  // See the BJ twin: visual templates put a fingerprint on the entry and keep
-  // their content in their own document.
-  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
-    var _vb = _tjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
-    var _vs = (_vb && _vb.isOpen(entry.id)) ? _vb.stats() : null;
-    if (_vs) { _next.vizRev = _vs.rev; _next.vizCount = _vs.count; _next.vizTitle = _vs.title; }
-  }
+  // Only a page or a Journal Entries entry is ever painted (an old template's
+  // entry is converted first).
+  if (entry.template !== 'page' && entry.template !== 'journal-entries') return;
   if (entry.template === 'page') { _next.html = document.getElementById('tj-page-editor').innerHTML; }
   if (entry.template === 'journal-entries') {
     // _jeSaveActiveDate writes into entry.data.dates, so give it a detached dates
@@ -1340,8 +1317,7 @@ function saveCurrentEntry() {
   }
 
   entry.title = _title;
-  // Merged in place rather than reassigned: attachment lists, mindmap node arrays
-  // and the whiteboard canvas are all held by reference elsewhere in this file.
+  // Merged in place rather than reassigned (the entry's data object is shared by reference).
   Object.assign(entry.data, _next);
   if (_tjPendingMargins && _tjPendingMargins.id === entry.id) _tjPendingMargins = null;
   entry.updated = Date.now();
@@ -1364,49 +1340,70 @@ function _tjAutoTitle(entry, dataOverride) {
     const dd = (k && d.dates) ? d.dates[k] : null;
     src = (dd && dd.html) ? String(dd.html).replace(/<[^>]*>/g,'\n') : '';
   }
-  // The board reports its own title: a mind map's root topic, or the first text
-  // written on a whiteboard.
-  else if (entry.template === 'whiteboard' || entry.template === 'mindmap') src = d.vizTitle || '';
   const line = (src||'').split('\n').map(s=>s.trim()).find(s=>s.length > 1) || '';
   if (!line) return '';
   return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
 }
 
-/* ── WHITEBOARD + MIND MAP ─────────────────────────────────────────────────
- * VizEngine boards, identical to Veda's except for the document prefix and the
- * tokens they inherit from #tj-root — which is the whole reason the engine is
- * parameterised rather than copied. New boards are OurJournal-only here: the
- * template modal hides and refuses them in MyJournal's own collection, and
- * Tony's older personal boards still open through this same code. See the VizEngine block for how a board is
- * stored and why it never touches the journal document.
- * ======================================================================== */
-var _tjBoards = {};
-function _tjBoard(kind) {
-  if (_tjBoards[kind]) return _tjBoards[kind];
-  var isWb = kind === 'wb';
-  _tjBoards[kind] = window.VizEngine.createBoard({
-    kind: kind,
-    app: 'tj',
-    // dashboards/tony_journal_viz_<id> and _vizf_<hash>, beside the legacy
-    // tony_journal_canvas_<id> documents, which are read but never written.
-    prefix: 'tony_journal',
-    // A shared (OurJournal) entry's board lives in ourjournal_viz_<id> — the same
-    // document Brainstorm Journal opens — and merges live with the other person.
-    prefixFor: function (e) { return (_tjOJState && _tjOJState.entries.indexOf(e) >= 0 && window.OJ) ? window.OJ.NS : 'tony_journal'; },
-    liveFor: function (e) { return !!(_tjOJState && _tjOJState.entries.indexOf(e) >= 0); },
-    shell: document.getElementById(isWb ? 'tj-wb-canvas-wrap' : 'tj-mindmap-area'),
-    mount: document.getElementById(isWb ? 'tj-wb-mount' : 'tj-mm-mount'),
-    title: isWb ? 'Whiteboard' : 'Mind Map',
-    setSync: function (s) { _tjSetSync(s); },
-    entryTitle: function () { var e = getActive(); return (e && e.title) || 'Untitled Entry'; },
-    onMeta: function () { autoSave(); },
-    onPdf: function () { var e = getActive(); if (e) exportEntryAsPDF(e); }
-  });
-  return _tjBoards[kind];
+/* ── PAGE ONLY (2026-11-17) ──────────────────────────────────────────────────
+ * Every entry made with a template that is gone (Whiteboard, Mind Map) becomes
+ * a page: core/convert.js builds its page and backs the entry up first
+ * (dashboards/tony_journal_legacy_<id>); here it is saved like any edit.
+ * Tony's own entries convert as soon as they are loaded; an OurJournal entry
+ * when it is opened (its content arrives then). Journal Entries stays. */
+var _tjConverting = {};
+function _tjConvertPane(on) {
+  var pane = document.getElementById('tj-convert-pane');
+  if (!pane && on) {
+    pane = document.createElement('div');
+    pane.id = 'tj-convert-pane';
+    pane.className = 'nb-convert-pane';
+    pane.innerHTML = '<div class="nb-convert-spin" aria-hidden="true"></div><div class="nb-convert-t">Turning this into a page…</div><div class="nb-convert-s">Whiteboards and mind maps become a picture with their words. The original is kept as a backup.</div>';
+    var area = document.getElementById('tj-content-area'); if (area) area.appendChild(pane);
+  }
+  if (pane) pane.style.display = on ? 'flex' : 'none';
 }
-window._tjFlushBoards = function () {
-  return Promise.all(Object.keys(_tjBoards).map(function (k) { return _tjBoards[k].flush(); }));
-};
+function _tjConvertOne(e) {
+  var C = window.NotebookConvert;
+  if (!C || !C.legacy(e) || _tjIsPinned(e.id)) return Promise.resolve(false);
+  if (_tjConverting[e.id]) return _tjConverting[e.id];
+  var shared = !!(_tjOJState && _tjOJState.entries.indexOf(e) >= 0);
+  var prefix = shared && window.OJ ? window.OJ.NS : 'tony_journal';
+  var p = C.backup(prefix, e).then(function (backedUp) {
+    if (!backedUp) return false;
+    return C.page(e, { app: 'tj', prefix: 'tony_journal', prefixFor: function () { return prefix; }, chipClass: 'tj-file-chip' }).then(function (html) {
+      if (html == null || !C.legacy(e)) return false;
+      var coll = shared ? _tjOJState : null;
+      var write = function () {
+        var cur = state.entries.find(function (x) { return x.id === e.id; });
+        if (cur !== e) return false;
+        e.template = 'page';
+        e.data = { html: html, attachments: [] };
+        delete e.vizRev; delete e.vizCount; delete e.vizKind; delete e.vizTitle;
+        e.updated = Date.now(); e.rev = (e.rev || 0) + 1; e._dirty = true;
+        saveState(); renderSidebar();
+        if (state.activeId === e.id && !_tjHidden) loadActiveEntry();
+        _tjFbSaveEntry(e);
+        return true;
+      };
+      if (shared) return (coll && state === coll) ? write() : false;   // OurJournal writes only while it is on screen
+      return _tjWithPersonal(write);
+    });
+  }).catch(function (err) { console.warn('[TJ] conversion failed, entry left as it is:', e.id, err); return false; })
+    .then(function (r) { delete _tjConverting[e.id]; return r; });
+  _tjConverting[e.id] = p;
+  return p;
+}
+var _tjConvertRun = null;
+function _tjConvertAll() {
+  if (_tjConvertRun || !window.NotebookConvert || !window._fbViz) return;
+  var todo = [];
+  _tjWithPersonal(function () { state.entries.forEach(function (e) { if (window.NotebookConvert.legacy(e)) todo.push(e); }); });
+  if (!todo.length) return;
+  _tjConvertRun = todo.reduce(function (p, e) { return p.then(function () { return _tjConvertOne(e); }); }, Promise.resolve())
+    .then(function () { _tjConvertRun = null; }, function () { _tjConvertRun = null; });
+}
+window._tjConvertAll = _tjConvertAll;
 
 /* PAGE EDITOR */
 // Reflects the caret back into a ribbon. Both sheet templates run the same
@@ -2835,7 +2832,6 @@ function autoSave() {
 }
 // Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
 window._tjPersistNow = function() {
-  try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch(e) {}
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { return _tjFbFlush(); } catch(e) {}
 };
@@ -2929,9 +2925,7 @@ if (_jeEdEl) _jeEdEl.addEventListener('input', autoSave);
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault(); saveCurrentEntry();
-    if (window._tjFlushBoards) window._tjFlushBoards();
   }
-  // Undo/redo inside a board belong to the board — see the BJ twin.
 });
 
 /* EDIT MODE */
@@ -2945,10 +2939,6 @@ function setEditMode(enabled) {
     modeLabel.textContent = enabled ? 'EDIT' : 'VIEW';
     modeLabel.classList.toggle('edit-active', enabled);
   }
-  // View mode hands Excalidraw its own viewModeEnabled and Mind Elixir
-  // disableEdit(): still pannable and readable, but nothing can change.
-  if (_tjBoards.wb) _tjBoards.wb.setEditable(enabled);
-  if (_tjBoards.mm) _tjBoards.mm.setEditable(enabled);
   const titleIn = document.getElementById('tj-entry-title-input');
   if (titleIn) titleIn.readOnly = !enabled;
   // Page editor
@@ -3072,6 +3062,13 @@ document.getElementById('tj-close-modal').addEventListener('click', () => {
   document.getElementById('tj-new-entry-btn')._creating=false;
   document.getElementById('tj-template-modal').classList.remove('open');
 });
+// One template on screen (OurJournal: Page): + makes a page straight away.
+new MutationObserver(function () {
+  var m = document.getElementById('tj-template-modal');
+  if (!m.classList.contains('open')) return;
+  var cards = Array.prototype.filter.call(m.querySelectorAll('.template-card'), function (c) { return getComputedStyle(c).display !== 'none'; });
+  if (cards.length === 1) cards[0].click();
+}).observe(document.getElementById('tj-template-modal'), { attributes: true, attributeFilter: ['class'] });
 document.getElementById('tj-template-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('tj-template-modal')) {
     document.getElementById('tj-new-entry-btn')._creating=false;
@@ -3080,9 +3077,6 @@ document.getElementById('tj-template-modal').addEventListener('click', e => {
   }
   const card=e.target.closest('.template-card'); if (!card) return;
   const tmpl=card.dataset.template;
-  // Boards are OurJournal-only in MyJournal. The CSS hides their cards; this
-  // stops a stray click (or a stale DOM) from creating one anyway.
-  if ((tmpl === 'whiteboard' || tmpl === 'mindmap') && !_tjIsOJ()) return;
   document.getElementById('tj-template-modal').classList.remove('open');
   document.getElementById('tj-new-entry-btn')._creating=false;
   // Always create a new entry — never mutate/wipe the current one. Flush the entry
@@ -3179,7 +3173,6 @@ function _tjOJEnter() {
 function _tjOJLeave() {
   if (!_tjIsOJ()) return;
   try { saveCurrentEntry(); } catch (e) {}
-  try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch (e) {}
   state = _tjPersonal; _tjPersonal = null;
   if (window.OJ) window.OJ.leave('tj');
   var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
@@ -3385,26 +3378,6 @@ function _tjOpenPrintBlob(htmlStr) {
 function exportEntryAsPDF(entry) {
   var title = entry.title || 'Untitled Entry';
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-
-  // Visual templates: ask the live board to render itself — see the BJ twin.
-  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
-    var _vbrd = _tjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
-    if (!_vbrd || !_vbrd.isOpen(entry.id)) {
-      window.uiAlert('Open this ' + (entry.template === 'whiteboard' ? 'whiteboard' : 'mind map') + ' before exporting it to PDF.', { title: 'Nothing to export' });
-      return;
-    }
-    _vbrd.toPngDataUrl().then(function (dataURL) {
-      var vHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
-        + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:sans-serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
-        + '</head><body>'
-        + '<h1>' + _tjEsc(title) + '</h1>'
-        + '<p>' + _tjEsc(date) + '</p>'
-        + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">This board is empty.</p>')
-        + '</body></html>';
-      _tjOpenPrintBlob(vHtml);
-    });
-    return;
-  }
 
   // Text-based templates: build styled HTML print page
   var bodyHTML = '';

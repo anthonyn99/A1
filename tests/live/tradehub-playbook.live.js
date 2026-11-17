@@ -107,8 +107,8 @@ const worker = {
   const z2 = await zoomNow();
   ok('the page fits a narrowed box, and returns to its size when the box widens again', z0 != null && z1 < z0 && z2 === z0, JSON.stringify({ z0, z1, z2 }));
   await js(`document.getElementById('pb-new-entry-btn').click(); 1`); await sleep(400);
-  ok('New Entry offers only a page', await js(`return [...document.querySelectorAll('#pb-root .template-card')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.template).join() === 'page';`));
-  await js(`var x=document.querySelector('#pb-template-modal .modal-close, #pb-close-modal'); if(x) x.click(); 1`); await sleep(300);
+  // Page is the one template (2026-11-17): New Entry makes a page at once, no picker.
+  ok('New Entry makes a page straight away (only a page is offered)', await js(`return !document.getElementById('pb-template-modal').classList.contains('open') && document.querySelectorAll('#pb-entries-list .entry-item').length === 3;`));
 
   console.log('\nThe launcher gets the Daily Reminder');
   await until('true', 2500); await sleep(2000);
@@ -130,7 +130,7 @@ const worker = {
   console.log('\nLeaving the tab and coming back');
   await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(b=>b.offsetParent); if(t) t.click(); 1`); await sleep(1200);
   ok('away: the editor is set aside by Notebook.detach, not destroyed', await js(`var r=document.getElementById('pb-root'); return !!r && !!document.getElementById('nb-park') && document.getElementById('nb-park').contains(r);`));
-  ok('back: the same editor returns with its pages', await openPlaybook() && (await rows()).length === 2);
+  ok('back: the same editor returns with its pages', await openPlaybook() && (await rows()).length === 3);
 
   console.log('\nA reload');
   const writesBefore = (await docs()).n;

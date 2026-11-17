@@ -284,7 +284,7 @@ async function capture(label) {
     await js(`var s=document.getElementById('${K}-search-box'); s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); 1`);
 
     await click(`#${K}-new-entry-btn`);
-    await click(`#${K}-root .template-card[data-template="page"]`);
+    if (await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`)) await click(`#${K}-root .template-card[data-template="page"]`);   // one template: + made the page
     await caretEnd(K); await type('Fresh page line');
     await step('new-page', { shot: true });
 
@@ -337,7 +337,7 @@ async function capture(label) {
     await step('oj-enter', { wait: 1500, shot: true });
     if (ojOk) {
       await click(`#${K}-new-entry-btn`);
-      await click(`#${K}-root .template-card[data-template="page"]`);
+      if (await js(`return document.getElementById('${K}-template-modal').classList.contains('open');`)) await click(`#${K}-root .template-card[data-template="page"]`);   // one template: + made the page
       await caretEnd(K); await type('Shared line');
       await step('oj-new-page');
       // Brainstorm has a second tab back to her own entries; MyJournal leaves
