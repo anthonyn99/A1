@@ -179,7 +179,7 @@ them, and its stand-ins are the browser's own dialogs.
 
 A host talks to its instance only through what this page documents: the mount
 options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.folder`, `Notebook.importPages`, `Notebook.putPage`, `Notebook.flushAll`,
-`Notebook.closeDrawer(key?)` and the window event `notebook-drawer` (`{ key, open }`, 2026-11-17: a phone host with a drawer of its own closes it when a Notebook drawer opens, and calls `closeDrawer` when its own opens, so the two never overlap; TradeHub does),
+`Notebook.closeDrawer(key?)` and the window event `notebook-drawer` (`{ key, open }`, 2026-11-17: a phone host with a drawer of its own closes it when Notebook's list screen opens, and calls `closeDrawer` when its own opens, so the two never overlap; TradeHub does. Since the phone layout the "drawer" is the full-screen list, see Phones and tablets),
 `Notebook.pages` / `Notebook.page` (read-only, 2026-11-06: the list, and one page's `html`
 and plain `text`; a page with its own lock, not open in this session, comes without its
 words; TaskHub's Neo reads V's Notebook through them),
@@ -222,7 +222,7 @@ new host goes in its `HOSTS` list.
 | `templates` | Which template cards the New Entry picker offers. |
 | `features.ourjournal` | OurJournal's tab and rail. Off for an instance; offering it to another host is future work (OurJournal is wired to tj/bj). |
 | `features.locks` | Per-entry password locks, namespaced by key on the taskhub-reminders worker. Off for an instance unless turned on. |
-| `features.sidebar` | The entry list (and its phone drawer and the phone bar's New button). On unless set to `false`, for a host that keeps its own list of pages and opens them with `Notebook.open` (Everwell). |
+| `features.sidebar` | The entry list (and, on a phone, the list screen, its + button and the bar's New). On unless set to `false`, for a host that keeps its own list of pages and opens them with `Notebook.open` (Everwell). |
 | `pinned` | Pages always at the top, never trashed, purged, dragged or locked. A pinned page missing from the store appears empty with `updated: 0`, so the cloud copy wins as soon as it loads. |
 | `onSave(entry)` | Called when `fb-<key>-saved` confirms that entry. |
 | `onReady()` | Called once, after the first server read. |
