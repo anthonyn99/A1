@@ -1407,7 +1407,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
        nb-mdoc   the editor is on screen;   nb-nolist  the host keeps the list
        nb-medit  edit mode;   nb-mpage  a page is open
        nb-m      a touch screen up to 1366px, or any screen up to 900px
-       nb-mdock  editing a page there: the ribbon is one row above the keyboard
+       nb-mdock  editing a page there: the ribbon is one row under the header
        nb-kb     the onscreen keyboard is up
      Desktop (wider, or a mouse above 900px) never gets any of them.
      ════════════════════════════════════════════════════════════════════════ */
@@ -1525,28 +1525,23 @@ html[data-nb-doc="tj"] #tj-root { padding-top: env(safe-area-inset-top, 0px) !im
 #tj-root .nb-mtags [id$="-add-tag-input"], #bj-root .nb-mtags [id$="-add-tag-input"] { flex: 1 1 120px; min-height: 38px; font-size: 16px !important; }
 #tj-root .nb-mtags-note, #bj-root .nb-mtags-note { font-size: 12.5px; opacity: .6; margin-top: 10px; }
 
-/* ── Editing a page on a touch screen: the ribbon is ONE row of icons above the
-      keyboard (placed by core/mobile.js). It scrolls sideways; Undo and Redo
-      stay pinned at its right end; its first button swaps in the menus. ── */
+/* ── Editing a page on a touch screen: the ribbon is ONE row of icons right
+      under the header, in the page's own flow, so it is in the same place on
+      every screen and never meets the keyboard (Tony, 2026-11-17). It scrolls
+      sideways; Undo and Redo stay pinned at its right end; its first button
+      swaps in the menus. ── */
 #tj-root.nb-mdock #tj-page-toolbar.edit-mode, #bj-root.nb-mdock #bj-page-toolbar.edit-mode {
   --nbt-h: 44px; --nbt-in: 40px;
-  position: fixed !important; z-index: 70 !important;
-  top: var(--nb-dock-t, auto) !important; left: var(--nb-dock-l, 0px) !important;
-  width: var(--nb-dock-w, 100%) !important; right: auto !important; bottom: auto !important;
-  margin: 0 !important; box-sizing: border-box;
+  position: relative !important; z-index: 5; flex: 0 0 auto; box-sizing: border-box;
   display: flex !important; flex-wrap: nowrap !important; align-items: center; gap: 2px !important;
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
-  background: var(--bg2) !important; border: 0 !important; border-top: 1px solid var(--border) !important; border-radius: 0 !important;
-  box-shadow: 0 -6px 18px rgba(0,0,0,.22);
+  padding: 6px 4px !important;
+  background: var(--bg2) !important; border: 0 !important; border-bottom: 1px solid var(--border) !important; border-radius: 0 !important;
+  box-shadow: none;
 }
-#tj-root.nb-mdock.nb-kb #tj-page-toolbar.edit-mode, #bj-root.nb-mdock.nb-kb #bj-page-toolbar.edit-mode { padding-bottom: 6px !important; }
-#tj-root.nb-mdock #tj-page-editor-wrap, #bj-root.nb-mdock #bj-page-editor-wrap {
-  padding-bottom: var(--nb-dock-space, 72px) !important; scroll-padding-bottom: var(--nb-dock-space, 72px);
-}
-/* A reflowed page (phones, portrait tablets) is the whole screen: the room
-   under its last line is its own, so no strip of desk shows above the dock. */
+/* While the keyboard is up, room under the last line to scroll it above it. */
+#tj-root.nb-mdock #tj-page-editor-wrap, #bj-root.nb-mdock #bj-page-editor-wrap { padding-bottom: var(--nb-kb-space, 0px) !important; }
 #tj-root.nb-mdock #tj-page-editor-wrap.docx-reflow, #bj-root.nb-mdock #bj-page-editor-wrap.docx-reflow { padding-bottom: 0 !important; }
-#tj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet, #bj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet { padding-bottom: var(--nb-dock-space, 72px) !important; }
+#tj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet, #bj-root.nb-mdock .docx-wrap.docx-reflow .docx-sheet { padding-bottom: calc(40px + var(--nb-kb-space, 0px)) !important; }
 #tj-root.nb-mdock .docx-ruler, #bj-root.nb-mdock .docx-ruler { display: none !important; }
 /* The swap button: menus <-> formatting. */
 #tj-root.nb-mdock .nb-dock-tog, #bj-root.nb-mdock .nb-dock-tog {
@@ -1657,7 +1652,3 @@ html[data-nb-doc="tj"] #tj-root { padding-top: env(safe-area-inset-top, 0px) !im
 #tj-root.nb-mdock .docx-menubar .docx-menu-btn, #bj-root.nb-mdock .docx-menubar .docx-menu-btn {
   flex: 0 0 auto; min-height: 40px; height: 40px; padding: 0 13px !important; font-size: 14.5px !important; border-radius: 10px; color: var(--text);
 }
-/* What used to float over the bottom of the page moves clear of the dock. */
-html.nb-docked .docx-find { top: calc(64px + env(safe-area-inset-top, 0px)); bottom: auto; }
-html.nb-docked .docx-toast { top: calc(70px + env(safe-area-inset-top, 0px)); bottom: auto; }
-html.nb-docked .docx-wcpin { display: none; }
