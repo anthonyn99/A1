@@ -152,7 +152,15 @@ both sides, every host; its look is the last section of `notebook.css`
   page shows a round pencil (edit). The old bottom bar and drawer are gone; their
   buttons stay in the markup and the new ones click them.
 - **index.html:** the open page covers the program nav (`html[data-nb-doc]`);
-  the list shows it again. In an instance the host's own header always stays.
+  the list shows it again. In an instance the host's own header stays while
+  reading and on the list.
+- **Editing on a phone is full screen in every host** (Tony, 2026-11-18), as
+  index.html's journals always were: an instance (TradeHub's Playbook and prompt
+  editor, Everwell...) gets `nb-mfull` and its instance sheet pins it over the
+  whole window (`instanceCss`: its ancestors drop transforms, filters,
+  containment and z-index for that time; the host page stops scrolling under
+  it). Reading mode or Back puts it back in the host's box. A host does nothing;
+  its own floating buttons are covered while editing.
 - **Editing a page on a touch screen up to 1366px** (a landscape tablet too, with
   the desktop layout): the ribbon is ONE row of 40px icons right under the header,
   in the page's own flow, the same on every screen and keyboard (it first sat
@@ -166,7 +174,7 @@ both sides, every host; its look is the last section of `notebook.css`
 - Desktop (a mouse above 900px) gets none of it.
 - Classes on the root, for the stylesheet only (Notebook's, not a host's):
   `nb-shell`, `nb-mlist`, `nb-mdoc`, `nb-medit`, `nb-mpage`, `nb-m`, `nb-mdock`,
-  `nb-kb`, `nb-nolist`.
+  `nb-kb`, `nb-nolist`, `nb-mfull`.
 - `tests/live/notebook-mobile.live.js` proves it on both sides at phone,
   portrait tablet, landscape tablet and desktop, and in an instance.
 
