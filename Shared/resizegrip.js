@@ -238,7 +238,10 @@
       };
       el.addEventListener('pointerup', end);
       el.addEventListener('pointercancel', end);
-      el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); });
+      // Only the se button swallows its click. A click listener on the bands made Chrome's touch
+      // adjustment snap a finger pressed on a card's title (7px away) onto the n band: a resize
+      // instead of the card drag (TradeHub, 390 px, 2026-11-18).
+      if (edge === 'se') el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); });
       if (edge === 'se') el.addEventListener('keydown', function (e) {
         var d = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[e.key];
         if (!d || !o.onKey) return;
