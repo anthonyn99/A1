@@ -1329,6 +1329,23 @@ async function handleRequest(request, env) {
     }
   }
 
+  // ── Watchlists (GET /api/portfolio/watchlists[?fresh=1]) ─────────────────
+  // Read-only. Cached 60 s at the edge (Cache API, no KV).
+  if (path === '/api/portfolio/watchlists' && method === 'GET') {
+    const cacheReq = new Request('https://tb-cache.internal/watchlists');
+    if (url.searchParams.get('fresh') !== '1') {
+      try { const hit = await caches.default.match(cacheReq); if (hit) return json(await hit.json()); } catch (e) {}
+    }
+    try {
+      const lists = await fetchWatchlists(env);
+      const payload = { ok: true, lists, asOf: Date.now() };
+      try { await caches.default.put(cacheReq, new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60' } })); } catch (e) {}
+      return json(payload);
+    } catch (err) {
+      return json({ ok: false, code: err.code || null, status: err.status || null, error: err.code ? err.message : mapError(err), detail: err.wbData || null }, err.code ? 401 : 502);
+    }
+  }
+
   // ── Market data (GET /api/market/quotes?symbols=A,B&bars=1) ───────────────
   // Cached 60 s at the edge (Cache API: no KV, no quota), keyed by the list.
   if (path === '/api/market/quotes' && method === 'GET') {
