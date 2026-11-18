@@ -15,6 +15,7 @@ Everwell) are in A1-Priv's own `docs/`.
 | [Shared/controls.md](Shared/controls.md) | A1's own form controls in every program, both sides, shared through `controls.js`: selects, date/time pickers, checkboxes, colour picker, tooltips (2026-11-02) |
 | [Shared/popups.md](Shared/popups.md) | Every popup's backdrop (TaskHub's dim + blur), click-outside-to-close and the drag guard, in every program, through `popups.js` (2026-11-03) |
 | [Shared/profilepick.md](Shared/profilepick.md) | The one profile picker (Shruti's title screen) in Index, MyList, Shield, MAGI, Shruti and ORCA, through `profilepick.js` (2026-10-27) |
+| [Shared/resizegrip.md](Shared/resizegrip.md) | Resizing in every program through `resizegrip.js`: the corner grip for text boxes, and `edges` (every edge and corner, 2026-11-18) for TradeHub's cards |
 | [Theme/theme-overhaul-plan.md](Theme/theme-overhaul-plan.md) | MAGI's look and drag on Tony's side. Done 2026-10-03; §0 says what to do with a new theme ask, §2 is the spec |
 
 ## By project
