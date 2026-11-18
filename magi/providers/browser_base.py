@@ -782,7 +782,7 @@ class BrowserProvider(Provider):
                     result = await completion.wait_for_completion(
                         page, site, baseline=baseline,
                         on_progress=on_progress, cancel=cancel, prompt=sent,
-                        interrupt=ctx.interrupt,
+                        interrupt=ctx.interrupt, cutoff=ctx.cutoff,
                     )
                 except ProviderError as e:
                     # A quota notice can appear DURING a run -- the limit is
@@ -829,6 +829,17 @@ class BrowserProvider(Provider):
                     # Partial on purpose: no validation, no "empty" failure,
                     # and not DONE -- whoever interrupted it says what next.
                     return stopped(cleaned, str(result.reason))
+                if result.reason == completion.CompletionReason.CUT_OFF:
+                    # The page as it was when the unit was cut: the only way
+                    # to tell later WHY it never finished (a Stop button that
+                    # stayed up, a thinking panel, a stuck search).
+                    artifacts = await self._save_artifacts(page, "cut-off")
+                    if not cleaned.strip():
+                        return fail(
+                            FailureKind.TIMEOUT,
+                            f"Cut off: every other unit had finished and "
+                            f"{self.display_name} had not written anything yet.",
+                        )
 
                 # The model that answered, read again now it has: ChatGPT's
                 # slug only exists on a finished turn, and a site that moved

@@ -251,6 +251,12 @@ class RunContext:
     # the site's Stop button -- and returns what it had (Answer.interrupted).
     # A provider that cannot ignores it.
     interrupt: asyncio.Event | None = None
+    # Straggler cutoff (orchestrator._gather_with_grace): set on ONE unit when
+    # every other unit has finished and its grace ran out. It stops like
+    # `interrupt`, but what it had written comes back as its answer (reason
+    # cut_off, low confidence) instead of being thrown away -- on 2026-11-18
+    # Gemini lost 2,127 written characters to the old outright cancel.
+    cutoff: asyncio.Event | None = None
 
 
 ProgressFn = Callable[[ProviderEvent], Awaitable[None]]

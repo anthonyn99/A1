@@ -104,6 +104,7 @@ class CompletionReason(StrEnum):
     HARD_TIMEOUT = "hard_timeout"    # degraded: absolute ceiling hit
     CANNED_LINE = "canned_line"      # a stock error/refusal line that settled
     INTERRUPTED = "interrupted"      # stopped on purpose ("Interrupt now")
+    CUT_OFF = "cut_off"              # degraded: straggler cutoff, kept what it had
 
 
 # Reasons we consider trustworthy enough not to caveat in the UI.
@@ -257,12 +258,15 @@ async def wait_for_completion(
     cancel: asyncio.Event | None = None,
     prompt: str = "",
     interrupt: asyncio.Event | None = None,
+    cutoff: asyncio.Event | None = None,
 ) -> CompletionResult:
     """Block until the answer is complete. Raises ProviderError on failure.
 
     `interrupt` ("Interrupt now") ends the wait early on purpose: the site's
     Stop button is pressed if it has one, and what the reply says by then
     comes back as INTERRUPTED -- not an error, and not a finished answer.
+    `cutoff` (the straggler cut) stops the same way but comes back as CUT_OFF:
+    the text so far IS the answer, flagged low confidence.
 
     Pass `baseline` (from capture_baseline) so fill-style UIs are handled.
     `turns_before` is the older count-only form, kept for callers that only
@@ -296,6 +300,10 @@ async def wait_for_completion(
             raise ProviderError(FailureKind.CANCELLED, "Cancelled by user.")
         if interrupt is not None and interrupt.is_set():
             return await stop_reply(page, site, baseline, start)
+        if cutoff is not None and cutoff.is_set():
+            r = await stop_reply(page, site, baseline, start)
+            r.reason = CompletionReason.CUT_OFF
+            return r
 
         elapsed = time.monotonic() - start
         if elapsed > site.hard_timeout_s:
