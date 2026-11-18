@@ -321,7 +321,7 @@ def test_the_straggler_floor_is_measured_on_the_new_question(monkeypatch):
     seen = {}
     real = orch_mod.Orchestrator._gather_with_grace
 
-    async def spy(self, tasks, providers, t0, emit, *, floor=None, grew=None):
+    async def spy(self, tasks, providers, t0, emit, *, floor=None, grew=None, cutoffs=None):
         seen["floor"] = floor
         return await real(self, tasks, providers, t0, emit, floor=floor, grew=grew)
 
