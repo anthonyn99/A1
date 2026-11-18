@@ -26,7 +26,7 @@
   // stroke matches Shield's 1.6 on 24 at that scale.
   var G = {
     oneinbox: '<path d="M66 28H26a6 6 0 0 0-6 6v28a6 6 0 0 0 6 6h44a6 6 0 0 0 6-6V36"/><path d="M20 33 48 54 72.5 35.6"/><circle cx="75" cy="27" r="5.5" fill="currentColor" stroke="none"/>',
-    tradehub: '<path d="M24 22v50a2 2 0 0 0 2 2h48"/><path d="M34 62l12-14 10 9 16-21"/><path d="M60 36h12v12"/>',
+    tradehub: '<g stroke="none" fill="currentColor" fill-opacity=".3"><rect x="20" y="54" width="12" height="20" rx="3"/><rect x="38" y="44" width="12" height="30" rx="3"/><rect x="56" y="34" width="12" height="40" rx="3"/></g><path d="M20 46l18-12 14 8 24-20"/><path d="M62 22h14v14"/>',
     mylist: '<path d="M42 32h30"/><path d="M42 48h30"/><path d="M42 64h30"/><circle cx="28" cy="32" r="3.5" fill="currentColor" stroke="none"/><circle cx="28" cy="48" r="3.5" fill="currentColor" stroke="none"/><circle cx="28" cy="64" r="3.5" fill="currentColor" stroke="none"/>',
     insight: '<path d="M48 24a24 24 0 1 0 24 24H48Z"/><path d="M60 20a20 20 0 0 1 16 16H60Z"/>',
     vault: '<rect x="22" y="42" width="52" height="34" rx="7"/><path d="M33 42v-9a15 15 0 0 1 30 0v9"/><path d="M48 55v8"/>',
