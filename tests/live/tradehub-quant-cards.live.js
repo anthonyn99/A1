@@ -95,13 +95,25 @@ const ok = (name, cond, extra) => {
     if (w === 390) { await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: q.x, y: q.y }] }); await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
     else { await press(q.x, q.y); await release(q.x, q.y); }
     await sleep(250);
-    const bub = await js(`var b=document.querySelector('[data-mk] .lay-card[data-card="breadth"] .lay-helptip'), r=b.getBoundingClientRect(), c=b.closest('.lay-card').getBoundingClientRect(); return JSON.stringify({ shown: !b.hidden && r.height > 20, text: b.textContent, inside: r.left >= c.left && r.right <= c.right + 0.5 });`).then(JSON.parse);
-    ok((w === 390 ? 'a tap' : 'a click') + ' on the "?" opens its bubble, inside the card', bub.shown && /take part/.test(bub.text) && bub.inside, JSON.stringify(bub));
+    const bub = await js(`var b=document.querySelector('[data-mk] [data-lay-helptip="breadth"]'); if(!b) return '{}'; var r=b.getBoundingClientRect(), c=document.querySelector('[data-mk] .lay-card[data-card="breadth"]').getBoundingClientRect(), top=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2);
+      return JSON.stringify({ shown: r.height > 20 && b.contains(top), text: b.textContent, inside: r.left >= c.left - 0.5 && r.right <= c.right + 0.5, under: r.top >= c.top + 30 });`).then(JSON.parse);
+    ok((w === 390 ? 'a tap' : 'a click') + ' on the "?" opens its bubble under the title, within the card\'s width, on top', bub.shown && /take part/.test(bub.text) && bub.inside && bub.under, JSON.stringify(bub));
     ok('...the card did not move (the "?" is no drag handle)', !(await js(`return !!document.querySelector('.dsort-drag');`)));
     if (w === 390) { await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 10, y: 400 }] }); await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
     else { await press(5, 400); await release(5, 400); }
     await sleep(200);
-    ok('a press anywhere else closes it', await js(`return document.querySelector('[data-mk] .lay-card[data-card="breadth"] .lay-helptip').hidden;`));
+    ok('a press anywhere else closes it', await js(`return !document.querySelector('[data-mk] [data-lay-helptip]');`));
+    if (w === 1280) {
+      // A collapsed card is one row tall and clips its content: the bubble must not live in it.
+      const fold = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-ib[data-act="collapse"]');
+      await press(fold.x, fold.y); await release(fold.x, fold.y); await sleep(400);
+      const q2 = await centre('[data-mk] .lay-card[data-card="breadth"] [data-lay-help]');
+      await press(q2.x, q2.y); await release(q2.x, q2.y); await sleep(250);
+      ok('on a collapsed card the bubble shows whole (it sits outside the card)', await js(`var b=document.querySelector('[data-mk] [data-lay-helptip="breadth"]'); if(!b) return false; var r=b.getBoundingClientRect(); return r.height > 40 && b.contains(document.elementFromPoint(r.left+r.width/2, r.bottom-6));`));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(150);
+      ok('Escape closes it', await js(`return !document.querySelector('[data-mk] [data-lay-helptip]');`));
+      await press(fold.x, fold.y); await release(fold.x, fold.y); await sleep(400);
+    }
     if (w === 390) await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
 
     console.log(`${w} px: refresh is the icon`);
