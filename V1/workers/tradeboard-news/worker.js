@@ -1630,6 +1630,8 @@ SENTIMENT — judge it for each stock on its own, the way that stock will trade 
 - sentiment / sentimentScore = the direction for primaryTicker. tickerSentiments = one entry for EVERY additionalTicker, each judged for that stock alone (empty when there are none; the primary's verdict is sentiment itself).
 - Rivals often move OPPOSITE to the subject. Never call a story neutral because it is good for one name and bad for another — give each its own sign.
 - Never soften to neutral with a mitigating clause ("despite strong demand", "long-term intact"). The near-term trade decides.
+- Judge the NEW information in the article. An event reported earlier and restated as background (a CEO exit from days ago, a known lawsuit, last week's downgrade) is already in the price and does not set the verdict; the fresh fact does. A beat-and-raise reported alongside an older negative is BULL for the subject, and the summary leads with the beat.
+- Fresh news that cuts both ways (a beat with a soft guide, an upgrade with a PT cut): net them by size; the bigger number decides. The scarier word does not win by default.
 - Clearly BEARISH for the subject: CEO/founder ousted, pushed out or a sudden departure; board turmoil; accounting problems, restatements, probes, subpoenas, lawsuits with teeth; guidance cut, miss, profit warning; downgrade or PT cut; lost customer or contract; export ban or sanction hitting it; deal doubt that hurts it; dilution, big insider selling; production halts, recalls, outages.
 - Clearly BULLISH for the subject: beat-and-raise, upgrade or PT raise, big contract or customer win, approval, buyback or dividend hike, large insider or CEO buying, deal that lifts it, shortage or price hike it sells into.
 - An acquirer paying a rich price is usually bear for the acquirer and bull for the target.
@@ -3730,7 +3732,7 @@ function evTickerSents(e){
   });
   return out;
 }
-function buildDigestPrompt(events, wl){
+function buildDigestPrompt(events, wl, tape){
   const now = Date.now();
   const rows = events
     .slice()
