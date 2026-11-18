@@ -6243,6 +6243,19 @@ TB.news = {
     const toneColor = t => t === "bull" ? "var(--green)" : t === "bear" ? "var(--red)" : "var(--accent-hover)";
     const TAG = { bull: ["▲", "Bull"], bear: ["▼", "Bear"], neutral: ["●", "Neutral"] };
     const stTag = s => { const [g, l] = TAG[s] || TAG.neutral; return `<span class="nhs-st" style="color:${stance(s)}"><i aria-hidden="true">${g}</i>${l}</span>`; };
+    // How the name actually traded when the digest was written (digests since
+    // 2026-11-18 carry `moves`): last session, then pre-market / after hours.
+    const moveTag = (m, at) => {
+      if (!m) return "";
+      const num = v => typeof v === "number" && isFinite(v);
+      const pc = v => (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+      const col = v => v > 0 ? "var(--green)" : v < 0 ? "var(--red)" : "var(--text-2)";
+      const ext = m.ext && num(m.ext.dp) ? m.ext : null, dp = num(m.dp) ? m.dp : null;
+      if (dp == null && !ext) return "";
+      const when = num(at) ? new Date(at).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+      const title = "Last session" + (dp != null ? " " + pc(dp) : "") + (ext ? (ext.kind === "pre" ? ", pre-market " : ", after hours ") + pc(ext.dp) : "") + (when ? " (as of " + when + ")" : "");
+      return `<span class="nhs-mv" title="${U.esc(title)}">${dp != null ? `<b style="color:${col(dp)}">${pc(dp)}</b>` : ""}${ext ? `${dp != null ? " · " : ""}${ext.kind === "pre" ? "pre " : "AH "}<b style="color:${col(ext.dp)}">${pc(ext.dp)}</b>` : ""}</span>`;
+    };
     const has = a => Array.isArray(a) && a.length > 0;
     const sec = (title, n, inner) => `<section class="nhs-sec"><div class="nhs-sec-h"><span class="nhs-sec-t">${title}</span>${n ? `<span class="nhs-sec-n">${n}</span>` : ""}</div>${inner}</section>`;
     let body = "";
