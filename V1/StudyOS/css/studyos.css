@@ -153,6 +153,10 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
   line-height: 1; white-space: nowrap; visibility: hidden;
+  /* One fixed height whatever it holds: empty (0px), "Syncing…" (text only)
+     and "Synced"/"Sync failed" (12px icon) used to be three heights, so the
+     sidebar below jumped each time a save started or ended. */
+  height: 12px; box-sizing: content-box;
 }
 #study-root #sos-sync-status svg { width: 12px; height: 12px; flex-shrink: 0; }
 #study-root .logo-mark {
