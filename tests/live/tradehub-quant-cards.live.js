@@ -132,8 +132,10 @@ const ok = (name, cond, extra) => {
   console.log('\nMy default and Original');
   await menu('orig'); await sleep(400);
   const orig = await rects();
+  await scrollTo('volume');
   const hide = await centre('[data-mk] .lay-card[data-card="volume"] .lay-ib[data-act="hide"]');
   await press(hide.x, hide.y); await release(hide.x, hide.y); await sleep(400);
+  ok('(Hide took Unusual volume off the grid)', !(await js(`return !!document.querySelector('[data-mk] .lay-card[data-card="volume"]');`)));
   await scrollTo('regime');
   const e1 = await grab('e');
   await mouseDrag(e1, { x: e1.x + unit.x + 5, y: e1.y });
