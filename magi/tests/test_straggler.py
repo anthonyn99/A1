@@ -97,16 +97,17 @@ def fast(monkeypatch):
     monkeypatch.setattr(orch_mod, "STILL_WRITING_S", 0.25)
     monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.3)
     monkeypatch.setattr(orch_mod, "SILENT_GRACE_LONG_S", 0.3)
+    monkeypatch.setattr(orch_mod, "CUTOFF_WRAP_S", 0.3)
 
 
-def _gather(providers, prompts, events=None):
+def _gather(providers, prompts, events=None, ctx=None):
     async def emit(ev):
         if events is not None:
             events.append(ev)
 
     async def go():
         t0 = time.monotonic()
-        out = await _orch().gather(providers, prompts, None, emit, asyncio.Event())
+        out = await _orch().gather(providers, prompts, ctx, emit, asyncio.Event())
         return out, time.monotonic() - t0
 
     return asyncio.run(go())
@@ -305,3 +306,35 @@ def test_a_stuck_brainstorm_member_is_cut_and_the_round_merges(
     assert merged["answers"] == [("chatgpt", True), ("claude", True), ("gemini", False)]
     assert merged["critics"] == ["chatgpt", "claude"], "the critique round ran too"
     assert job["providers"]["gemini"]["state"] == "failed"
+
+
+def test_a_cut_straggler_keeps_what_it_wrote(fast):
+    """2026-11-18: Gemini had 2,127 characters on screen when it was cut, and
+    the cancel threw them all away. A cut now ASKS the unit to stop
+    (RunContext.cutoff) and keeps the text it hands back."""
+    from magi.providers.base import RunContext
+
+    class Stuck(Quick):
+        async def ask(self, question, *, ctx=None, on_event=None, cancel=None):
+            if on_event:
+                await on_event(ProviderEvent(
+                    provider_id=self.id, state=ProviderState.STREAMING,
+                    partial_text="half an answer", chars=14))
+            await ctx.cutoff.wait()
+            a = _ok(self.id, "half an answer")
+            a.completion_reason = "cut_off"
+            return a
+
+    out, took = _gather([Quick("a"), Quick("b"), Stuck("gemini")], "q",
+                        ctx=RunContext(run_id="r", question="q"))
+    assert out[2].ok and out[2].text == "half an answer"
+    assert out[2].completion_reason == "cut_off"
+    assert took < 1.5
+
+
+def test_a_cut_straggler_that_ignores_the_signal_is_still_cancelled(fast):
+    from magi.providers.base import RunContext
+    out, took = _gather([Quick("a"), Silent("gemini")], "q",
+                        ctx=RunContext(run_id="r", question="q"))
+    assert not out[1].ok and "Cut off" in out[1].error_detail
+    assert took < 1.5
