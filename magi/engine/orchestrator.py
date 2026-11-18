@@ -65,6 +65,9 @@ STILL_WRITING_S = 20.0
 # answer. Silence after everyone else is done gets this long, flat, and is cut.
 SILENT_GRACE_S = 30.0
 SILENT_GRACE_LONG_S = 60.0
+# How long a cut straggler gets to press Stop and return what it wrote
+# (RunContext.cutoff) before it is cancelled outright.
+CUTOFF_WRAP_S = 20.0
 
 
 class Orchestrator:
@@ -135,7 +138,7 @@ class Orchestrator:
             await asyncio.sleep(0.25)
 
     async def _gather_with_grace(
-        self, tasks, providers, t0, emit, *, floor=None, grew=None
+        self, tasks, providers, t0, emit, *, floor=None, grew=None, cutoffs=None
     ) -> None:
         """Wait for every member -- but not for ever for the last one.
 
@@ -158,6 +161,12 @@ class Orchestrator:
         by the run's length (a real writer is protected by the extensions
         above, not by the scaling), and a straggler that has shown NO answer
         text at all gets only SILENT_GRACE_S -- a spinner is not an answer.
+
+        Cut, since 2026-11-18, means ASKED to stop first: `cutoffs` maps unit
+        id -> its RunContext.cutoff event, and a straggler gets CUTOFF_WRAP_S
+        to press Stop and hand back what it wrote (an answer with reason
+        cut_off). Only a unit still not back after that is cancelled outright.
+        Before, the cancel threw away Gemini's 2,127 written characters.
         """
         if floor is None:
             floor = STRAGGLER_GRACE_S
@@ -197,6 +206,12 @@ class Orchestrator:
                     if not writing:
                         break
                     deadline = max(writing) + STILL_WRITING_S
+                if pending and cutoffs:
+                    for t in pending:
+                        ev = cutoffs.get(by_task[t].id)
+                        if ev is not None:
+                            ev.set()
+                    _, pending = await asyncio.wait(pending, timeout=CUTOFF_WRAP_S)
                 if pending:
                     for t in pending:
                         t.cancel()
@@ -454,7 +469,7 @@ class Orchestrator:
             asyncio.create_task(one(p, d)) for p, d in zip(providers, delays)
         ]
         await self._gather_with_grace(
-            tasks, providers, t0, emit, floor=floor, grew=grew
+            tasks, providers, t0, emit, floor=floor, grew=grew, cutoffs=cutoffs
         )
         from ..errors import FailureKind
 
