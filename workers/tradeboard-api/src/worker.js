@@ -1001,6 +1001,32 @@ function mapError(err) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   WATCHLISTS (read-only; Webull OpenAPI v3, added by Webull 2026-09-20)
+   GET /market-data/watchlists/list → [{ watchlist_id, name, sort, ... }]
+   GET /market-data/watchlists/instruments/list?watchlist_id= → { instruments: [{ symbol, name, exchange_code, sort }] }
+   Both come sorted by `sort` descending (Webull's own order, top first).
+   At most 20 lists, so ≤ 21 subrequests.
+   ══════════════════════════════════════════════════════════════════════════ */
+async function fetchWatchlists(env) {
+  const raw = await wb('GET', '/market-data/watchlists/list', { version: 'v3' }, env);
+  const lists = Array.isArray(raw) ? raw : listOf(raw);
+  const out = [];
+  for (const l of lists.slice(0, 20)) {
+    const id = String(l.watchlist_id ?? l.id ?? '');
+    if (!id) continue;
+    let tickers = [], error = null;
+    try {
+      const r = await wb('GET', '/market-data/watchlists/instruments/list', { query: { watchlist_id: id }, version: 'v3' }, env);
+      const items = Array.isArray(r?.instruments) ? r.instruments : listOf(r);
+      tickers = items.map((i) => ({ symbol: String(i.symbol || '').toUpperCase(), name: i.name || '', exchange: i.exchange_code || '', sort: Number(i.sort) || 0 }))
+        .filter((t) => t.symbol);
+    } catch (e) { error = e.message || 'failed'; }
+    out.push({ id, name: String(l.name || ''), sort: Number(l.sort) || 0, updated: l.update_time || null, tickers, ...(error ? { error } : {}) });
+  }
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    SEQUENTIAL FETCH  (avoids 429 burst)
    ══════════════════════════════════════════════════════════════════════════ */
 async function fetchSequential(accountId, env) {
