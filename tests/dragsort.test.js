@@ -264,6 +264,35 @@ async function drag(target, from, to, kind) {
   ok('a press inside `ignore` is not a drag (of the row or the card)', itemDrops.length === 1 && cardDrops.length === 1);
   outer.remove();
 
+  console.log('\nGrid with a slots() layout (TradeHub cards of different spans, R1)');
+  {
+    // Three cards: A is 200 wide, B and C 100. The caller's layout puts a moved
+    // A under B and C (a spot no card held before), which boxes[k] never could.
+    const grid = doc.createElement('div'); grid.dataset.box = '0,0,300,200';
+    const mk = (k, box) => { const r = doc.createElement('div'); r.className = 'card'; r.dataset.box = box; r.dataset.dkey = k; grid.appendChild(r); return r; };
+    const A = mk('A', '0,0,200,90'), B = mk('B', '200,0,100,90'), C = mk('C', '0,100,100,90');
+    doc.body.appendChild(grid);
+    const asked = [], drops = [];
+    // slot 0 = as now; slot 1 = B, A; slot 2 = B, C, A (A under them, at 0,100? no: B 0,0 C 100,0 A 0,100)
+    const LAY = {
+      0: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 0, y: 100 }],
+      1: [{ x: 100, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 100 }],
+      2: [{ x: 0, y: 100 }, { x: 0, y: 0 }, { x: 100, y: 0 }],
+    };
+    A1Drag.sort(grid, { row: '.card', axis: 'grid', slots: (f, t) => { asked.push([f, t]); return f === 0 ? LAY[t] : null; }, onDrop: (...a) => drops.push(a) });
+    ptr('pointerdown', A, 50, 40);
+    ptr('pointermove', window, 50, 90);
+    ptr('pointermove', window, 50, 140);   // A's top-left now near (0,100): slot 2's spot for it
+    ok('the slot is the one whose landing spot for the row is nearest', asked.some((a) => a[1] === 2));
+    ok('the other cards slide to the spots slots() gives (C to 100,0)', C.style.left === '100px' && C.style.top === '-100px', C.style.left + ' ' + C.style.top);
+    ok('...and B to 0,0', B.style.left === '-200px' && (B.style.top === '0px' || B.style.top === ''), B.style.left + ' ' + B.style.top);
+    ptr('pointerup', window, 50, 140);
+    ok('the row glides to its own spot from slots() (0,100)', A.style.top === '100px' && (A.style.left === '0px' || A.style.left === ''), A.style.left + ' ' + A.style.top);
+    await wait(SETTLE);
+    ok('onDrop gets that slot', JSON.stringify(drops.map((d) => d.slice(0, 2))) === '[[0,2]]', JSON.stringify(drops.map((d) => d.slice(0, 2))));
+    grid.remove();
+  }
+
   console.log('\nWiring');
   {
     // Every copy of the file is the same file (extensions carry their own).
