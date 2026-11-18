@@ -188,10 +188,12 @@
     '.a1-edges-box:hover > .a1-edge[data-edge="se"]::before, .a1-edge[data-edge="se"]:focus-visible::before { opacity: 1; }',
     '.a1-edge[data-edge="se"]:focus-visible { outline: 1px solid var(--ds-ac, #c0aeea); outline-offset: -2px; }',
     '.a1-edge.on { background: color-mix(in srgb, var(--ds-ac, #c0aeea) 22%, transparent); }',
+    // Touch: the bottom and side bands and the bottom corners grow. The top band and corners stay
+    // thin: a card's top is its title bar (the hold-to-drag) and its buttons.
     '@media (pointer: coarse) {',
-    '  .a1-edge[data-edge="n"], .a1-edge[data-edge="s"] { height: 14px; left: 22px; right: 22px; }',
+    '  .a1-edge[data-edge="s"] { height: 14px; left: 22px; right: 22px; }',
     '  .a1-edge[data-edge="e"], .a1-edge[data-edge="w"] { width: 14px; top: 22px; bottom: 22px; }',
-    '  .a1-edge[data-edge$="e"][data-edge^="n"], .a1-edge[data-edge$="w"][data-edge^="n"], .a1-edge[data-edge$="e"][data-edge^="s"], .a1-edge[data-edge$="w"][data-edge^="s"] { width: 24px; height: 24px; }',
+    '  .a1-edge[data-edge="se"], .a1-edge[data-edge="sw"] { width: 24px; height: 24px; }',
     '}'
   ].join('\n') + '\n' + EDGES.map(function (e) { return '.a1-edge[data-edge="' + e + '"] { cursor: ' + CURSOR[e] + '-resize; }'; }).join('\n');
 
@@ -238,6 +240,7 @@
       };
       el.addEventListener('pointerup', end);
       el.addEventListener('pointercancel', end);
+      el.addEventListener('lostpointercapture', end);   // a redraw or unmount took the handle away mid-drag
       // Only the se button swallows its click. A click listener on the bands made Chrome's touch
       // adjustment snap a finger pressed on a card's title (7px away) onto the n band: a resize
       // instead of the card drag (TradeHub, 390 px, 2026-11-18).
