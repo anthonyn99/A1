@@ -929,6 +929,7 @@ class BrowserProvider(Provider):
                     state=ProviderState.DONE,
                     completion_reason=str(result.reason),
                     low_confidence=result.low_confidence,
+                    artifacts=artifacts,
                     started_at=started_at,
                     ended_at=datetime.now(timezone.utc),
                     latency_ms=int((time.monotonic() - t0) * 1000),

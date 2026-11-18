@@ -355,8 +355,12 @@ class Orchestrator:
         def prompt_for(p: Provider) -> str:
             return prompts[p.id] if isinstance(prompts, dict) else prompts
 
+        # One straggler-cutoff signal per unit (RunContext.cutoff).
+        cutoffs = {p.id: asyncio.Event() for p in providers}
+
         async def ask(p: Provider, ev) -> Answer:
-            a = await self._ask(p, prompt_for(p), ctx, ev, cancel)
+            uctx = dc_replace(ctx, cutoff=cutoffs[p.id]) if ctx is not None else ctx
+            a = await self._ask(p, prompt_for(p), uctx, ev, cancel)
             # Interrupt now (RunContext.interrupt): asked once more, in a
             # fresh chat, with what it had written and the notes. `reask`
             # gives (that prompt, the notes), or None to keep the stopped
@@ -375,7 +379,7 @@ class Orchestrator:
                     await ev(ProviderEvent(
                         provider_id=p.id, state=ProviderState.WAITING,
                         message=f"{p.display_name} stopped — asking again with your notes"))
-            return await self._ask(p, prompt, dc_replace(ctx, interrupt=None, reference=ref),
+            return await self._ask(p, prompt, dc_replace(uctx, interrupt=None, reference=ref),
                                    ev, cancel)
 
         t0 = time.monotonic()
