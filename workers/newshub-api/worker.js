@@ -4515,6 +4515,68 @@ function evTickerSents(e){
   });
   return out;
 }
+// ── The tape: how the names actually traded (2026-11-18) ───────────────────
+// The digest used to see only the news, never the market's answer to it. On
+// 2026-11-18 it led with "Nvidia faces leadership uncertainty" while NVDA was
+// +5% after hours and +3-4% pre-market on a beat-and-raise, with AMD, AVGO and
+// TSM up beside it: the CEO exit was days old and already in the price (NVDA
+// had fallen ~25% that month). So the digest now reads each name's last session
+// and its pre/after-hours move (buildMarket: Yahoo spark, 2 fetches, no KV, its
+// own invocation's budget) and treats the tape as the referee. A tape that
+// cannot be read leaves the digest exactly as before.
+const TAPE_RULES = `- MARKET REACTION is the market's verdict on this news. When a name's news reads one way but it is moving 2%+ the other way, the market is trading a different story: say which one and why (e.g. "the beat outweighs a CEO exit already in the price"), and set that name's stance with the tape. Keep the news stance only when the news is newer than the move (a fresh shock the tape has not met yet).
+- News the stock has already moved on is priced in. Do not lead with it; lead with what is moving prices now.
+- The headline and tone must fit the tape: a broad rally in the names that matter is not a bearish read.
+`;
+const fmtPct = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+function tapeMove(s){
+  if (!s) return null;
+  const dp = typeof s.dp === 'number' && isFinite(s.dp) ? +s.dp.toFixed(2) : null;
+  const ext = s.ext && typeof s.ext.dp === 'number' && isFinite(s.ext.dp) ? { kind: s.ext.kind, dp: +s.ext.dp.toFixed(2) } : null;
+  return dp == null && !ext ? null : { dp, ext };
+}
+// Read the tape for the names in these events. Never throws: null = no tape.
+async function fetchTape(events, wl){
+  const inWl = new Set((wl || []).map(t => String(t).toUpperCase()));
+  const tk = [];
+  for (const e of (events || [])) for (const t of [e.primaryTicker, ...(e.additionalTickers || [])])
+    if (t && inWl.has(t) && !tk.includes(t)) tk.push(t);
+  if (!tk.length) return null;
+  try {
+    const m = await Promise.race([buildMarket(tk.slice(0, 40)), new Promise(res => setTimeout(() => res(null), 9000))]);
+    if (!m || !m.ok) return null;
+    const stocks = {};
+    for (const t of Object.keys(m.stocks || {})){ const mv = tapeMove(m.stocks[t]); if (mv) stocks[t] = mv; }
+    if (!Object.keys(stocks).length) return null;
+    const context = (m.context || []).filter(c => typeof c.dp === 'number' && isFinite(c.dp)).map(c => ({ label: c.label, dp: +c.dp.toFixed(2) }));
+    return { asOf: m.asOf || Date.now(), stocks, context };
+  } catch(e){ return null; }
+}
+function tapeBlock(tape){
+  if (!tape || !tape.stocks) return '';
+  const at = new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', weekday:'short', hour:'numeric', minute:'2-digit' }).format(new Date(tape.asOf));
+  const lines = Object.entries(tape.stocks).map(([t, m]) => {
+    const parts = [];
+    if (m.dp != null) parts.push('last session ' + fmtPct(m.dp));
+    if (m.ext) parts.push((m.ext.kind === 'pre' ? 'pre-market ' : 'after hours ') + fmtPct(m.ext.dp));
+    return `${t}: ${parts.join(', ')}`;
+  });
+  const ctx = (tape.context || []).map(c => `${c.label} ${fmtPct(c.dp)}`).join(', ');
+  return `
+MARKET REACTION (as of ${at} ET; "last session" = the last regular session vs the close before it; pre-market is vs that close, after hours vs the regular close)
+${lines.join('\n')}${ctx ? '\nMarket: ' + ctx : ''}
+`;
+}
+// The moves the overlay shows beside each name, for the names the digest uses.
+function digestMoves(d, tape){
+  if (!tape || !tape.stocks) return null;
+  const names = new Set();
+  (d.tickers || []).forEach(t => names.add(t.ticker));
+  (d.keyPoints || []).forEach(k => (k.tickerStances || []).forEach(t => names.add(t.ticker)));
+  const moves = {};
+  names.forEach(t => { if (tape.stocks[t]) moves[t] = tape.stocks[t]; });
+  return Object.keys(moves).length ? { asOf: tape.asOf, moves } : null;
+}
 function buildDigestPrompt(events, wl, tape){
   const now = Date.now();
   const rows = events
