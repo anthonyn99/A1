@@ -273,7 +273,7 @@ async function drag(target, from, to, kind) {
     const A = mk('A', '0,0,200,90'), B = mk('B', '200,0,100,90'), C = mk('C', '0,100,100,90');
     doc.body.appendChild(grid);
     const asked = [], drops = [];
-    // slot 0 = as now; slot 1 = B, A; slot 2 = B, C, A (A under them, at 0,100? no: B 0,0 C 100,0 A 0,100)
+    // slot 0 = as now; slot 1 = B, A, C; slot 2 = B, C, A (B at 0,0, C at 100,0, A under them at 0,100)
     const LAY = {
       0: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 0, y: 100 }],
       1: [{ x: 100, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 100 }],
