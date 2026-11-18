@@ -276,6 +276,31 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     ok('no subscription: a plain ok:false, not an error page', r.ok === false && r.code === 'NO_MARKET_DATA' && r.status === 403, JSON.stringify(r));
   }
 
+  console.log('watchlists (read-only, v3)');
+  {
+    const { call, calls } = load((p, q) => {
+      if (p === '/market-data/watchlists/list') return { body: [{ watchlist_id: 'w1', name: 'Main', sort: 2500 }, { watchlist_id: 'w2', name: 'Broken', sort: 10 }] };
+      if (p === '/market-data/watchlists/instruments/list') return q.watchlist_id === 'w1'
+        ? { body: { watchlist_id: 'w1', instruments: [{ symbol: 'nvda', name: 'NVIDIA', exchange_code: 'NSQ', sort: 3 }, { symbol: 'BTCUSD', exchange_code: 'CCC', sort: 1 }, { symbol: '' }] } }
+        : { status: 417, body: { message: 'bad list' } };
+      return { body: {} };
+    });
+    const r = await call('GET', '/api/portfolio/watchlists');
+    ok('lists with their tickers, Webull order kept', r.ok && r.lists.length === 2 && r.lists[0].name === 'Main' && r.lists[0].tickers.map(t => t.symbol).join() === 'NVDA,BTCUSD', JSON.stringify(r).slice(0, 300));
+    ok('every call is a GET with x-version v3', calls.every(c => c.method === 'GET' && c.version === 'v3'));
+    ok('one list failing keeps the others, with its error', r.lists[1].tickers.length === 0 && /bad list/.test(r.lists[1].error));
+    const n = calls.length; await call('GET', '/api/portfolio/watchlists');
+    ok('a second ask within a minute comes from the edge cache', calls.length === n);
+    await call('GET', '/api/portfolio/watchlists?fresh=1');
+    ok('fresh=1 asks Webull again', calls.length > n);
+  }
+  {
+    const { call } = load(() => ({ status: 401, body: { message: 'Insufficient permission' } }));
+    const r = await call('GET', '/api/portfolio/watchlists');
+    ok('Webull refusing: ok:false with its status', r.ok === false && r.status === 401, JSON.stringify(r));
+  }
+  ok('no watchlist write route (Webull stays read-only)', !/watchlists\/(create|update|delete|instruments\/(add|remove))/.test(SRC));
+
   console.log('debug leftovers');
   ok('no order/detail debug probe on every sync', !/PROBE/.test(SRC));
   ok('raw balance payload not logged', !/raw payload:/.test(SRC));
