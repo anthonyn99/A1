@@ -5035,7 +5035,11 @@ function sparkStock(s){
   let ext = null;
   if (s.last && s.lastTs){
     const inP = (per) => per && s.lastTs >= per.start && s.lastTs < per.end;
-    if (inP(tp.pre) && prev) ext = { kind:'pre', price: s.last, dp: (s.last - prev) / prev * 100 };
+    // Pre-market is measured from the LAST close, which before the open is still
+    // regularMarketPrice. It used to be measured from chartPreviousClose (the
+    // close before that): on 2026-11-18 TSM closed -3.7% at 359.69, traded 369.96
+    // pre-market (+2.9%) and showed -0.9%.
+    if (inP(tp.pre) && reg) ext = { kind:'pre', price: s.last, dp: (s.last - reg) / reg * 100 };
     else if (inP(tp.post) && reg) ext = { kind:'post', price: s.last, dp: (s.last - reg) / reg * 100 };
   }
   return { c: reg, pc: prev, dp, ext, points: sparkPoints(s.closes, 48) };
