@@ -72,7 +72,10 @@ sparkReply = (u) => ({ spark: { result: [
   const nv = r.stocks.NVDA, mu = r.stocks.MU;
   ok('a stock: today\'s regular-session move', Math.abs(nv.dp - (206.69 - 202.06) / 202.06 * 100) < 1e-9 && nv.c === 206.69);
   ok('after hours: the post price vs the close', nv.ext && nv.ext.kind === 'post' && nv.ext.price === 205.5 && Math.abs(nv.ext.dp - (205.5 - 206.69) / 206.69 * 100) < 1e-9, JSON.stringify(nv.ext));
-  ok('pre-market: the pre price vs the prior close', mu.ext && mu.ext.kind === 'pre' && Math.abs(mu.ext.dp - (849.49 - 833.59) / 833.59 * 100) < 1e-9, JSON.stringify(mu.ext));
+  // Before the open, Yahoo's regularMarketPrice is still the LAST close and
+  // chartPreviousClose the close before it (seen live 2026-11-18: TSM 359.69 /
+  // 373.45). Pre-market is measured from the last close, as every quote screen does.
+  ok('pre-market: the pre price vs the last close', mu.ext && mu.ext.kind === 'pre' && Math.abs(mu.ext.dp - (849.49 - 840) / 840 * 100) < 1e-9, JSON.stringify(mu.ext));
   ok('sparkline points skip the gaps', JSON.stringify(nv.points) === '[205,206.69,205.5]', JSON.stringify(nv.points));
   ok('ok:true when anything came back', r.ok === true && r.source === 'yahoo');
 
