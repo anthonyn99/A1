@@ -624,6 +624,11 @@ window.Notebook = {
   closeDrawer: function (key) {
     var keys = key ? [key] : Object.keys(this.mounts), n = 0;
     keys.forEach(function (k) {
+      // On a phone (core/mobile.js, nb-shell) the list is a screen of its own,
+      // not a drawer over the page: "closing" it opened an entry when TradeHub's
+      // menu opened (Tony, 2026-11-18). The host's drawer simply covers it.
+      var root = document.getElementById(k + '-root');
+      if (root && root.classList.contains('nb-shell')) return;
       var f = window['_' + k + 'SetDrawer'];
       if (typeof f === 'function') { try { f(false); n++; } catch (e) {} }
     });
