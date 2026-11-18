@@ -1093,11 +1093,11 @@
     'box-shadow:0 -8px 32px -10px rgba(0,0,0,.6)}' +
     '.m .grab{display:block;width:38px;height:4px;border-radius:2px;background:var(--bd2);margin:9px auto 0;flex:none}' +
     '.m .hd{touch-action:none}' +
-    // Exit curves that move from the first frame (a plain ease-in barely
-    // moves at the start, which reads as a hesitation after the tap).
-    '.closing .pop{opacity:0;transform:scale(.97);transition:opacity .14s ease-out,transform .14s ease-out}' +
-    '.m.closing .pop{opacity:1;transform:translateY(100%);transition:transform .18s cubic-bezier(.4,0,.2,1)}' +
-    '.closing .bd{opacity:0;transition:opacity .18s cubic-bezier(.4,0,.2,1)}' +
+    // The exit runs through the Web Animations API (exitAnim); these .css
+    // rules are only the fallback for a browser without element.animate.
+    '.closing.css .pop{opacity:0;transform:scale(.97);transition:opacity .14s ease-out,transform .14s ease-out}' +
+    '.m.closing.css .pop{opacity:1;transform:translateY(100%);transition:transform .18s cubic-bezier(.4,0,.2,1)}' +
+    '.closing.css .bd{opacity:0;transition:opacity .18s cubic-bezier(.4,0,.2,1)}' +
     '.hd{display:flex;align-items:center;gap:8px;padding:14px 12px 6px 18px;flex:none}' +
     '.ttl{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:.1px;color:var(--tx)}' +
     '.st{font-size:11px;color:var(--dim);white-space:nowrap}.st.bad{color:var(--bad)}' +
@@ -1358,7 +1358,8 @@
   function open(anchor) {
     if (!ui.host) build();
     clearTimeout(ui.closeT);
-    ui.wrap.classList.remove('closing');
+    stopExit();
+    ui.wrap.classList.remove('closing', 'css');
     ui.holdBd = false;
     ui.anchor = anchor || ui.anchor;
     ui.lastFocus = document.activeElement;
@@ -1389,7 +1390,36 @@
   function settleClose() {
     if (ui.open || ui.holdBd || !ui.animDone) return;
     ui.host.style.display = 'none';
-    ui.wrap.classList.remove('closing');
+    ui.wrap.classList.remove('closing', 'css');
+    stopExit();
+  }
+  // The dismiss (Tony, 2026-11-17: "laggy" on phones while the pop-in was smooth).
+  // It used to be a class flip into CSS transitions: the flip restyled the whole
+  // panel before the first frame, and the curve (.4,0,.2,1) starts at zero speed,
+  // so the sheet sat still, then lurched. Now: one compositor animation per layer,
+  // started from wherever the sheet is (mid-swipe too), on a sheet curve that
+  // moves from the first frame. Returns its length in ms, or 0 (no WAAPI).
+  function exitAnim() {
+    var pop = ui.pop, bd = ui.root.querySelector('.bd');
+    if (!pop.animate || !bd) return 0;
+    var sheet = ui.wrap.classList.contains('m');
+    var from = getComputedStyle(pop).transform;
+    if (!from || from === 'none') from = 'translateY(0)';
+    pop.style.transition = 'none'; pop.style.transform = '';
+    var dur = sheet ? 240 : 140, ease = sheet ? 'cubic-bezier(.32,.72,0,1)' : 'cubic-bezier(.2,.8,.2,1)';
+    var opt = { duration: dur, easing: ease, fill: 'forwards' };
+    ui.exitA = [
+      pop.animate(sheet ? [{ transform: from }, { transform: 'translateY(100%)' }]
+        : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.97)' }], opt),
+      bd.animate([{ opacity: 1 }, { opacity: 0 }], opt)
+    ];
+    return dur;
+  }
+  function stopExit() {
+    if (!ui.exitA) return;
+    ui.exitA.forEach(function (a) { try { a.cancel(); } catch (e) {} });
+    ui.exitA = null;
+    if (ui.pop) ui.pop.style.transition = '';
   }
   function close(instant, byPointer) {
     if (!ui.open) return;
@@ -1411,8 +1441,10 @@
       afterClose(hadFocus);
     } else {
       ui.animDone = false;
+      var dur = exitAnim();
       ui.wrap.classList.add('closing');
-      ui.closeT = setTimeout(function () { ui.animDone = true; settleClose(); }, 190);
+      if (!dur) { ui.wrap.classList.add('css'); dur = 180; }
+      ui.closeT = setTimeout(function () { ui.animDone = true; settleClose(); }, dur + 10);
       requestAnimationFrame(function () { setTimeout(function () { afterClose(hadFocus); }, 0); });
     }
   }
@@ -1959,9 +1991,10 @@
     function end() {
       if (y0 == null) return;
       y0 = null;
+      // A long enough pull dismisses from where the finger left it (exitAnim reads it).
+      if (dy > 70) { close(); return; }
       ui.pop.style.transition = 'transform .2s cubic-bezier(.2,.8,.2,1)';
       ui.pop.style.transform = '';
-      if (dy > 70) close();
       setTimeout(function () { ui.pop.style.transition = ''; }, 220);
     }
     [hd, grab].forEach(function (n) {
