@@ -413,7 +413,7 @@ function instanceCss(cfg) {
     var F = R + '.nb-mfull';
     css.push(F + '{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;'
       + 'z-index:100000!important;padding-top:env(safe-area-inset-top,0px)!important;background:var(--bg);}');
-    css.push(':has(' + F + '){transform:none!important;filter:none!important;backdrop-filter:none!important;'
+    css.push(':has(' + F + '){transform:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;'
       + 'perspective:none!important;contain:none!important;container-type:normal!important;will-change:auto!important;z-index:auto!important;}');
     css.push('html:has(' + F + '),body:has(' + F + '){overflow:hidden!important;}');
   }
