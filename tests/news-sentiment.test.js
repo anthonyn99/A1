@@ -24,7 +24,7 @@ const ok = (n, c, extra) => { if (c) { pass++; console.log('  ok   ' + n); } els
 
 function load(rel) {
   const src = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n').replace(/export default \{[\s\S]*$/, '');
-  return new Function(`${src}\nreturn { cleanSent, aiSentiment, buildDigestPrompt, buildGeminiPrompt, normalizeDigest, reconcileDigest, geminiBody, DIGEST_SCHEMA, mergeAddlTickers };`)();
+  return new Function(`${src}\nreturn { cleanSent, aiSentiment, buildDigestPrompt, buildGeminiPrompt, normalizeDigest, reconcileDigest, geminiBody, DIGEST_SCHEMA, mergeAddlTickers, sparkStock, tapeBlock, digestMoves, tapeMove };`)();
 }
 const WL = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PLTR','NVDA','MRVL','CRDO','TSLA','SPCX','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA','TSM','SKHY'];
 
