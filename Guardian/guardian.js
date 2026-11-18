@@ -682,6 +682,16 @@ function open(d, screen, onClose) {
     ov.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && OPEN && OPEN.ov === ov && OPEN.escapable) { e.preventDefault(); settle(OPEN.cancelValue); }
     });
+    /* A click outside the card closes it, like Cancel (popups.js rule): only
+       when the press began AND ended on the backdrop, so a drag that starts
+       in the card (selecting a password) and ends outside never closes it.
+       Hard locks (escapable false) stay put. */
+    var downOnBackdrop = false;
+    ov.addEventListener('pointerdown', function (e) { downOnBackdrop = e.target === ov; });
+    ov.addEventListener('click', function (e) {
+      var ok = downOnBackdrop && e.target === ov; downOnBackdrop = false;
+      if (ok && OPEN && OPEN.ov === ov && OPEN.escapable) settle(OPEN.cancelValue);
+    });
     screen(d, card);
     emit('open', { id: d.id });
   });
