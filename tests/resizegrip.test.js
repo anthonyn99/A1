@@ -137,6 +137,41 @@ console.log('Shared/resizegrip.js');
   ok('storage that throws does not break the grip', !threw && r && r.ta.style.height === '260px', threw || (r && r.ta.style.height));
 }
 {
+  // edges(): resize from every side (TradeHub's cards, R1).
+  const w = boot();
+  const doc = w.document;
+  const box = doc.createElement('section'); box.style.position = 'relative'; doc.body.appendChild(box);
+  const seen = [], keys = [], ends = [];
+  const E = w.A1Resize.edges(box, { label: 'Breadth', onStart: (e) => seen.push('start:' + e), onMove: (m) => seen.push(m), onEnd: (e) => ends.push(e), onKey: (dx, dy) => keys.push([dx, dy]) });
+  const all = [...box.querySelectorAll(':scope > .a1-edge')];
+  ok('eight handles, one per edge and corner', all.length === 8 && ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].every((e) => box.querySelector('.a1-edge[data-edge="' + e + '"]')));
+  const se = box.querySelector('.a1-edge[data-edge="se"]');
+  ok('the se corner is a focusable button named for the box', se.tagName === 'BUTTON' && se.getAttribute('aria-label') === 'Resize Breadth');
+  ok('the others are hidden from a screen reader', all.filter((h) => h !== se).every((h) => h.getAttribute('aria-hidden') === 'true'));
+  const C = w.PointerEvent || w.MouseEvent;
+  const p = (type, el, x, y) => { const e = new C(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 7, pointerType: 'mouse' }); if (e.pointerId === undefined) Object.defineProperty(e, 'pointerId', { value: 7 }); el.dispatchEvent(e); return e; };
+  for (const edge of ['w', 'n', 'ne']) {
+    const hdl = box.querySelector('.a1-edge[data-edge="' + edge + '"]');
+    seen.length = 0;
+    let bubbled = false; const spy = () => { bubbled = true; }; box.addEventListener('pointerdown', spy);
+    p('pointerdown', hdl, 100, 100); p('pointermove', hdl, 70, 130); p('pointerup', hdl, 70, 130);
+    box.removeEventListener('pointerdown', spy);
+    const m = seen.find((x) => typeof x === 'object');
+    ok(edge + ': reports its edge and dx / dy from the press', seen[0] === 'start:' + edge && m && m.edge === edge && m.dx === -30 && m.dy === 30, JSON.stringify(seen));
+    ok(edge + ': the press stops there (it never starts a card drag)', !bubbled);
+  }
+  ok('onEnd for each drag', ends.join() === 'w,n,ne', ends.join());
+  se.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  se.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  ok('the corner\'s arrow keys give one unit a press', JSON.stringify(keys) === '[[-1,0],[0,1]]', JSON.stringify(keys));
+  const css = doc.getElementById('a1-resizeedge-css').textContent;
+  ok('each handle has its resize cursor', /data-edge="w"\] \{ cursor: ew-resize/.test(css) && /data-edge="ne"\] \{ cursor: nesw-resize/.test(css) && /data-edge="se"\] \{ cursor: nwse-resize/.test(css));
+  ok('larger bands on a coarse pointer (touch)', /@media \(pointer: coarse\)/.test(css));
+  ok('nothing is stored (the caller keeps the size)', w.localStorage.length === 0);
+  E.destroy();
+  ok('destroy takes the handles away', !box.querySelector('.a1-edge'));
+}
+{
   // Every copy of the file is the same file (extensions carry their own).
   const copies = [];
   const walk = (dir) => {
