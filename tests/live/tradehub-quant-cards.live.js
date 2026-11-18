@@ -1,0 +1,178 @@
+// TradeHub Quant refinements, R1 (A1-Priv docs/TradeHub/quant/r1-01.md): the
+// card system v2 in the real page, at 1280, 820 and 390 px.
+//
+//   1. the drop preview is where the card lands: mid-drag, every other card's
+//      rect equals its rect after the drop (several moves at each width)
+//   2. every edge and corner resizes (A1Resize.edges): whole units, a left or
+//      top drag grows the card without moving it in the order
+//   3. Layout ▸ Save as my default / Reset to my default / Reset to original,
+//      kept in dashboards/tradehub_layout[tab].mine[cls]
+//   4. a "?" on every card of every card tab (Market, Charts, Scanner board,
+//      Invest, Backtest, Neo, Memory, Paper, Risk, Edge): hover title, tap bubble
+//   5. refresh buttons are the icon, labelled
+//
+// Run: CDP_PORT=93xx node tests/live/tradehub-quant-cards.live.js
+'use strict';
+const { connect, sleep } = require('./cdp.js');
+const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+
+let pass = 0, fail = 0;
+const ok = (name, cond, extra) => {
+  if (cond) { pass++; console.log('  ok   ' + name); }
+  else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 500) : '')); }
+};
+
+(async () => {
+  const api = quantApi();
+  const c = await connect({ mock: api.mock });
+  const errs = [];
+  await c.send('Page.enable'); await c.send('Runtime.enable');
+  await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
+  c.ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
+    if (m.method === 'Page.javascriptDialogOpening') c.send('Page.handleJavaScriptDialog', { accept: true });
+  });
+  const { js, until, size, boot, tab } = driver(c);
+  const G = `document.querySelector('[data-mk] .lay-grid')`;
+  const order = () => js(`return [...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.dataset.card;}).join();`);
+  const centre = (sel) => js(`var b=document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2,l:b.left,t:b.top,r:b.right,b:b.bottom,w:b.width,h:b.height});`).then(JSON.parse);
+  // Every card's rect, relative to the grid (so a page scroll between two reads cancels out).
+  const rects = () => js(`var g=${G}.getBoundingClientRect(), o={}; ${G}.querySelectorAll(':scope > .lay-card').forEach(function(e){ var b=e.getBoundingClientRect(); o[e.dataset.card]=[b.left-g.left,b.top-g.top,b.width,b.height].map(function(v){return Math.round(v*10)/10;}); }); return JSON.stringify(o);`).then(JSON.parse);
+  const span = (id) => js(`var e=document.querySelector('[data-mk] .lay-card[data-card="${id}"]'); return e.dataset.w+'x'+e.dataset.h;`);
+  const press = (x, y) => c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+  const moveTo = async (from, to, steps = 14) => { for (let i = 1; i <= steps; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x + (to.x - from.x) * i / steps, y: from.y + (to.y - from.y) * i / steps, button: 'left', buttons: 1 }); await sleep(16); } };
+  const release = (x, y) => c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  async function mouseDrag(from, to) {
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+    await press(from.x, from.y); await moveTo(from, to); await sleep(120);
+    await release(to.x, to.y); await sleep(600);
+  }
+  const menu = (v) => js(`var m=document.querySelector('[data-mk] [data-lay-reset]'); m.value='${v}'; m.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+  const open = async () => { await tab('market'); if (!(await until(`document.querySelector('[data-mk-score]') && document.querySelector('[data-mk-analogs]')`, 15000))) throw new Error('Market did not draw'); await sleep(500); };
+  const scrollTo = (id) => js(`document.querySelector('[data-mk] .lay-card[data-card="${id}"]').scrollIntoView({block:'center'}); 1`).then(() => sleep(250));
+
+  // A drag held over its target: the preview's rects, then the drop's.
+  async function previewVsDrop(id, target, dx = 0, dy = 0) {
+    await scrollTo(target);
+    const t = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
+    await scrollTo(id);
+    const a = await centre(`[data-mk] .lay-card[data-card="${id}"] .lay-title`);
+    const t2 = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
+    const before = await order();
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
+    await press(a.x, a.y);
+    await moveTo(a, { x: t2.x + dx, y: t2.y + dy });
+    await sleep(450);   // the slides (.17 s) have finished
+    const mid = await rects();
+    await release(t2.x + dx, t2.y + dy);
+    await sleep(800);
+    const after = await rects(), now = await order();
+    const off = Object.keys(after).filter((k) => k !== id && mid[k] && after[k].some((v, i) => Math.abs(v - mid[k][i]) > 1.5)).map((k) => k + ' ' + mid[k] + ' → ' + after[k]);
+    return { moved: now !== before, off, before, now };
+  }
+
+  for (const [w, h] of [[1280, 900], [820, 1180], [390, 844]]) {
+    console.log(`\n${w} px: the drop preview is the landing`);
+    await size(w === 1280 ? 1504 : w, h);
+    await boot({ quant: true });
+    await open();
+    const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors'], ['macro', 'breadth'], ['rotation', 'volume']]
+      : w === 820 ? [['regime', 'sectors'], ['volume', 'regime'], ['sectors', 'analogs']]
+        : [['regime', 'breadth', 0, 60], ['volume', 'regime']];
+    for (const [id, target, dx, dy] of moves) {
+      const r = await previewVsDrop(id, target, dx || 0, dy || 0);
+      ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; ') + r.off.join(' | '));
+    }
+    ok('no card overlaps another after the moves', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0;
+      for (var i=0;i<a.length;i++) for (var j=i+1;j<a.length;j++) { var p=a[i], q=a[j]; if (p.left < q.right-1 && q.left < p.right-1 && p.top < q.bottom-1 && q.top < p.bottom-1) bad++; } return bad===0;`));
+
+    console.log(`${w} px: "?" on every card`);
+    ok('every Market card has a "?" with its text', await js(`return [...document.querySelectorAll('[data-mk] .lay-card')].every(function(e){ var q=e.querySelector('[data-lay-help]'); return q && ((q.getAttribute('title')||q._a1cTitle||'').length > 12) && /^About /.test(q.getAttribute('aria-label')); });`));
+    if (w === 390) await c.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    await scrollTo('breadth');
+    const q = await centre('[data-mk] .lay-card[data-card="breadth"] [data-lay-help]');
+    if (w === 390) { await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: q.x, y: q.y }] }); await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
+    else { await press(q.x, q.y); await release(q.x, q.y); }
+    await sleep(250);
+    const bub = await js(`var b=document.querySelector('[data-mk] .lay-card[data-card="breadth"] .lay-helptip'), r=b.getBoundingClientRect(), c=b.closest('.lay-card').getBoundingClientRect(); return JSON.stringify({ shown: !b.hidden && r.height > 20, text: b.textContent, inside: r.left >= c.left && r.right <= c.right + 0.5 });`).then(JSON.parse);
+    ok((w === 390 ? 'a tap' : 'a click') + ' on the "?" opens its bubble, inside the card', bub.shown && /take part/.test(bub.text) && bub.inside, JSON.stringify(bub));
+    ok('...the card did not move (the "?" is no drag handle)', !(await js(`return !!document.querySelector('.dsort-drag');`)));
+    if (w === 390) { await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 10, y: 400 }] }); await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
+    else { await press(5, 400); await release(5, 400); }
+    await sleep(200);
+    ok('a press anywhere else closes it', await js(`return document.querySelector('[data-mk] .lay-card[data-card="breadth"] .lay-helptip').hidden;`));
+    if (w === 390) await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+
+    console.log(`${w} px: refresh is the icon`);
+    ok('Market\'s refresh: an icon, no word, labelled and titled', await js(`var b=document.querySelector('[data-mk-refresh]'); return !!b.querySelector('svg') && !b.textContent.trim() && b.getAttribute('aria-label')==='Refresh the market' && !!(b.getAttribute('title')||b._a1cTitle);`));
+  }
+
+  console.log('\n1280 px: resize from every edge and corner');
+  await size(1504, 900);
+  await boot({ quant: true });
+  await open();
+  ok('eight handles on every card, the se one a labelled button', await js(`return [...document.querySelectorAll('[data-mk] .lay-card')].every(function(e){ return e.querySelectorAll(':scope > .a1-edge').length === 8; }) && document.querySelector('[data-mk] .a1-edge[data-edge="se"]').tagName==='BUTTON';`));
+  const unit = await js(`var g=${G}; return JSON.stringify({ x:(g.clientWidth-14*11)/12+14, y:58 });`).then(JSON.parse);
+  const grab = async (edge) => {
+    await scrollTo('breadth');
+    const b = await centre(`[data-mk] .lay-card[data-card="breadth"] .a1-edge[data-edge="${edge}"]`);
+    return { x: b.x, y: b.y };
+  };
+  const cases = [['e', 1, 0, [1, 0]], ['w', -1, 0, [1, 0]], ['s', 0, 1, [0, 1]], ['n', 0, -1, [0, 1]], ['se', -1, -1, [-1, -1]], ['nw', 1, 1, [-1, -1]], ['ne', 1, -1, [1, 1]], ['sw', -1, 1, [1, 1]]];
+  for (const [edge, ux, uy, [dw, dh]] of cases) {
+    const s0 = (await span('breadth')).split('x').map(Number), o0 = await order();
+    const p = await grab(edge);
+    await mouseDrag(p, { x: p.x + ux * unit.x + Math.sign(ux) * 5, y: p.y + uy * unit.y + Math.sign(uy) * 5 });
+    const s1 = (await span('breadth')).split('x').map(Number);
+    ok(`${edge}: ${dw >= 0 ? '+' : ''}${dw} wide, ${dh >= 0 ? '+' : ''}${dh} tall, in whole units; its spot in the order kept`, s1[0] === s0[0] + dw && s1[1] === s0[1] + dh && (await order()) === o0, s0.join('x') + ' → ' + s1.join('x'));
+  }
+  ok('a handle press never started a card drag', !(await js(`return !!document.querySelector('.dsort-drag');`)));
+
+  console.log('\nMy default and Original');
+  await menu('orig'); await sleep(400);
+  const orig = await rects();
+  const hide = await centre('[data-mk] .lay-card[data-card="volume"] .lay-ib[data-act="hide"]');
+  await press(hide.x, hide.y); await release(hide.x, hide.y); await sleep(400);
+  await scrollTo('regime');
+  const e1 = await grab('e');
+  await mouseDrag(e1, { x: e1.x + unit.x + 5, y: e1.y });
+  const mineOrder = await order(), mineSpan = await span('breadth');
+  ok('"Reset to my default" is off until one is saved', await js(`return document.querySelector('[data-mk] [data-lay-reset] option[value="mine"]').disabled;`));
+  await menu('save'); await sleep(300);
+  ok('Save as my default says so in the menu', await js(`return /Saved as my default/.test(document.querySelector('[data-mk] [data-lay-reset] option[value=""]').textContent);`));
+  ok('...and is kept beside the layouts in dashboards/tradehub_layout (market.mine.desktop)', await until(`(function(){ var d=(window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market; return d && d.mine && d.mine.desktop && d.mine.desktop.hidden.indexOf('volume')>=0 && d.mine.desktop.span.breadth.w===${Number(mineSpan.split('x')[0])}; })()`, 5000));
+  await menu('orig'); await sleep(500);
+  ok('Reset to original: every card back at its first spot and size', JSON.stringify(await rects()) === JSON.stringify(orig));
+  await menu('mine'); await sleep(500);
+  ok('Reset to my default: the saved layout again', (await order()) === mineOrder && (await span('breadth')) === mineSpan && !(await js(`return !!document.querySelector('[data-mk] .lay-card[data-card="volume"]');`)));
+  await sleep(1800);
+  await boot({ quant: true, keep: true }); await open();
+  ok('after a reload my default can still be restored', await js(`return !document.querySelector('[data-mk] [data-lay-reset] option[value="mine"]').disabled;`));
+
+  console.log('\nA "?" on every card of every card tab');
+  const allHelp = (root) => js(`var r=document.querySelector(${JSON.stringify(root)}); if(!r) return 'no ' + ${JSON.stringify(root)}; var cs=[...r.querySelectorAll('.lay-card')]; if(!cs.length) return 'no cards'; var bad=cs.filter(function(e){ var q=e.querySelector('[data-lay-help]'); return !q || (q.getAttribute('title')||q._a1cTitle||'').length < 12; }).map(function(e){return e.dataset.card;}); return bad.length ? 'missing: '+bad.join() : 'ok '+cs.length;`);
+  const views = [
+    ['Charts', async () => { await tab('charts'); }, '[data-charts]', 3],
+    ['Scanner board', async () => { await tab('scanner'); await js(`var b=document.querySelector('[data-sc-view="board"]'); if(b) b.click(); 1`); }, '.sc-board', 3],
+    ['Scanner ▸ Invest', async () => { await js(`document.querySelector('[data-sc-horizon="invest"]').click(); 1`); }, '[data-sc-horizon] ~ * .lay-grid, .sc-iv', 3],
+    ['Scanner ▸ Backtest', async () => { await js(`var i=document.querySelector('[data-sc-horizon="swing"]'); if(i) i.click(); var b=document.querySelector('[data-sc-view="backtest"]'); if(b) b.click(); 1`); }, '[data-backtest]', 13],
+    ['Neo', async () => { await tab('neo'); }, '[data-lay="neo"]', 4],
+    ['Control ▸ Memory', async () => { await tab('prompt'); }, '[data-memory]', 4],
+    ['Paper', async () => { await tab('paper'); }, '[data-lay="paper"]', 7],
+    ['Portfolio ▸ Risk', async () => { await tab('portfolio'); await until(`[...document.querySelectorAll('.tbtabs [role=tab]')].some(function(b){return /^Risk/.test(b.textContent);})`, 8000); await js(`[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}).click(); 1`); }, '[data-risk-view]', 8],
+    ['Journal ▸ Edge', async () => { await tab('journal'); await until(`[...document.querySelectorAll('[data-journal-view] button')].some(function(b){return b.textContent==='Edge';})`, 8000); await js(`[...document.querySelectorAll('[data-journal-view] button')].find(function(b){return b.textContent==='Edge';}).click(); 1`); }, '[data-edge-view]', 6],
+  ];
+  for (const [name, go, root, n] of views) {
+    await go();
+    await until(`(function(){ var r=document.querySelector(${JSON.stringify(root)}); return r && r.querySelectorAll('.lay-card').length >= ${n}; })()`, 15000);
+    const r = await allHelp(root);
+    ok(`${name}: every card has a "?" (${r})`, /^ok /.test(r) && Number(r.split(' ')[1]) >= n, r);
+  }
+
+  console.log('\nSide effects');
+  ok('no page errors', errs.length === 0, errs.join(' | '));
+  console.log(`\n${pass} passed, ${fail} failed`);
+  c.ws.close();
+  process.exit(fail ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
