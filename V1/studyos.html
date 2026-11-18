@@ -63,8 +63,8 @@
      and unpinned, so every Guardian upgrade reaches StudyOS. js/applock.js
      declares StudyOS's lock on it, over StudyOS's own worker. -->
 <script src="https://anthonyn99.github.io/A1/Guardian/guardian.js"></script>
-<!-- Beacon (A1/docs/Beacon/README.md): this device in A1's device list (the
-     devices button beside the lock). StudyOS's pushes are its own tokens,
+<!-- Beacon (A1/docs/Beacon/README.md): this device in A1's device list
+     (managed from TaskHub's Settings; StudyOS has no profiles, so no button of its own). StudyOS's pushes are its own tokens,
      studyos_fcm_tokens/<token>; its Firebase is the one LifeHub borrows. -->
 <script src="https://anthonyn99.github.io/A1/Beacon/beacon.js"></script>
 <script>
@@ -118,7 +118,6 @@ if (window.Beacon) Beacon.mount('studyos', {
          2026-10-31). -->
     <div class="sb-tool-row">
       <div class="sb-tools" id="sos-sb-tools">
-        <button class="sos-hbtn icon" id="sos-devices-btn" type="button" title="Devices" aria-label="Devices" onclick="window.Beacon&&Beacon.open({app:'studyos',profile:'veda'})"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="13" height="10" rx="1.5"/><path d="M6 18h6"/><rect x="16.5" y="8" width="5.5" height="11" rx="1.2"/></svg></button>
         <button class="sos-hbtn icon" id="sos-lock-btn" type="button" title="App Lock" aria-label="App Lock"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
         <a1-lifehub style="--lh-size:26px"></a1-lifehub>
       </div>

@@ -18,7 +18,7 @@ Every A1 program that has profiles or sends notifications:
 | MAGI | `magi` | the devices icon beside Help (sidebar; the drawer on a phone) | `html[data-profile]` | none |
 | Shield | `shield` | Devices ▸ All A1 devices ▸ Manage | `body[data-profile]` | none |
 | Shruti | `shruti` | Settings ▸ Profile ▸ Devices | `body[data-profile]` | none |
-| StudyOS (Veda) | `studyos` | the devices icon beside the lock | always `veda` | its own `studyos_fcm_tokens/<token>` |
+| StudyOS (Veda) | `studyos` | none (no profiles; managed from TaskHub's Settings, 2026-11-17) | always `veda` | its own `studyos_fcm_tokens/<token>` |
 | ORCA (Veda's repo `DesktopORCA`, both UIs) | `orca` | the devices icon after the lock in the header | `body[data-profile]` (only rendered once a profile is open) | none; its lock is a server session, so `app/web/static/beacon-host.js` hands Beacon `lockState` (`/lock/status`) and `lockNow` (`/lock/lock`, then the gate) |
 
 Left out on purpose:

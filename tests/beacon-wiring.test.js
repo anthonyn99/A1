@@ -32,7 +32,7 @@ const HOSTS = {
   'magi.html': { app: 'magi' },
   'shield.html': { app: 'shield' },
   'shruti.html': { app: 'shruti', files: ['Shruti/app/app.js'] },
-  'V1/studyos.html': { app: 'studyos' },
+  'V1/studyos.html': { app: 'studyos', noButton: true }, // no profiles: managed from TaskHub (2026-11-17)
 };
 
 console.log('\nThe folder');
@@ -53,7 +53,8 @@ for (const page of Object.keys(HOSTS)) {
   const gi = src.indexOf('guardian.js'), bi = src.indexOf(t);
   ok(page + ': after Guardian, so the locks it reports exist', gi >= 0 && bi > gi);
   ok(page + ": mounts as '" + h.app + "'", new RegExp("Beacon\\.mount\\(\\s*'" + h.app + "'").test(src));
-  ok(page + ': has a button that opens the panel for it', new RegExp("Beacon\\.open\\(\\s*\\{\\s*app:\\s*'" + h.app + "'").test(all));
+  if (h.noButton) ok(page + ': has no devices button (managed from TaskHub)', !/Beacon\.open\(/.test(all));
+  else ok(page + ': has a button that opens the panel for it', new RegExp("Beacon\\.open\\(\\s*\\{\\s*app:\\s*'" + h.app + "'").test(all));
 }
 // TaskHub: the panel lives in Settings, on both sides.
 const idx = read('index.html');
