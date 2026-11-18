@@ -4776,7 +4776,8 @@ function reconcileDigest(d, events){
 // Walk the chain until a model returns something usable. `only` pins a single
 // model (used by ?model= when comparing models).
 async function generateDigest(events, wl, env, only){
-  const prompt = buildDigestPrompt(events, wl);
+  const tape = await fetchTape(events, wl);
+  const prompt = buildDigestPrompt(events, wl, tape);
   const chain = only ? [{ provider: only.startsWith('meta/') ? 'nim' : 'gemini', model: only }] : SUMMARY_CHAIN;
   for (const entry of chain){
     // Respect the cooldown the analysis phase sets — no point spending a call on
@@ -4796,6 +4797,8 @@ async function generateDigest(events, wl, env, only){
     const d = normalizeDigest(raw);
     if (d){
       reconcileDigest(d, events);
+      const mv = digestMoves(d, tape);
+      if (mv){ d.moves = mv.moves; d.movesAt = mv.asOf; }
       d.model = entry.model;
       d.ms = Date.now() - t0;
       console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);

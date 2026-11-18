@@ -3993,7 +3993,8 @@ function reconcileDigest(d, events){
 // Walk the chain until a model returns something usable. `only` pins a single
 // model (used by ?model= when comparing models).
 async function generateDigest(events, wl, env, only){
-  const prompt = buildDigestPrompt(events, wl);
+  const tape = await fetchTape(events, wl);
+  const prompt = buildDigestPrompt(events, wl, tape);
   const chain = only ? [{ provider: only.startsWith('meta/') ? 'nim' : 'gemini', model: only }] : SUMMARY_CHAIN;
   for (const entry of chain){
     // Respect the cooldown the analysis phase sets — no point spending a call on
@@ -4013,6 +4014,8 @@ async function generateDigest(events, wl, env, only){
     const d = normalizeDigest(raw);
     if (d){
       reconcileDigest(d, events);
+      const mv = digestMoves(d, tape);
+      if (mv){ d.moves = mv.moves; d.movesAt = mv.asOf; }
       d.model = entry.model;
       d.ms = Date.now() - t0;
       console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);
@@ -5205,7 +5208,11 @@ function sparkStock(s){
   let ext = null;
   if (s.last && s.lastTs){
     const inP = (per) => per && s.lastTs >= per.start && s.lastTs < per.end;
-    if (inP(tp.pre) && prev) ext = { kind:'pre', price: s.last, dp: (s.last - prev) / prev * 100 };
+    // Pre-market is measured from the LAST close, which before the open is still
+    // regularMarketPrice. It used to be measured from chartPreviousClose (the
+    // close before that): on 2026-11-18 TSM closed -3.7% at 359.69, traded 369.96
+    // pre-market (+2.9%) and showed -0.9%.
+    if (inP(tp.pre) && reg) ext = { kind:'pre', price: s.last, dp: (s.last - reg) / reg * 100 };
     else if (inP(tp.post) && reg) ext = { kind:'post', price: s.last, dp: (s.last - reg) / reg * 100 };
   }
   return { c: reg, pc: prev, dp, ext, points: sparkPoints(s.closes, 48) };
