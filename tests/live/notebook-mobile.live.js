@@ -292,7 +292,16 @@ const only = process.argv[2];
     await js(`var b=document.getElementById('${K}-btn-edit'); if(!b.checked){ document.querySelector('#${K}-root .nb-fab').click(); } 1`); await sleep(500);
     const tb = await rect(`#${K}-page-toolbar`);
     ok(`${side} instance: editing puts the ribbon in one row right under its header`, /\bnb-mdock\b/.test(await cls(K)) && Math.abs(tb.t - (await rect(`#${K}-mobile-header`)).b) <= 1 && tb.h <= 56, JSON.stringify(tb));
+    // Editing on a phone takes the whole screen in every host (Tony, 2026-11-18),
+    // as index.html's journals do; Reading mode puts it back in the host's box.
+    const full = await rect(`#${K}-root`);
+    const vp = await js(`return [innerWidth, innerHeight];`);
+    ok(`${side} instance: editing takes the whole screen`, /\bnb-mfull\b/.test(await cls(K)) && full.t === 0 && Math.round(full.h) >= vp[1] - 1 && Math.round(full.w) >= vp[0] - 1, JSON.stringify({ full, vp }));
+    ok(`${side} instance: nothing of the host shows over it`, await js(`var e=document.elementFromPoint(innerWidth-30, innerHeight-30); return !!e && !!e.closest('#${K}-root');`));
     await shot(`instance-${side}-412`);
+    await js(`document.querySelector('#${K}-root .nb-mh-mode').click(); 1`); await sleep(500);
+    const back = await rect(`#${K}-root`);
+    ok(`${side} instance: Reading mode puts it back in the host's box`, !/\bnb-mfull\b/.test(await cls(K)) && back.t > 0 && !(await js(`return getComputedStyle(document.documentElement).overflow === 'hidden';`)), JSON.stringify(back));
   }
 
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
