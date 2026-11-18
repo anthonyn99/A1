@@ -50,6 +50,15 @@
  *                          indexes in the rows as drawn; called only when
  *                          something moved (a same-list drop has to != from)
  *     onKey(row, dir),     a focused grip's arrow key, dir -1 / +1
+ *     slots(from, to),     grid axis: where every row WOULD sit if row `from`
+ *                          moved to slot `to` -- an array, by row index as
+ *                          drawn, of { x, y } relative to the list's content.
+ *                          Given, it decides the preview: the slot is the one
+ *                          whose landing spot is nearest the dragged row, the
+ *                          others slide to their spots, and the row glides to
+ *                          its own. A caller that lays rows out itself (cards
+ *                          of different spans) answers from that same layout,
+ *                          so the preview is always where the drop lands
  *   })
  *   A1Drag.grip(label)     a grip button (⋮⋮) with that aria-label
  *   A1Drag.order(orders, from, to, step)
@@ -330,6 +339,11 @@
         sHi = rk.filter(function (k) { return k <= r0k; }).length - 1;
       }
       var free = !!me.o.free;
+      // The caller's own layout (cards of different spans), one answer per slot for this drag.
+      var slotCache = {}, slotsAt = grid && me.o.slots ? function (k) {
+        if (!slotCache[k]) { var a = null; try { a = me.o.slots(from, k); } catch (err) { console.error(err); } slotCache[k] = a || []; }
+        return slotCache[k];
+      } : null;
       var lb0 = list.getBoundingClientRect();
       var px0 = e.clientX - lb0.left + list.scrollLeft, py0 = e.clientY - lb0.top + list.scrollTop;   // pointer, in list content
       var pid = e.pointerId, touch = e.pointerType !== 'mouse';
@@ -423,7 +437,16 @@
           if (to !== from || tgt) { to = from; rows.forEach(still); }
           return;
         }
-        if (grid) {
+        if (grid && slotsAt) {
+          row.style.transform = lift(pos2(d.dx, d.dy));
+          var sx = boxes[from].x + d.dx, sy = boxes[from].y + d.dy, sb = Infinity;
+          for (var si = sLo; si <= sHi; si++) {
+            var sp0 = slotsAt(si)[from];
+            if (!sp0) continue;
+            var sd = Math.pow(sp0.x - sx, 2) + Math.pow(sp0.y - sy, 2);
+            if (sd < sb) { sb = sd; t = si; }
+          }
+        } else if (grid) {
           row.style.transform = lift(pos2(d.dx, d.dy));
           var cx = boxes[from].x + boxes[from].w / 2 + d.dx, cy = boxes[from].y + boxes[from].h / 2 + d.dy, best = Infinity;
           boxes.forEach(function (b, i) {
@@ -447,9 +470,12 @@
         }
         if (t !== to || tgt) {
           to = t;
+          var sl = grid && slotsAt ? slotsAt(to) : null;
           rows.forEach(function (r, i) {
             if (r === row) return;
-            if (grid) {
+            if (sl) {
+              if (sl[i]) nudge(r, sl[i].x - boxes[i].x, sl[i].y - boxes[i].y);
+            } else if (grid) {
               var k = from < to && i > from && i <= to ? i - 1 : from > to && i >= to && i < from ? i + 1 : i;
               nudge(r, boxes[k].x - boxes[i].x, boxes[k].y - boxes[i].y);
             } else {
@@ -706,6 +732,9 @@
               dy: sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top) };
         } else if (copy) {
           land = null;
+        } else if (grid && slotsAt) {
+          var ls = to === from || to < 0 ? null : slotsAt(to)[from];
+          land = ls ? { dx: ls.x - boxes[from].x, dy: ls.y - boxes[from].y } : null;
         } else if (grid) {
           land = to === from || to < 0 ? null : { dx: boxes[to].x - boxes[from].x, dy: boxes[to].y - boxes[from].y };
         } else {
