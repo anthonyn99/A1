@@ -4537,7 +4537,7 @@ The FIRST ticker is the story's subject (whose CEO, board, earnings, deal or rat
 
 EVENTS
 ${rows}
-
+${tapeBlock(tape)}
 Write a concise, decision-useful digest of THIS news. Rules:
 - Synthesize across events. Connect related stories into one narrative; never restate the list.
 - Be specific and quantitative. Keep the real numbers ($96.2B, -1.96%, 12.9B deal) — they are why this is worth reading.
@@ -4547,7 +4547,7 @@ Write a concise, decision-useful digest of THIS news. Rules:
 - Never soften a clearly directional event to neutral with a "despite" clause. A CEO ouster, probe, guidance cut or downgrade is bearish for its subject; a beat-and-raise, upgrade or big win is bullish.
 - A ticker's stance in "tickers" must agree with that ticker's own stances in the events above, weighted by impact; a critical event dominates minor ones.
 - Weight fresh news over stale: a 4h-old critical event outranks a 60h-old one.
-- Only name tickers that actually appear above.
+${tape ? TAPE_RULES : ''}- Only name tickers that actually appear above.
 - No hedging filler, no "investors should consult", no restating these instructions.
 
 Fields:
