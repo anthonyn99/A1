@@ -1041,9 +1041,15 @@ function updateVRuler(ctx) {
   if (!wrap || !sheet) return;
   var wr = wrap.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
   if (!sr.height) return;
-  var topInWrap = sr.top - wr.top + wrap.scrollTop;
-  var leftInWrap = sr.left - wr.left + wrap.scrollLeft;
-  var H = sr.height;
+  // Screen rects include any transform on an ancestor: a host modal that
+  // scales in (StudyOS: 0.95 → 1) made the ruler land off by the scale and
+  // then visibly slide into place as later reflows corrected it. Divide the
+  // scale back out so the ruler sits right on the first frame.
+  var sc = wrap.offsetWidth ? wr.width / wrap.offsetWidth : 1;
+  if (!(sc > 0.05)) sc = 1;
+  var topInWrap = (sr.top - wr.top) / sc + wrap.scrollTop;
+  var leftInWrap = (sr.left - wr.left) / sc + wrap.scrollLeft;
+  var H = sr.height / sc;
   var zi = _zoomFactor(ctx.app, wrap);
   var m = marginsGet(ctx.app);
   ruler.style.top = topInWrap + 'px';
