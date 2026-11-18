@@ -141,7 +141,7 @@ const ok = (name, cond, extra) => {
   ok('"Reset to my default" is off until one is saved', await js(`return document.querySelector('[data-mk] [data-lay-reset] option[value="mine"]').disabled;`));
   await menu('save'); await sleep(300);
   ok('Save as my default says so in the menu', await js(`return /Saved as my default/.test(document.querySelector('[data-mk] [data-lay-reset] option[value=""]').textContent);`));
-  ok('...and is kept beside the layouts in dashboards/tradehub_layout (market.mine.desktop)', await until(`(function(){ var d=(window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market; return d && d.mine && d.mine.desktop && d.mine.desktop.hidden.indexOf('volume')>=0 && d.mine.desktop.span.breadth.w===${Number(mineSpan.split('x')[0])}; })()`, 5000));
+  ok('...and is kept beside the layouts in dashboards/tradehub_layout (market.mine.desktop)', await until(`(function(){ var d=(window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market; return d && d.mine && d.mine.desktop && d.mine.desktop.hidden.indexOf('volume')>=0 && d.mine.desktop.span.breadth.w===${Number(mineSpan.split('x')[0])}; })()`, 5000), await js(`return JSON.stringify((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market||null).slice(0,600);`) + ' want ' + mineSpan + ' ' + mineOrder);
   await menu('orig'); await sleep(500);
   ok('Reset to original: every card back at its first spot and size', JSON.stringify(await rects()) === JSON.stringify(orig));
   await menu('mine'); await sleep(500);
