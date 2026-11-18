@@ -37,7 +37,7 @@ const worker = { patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'http
 
 const AUDIT = `
   const skip = (b) => b.closest('.tb-navtab,.tbtabs,.tbx-seg,.tbp-tools,.tbmd-dir,.nh-pulse,.tbf,.tbmd-legs,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock,.nh-outlets')
-    || b.classList.contains('a1-grip') || b.classList.contains('dsort-grip');
+    || b.classList.contains('a1-grip') || b.classList.contains('a1-edge') || b.classList.contains('dsort-grip');
   const seen = (b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05; };
   const outlined = (b) => { const s = getComputedStyle(b);
     return ['Top','Right','Bottom','Left'].some(k => parseFloat(s['border'+k+'Width']) > 0 && s['border'+k+'Style'] !== 'none' && !/rgba\\(\\d+, \\d+, \\d+, 0\\)|transparent/.test(s['border'+k+'Color'])); };

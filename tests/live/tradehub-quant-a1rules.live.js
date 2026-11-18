@@ -6,7 +6,7 @@
 //   2. no native control: selects are A1's, no date/time input, no native dialog
 //   3. every button is bordered
 //   4. a drag by the title bar reorders the cards (mouse; touch after a 300 ms hold) and persists across a reload
-//   5. the corner grip resizes a card in whole grid units, by mouse and by keyboard, and persists
+//   5. the se corner handle (A1Resize.edges, R1) resizes a card in whole grid units, by mouse and by keyboard, and persists
 //   6. the page stays inside the 2000 px cap
 //
 // Run: node tests/live/tradehub-quant-a1rules.live.js
@@ -66,8 +66,8 @@ const ok = (name, cond, extra) => {
     ok('a card that overflows scrolls inside itself, and gets A1\'s thumb', await js(`var b=document.querySelector('.lay-card[data-card="streaks"] .lay-body'); b.scrollTop=40; await new Promise(function(r){setTimeout(r,250);}); return b.scrollHeight>b.clientHeight && b.scrollTop>0;`));
     const nat = JSON.parse(await js(`var r=document.querySelector('[data-mk]'); return JSON.stringify({ sel:[...r.querySelectorAll('select')].filter(function(s){return s.closest('[data-native]');}).length, selN:r.querySelectorAll('select').length,
         dates:r.querySelectorAll('input[type=date],input[type=time],input[type=datetime-local],input[type=color]').length, ctl:!!window.A1Controls });`));
-    ok('no native control: the one select is A1\'s, no date or time input', nat.ctl && nat.selN === 1 && nat.sel === 0 && nat.dates === 0, JSON.stringify(nat));
-    const btn = JSON.parse(await js(`var bad=[]; document.querySelectorAll('[data-mk] button, [data-mk] select').forEach(function(b){ if(b.classList.contains('a1-grip')) return; var cs=getComputedStyle(b); if(parseFloat(cs.borderTopWidth)<1||cs.borderTopStyle==='none'||/rgba\\(0, 0, 0, 0\\)|transparent/.test(cs.borderTopColor)) bad.push(b.className||b.textContent); });
+    ok('no native control: the two selects (Add card, Layout) are A1\'s, no date or time input', nat.ctl && nat.selN === 2 && nat.sel === 0 && nat.dates === 0, JSON.stringify(nat));
+    const btn = JSON.parse(await js(`var bad=[]; document.querySelectorAll('[data-mk] button, [data-mk] select').forEach(function(b){ if(b.classList.contains('a1-edge')) return; var cs=getComputedStyle(b); if(parseFloat(cs.borderTopWidth)<1||cs.borderTopStyle==='none'||/rgba\\(0, 0, 0, 0\\)|transparent/.test(cs.borderTopColor)) bad.push(b.className||b.textContent); });
       return JSON.stringify({ n: document.querySelectorAll('[data-mk] button').length, bad: bad });`));
     ok(`every button (${btn.n}) is bordered`, btn.n >= 18 && btn.bad.length === 0, btn.bad.join());
     ok('tickers are links, not buttons', await js(`return document.querySelectorAll('[data-mk] a[data-ticker]').length > 20 && !document.querySelector('[data-mk] button[data-ticker]');`));
@@ -78,10 +78,10 @@ const ok = (name, cond, extra) => {
         for (var y=r.top+0.5; y<t.bottom-1; y+=2) { var e=document.elementFromPoint(r.left+r.width/2, y); if(e && b.contains(e) && !e.closest('thead')) { out.push(b.parentNode.dataset.card+' at +'+Math.round(y-r.top)+'px: '+(e.textContent||'').trim().slice(0,20)); break; } }
         if (t.top > r.top + 0.5) out.push(b.parentNode.dataset.card+': header '+Math.round(t.top-r.top)+'px below the top'); b.scrollTop=0; }); return JSON.stringify(out);`));
     ok('scrolled, no row shows above a table header: it sits flush at the top', leak.length === 0, leak.join(' | '));
-    const grip = JSON.parse(await js(`var out=[]; document.querySelectorAll('.lay-grid > .lay-card:not(.is-collapsed)').forEach(function(c){ var g=c.querySelector('.a1-grip'), b=c.querySelector('.lay-body'); if(!g||!b) return;
-        var gr=g.getBoundingClientRect(), br=b.getBoundingClientRect(); var strokes={ l:gr.right-18, t:gr.bottom-18, r:gr.right-7, b:gr.bottom-7 };
-        if (strokes.t < br.bottom && strokes.l < br.right) out.push(c.dataset.card); }); return JSON.stringify(out);`));
-    ok('the resize grip sits in its own strip, never over a card\'s content', grip.length === 0, grip.join());
+    const grip = JSON.parse(await js(`var out=[]; document.querySelectorAll('.lay-grid > .lay-card:not(.is-collapsed)').forEach(function(c){ var g=c.querySelector('.a1-edge[data-edge="se"]'), b=c.querySelector('.lay-body'); if(!g||!b) return;
+        var gr=g.getBoundingClientRect(), br=b.getBoundingClientRect(); var hatch={ l:gr.right-11, t:gr.bottom-11 };
+        if (hatch.t < br.bottom && hatch.l < br.right) out.push(c.dataset.card); }); return JSON.stringify(out);`));
+    ok('the se handle\'s hatch sits below a card\'s content, never over it', grip.length === 0, grip.join());
     await js(`document.querySelector('.lay-card[data-card="streaks"] .lay-body').scrollTop=0; document.querySelector('.tb-scroll-visible').scrollTop=0; 1`); await sleep(200);
 
     if (w === 1280) {
@@ -100,12 +100,12 @@ const ok = (name, cond, extra) => {
       await boot({ keep: true }); await open();
       ok('the order survives a reload', (await order()) === after, await order());
 
-      console.log('\nResize by the corner grip');
+      console.log('\nResize by the se corner handle');
       const span = () => js(`var e=document.querySelector('.lay-card[data-card="breadth"]'); return e.dataset.w+'x'+e.dataset.h;`);
       const s0 = await span();
       const unit = JSON.parse(await js(`var g=document.querySelector('.lay-grid'); return JSON.stringify({ x:(g.clientWidth-14*11)/12+14, y:58 });`));
-      const g0 = await centre('.lay-card[data-card="breadth"] .a1-grip');
-      ok('each card carries A1\'s grip (9 cards with Phase 13\'s Macro)', await js(`return document.querySelectorAll('.lay-grid .lay-card .a1-grip').length === 9 && document.querySelector('.lay-card .a1-grip').getAttribute('aria-label').indexOf('Resize ')===0;`));
+      const g0 = await centre('.lay-card[data-card="breadth"] .a1-edge[data-edge="se"]');
+      ok('each card carries A1\'s eight handles (9 cards with Phase 13\'s Macro), no old grip', await js(`return document.querySelectorAll('.lay-grid .lay-card > .a1-edge').length === 72 && !document.querySelector('.lay-card .a1-grip') && document.querySelector('.lay-card .a1-edge[data-edge="se"]').getAttribute('aria-label').indexOf('Resize ')===0;`));
       await mouseDrag({ x: g0.x, y: g0.y }, { x: g0.x + unit.x * 2 + 6, y: g0.y + unit.y * 2 + 5 });
       const s1 = await span();
       const [w0, h0] = s0.split('x').map(Number), [w1, h1] = s1.split('x').map(Number);
@@ -113,10 +113,10 @@ const ok = (name, cond, extra) => {
       const px = await centre('.lay-card[data-card="breadth"]');
       ok('...snapped to the grid: its width is a whole number of columns', Math.abs(px.w - (w1 * unit.x - 14)) < 1.5 && Math.abs(px.h - (h1 * 58 - 14)) < 1.5, JSON.stringify(px));
       await mouseDrag({ x: g0.x, y: g0.y }, { x: g0.x + 2, y: g0.y + 2 });
-      await js(`var g=document.querySelector('.lay-card[data-card="breadth"] .a1-grip'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true})); g.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true})); 1`);
+      await js(`var g=document.querySelector('.lay-card[data-card="breadth"] .a1-edge[data-edge="se"]'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true})); g.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true})); 1`);
       await sleep(300);
       ok('the arrow keys resize it a unit at a time', (await span()) === (w1 - 1) + 'x' + (h1 - 1), await span());
-      const tiny = await centre('.lay-card[data-card="breadth"] .a1-grip');
+      const tiny = await centre('.lay-card[data-card="breadth"] .a1-edge[data-edge="se"]');
       await mouseDrag({ x: tiny.x, y: tiny.y }, { x: tiny.x - 900, y: tiny.y - 700 });
       ok('it never goes under the card\'s minimum', (await span()) === '3x5', await span());
       await sleep(1800);

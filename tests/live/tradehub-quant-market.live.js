@@ -154,8 +154,8 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('...and the reload wrote nothing', (await writes()) === 0, await writes());
   await js(`var s=document.querySelector('[data-lay-add]'); s.value='volume'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').disabled`, 3000));
-  await js(`document.querySelector('[data-lay-reset]').click(); 1`);
-  ok('Reset layout restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 9`, 3000));
+  await js(`var m=document.querySelector('[data-lay-reset]'); m.value='orig'; m.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+  ok('Layout ▸ Reset to original restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 9`, 3000));
   await size(390, 844); await sleep(700);
   await js(`document.querySelector('.lay-card[data-card="analogs"] [data-act="hide"]').click(); 1`); await sleep(2200);
   await size(DESK_W, 900); await sleep(700);
