@@ -855,6 +855,9 @@
   .nhs-card:hover { border-color: var(--border); }
   .nhs-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
   .nhs-sym { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+  .nhs-card-l { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .nhs-mv { font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+  .nhs-mv b { font-weight: 600; }
   .nhs-theme { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.3; min-width: 0; }
   .nhs-card-n { margin-top: 7px; font-size: 12.5px; line-height: 1.58; color: var(--text-2); }
   .nhs-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -6274,7 +6277,7 @@ TB.news = {
           <div class="nhs-pt-b"><div class="nhs-pt-t">${U.esc(k.text)}</div>
             <div class="nhs-pt-f">${stTag(k.stance)}${(has(k.tickerStances) ? k.tickerStances : (k.tickers || []).map(t => ({ ticker: t, stance: null }))).map((t, j) => { const g = t.stance === "bull" ? "▲" : t.stance === "bear" ? "▼" : ""; return `<span class="nhs-tk${j === 0 && has(k.tickerStances) ? " subj" : ""}"${g ? ` style="--tk:${stance(t.stance)}" title="${t.stance === "bull" ? "Bullish" : "Bearish"} for ${U.esc(t.ticker)}${j === 0 ? " (the subject)" : ""}"` : ""}>${U.esc(t.ticker)}${g ? `<i aria-hidden="true">${g}</i>` : ""}</span>`; }).join("")}</div></div></li>`).join("")}</ol>`) : ""}
         ${has(data.tickers) ? sec("By ticker", data.tickers.length, `<div class="nhs-grid">${data.tickers.map(t => `<div class="nhs-card">
-          <div class="nhs-card-h"><span class="nhs-sym" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span>${stTag(t.stance)}</div>
+          <div class="nhs-card-h"><span class="nhs-card-l"><span class="nhs-sym" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span>${moveTag(data.moves && data.moves[t.ticker], data.movesAt)}</span>${stTag(t.stance)}</div>
           <div class="nhs-card-n">${U.esc(t.note)}</div></div>`).join("")}</div>`) : ""}
         ${has(data.themes) ? sec("Themes", data.themes.length, `<div class="nhs-grid nhs-grid-wide">${data.themes.map(t => `<div class="nhs-card">
           <div class="nhs-card-h"><span class="nhs-theme">${U.esc(t.name)}</span>${stTag(t.stance)}</div>
