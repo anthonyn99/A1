@@ -205,6 +205,34 @@ async def open_site(page, site: SiteSelectors, *, tries: int = 2) -> None:
             await asyncio.sleep(2)
 
 
+async def find_composer(page, site: SiteSelectors, *, pacing=None):
+    """Wait for the composer; if it never shows, reload ONCE and wait again.
+
+    ChatGPT sometimes stalls mid-load (seen 2026-11-17 and 2026-11-18): the
+    page sits on its pre-load placeholder (`textarea#pending-home-input`,
+    sidebar still grey skeletons) or mounts the real box only just after the
+    wait ran out, and the run failed with "No 'input' selector matched". The
+    placeholder is not the composer -- text typed there is never sent until
+    the page finishes loading -- so it is not added as a selector; a fresh
+    load is what clears it. No reload when a login control or a challenge is
+    showing: a reload does not fix either, and the caller reports them."""
+    timeout_ms = site.ready_timeout_s * 1000
+    box = await resolve.resolve(page, site.input, timeout_ms=timeout_ms)
+    if box is not None:
+        return box
+    if await resolve.signed_out(page, site.login_selectors):
+        return None
+    if await resolve.is_challenge_page(page, site.challenge_selectors):
+        return None
+    try:
+        await open_site(page, site)
+    except Exception:
+        return None
+    if pacing is not None:
+        await asyncio.sleep(pacing.sample_post_nav())
+    return await resolve.resolve(page, site.input, timeout_ms=timeout_ms)
+
+
 class BrowserProvider(Provider):
     kind = "browser"
 
@@ -469,9 +497,7 @@ class BrowserProvider(Provider):
                     )
 
                 # -- composer -------------------------------------------------
-                box = await resolve.resolve(
-                    page, site.input, timeout_ms=site.ready_timeout_s * 1000
-                )
+                box = await find_composer(page, site, pacing=self.settings.pacing)
                 if box is None:
                     artifacts = await self._save_artifacts(page, "no-input")
                     if not guest and await resolve.signed_out(page, site.login_selectors):
@@ -925,7 +951,7 @@ class BrowserProvider(Provider):
             page = browser_ctx.pages[0] if browser_ctx.pages else await browser_ctx.new_page()
             await open_site(page, site)
             await asyncio.sleep(self.settings.pacing.sample_post_nav())
-            if await resolve.resolve(page, site.input, timeout_ms=site.ready_timeout_s * 1000) is None:
+            if await find_composer(page, site, pacing=self.settings.pacing) is None:
                 return []
             await overlay.dismiss(page, site.dismiss_selectors)
             return await picker.list_options(page, site)
