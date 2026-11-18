@@ -405,6 +405,17 @@ function instanceCss(cfg) {
     // bar is hidden, notebook.css "Phones and tablets"; these stay as a floor.)
     css.push('@media (max-width: 900px){' + R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop{position:absolute!important;height:100%!important;}'
       + R + ' ' + K + '-bottom-bar{position:absolute!important;}}');
+    // Editing on a phone (core/mobile.js sets nb-mfull): the instance takes the
+    // whole window, as index.html's journals do (Tony, 2026-11-18). Every
+    // ancestor drops what would make it the box a fixed element sits in (a
+    // transform, a filter, containment) or cap its stacking, and the host's page
+    // stops scrolling underneath. Under Notebook's own popups (100011+).
+    var F = R + '.nb-mfull';
+    css.push(F + '{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;'
+      + 'z-index:100000!important;padding-top:env(safe-area-inset-top,0px)!important;background:var(--bg);}');
+    css.push(':has(' + F + '){transform:none!important;filter:none!important;backdrop-filter:none!important;'
+      + 'perspective:none!important;contain:none!important;container-type:normal!important;will-change:auto!important;z-index:auto!important;}');
+    css.push('html:has(' + F + '),body:has(' + F + '){overflow:hidden!important;}');
   }
   // features.sidebar false: the entry list, its phone drawer and the phone
   // bar's New button go; the host picks the entry (Notebook.open).

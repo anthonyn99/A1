@@ -9,6 +9,10 @@
        sync word, then Edit/Reading, New and ⋮ (lock, PDF).
        In index.html the editor covers the program nav; the list shows it.
        Reading mode adds a pencil button at the bottom right.
+       Editing there takes the whole screen in every host, as index.html's
+       journals always do (Tony, 2026-11-18): an instance (TradeHub's
+       Playbook, Everwell...) gets nb-mfull and notebook.js's instanceCss pins
+       it over the window until Reading mode or Back.
      - Editing a page on any touch screen up to 1366px (a landscape tablet
        too) makes the ribbon ONE row of icons right under the header, so it
        works the same on every screen and keyboard. It scrolls sideways; its
@@ -191,9 +195,9 @@ function wire(K) {
   // offset and its height ends at the keyboard, so the header stays put and the
   // page scrolls inside its own box. An instance lives in its host's layout and
   // is left alone.
-  function fitRoot(on) {
+  function fitRoot(on, full) {
     var vv = window.visualViewport;
-    on = on && overlay && !!vv && vv.scale <= 1.01 && (vv.offsetTop > 0.5 || window.innerHeight - vv.height > 1);
+    on = on && (overlay || full) && !!vv && vv.scale <= 1.01 && (vv.offsetTop > 0.5 || window.innerHeight - vv.height > 1);
     if (on) {
       // Written only when they change: the root's style is observed (sync).
       var t = Math.round(vv.offsetTop) + 'px', h = Math.round(vv.height) + 'px';
@@ -267,19 +271,22 @@ function wire(K) {
     dockParts();
     var dock = touch && !!tb && tb.classList.contains('edit-mode') && page && !locked && (!shell || doc);
     if (!dock && tb && tb.classList.contains('nb-dock-menus')) { tb.classList.remove('nb-dock-menus'); if (tog) tog.setAttribute('aria-label', 'Menus'); }
-    var set = { 'nb-m': touch, 'nb-shell': shell, 'nb-mlist': listOpen, 'nb-mdoc': doc, 'nb-medit': ed, 'nb-mpage': page, 'nb-mdock': dock };
+    // An instance being edited on a phone takes the whole screen (index.html's
+    // overlay roots already have it).
+    var full = !overlay && doc && ed && !noentry && !locked;
+    var set = { 'nb-m': touch, 'nb-shell': shell, 'nb-mlist': listOpen, 'nb-mdoc': doc, 'nb-medit': ed, 'nb-mpage': page, 'nb-mdock': dock, 'nb-mfull': full };
     Object.keys(set).forEach(function (c) { if (root.classList.contains(c) !== !!set[c]) root.classList.toggle(c, !!set[c]); });
     mode.setAttribute('aria-label', ed ? 'Reading mode' : 'Edit');
     var fabNew = listOpen, fabEdit = doc && page && !ed && !locked;
     fab.classList.toggle('on', !!(fabNew || fabEdit));
     fab.classList.toggle('nb-fab-new', fabNew);
     fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
-    fitRoot(doc && shown(root));
+    fitRoot(doc && shown(root), full);
     if (dock) kbSpace(); else { root.classList.remove('nb-kb'); root.style.removeProperty('--nb-kb-space'); }
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
     var de = document.documentElement, mine = de.getAttribute('data-nb-doc') === K;
-    var cover = overlay && doc && shown(root);
+    var cover = (overlay || full) && doc && shown(root);
     if (cover && !mine) de.setAttribute('data-nb-doc', K);
     else if (!cover && mine) de.removeAttribute('data-nb-doc');
   }
