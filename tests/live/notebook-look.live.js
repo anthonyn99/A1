@@ -112,7 +112,7 @@ async function hover(c, js, K) {
 
 // Each host: how to reach its editor with the test page open in edit mode.
 const HOSTS = [
-  { name: 'Everwell', key: 'ewn', missing: [/#K-btn-lock/],
+  { name: 'Everwell', key: 'ewn', missing: [/#K-btn-lock/, /#K-fullscreen-btn/],
     async open(c, js, until) {
       await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/everwell_notes': { _order: ['prayer'], e_prayer: ${JSON.stringify(entry('prayer', 'Prayer'))} } })); return 1;`);
       await c.send('Page.navigate', { url: BASE + 'everwell.html' }); await sleep(2800);
@@ -135,7 +135,7 @@ const HOSTS = [
       return until(`document.querySelector('#pb-root .docx-toolbar.edit-mode')`, 10000);
     } },
   // Control's prompt editor: no sidebar, opened in place by the prompt list's Edit.
-  { name: 'TradeHub prompts', key: 'prm', missing: [/#K-btn-lock/],
+  { name: 'TradeHub prompts', key: 'prm', missing: [/#K-btn-lock/, /#K-fullscreen-btn/],
     async open(c, js, until) {
       await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
         sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/tradeboard_prompts': { prompts: [{ id: 'p_look', name: 'Look', text: '## Heading' }] },
