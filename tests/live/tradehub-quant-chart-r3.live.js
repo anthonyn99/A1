@@ -112,7 +112,17 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   const viewNoExt = (await info()).view;
   await js(`document.querySelector('[data-ch-tg="ext"]').click(); 1`); await sleep(500);
   ok('Ext. off and on: the time window stays where it was (no re-fit)', Math.abs((await info()).view.to - view0.to) < 1.5 && Math.abs(((await info()).view.to - (await info()).view.from) - (view0.to - view0.from)) < 2, JSON.stringify([view0, viewNoExt, (await info()).view]));
+  // A pick in one of A1's dropdowns (they open on document.body) keeps the Display menu open.
+  { const r = JSON.parse(await js(`var b=document.querySelector('[data-ch-dispmenu] [data-ch-tz]').getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2});`));
+    const press = async (x, y) => { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }); await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 }); await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 }); };
+    await press(r.x, r.y);
+    const opt = await until(`[...document.querySelectorAll('.a1c-pop .a1c-opt')].some(function(o){return /^UTC/.test(o.textContent.trim());})`, 3000);
+    if (opt) { const o = JSON.parse(await js(`var e=[...document.querySelectorAll('.a1c-pop .a1c-opt')].find(function(o){return /^UTC/.test(o.textContent.trim());}); var b=e.getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2});`)); await press(o.x, o.y); }
+    await sleep(400);
+    ok('Display ▸ Time zone: a pick in A1\'s dropdown sets it and the menu stays open', opt && (await js(`return ${CH}.get().tz;`)) === 'utc' && await js(`return !document.querySelector('[data-ch-dispmenu]').hidden;`), JSON.stringify({ opt, tz: await js(`return ${CH}.get().tz;`), open: await js(`return !document.querySelector('[data-ch-dispmenu]').hidden;`) }));
+    await js(`${TAB}.active() && document.querySelector('[data-charts]').__charts; window._tbOps.charts.set({tz:'local'}); 1`); }
   await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`);
+  ok('a press outside closes the Display menu', await js(`return document.querySelector('[data-ch-dispmenu]').hidden;`));
 
   console.log('\n2. A hard zoom in');
   await wheel(80, -120);
