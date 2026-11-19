@@ -408,13 +408,19 @@ function instanceCss(cfg) {
     // Editing on a phone (core/mobile.js sets nb-mfull): the instance takes the
     // whole window, as index.html's journals do (Tony, 2026-11-18). Every
     // ancestor drops what would make it the box a fixed element sits in (a
-    // transform, a filter, containment) or cap its stacking, and the host's page
-    // stops scrolling underneath. Under Notebook's own popups (100011+).
+    // transform, a filter, containment), and the host's page stops scrolling
+    // underneath. Every ancestor is also LIFTED to the root's level, not
+    // flattened to z-index:auto: a fixed or sticky ancestor (Everwell's editor
+    // overlay) stays a stacking context at level 0 even with auto, and the
+    // host's own raised boxes (its cards, z-index 1+) painted over the editor
+    // (Tony, 2026-11-18). Lifted, the whole chain sits above the host's page.
+    // Under Notebook's own popups (100011+).
     var F = R + '.nb-mfull';
     css.push(F + '{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;'
       + 'z-index:100000!important;padding-top:env(safe-area-inset-top,0px)!important;background:var(--bg);}');
     css.push(':has(' + F + '){transform:none!important;filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;'
-      + 'perspective:none!important;contain:none!important;container-type:normal!important;will-change:auto!important;z-index:auto!important;}');
+      + 'perspective:none!important;contain:none!important;container-type:normal!important;will-change:auto!important;'
+      + 'clip-path:none!important;mask:none!important;-webkit-mask:none!important;z-index:100000!important;}');
     css.push('html:has(' + F + '),body:has(' + F + '){overflow:hidden!important;}');
   }
   // features.sidebar false: the entry list, its phone drawer and the phone
