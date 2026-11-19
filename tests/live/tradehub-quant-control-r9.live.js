@@ -41,7 +41,9 @@ const DESK_W = 1280 + 224;
     ok(`"${id}" shows only its section, its tab pressed`, (await shown()) === want && await js(`return document.querySelector('[data-ctl-sub="${id}"]').getAttribute('aria-selected') === 'true';`), await shown());
   }
   ok('Quant: the switch and the data status together', await js(`var p=document.querySelector('[data-ctl-pane="quant"]'); return !!p.querySelector('.ctl-quant') && !!p.querySelector('.ctl-status');`));
+  await js(`document.querySelector('[data-ctl-sub="neo"]').click(); 1`); await sleep(300);
   ok('Neo Quant: voice and memory side by side on a wide screen', await js(`var p=document.querySelector('[data-ctl-pane="neo"]'), v=p.querySelector('.ctl-voice').getBoundingClientRect(), m=p.querySelector('.ctl-memory').getBoundingClientRect(); return Math.abs(v.top - m.top) < 2 && m.left > v.right;`));
+  await js(`document.querySelector('[data-ctl-sub="alerts"]').click(); 1`); await sleep(300);
   ok('Alerts: its sections in two columns on a wide screen', await js(`var c=document.querySelector('[data-ctl-pane="alerts"] .tal-card'); return getComputedStyle(c).gridTemplateColumns.split(' ').length === 2;`), await js(`return getComputedStyle(document.querySelector('[data-ctl-pane="alerts"] .tal-card')).gridTemplateColumns;`));
   await sleep(300);
   await boot({ keep: true }); await tab('prompt');
@@ -75,7 +77,7 @@ const DESK_W = 1280 + 224;
   await js(`document.querySelector('[data-nq-launch]').click(); 1`);
   ok('Neo Quant\'s question box has A1\'s resize grip', await until(`(function(){ var g=document.querySelector('.nq-compose .a1-grip-wrap > .a1-grip'); return g && !!document.querySelector('.nq-compose .a1-grip-wrap > [data-nq-input]'); })()`, 6000));
   await js(`var x=document.querySelector('[data-nq-close]'); if(x) x.click(); 1`); await sleep(300);
-  ok('the Neo Quant and mic buttons: heavier strokes and a 1.5 px border', await js(`var l=document.querySelector('[data-nq-launch]'), m=document.querySelector('[data-nq-mic]'); var ring=l.querySelector('svg circle'), mp=m.querySelector('svg path'); return parseFloat(getComputedStyle(l).borderTopWidth) === 1.5 && parseFloat(getComputedStyle(ring).strokeWidth) >= 4.4 && parseFloat(getComputedStyle(mp).strokeWidth) >= 2.2;`),
+  ok('the Neo Quant and mic buttons: heavier strokes and a 2 px border', await js(`var l=document.querySelector('[data-nq-launch]'), m=document.querySelector('[data-nq-mic]'); var ring=l.querySelector('svg circle'), mp=m.querySelector('svg path'); return parseFloat(getComputedStyle(l).borderTopWidth) === 2 && parseFloat(getComputedStyle(m).borderTopWidth) === 2 && parseFloat(getComputedStyle(ring).strokeWidth) >= 4.4 && parseFloat(getComputedStyle(mp).strokeWidth) >= 2.2;`),
     await js(`var l=document.querySelector('[data-nq-launch]'); return getComputedStyle(l).borderTopWidth + ' ' + getComputedStyle(l.querySelector('svg circle')).strokeWidth;`));
   const nb = await js(`var r=await fetch('/A1/Notebook/notebook.css'); return await r.text();`);
   ok('Notebook (both sides): the primary button, Trash\'s "Restore selected" included, has a hover and a press', /\.docx-btn\.pri:not\(:disabled\):hover \{ filter: brightness\(1\.1\)/.test(nb) && /\.docx-btn\.pri:not\(:disabled\):active \{[^}]*translateY\(1px\)/.test(nb));
