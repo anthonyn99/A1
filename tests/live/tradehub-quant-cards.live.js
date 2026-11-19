@@ -1,8 +1,10 @@
 // TradeHub Quant refinements, R1 (A1-Priv docs/TradeHub/quant/r1-01.md): the
 // card system v2 in the real page, at 1280, 820 and 390 px.
 //
-//   1. the drop preview is where the card lands: mid-drag, every other card's
-//      rect equals its rect after the drop (several moves at each width)
+//   1. desktop / tablet: no card displaces another (Tony, 2026-11-19): over a
+//      card the outline is red, nothing moves, the drop is refused; into a free
+//      hole the card lands exactly on its outline. Phone: the stack's preview
+//      is the landing (A1Drag)
 //   2. every edge and corner resizes (A1Resize.edges): whole units, a left or
 //      top drag grows the card without moving it in the order
 //   3. Layout ▸ Save as my default / Reset to my default / Reset to original,
