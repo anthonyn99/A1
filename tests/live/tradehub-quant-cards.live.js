@@ -137,6 +137,8 @@ const ok = (name, cond, extra) => {
     const b = await centre(`[data-mk] .lay-card[data-card="breadth"] .a1-edge[data-edge="${edge}"]`);
     return { x: b.x, y: b.y };
   };
+  // Room on every side first: the card is dragged (free placement) one column right and three rows down.
+  { await scrollTo('breadth'); const tt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-title'); await mouseDrag(tt, { x: tt.x + unit.x, y: tt.y + 3 * unit.y }); }
   const cases = [['e', 1, 0, [1, 0]], ['w', -1, 0, [1, 0]], ['s', 0, 1, [0, 1]], ['n', 0, -1, [0, 1]], ['se', -1, -1, [-1, -1]], ['nw', 1, 1, [-1, -1]], ['ne', 1, -1, [1, 1]], ['sw', -1, 1, [1, 1]]];
   for (const [edge, ux, uy, [dw, dh]] of cases) {
     const s0 = (await span('breadth')).split('x').map(Number), o0 = await order();
