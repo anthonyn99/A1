@@ -22,6 +22,27 @@ for (const d of Object.keys(by).sort()) {
   const t = Object.values(by[d]).reduce((a, b) => a + b, 0);
   console.log(`  ${d}  total ${t}  ` + Object.entries(by[d]).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', '));
 }
+// quant-api's own ledger (D1, read only): outside calls per provider per day, which says which routes ran.
+if (process.env.D1_ID) {
+  const sql = async (q) => {
+    const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acct}/d1/database/${process.env.D1_ID}/query`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ sql: q }) });
+    const j = await r.json();
+    return j.success ? j.result[0].results : 'refused: ' + JSON.stringify(j.errors).slice(0, 300);
+  };
+  const since = day(new Date(now - days * 86400000));
+  const u = await sql(`SELECT day, service, n FROM usage WHERE day >= '${since}' ORDER BY day, n DESC`);
+  console.log('\nquant-api ledger (outside calls per provider per day):');
+  if (typeof u === 'string') console.log('  ' + u);
+  else { const g = {}; for (const r of u) (g[r.day] ||= []).push(`${r.service} ${r.n}`); for (const d of Object.keys(g)) console.log(`  ${d}  ${g[d].join(', ')}`); }
+  const h = await sql('SELECT provider, ok, status, fails, detail, at FROM provider_health ORDER BY at DESC LIMIT 25');
+  console.log('\nquant-api provider health (last answers):');
+  if (typeof h === 'string') console.log('  ' + h); else for (const r of h) console.log(`  ${r.provider} ok=${r.ok} status=${r.status} fails=${r.fails} at=${new Date(r.at).toISOString()} ${r.detail || ''}`);
+  for (const t of ['history_turns', 'alert_fires', 'signals', 'wanted', 'memory_cards']) {
+    const c = await sql(`SELECT COUNT(*) AS n FROM ${t}`);
+    if (typeof c !== 'string') console.log(`  rows in ${t}: ${c[0].n}`);
+  }
+}
+
 for (const d of [day(new Date(now - 86400000)), day(now)]) {
   const hrs = await run(q(d + 'T00:00:00Z', d === day(now) ? now.toISOString() : d + 'T23:59:59Z', 'scriptName datetimeHour'));
   const h = {};

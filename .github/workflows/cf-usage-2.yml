@@ -27,6 +27,7 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
           CF_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_2 }}
+          D1_ID: 25323b25-f012-4320-85f3-2f1de7a0881c   # quant-api's database (read only)
       - name: Keep the report on the cf-usage branch
         run: |
           cp usage.txt /tmp/usage.txt
