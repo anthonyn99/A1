@@ -59,17 +59,23 @@ const ok = (name, cond, extra) => {
     await scrollTo(id);
     const a = await centre(`[data-mk] .lay-card[data-card="${id}"] .lay-title`);
     const t2 = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
-    const before = await order();
+    const before = await order(), was = (await rects())[id];
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
     await press(a.x, a.y);
     await moveTo(a, { x: t2.x + dx, y: t2.y + dy });
     await sleep(450);   // the slides (.17 s) have finished
     const mid = await rects();
+    // Desktop and tablet (free placement, 2026-11-19): the dashed outline where the card will land.
+    const ghost = await js(`var g=${G}.querySelector('.lay-ghost'); if(!g) return 'null'; var b=g.getBoundingClientRect(), gr=${G}.getBoundingClientRect(); return JSON.stringify([Math.round(b.left-gr.left), Math.round(b.top-gr.top), Math.round(b.width), Math.round(b.height)]);`).then(JSON.parse);
     await release(t2.x + dx, t2.y + dy);
     await sleep(800);
     const after = await rects(), now = await order();
     const off = Object.keys(after).filter((k) => k !== id && mid[k] && after[k].some((v, i) => Math.abs(v - mid[k][i]) > 1.5)).map((k) => k + ' ' + mid[k] + ' → ' + after[k]);
-    return { moved: now !== before, off, before, now };
+    // Phone: the stack's order changed. Desktop and tablet: the card is somewhere else, exactly on the outline.
+    const moved = ghost ? after[id].some((v, i) => Math.abs(v - was[i]) > 1.5) : now !== before;
+    const onGhost = !ghost || after[id].every((v, i) => Math.abs(v - ghost[i]) <= 2);
+    if (!onGhost) off.push(id + ' landed ' + after[id] + ', outline ' + ghost);
+    return { moved, off, before, now, ghost };
   }
 
   for (const [w, h] of [[1280, 900], [820, 1180], [390, 844]]) {
