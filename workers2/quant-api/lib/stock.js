@@ -34,7 +34,8 @@ export async function getSummary(env, url, ctx, later) {
   catch (e) { if (!noTable(e)) throw e; }
   const facts = row && row.at > 0 ? parse(row.body) : null;
   if (facts && (now - row.at < SUMMARY_TTL) && !fresh) return json({ ok: true, symbol: sym, src: 'yahoo', at: row.at, facts });
-  if (row && row.error && row.err_at && now - row.err_at < FAIL_TTL) {
+  // A failure rests an hour (no call), unless Tony asks again on purpose (fresh=1).
+  if (!fresh && row && row.error && row.err_at && now - row.err_at < FAIL_TTL) {
     return json({ ok: true, symbol: sym, src: 'yahoo', at: facts ? row.at : null, facts, failed: row.error + ' (tried ' + Math.round((now - row.err_at) / 60000) + ' minutes ago)' });
   }
   const L = await Ledger.load(env, now);

@@ -10,7 +10,9 @@
 //
 // A refused crumb (401 / 403) is read again once, then the call fails as a
 // ProviderError like any other source (the page falls back to Nasdaq / Finnhub).
-import { call, noteBad, ProviderError, UA_BROWSER, BARS_TIMEOUT } from '../lib/net.js';
+// Ledger line `yahoo-crumb` (lib/ledger.js CAPS), apart from `yahoo`: a refusal here
+// (Yahoo blocking a route, an unknown symbol) never puts the bars chain in its skip window.
+import { call as call0, noteBad as noteBad0, ProviderError, UA_BROWSER, BARS_TIMEOUT } from '../lib/net.js';
 import { ysym } from './yahoo.js';
 
 export const SESSION_S = 6 * 3600, QUOTE_CHUNK = 170;
@@ -19,20 +21,23 @@ const Q2 = 'https://query2.finance.yahoo.com';
 const SESSION_KEY = 'https://quant-api.cache/yahoo-session';
 const H = { 'user-agent': UA_BROWSER, accept: 'application/json' };
 const enc = encodeURIComponent;
+export const PROVIDER = 'yahoo-crumb';
+const call = (L, _p, url, o) => call0(L, PROVIDER, url, o);
+const noteBad = (L, _p, msg) => noteBad0(L, PROVIDER, msg);
 
 const setCookies = (headers) => (headers.getSetCookie ? headers.getSetCookie() : headers.getAll ? headers.getAll('set-cookie') : [headers.get('set-cookie')]).filter(Boolean);
 
 /** A cookie and crumb: from the edge cache, else read now (fc.yahoo.com answers 404 with the cookie: that is expected). */
 export async function session(L, cache, fresh = false) {
   if (!fresh && cache) { const s = await cache.get(SESSION_KEY); if (s && s.cookie && s.crumb) return s; }
-  const why = L.blocked('yahoo');
-  if (why) throw new ProviderError('yahoo', why);
-  if (!L.spend('yahoo', 1)) throw new ProviderError('yahoo', 'at its daily cap');
+  const why = L.blocked(PROVIDER);
+  if (why) throw new ProviderError(PROVIDER, why);
+  if (!L.spend(PROVIDER, 1)) throw new ProviderError(PROVIDER, 'at its daily cap');
   let cookie = '';
   try {
     const r = await fetch('https://fc.yahoo.com/', { redirect: 'manual', headers: { 'user-agent': UA_BROWSER }, signal: AbortSignal.timeout(BARS_TIMEOUT) });
     cookie = setCookies(r.headers).map((c) => c.split(';')[0]).filter((c) => /^A[13S]?=/.test(c)).join('; ');
-  } catch (e) { L.note('yahoo', false, null, null, 'cookie: ' + (e.message || e)); throw new ProviderError('yahoo', 'no cookie (' + (e.message || e) + ')'); }
+  } catch (e) { L.note(PROVIDER, false, null, null, 'cookie: ' + (e.message || e)); throw new ProviderError(PROVIDER, 'no cookie (' + (e.message || e) + ')'); }
   if (!cookie) throw noteBad(L, 'yahoo', 'Yahoo sent no cookie');
   const crumb = String(await call(L, 'yahoo', `${Q2}/v1/test/getcrumb`, { headers: { ...H, cookie }, text: true, timeout: BARS_TIMEOUT }) || '').trim();
   if (!crumb || crumb.length > 40 || /[<{\s]/.test(crumb)) throw noteBad(L, 'yahoo', 'Yahoo sent no crumb');

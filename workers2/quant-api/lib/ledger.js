@@ -11,6 +11,7 @@ export const CAPS = {
   alpaca: 30000,    // free: 200 a minute
   public: 5000,
   yahoo: 5000,
+  'yahoo-crumb': 2000,   // R7's cookie + crumb routes (lib/stock.js): their own line, so a refusal there never skips the bars chain
   cboe: 500,
   fred: 400,        // free: 1,000 a day
   sec: 2000,
