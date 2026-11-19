@@ -48,7 +48,7 @@ is left out. Both sides' instances save through the same store template
 | index.html, Veda | V's Notebook | `bj` | `journal` | overlay (native) |
 | tradehub.html, Playbook (A1-Priv) | T's Notebook | `pb` | `tradehub_playbook` | inline (instance) |
 | tradehub.html, Control's prompts (A1-Priv) | T's Notebook | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
-| everwell.html, notes (A1-Priv) | T's Notebook | `ewn` | `everwell_notes` | inline (instance, its own bar: `sideNote: false`) |
+| everwell.html, notes (A1-Priv) | T's Notebook | `ewn` | `everwell_notes` | inline (instance, `done`: Done beside the title; its own bar only while opening) |
 | V1/studyos.html, Quick Notes + every Notes module (A1) | V's Notebook | `stn` | `studyos_notebook` | inline (instance, one folder per place; [../V1/notebook.md](../V1/notebook.md)) |
 | V1/tradeboard.html, Strats (A1) | V's Notebook | `vtb` | `tradeboard_strats` | inline (instance; [../V1/notebook.md](../V1/notebook.md)) |
 
@@ -157,10 +157,15 @@ both sides, every host; its look is the last section of `notebook.css`
 - **Editing on a phone is full screen in every host** (Tony, 2026-11-18), as
   index.html's journals always were: an instance (TradeHub's Playbook and prompt
   editor, Everwell...) gets `nb-mfull` and its instance sheet pins it over the
-  whole window (`instanceCss`: its ancestors drop transforms, filters,
-  containment and z-index for that time; the host page stops scrolling under
-  it). Reading mode or Back puts it back in the host's box. A host does nothing;
-  its own floating buttons are covered while editing.
+  whole window (`instanceCss`: its ancestors drop transforms, filters and
+  containment and are lifted to the root's z-index for that time; the host page
+  stops scrolling under it). Lifted, not flattened to `z-index:auto`: a fixed
+  ancestor (Everwell's editor overlay) stays a stacking context at level 0 even
+  with auto, and the host's raised cards painted over the editor (Tony,
+  2026-11-18). Reading mode or Back puts it back in the host's box. A host does
+  nothing; its own floating buttons and bars are covered while editing, so a
+  host without the list passes `done` for its way out (it shows in the phone
+  bar).
 - **Editing a page on a touch screen up to 1366px** (a landscape tablet too, with
   the desktop layout): the ribbon is ONE row of 40px icons right under the header,
   in the page's own flow, the same on every screen and keyboard (it first sat
@@ -177,6 +182,9 @@ both sides, every host; its look is the last section of `notebook.css`
   `nb-kb`, `nb-nolist`, `nb-mfull`.
 - `tests/live/notebook-mobile.live.js` proves it on both sides at phone,
   portrait tablet, landscape tablet and desktop, and in an instance.
+  `tests/live/notebook-hosts-sizes.live.js` opens the editor in EVERY host at
+  those four sizes and checks nothing of the host paints over it (a new host
+  goes in its `HOSTS`).
 
 ## Add Notebook to a program
 
