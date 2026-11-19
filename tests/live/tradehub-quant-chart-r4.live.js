@@ -68,7 +68,10 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   // A point of the stage, in page px, from fractions of the plot.
   const P = (s, fx, fy) => ({ x: s.l + s.w * fx, y: s.t + s.h * fy });
   const onPage = (s, h) => ({ x: s.l + h.x, y: s.t + h.y });
-  const savedKinds = () => (api.posted.drawings || []).slice(-1).map((d) => d.drawings.map((x) => x.kind + (x.extend != null ? ':' + x.extend : '') + (x.size ? ':' + x.size : '')).join()).join();
+  // The price axis rescales (and its width changes) while the page settles; the handles follow their anchors then,
+  // by design. A step that compares handles with mouse positions waits for a still chart.
+  const still = async () => { for (let k = 0, a = null; k < 16; k++) { const b = await js(`return JSON.stringify([${CH}.geo.p(100), ${CH}.geo.width(), ${CH}.geo.t(100)]);`); if (b === a) return; a = b; await sleep(500); } };
+  const savedKinds =() => (api.posted.drawings || []).slice(-1).map((d) => d.drawings.map((x) => x.kind + (x.extend != null ? ':' + x.extend : '') + (x.size ? ':' + x.size : '')).join()).join();
 
   await size(DESK_W, 900);
   await boot({ quant: true });
@@ -79,6 +82,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   ok('Extend and Edit are in the Draw row, dimmed with nothing selected', await js(`var e=document.querySelector('[data-ch-extend]'), d=document.querySelector('[data-ch-edit]'); return !!(e && d && e.disabled && d.disabled && e.offsetParent && d.offsetParent);`));
 
   console.log('\n1. Ray');
+  await still();
   let s = await stage();
   await pick('ray');
   const ra = P(s, 0.25, 0.3), rb = P(s, 0.45, 0.45);
@@ -102,8 +106,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
 
   console.log('\n2. Fibonacci');
   await js(`${DR}.clear(); 1`);
-  // The price axis can rescale while the page settles (the handles follow their anchors then, by design): draw on a still chart.
-  for (let k = 0, a = null; k < 12; k++) { const b = await js(`return ${CH}.geo.p(100);`); if (b === a) break; a = b; await sleep(500); }
+  await still();
   s = await stage();
   await pick('fib');
   const fa = P(s, 0.2, 0.7), fb = P(s, 0.5, 0.25);
