@@ -75,9 +75,11 @@ const CH = `${TAB}.active()`;
   ok('the time zone is named once on the axis', await js(`return /^[A-Z]{2,5}$|GMT/.test(document.querySelector('[data-ch-zone]').textContent);`));
   ok('the one-line read under the chart', await until(`/trend|Mixed/.test(document.querySelector('[data-ch-read1]').textContent)`, 8000));
   const visit = api.asked.map((a) => a.p);
-  ok('a visit: the chart\'s bars, the rail\'s daily bars, drawings, alerts, one /quotes; nothing else', visit.every((p) => ['/bars', '/drawings', '/alerts', '/quotes', '/stream-keys', '/snapshot',
+  ok('a visit: the chart\'s bars, the rail\'s daily bars, drawings, alerts, one /quotes, one /summary; nothing else', visit.every((p) => ['/bars', '/drawings', '/alerts', '/quotes', '/stream-keys', '/snapshot',
     // Phase 14: the alert bell (every tab) reads the fires once a minute and sends the catalysts once a visit.
-    '/alerts/fires', '/alerts/catalysts'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2, visit.join());
+    '/alerts/fires', '/alerts/catalysts',
+    // R7: Analysis and Key Stats read the open ticker's /summary (one call, kept 10 minutes on the page).
+    '/summary'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2 && visit.filter((p) => p === '/summary').length <= 1, visit.join());
 
   console.log('\nZoom and pan');
   let s = await stage();
@@ -235,6 +237,9 @@ const CH = `${TAB}.active()`;
   console.log('\nDrawings and alerts');
   await js(`document.querySelector('[data-ch-drawbtn]').click(); 1`);
   await js(`document.querySelector('[data-ch-tool="trend"]').click(); 1`);
+  // R7 made the tab taller (Analysis and Key Stats under the chart): an inner scroller kept from the narrow
+  // steps may leave the chart off screen, so it is brought into view before the mouse draws on it.
+  await js(`document.querySelector('[data-ch-main]').scrollIntoView({ block: 'center' }); 1`); await sleep(300);
   s = await stage();
   const a = { x: s.l + s.w * 0.3, y: s.t + s.h * 0.5 }, b = { x: s.l + s.w * 0.6, y: s.t + s.h * 0.3 };
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
