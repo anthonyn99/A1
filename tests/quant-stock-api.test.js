@@ -155,7 +155,7 @@ globalThis.fetch = async (url, o = {}) => {
   EDGE.clear(); Y.reset(); Y.down = true;
   r = await call(env, '/heatmap?symbols=AAA,BBB');
   ok('Yahoo down: 503 that names Yahoo', r.status === 503 && /needs Yahoo/.test(r.body.error), JSON.stringify(r.body));
-  ok('every call is counted on its own ledger line (yahoo-crumb), never the bars chain's yahoo', (env.DB.usage.get('yahoo-crumb') || 0) > 0 && !env.DB.usage.has('yahoo'), JSON.stringify([...env.DB.usage]));
+  ok('every call is counted on its own ledger line (yahoo-crumb), never the bars chain\'s yahoo', (env.DB.usage.get('yahoo-crumb') || 0) > 0 && !env.DB.usage.has('yahoo'), JSON.stringify([...env.DB.usage]));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
