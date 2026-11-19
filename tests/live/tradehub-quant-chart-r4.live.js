@@ -101,12 +101,15 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
 
   console.log('\n2. Fibonacci');
   await js(`${DR}.clear(); 1`);
+  // The price axis can rescale while the page settles (the handles follow their anchors then, by design): draw on a still chart.
+  for (let k = 0, a = null; k < 12; k++) { const b = await js(`return ${CH}.geo.p(100);`); if (b === a) break; a = b; await sleep(500); }
+  s = await stage();
   await pick('fib');
   const fa = P(s, 0.2, 0.7), fb = P(s, 0.5, 0.25);
   await drag(fa, fb);
   const fib = (await list()).find((d) => d.kind === 'fib');
   H = await handles(fib.id);
-  ok('a new Fibonacci, saved with extend off; its handles on the two anchors', fib && fib.extend === false && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y) && near(s.l + H[1].x, fb.x) && near(s.t + H[1].y, fb.y), JSON.stringify(H) + ' fb=' + JSON.stringify(fb) + ' s=' + JSON.stringify(s) + ' now=' + await js(`var b=document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect(); return JSON.stringify({l:b.left,t:b.top,w:${CH}.geo.width(),h:${CH}.geo.height(), pts:${DR}.get()[0].pts, mid:${CH}.geo.p(100)});`));
+  ok('a new Fibonacci, saved with extend off; its handles on the two anchors', fib && fib.extend === false && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y) && near(s.l + H[1].x, fb.x) && near(s.t + H[1].y, fb.y), JSON.stringify(H)));
   const fc = P(s, 0.6, 0.15);
   await drag(onPage(s, H[1]), fc, 16);
   H = await handles(fib.id);
