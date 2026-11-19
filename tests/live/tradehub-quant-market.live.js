@@ -105,7 +105,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
       var cards=[...g.children]; var spill=cards.filter(function(e){ var b=e.getBoundingClientRect(); return b.right>r.right+1||b.left<r.left-1; }).length;
       var inner=cards.filter(function(e){ var b=e.getBoundingClientRect(); return [...e.querySelectorAll('.lay-head *')].some(function(x){ var q=x.getBoundingClientRect(); return q.width>0&&(q.right>b.right+1||q.left<b.left-1); }); }).length;
       return JSON.stringify({ cls:L.dataset.cls, cols:getComputedStyle(g).gridTemplateColumns.split(' ').length, sw:document.documentElement.scrollWidth, iw:innerWidth, n:cards.length, spill:spill, inner:inner, widths:[...new Set(cards.map(function(e){return e.dataset.w;}))].join() });`));
-    ok(`${w} px: the ${cls} grid, ${cols} columns, all 9 cards (Macro since Phase 13)`, f.cls === cls && f.cols === cols && f.n === 9, JSON.stringify(f));
+    ok(`${w} px: the ${cls} grid, ${cols} columns, all 10 cards (Macro since Phase 13, Heat Map since R7)`, f.cls === cls && f.cols === cols && f.n === 10, JSON.stringify(f));
     ok(`${w} px: no sideways scroll, nothing spills`, f.sw <= f.iw && f.spill === 0 && f.inner === 0, JSON.stringify(f));
     if (cls === 'phone') ok('on a phone every card is one full-width column', f.widths === '4', f.widths);
     await js(`document.querySelector('.tb-scroll-visible').scrollTop = 0; 1`); await sleep(200);
@@ -142,13 +142,14 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   const writes = () => js(`return window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length;`);
   ok('nothing was written just for looking', (await writes()) === 0);
   await js(`document.querySelector('.lay-card[data-card="volume"] [data-act="hide"]').click(); 1`);
-  ok('hiding a card takes it off the grid and into Add card', await until(`!document.querySelector('.lay-grid .lay-card[data-card="volume"]') && /Add card \\(1\\)/.test(document.querySelector('[data-lay-add]').options[0].textContent)`, 3000));
+  // R7: Analysis and Key Stats start in Market's "Add card", so hiding Volume makes it 3.
+  ok('hiding a card takes it off the grid and into Add card', await until(`!document.querySelector('.lay-grid .lay-card[data-card="volume"]') && /Add card \\(3\\)/.test(document.querySelector('[data-lay-add]').options[0].textContent)`, 3000));
   await js(`document.querySelector('.lay-card[data-card="breadth"] [data-act="collapse"]').click(); 1`);
   ok('collapsing leaves the title bar', await until(`document.querySelector('.lay-card[data-card="breadth"]').classList.contains('is-collapsed') && document.querySelector('.lay-card[data-card="breadth"]').getBoundingClientRect().height < 50`, 3000));
   ok('not written at once', (await writes()) === 0);
   ok('...written once, 1.5 s after the last change', await until(`window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length === 1`, 4000));
   const doc = JSON.parse(await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_layout']);`));
-  ok('one doc, by tab and size class, in grid units', doc.market && doc.market.desktop && doc.market.desktop.hidden.join() === 'volume' && doc.market.desktop.collapsed.join() === 'breadth' && !doc.market.phone && !/px/.test(JSON.stringify(doc)), JSON.stringify(doc).slice(0, 300));
+  ok('one doc, by tab and size class, in grid units', doc.market && doc.market.desktop && doc.market.desktop.hidden.join() === 'analysis,stats,volume' && doc.market.desktop.collapsed.join() === 'breadth' && !doc.market.phone && !/px/.test(JSON.stringify(doc)), JSON.stringify(doc).slice(0, 300));
   await boot({ keep: true }); await tab('market');
   ok('after a reload the card is still hidden and the other still collapsed', await until(`document.querySelector('[data-mk-score]') && !document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('.lay-card[data-card="breadth"]').classList.contains('is-collapsed')`, 10000));
   await sleep(2200);

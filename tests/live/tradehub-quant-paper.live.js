@@ -58,7 +58,7 @@ const MIN = 60000;
   ok('the account: equity, today, cash, buying power, the PAPER badge', await until(`/\\$100,000\\.00/.test((document.querySelector('[data-pp-equity]')||{}).textContent||'')`, 15000) && await js(`var a=document.querySelector('[data-pp-account]').innerText; return /Today/.test(a) && /\\$400\\.00/.test(a) && /Buying power/.test(a) && !!document.querySelector('[data-paper-tab] .pt-badge');`));
   ok('positions with their P&L and a Close button', await js(`var r=document.querySelector('[data-pp-pos="NVDA"]'); return !!r && /\\$40\\.00/.test(r.innerText) && !!r.querySelector('[data-pp-close]');`));
   ok('filled orders and the activity log: who placed each and why', await js(`return !!document.querySelector('[data-pp-ord="old1"]') && /Strategy/.test(document.querySelector('[data-pp-log="cold1"]').innerText) && /entry fired/.test(document.querySelector('[data-pp-log="cold1"]').innerText);`));
-  ok('the seven cards are there', (await js(`return document.querySelectorAll('[data-paper-tab] .lay-card').length;`)) === 7);
+  ok('the nine cards are there (the seven, and R7\'s Analysis and Key Stats)', (await js(`return document.querySelectorAll('[data-paper-tab] .lay-card').length;`)) === 9);
   await shot('paper-1280');
 
   console.log('\nThe order ticket');
