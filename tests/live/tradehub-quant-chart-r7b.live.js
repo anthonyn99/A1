@@ -53,6 +53,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
       await js(`return ${CH}.chart().priceScale('right').width() + ' / panes ' + ${CH}.chart().panes().length;`));
     ok(`${name}: RSI's pane says its name and value, "RSI (14) 41.20"`, await until(`(function(){ var t=document.querySelector('[data-ch-panelbl="rsi"]'); return t && /^RSI \\(14\\) \\d+\\.\\d\\d$/.test(t.textContent); })()`, 5000),
       await js(`var t=document.querySelector('[data-ch-panelbl]'); return t ? t.textContent : 'none';`));
+    ok(`${name}: the sync pill on screen (in the bottom bar), the chart type and Compare in Display`, await js(`var p=document.querySelector('[data-ch-sync]'), b=p.getBoundingClientRect(), d=document.querySelector('[data-ch-dispmenu]'); return !!p.closest('[data-ch-bottom]') && b.right <= innerWidth + 1 && b.left >= 0 && !!d.querySelector('[data-ch-type]') && !!d.querySelector('[data-ch-cmp]');`));
     ok(`${name}: no sideways scroll`, await js(`return document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1;`));
   }
 
