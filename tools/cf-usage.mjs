@@ -22,6 +22,21 @@ for (const d of Object.keys(by).sort()) {
   const t = Object.values(by[d]).reduce((a, b) => a + b, 0);
   console.log(`  ${d}  total ${t}  ` + Object.entries(by[d]).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', '));
 }
+// Where the requests came in (Cloudflare's location: DEN = the Denver area, Tony's devices; IAD / ORD / … =
+// cloud machines such as GitHub's runners) and how they ended, per worker, over the last two days.
+{
+  const rows2 = await run(q(day(new Date(now - 2 * 86400000)) + 'T00:00:00Z', now.toISOString(), 'scriptName coloCode status'));
+  const g = {};
+  for (const r of rows2) { const k = r.dimensions.scriptName; (g[k] ||= []).push([`${r.dimensions.coloCode}/${r.dimensions.status}`, r.sum.requests]); }
+  console.log('\nBy location and outcome (last 2 days):');
+  for (const [s, list] of Object.entries(g)) console.log(`  ${s}: ` + list.sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k} ${v}`).join(', '));
+  const rows3 = await run(q(day(new Date(now - 86400000)) + 'T20:00:00Z', now.toISOString(), 'scriptName coloCode datetimeHour'));
+  console.log('\nquant-api by hour and location:');
+  const hh = {};
+  for (const r of rows3) if (r.dimensions.scriptName === 'quant-api') (hh[r.dimensions.datetimeHour] ||= []).push(`${r.dimensions.coloCode} ${r.sum.requests}`);
+  for (const k of Object.keys(hh).sort()) console.log('  ' + k.slice(5, 16) + '  ' + hh[k].join(', '));
+}
+
 // quant-api's own ledger (D1, read only): outside calls per provider per day, which says which routes ran.
 if (process.env.D1_ID) {
   const sql = async (q) => {
