@@ -141,9 +141,15 @@ const ok = (name, cond, extra) => {
   for (const [edge, ux, uy, [dw, dh]] of cases) {
     const s0 = (await span('breadth')).split('x').map(Number), o0 = await order();
     const p = await grab(edge);
+    const r0 = await centre('[data-mk] .lay-card[data-card="breadth"]');
     await mouseDrag(p, { x: p.x + ux * unit.x + Math.sign(ux) * 5, y: p.y + uy * unit.y + Math.sign(uy) * 5 });
-    const s1 = (await span('breadth')).split('x').map(Number);
-    ok(`${edge}: ${dw >= 0 ? '+' : ''}${dw} wide, ${dh >= 0 ? '+' : ''}${dh} tall, in whole units; its spot in the order kept`, s1[0] === s0[0] + dw && s1[1] === s0[1] + dh && (await order()) === o0, s0.join('x') + ' → ' + s1.join('x'));
+    const s1 = (await span('breadth')).split('x').map(Number), r1 = await centre('[data-mk] .lay-card[data-card="breadth"]');
+    ok(`${edge}: ${dw >= 0 ? '+' : ''}${dw} wide, ${dh >= 0 ? '+' : ''}${dh} tall, in whole units`, s1[0] === s0[0] + dw && s1[1] === s0[1] + dh && (await order()) === o0, s0.join('x') + ' → ' + s1.join('x'));
+    // 2026-11-19 (Tony): the edge dragged moves; the opposite edge stays put.
+    const near = (a, b) => Math.abs(a - b) <= 2;
+    const keep = [edge.includes('w') ? near(r1.r, r0.r) : edge.includes('e') ? near(r1.l, r0.l) : near(r1.l, r0.l) && near(r1.r, r0.r),
+      edge[0] === 'n' ? near(r1.b, r0.b) : edge[0] === 's' ? near(r1.t, r0.t) : near(r1.t, r0.t) && near(r1.b, r0.b)];
+    ok(`${edge}: the opposite edge${edge.length > 1 ? 's stay' : ' stays'} where ${edge.length > 1 ? 'they were' : 'it was'}`, keep.every(Boolean), JSON.stringify({ r0, r1 }));
   }
   ok('a handle press never started a card drag', !(await js(`return !!document.querySelector('.dsort-drag');`)));
 
