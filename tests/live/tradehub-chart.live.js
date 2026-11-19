@@ -8,9 +8,9 @@
 //   3. wheel and a two-finger pinch keep the bar under the cursor (or the fingers) within 1 px;
 //      the page neither scrolls nor zooms; frames stay at 55 a second or more while zooming
 //   4. double-click and double-tap fit the range
-//   5. range and interval switch; Ext. hides pre-market and after hours
+//   5. range and interval switch (R3: a range keeps the interval); Ext. hides pre-market and after hours
 //   6. a zone is drawn as a band (0.2 opacity), a line as a 1 px line; indicators are dashed
-//   7. the watchlist: add and remove five times, rail and grid follow; a drag in the rail saves the order
+//   7. the watchlist: add and remove five times, the rail follows; a drag in the rail saves the order (R3: one chart, no grid)
 //   8. live ticks: the chart moves, and no request reaches Cloudflare
 //   9. drawings saved per symbol and back after a reload; an alert line and a level's bell keep alert rules
 //  10. the ticker panel (from Market) has the chart
@@ -190,11 +190,13 @@ const CH = `${TAB}.active()`;
   console.log('\nRange, interval, sessions');
   api.asked.length = 0;
   await js(`document.querySelector('[data-ch-range="1M"]').click(); 1`);
-  await until(`${CH}.info().tf === '30m' && document.querySelector('[data-ch-main] [data-ch-note]').hidden`, 8000);
-  ok('1M switches to 30 minute bars and asks for them', (await info()).tf === '30m' && api.asked.some((a) => a.p === '/bars' && /tf=30m/.test(a.q)), JSON.stringify(await info()).slice(0, 120) + ' ' + api.asked.map((a) => a.p + a.q.slice(0, 30)).join());
+  await until(`${CH}.info().range === '1M' && document.querySelector('[data-ch-main] [data-ch-note]').hidden`, 8000);
+  ok('1M keeps 5 minute bars (R3: a range never picks the interval)', (await info()).tf === '5m' && !api.asked.some((a) => a.p === '/bars' && /symbol=NVDA&tf=(?!5m|1d)/.test(a.q)), JSON.stringify(await info()).slice(0, 120) + ' ' + api.asked.map((a) => a.p + a.q.slice(0, 30)).join());
   await js(`var s=document.querySelector('[data-ch-tf]'); s.value='1h'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('the interval menu switches to 1 hour', await until(`${CH}.info().tf === '1h' && document.querySelector('[data-ch-main] [data-ch-note]').hidden && ${CH}.info().bars > 0`, 8000));
   await js(`document.querySelector('[data-ch-range="5D"]').click(); 1`);
+  ok('...and 5D keeps 1 hour', await until(`${CH}.info().range === '5D' && ${CH}.info().tf === '1h'`, 8000));
+  await js(`var s=document.querySelector('[data-ch-tf]'); s.value='5m'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   await until(`${CH}.info().tf === '5m' && document.querySelector('[data-ch-main] [data-ch-note]').hidden && ${CH}.info().bars > 300`, 8000);
   const withExt = (await info()).bars;
   await js(`document.querySelector('[data-ch-tg="ext"]').click(); 1`);
@@ -282,18 +284,7 @@ const CH = `${TAB}.active()`;
   ok('five adds and removes: the rail matches every time', rounds === 5, rounds);
   await js(`window.__fakeFs.remote('dashboards/tradeboard_watchlist', { tickers: ${JSON.stringify(WATCHLIST)}, trash: [] }); 1`);
   await until(`document.querySelectorAll('[data-ch-rail] .ch-row').length === ${WATCHLIST.length}`, 6000);
-  await js(`document.querySelector('[data-ch-view="grid"]').click(); 1`);
-  ok('the grid: four small charts of the first four tickers, levels and no labels', await until(`document.querySelectorAll('.ch-grid .ch-cell').length === 4 && [...document.querySelectorAll('.ch-grid .ch-cell')].map(function(c){return c.dataset.chCell;}).join() === ${JSON.stringify(WATCHLIST.slice(0, 4).join())} && !document.querySelector('.ch-grid .ch-tags') && !document.querySelector('.ch-grid .ch-head')`, 8000));
-  await js(`window.__fakeFs.remote('dashboards/tradeboard_watchlist', { tickers: ${JSON.stringify(WATCHLIST.slice(2))}, trash: [] }); 1`);
-  ok('...and follows the watchlist', await until(`[...document.querySelectorAll('.ch-grid .ch-cell')].map(function(c){return c.dataset.chCell;}).join() === ${JSON.stringify(WATCHLIST.slice(2, 6).join())}`, 6000));
-  await js(`window.__fakeFs.remote('dashboards/tradeboard_watchlist', { tickers: ${JSON.stringify(WATCHLIST)}, trash: [] }); 1`);
-  await js(`document.querySelector('[data-ch-grid="9"]').click(); 1`);
-  ok('9 in the grid', await until(`document.querySelectorAll('.ch-grid .ch-cell').length === 9`, 6000));
-  await js(`document.querySelector('[data-ch-view="chart"]').click(); 1`);
-  await ready();
-  await js(`document.querySelector('[data-ch-layout="2"]').click(); 1`);
-  ok('a 2-chart layout: two charts, one toolbar', await until(`document.querySelectorAll('[data-ch-main] .ch-cell .ch-box canvas').length >= 2 && document.querySelectorAll('[data-ch-tools]').length === 1`, 8000));
-  await js(`document.querySelector('[data-ch-layout="1"]').click(); 1`);
+  ok('one chart only (R3): no grid or 2 / 4 chart buttons', await js(`return !document.querySelector('[data-ch-view],[data-ch-layout],[data-ch-grid]') && document.querySelectorAll('[data-ch-main] [data-ch-box]').length === 1;`));
   await ready();
   // A drag in the rail reorders the watchlist itself.
   await sleep(500);
