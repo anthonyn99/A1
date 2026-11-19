@@ -171,10 +171,10 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   ok('Compare QQQ: the × shows at its right end', (await js(`return ${CH}.get().compare;`)) === 'QQQ' && await js(`var x=document.querySelector('[data-ch-cmp-clear]'), i=document.querySelector('[data-ch-cmp]'); if(!x||x.hidden) return false; var a=x.getBoundingClientRect(), b=i.getBoundingClientRect(); return a.right <= b.right + 1 && a.left > b.left + b.width/2;`));
   await js(`document.querySelector('[data-rail-pick="${B}"], [data-ch-rail] .ch-row[data-sym="${B}"]').click(); 1`);
   await settled();
-  ok('compare is kept per symbol: another ticker has none', (await js(`return ${CH}.get().symbol + ':' + (${CH}.get().compare || '');`)) === B + ':');
+  ok('compare is kept per symbol: another ticker has none, and the old compare LINE is gone', (await js(`return ${CH}.get().symbol + ':' + (${CH}.get().compare || '');`)) === B + ':' && (await info()).compare === false);
   await js(`document.querySelector('[data-ch-rail] .ch-row[data-sym="${A}"]').click(); 1`);
   await settled();
-  ok('...and the first gets QQQ back', (await js(`return ${CH}.get().compare;`)) === 'QQQ');
+  ok('...and the first gets QQQ back, its line drawn', (await js(`return ${CH}.get().compare;`)) === 'QQQ' && await until(`${CH}.info().compare === true`, 4000));
   await js(`document.querySelector('[data-ch-cmp-clear]').click(); 1`); await sleep(300);
   ok('the × clears it (input empty, no compare line)', !(await js(`return ${CH}.get().compare;`)) && (await js(`return document.querySelector('[data-ch-cmp]').value;`)) === '' && await js(`return document.querySelector('[data-ch-cmp-clear]').hidden;`));
   await js(`var e=document.querySelector('[data-ch-cmp]'); e.value='QQQ'; e.dispatchEvent(new Event('change',{bubbles:true})); 1`);
@@ -197,7 +197,9 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     const vw = W === DESK_W ? DESK_W : W;
     ok(name + ' px: no sideways scroll', (await js(`return document.documentElement.scrollWidth;`)) <= vw);
     ok(name + ' px: the toolbar\'s controls are all reachable (inside the card, or its own sideways scroller)', await js(`var t=document.querySelector('[data-ch-tools]'), c=t.closest('.lay-card, .mk-card') || t.parentElement, cb=c.getBoundingClientRect(); return [...t.querySelectorAll('.ch-tools-row')].filter(function(r){return r.offsetParent;}).every(function(r){var b=r.getBoundingClientRect(); return b.left >= cb.left - 1 && b.right <= cb.right + 1;});`));
-    ok(name + ' px: the sync pill and Compare are on screen', await js(`var p=document.querySelector('[data-ch-cmp]'); var b=p.getBoundingClientRect(); return b.width > 40;`));
+    await js(`var s=document.querySelector('[data-ch-type]'); s.value=(${CH}.get().type==='line'?'candles':'line'); s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+    ok(name + ' px: a change shows the sync pill on screen, and Compare is there', await until(`(function(){var p=document.querySelector('[data-ch-sync]'), b=p.getBoundingClientRect(), c=document.querySelector('[data-ch-cmp]').getBoundingClientRect(); return /busy|ok/.test(p.getAttribute('data-sync')||'') && b.width > 20 && b.right <= innerWidth && b.left >= 0 && c.width > 40;})()`, 1800),
+      await js(`var p=document.querySelector('[data-ch-sync]'); var b=p.getBoundingClientRect(); return p.getAttribute('data-sync') + ' ' + JSON.stringify(b);`));
     await shot('r3-charts-' + name);
   }
 
