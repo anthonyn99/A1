@@ -60,8 +60,9 @@ const NDX = { id: 'ndx', name: 'Nasdaq 100', bench: 'QQQ', n: 101, have: 101,
   await pick('semis');
   ok('the line says it is reading the stocks\' histories while it measures', await until(`/reading \\d+ daily histories/.test(document.querySelector('[data-mk-uni-line]').innerText) || /measured on this device/.test(document.querySelector('[data-mk-uni-line]').innerText)`, 3000));
   ok('Semis is measured here: Regime, Breadth and Days like today follow', await until(`/measured on this device/.test(document.querySelector('[data-mk-uni-line]').innerText) && /^Semis · \\d+ stocks/.test((document.querySelector('[data-mk-breadth-of]')||{}).innerText||'')`, 20000), await text('[data-mk-uni-line]'));
-  const semisAsked = bars();
-  ok('...from one /bars per member, the SOXX fund and the VIX (about 27), nothing else', semisAsked.length >= 25 && semisAsked.length <= 2 * 27 && semisAsked.includes('SOXX') && semisAsked.includes('NVDA') && semisAsked.includes('^VIX') && !semisAsked.includes('AKAM'), semisAsked.length + ' ' + semisAsked.slice(0, 8).join());
+  // The Macro card reads SPY's bars on its own; the gateway may ask twice a symbol (closed months, then this one).
+  const semisAsked = bars().filter((s) => s !== 'SPY'), semisSet = new Set(semisAsked);
+  ok('...from the members, the SOXX fund and the VIX only (27 symbols, at most two requests each)', semisSet.size === 27 && semisAsked.length <= 2 * 27 && semisSet.has('SOXX') && semisSet.has('NVDA') && semisSet.has('^VIX') && !semisSet.has('AKAM'), semisSet.size + ' symbols, ' + semisAsked.length + ' requests');
   ok('Regime: measured on Semis, the trend of SOXX; its chip picked and scored', /Measured on Semis: the trend of SOXX/.test(await text('[data-mk-measured]')) && await js(`var b=document.querySelector('[data-mk-uni-row] [data-uni="semis"]'); return b.classList.contains('is-on') && /\\d/.test(b.querySelector('b').textContent);`));
   ok('Days like today: SOXX after the days Semis looked like today', /^SOXX after the 5 past days when Semis looked most like today/.test(await text('[data-mk-analogs-of]')), await text('[data-mk-analogs-of]'));
   ok('Sectors marks the SOXX tile', await js(`return document.querySelector('[data-mk-sectors] .mk-tile[data-sym="SOXX"]').classList.contains('is-picked') && document.querySelectorAll('[data-mk-sectors] .mk-tile.is-picked').length === 1;`));
