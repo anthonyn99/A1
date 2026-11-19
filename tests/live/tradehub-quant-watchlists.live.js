@@ -111,6 +111,16 @@ const WB = [
   console.log('\n1280: Control ▸ Watchlists');
   await tab('prompt');
   ok('the manager is there, the TradeHub list open, one tile per ticker in its order', await until(`document.querySelector('[data-wlm] .ctl-tk')`, 8000) && (await tiles()) === want1, await tiles());
+  {
+    // A tile drag reorders the open list too (A1Drag's grid axis), and stays.
+    const a = await box('[data-wlm] .ctl-tk', 0), b = await box('[data-wlm] .ctl-tk', 1);
+    await mouseDrag(a, { x: b.x + 10, y: b.y }); await sleep(1200);
+    const want2 = [want1.split(',')[1], want1.split(',')[0], ...want1.split(',').slice(2)].join();
+    ok('a tile drag in the manager reorders the TradeHub list, and stays', (await tiles()) === want2, await tiles());
+    ok('...saved in that order', await until(`(${DOC}.tickers||[]).join()===${JSON.stringify(want2)}`, 4000), await js(`return (${DOC}.tickers||[]).join();`));
+    await mouseDrag(await box('[data-wlm] .ctl-tk', 0), (await box('[data-wlm] .ctl-tk', 1)) && { x: (await box('[data-wlm] .ctl-tk', 1)).x + 10, y: (await box('[data-wlm] .ctl-tk', 1)).y }); await sleep(1200);
+    ok('...and back', (await tiles()) === want1, await tiles());
+  }
   await pickMgr('wb:11');
   ok('a Webull list: the lock note, no add row, no remove buttons', await js(`return !${mgr('[data-wlm-note]')}.hidden && /Read-only from Webull/.test(${mgr('[data-wlm-note]')}.textContent) && ${mgr('[data-wlm-add]')}.hidden && !document.querySelector('[data-wlm] [data-wlm-remove]');`));
   ok('Rename and Delete are off for a Webull list', await js(`return ${mgr('[data-wlm-act="rename"]')}.disabled && ${mgr('[data-wlm-act="delete"]')}.disabled;`));
