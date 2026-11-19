@@ -151,6 +151,12 @@ const WB = [
   const f1 = JSON.parse((await followed()) || '[]');
   ok('ticking Main adds its stocks (SNDK) after the TradeHub list', f1.join() === [...want1.split(','), 'SNDK'].join(), f1.join());
   ok('...saved as wl2.follow', await until(`JSON.stringify((${DOC}.wl2||{}).follow)==='["tradehub","wb:11"]'`, 4000));
+  ok('the parser and the workers\' push use the followed list (TB_WL has SNDK)', await until(`tbGetWatchlist().indexOf('SNDK')>=0`, 4000), await js(`return tbGetWatchlist().join();`));
+  await pickMgr('tradehub');
+  await typeIn('[data-wlm-add] input', 'ZQX');
+  await press('[data-wlm-add] .tb-btn-primary'); await sleep(900);
+  ok('a TradeHub-list edit while following Main: the workers still get the followed list (ZQX added, SNDK kept)', await until(`tbGetWatchlist().indexOf('SNDK')>=0 && tbGetWatchlist().indexOf('ZQX')>=0`, 4000), await js(`return tbGetWatchlist().join();`));
+  await js(`document.querySelector('[data-wlm] [data-wlm-remove="ZQX"]').click(); 1`); await sleep(600);
   ok('Cryptos is not offered to follow (no stocks in it: News and Quant use stocks only)', await js(`return !document.querySelector('[data-wlm] [data-wlm-follow-id="wb:13"]') && !!document.querySelector('[data-wlm] [data-wlm-follow-id="tradehub"]');`));
 
   console.log('\n1280: another device, and Webull down');
@@ -167,6 +173,11 @@ const WB = [
   ok('...and the followed list is unchanged (Main is followed but not loaded: the last good list is kept)', (await followed()) === fBefore, await followed());
   ok('...the followed-lists note says it is waiting', await js(`return /Waiting for Webull/.test(document.querySelector('[data-wlm-followed]').textContent);`));
   webullDown = false;
+  await boot({ quant: false, keep: true });
+  await sleep(1500);
+  ok('TradeHub Quant off: News and the workers use the TradeHub list (as before Phase 1), not the saved followed copy', await until(`tbGetWatchlist().indexOf('SNDK')<0 && tbGetWatchlist().length>0`, 6000) && /SNDK/.test(fBefore), await js(`return tbGetWatchlist().join();`));
+  await tab('prompt');
+  ok('...and Control has the old single-list editor, no TradeHub/ module loaded', await until(`document.querySelector('.ctl-wl .ctl-tk')`, 8000) && await js(`return !document.querySelector('[data-wlm]') && !performance.getEntriesByType('resource').some(function(r){return /\\/TradeHub\\//.test(r.name);});`));
 
   for (const [w, hgt] of [[820, 1000], [390, 844]]) {
     console.log(`\n${w}: the rail and the manager`);
