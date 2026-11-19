@@ -154,6 +154,24 @@ function contextRoutes(state, u, p) {
       PAYEMS: Array.from({ length: 24 }, (_, i) => [`${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`, 158000 + 150 * i + (i === 23 ? 50 : 0)]),
       DFEDTARU: [['2026-09-16', 4.5], ['2026-09-17', 4.25], ['2026-11-12', 4.25]] } } };
   }
+  // R7: Yahoo's analysts / key stats (state.summaryDown = Yahoo failing) and the heat map's batch quote.
+  if (p === '/summary') {
+    const sym = u.searchParams.get('symbol');
+    state.summaryAsked = (state.summaryAsked || []).concat(sym);
+    if (state.summaryDown) return { json: { ok: true, symbol: sym, src: 'yahoo', at: null, facts: null, failed: 'yahoo: HTTP 429' } };
+    return { json: { ok: true, symbol: sym, src: 'yahoo', at: CLOCK - 2 * 3600000, facts: {
+      analysis: { targetHigh: 3000, targetMean: 2047.375, targetLow: 870, analysts: 24, recKey: 'strong_buy', recMean: 1.48, price: 805, trend: [{ period: '0m', strongBuy: 4, buy: 17, hold: 4, sell: 0, strongSell: 0 }],
+        upgrades: [{ day: '2026-11-12', firm: 'Rosenblatt', to: 'Buy', from: 'Buy', action: 'main', target: 2400 }, { day: '2026-11-10', firm: 'Fox Advisors', to: 'Equal-Weight', from: 'Overweight', action: 'down' }] },
+      stats: { open: 805.87, prevClose: 797.24, dayHigh: 820, dayLow: 790, volume: 9e6, avgVol3m: 10.56e6, high52: 2354.39, low52: 183, marketCap: 109.8e9, peTtm: 6.17, peFwd: 2.67, pb: 6.13, ps: 3.79, epsTtm: 125.12, bps: 125.93,
+        shares: 142.29e6, float: 140.39e6, nextEarnings: '2027-01-28', name: sym + ' Corporation', exchange: 'NasdaqGS' } } } };
+  }
+  if (p === '/heatmap') {
+    const syms = String(u.searchParams.get('symbols') || '').split(',').filter(Boolean);
+    state.heatAsked = (state.heatAsked || []).concat([syms.length]);
+    if (state.heatDown) return { status: 503, json: { ok: false, error: 'the heat map needs Yahoo, which did not answer (HTTP 429)' } };
+    const items = Object.fromEntries(syms.map((s, i) => [s, { cap: (s === 'NVDA' ? 4500 : s === 'AAPL' ? 4000 : 20 + ((i * 37) % 300)) * 1e9, chg: (((i * 13) % 11) - 5) / 100, price: 50 + (i % 200), t: CLOCK - 60000, name: s + ' Inc' }]));
+    return { json: { ok: true, items, asOf: CLOCK - 60000, src: 'yahoo', missing: [], cached: false } };
+  }
   if (p === '/macro/dates') return { json: { ok: true, dates: { cpi: ['2025-12-10', '2026-01-13', '2026-02-11', '2026-03-11', '2026-04-10', '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12', '2026-09-11', '2026-10-15'] }, from: 2025 } };
   if (p === '/earnings') { const syms = String(u.searchParams.get('symbols') || '').split(','); return { json: { ok: true, reports: Object.fromEntries(syms.map((s) => [s, [{ day: '2026-08-26', time: 'amc', eps: 1.0, est: 0.9 }]])), asked: null } }; }
   return null;
