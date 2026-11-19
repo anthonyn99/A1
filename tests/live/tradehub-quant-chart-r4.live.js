@@ -137,7 +137,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   ok('after a zoom the handles are still on the anchors', z.h.length === 2 && z.h.every((h, i) => z.p[i].x != null && near(h.x, z.p[i].x, 0.5) && near(h.y, z.p[i].y, 0.5)), JSON.stringify(z));
 
   console.log('\n3. Rectangle');
-  await js(`${DR}.clear(); ${CH}.fit && ${CH}.fit(); 1`); await sleep(300); s = await stage();
+  await js(`${DR}.clear(); ${CH}.fit && ${CH}.fit(); 1`); await still(); s = await stage();
   await pick('rect');
   const qa = P(s, 0.3, 0.3), qb = P(s, 0.5, 0.5), wqa = await want(qa), wqb = await want(qb);
   await drag(qa, qb);
@@ -181,7 +181,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
 
   console.log('\n6. Three widths, and touch');
   for (const [W, Hh, name] of [[DESK_W, 900, '1280'], [820, 1100, '820'], [390, 844, '390']]) {
-    await size(W, Hh); await sleep(900);
+    await size(W, Hh); await sleep(900); await still();
     s = await stage();
     await js(`${DR}.clear(); 1`);
     const a = P(s, 0.2, 0.3), b = P(s, 0.6, 0.55);
