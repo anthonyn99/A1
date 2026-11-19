@@ -67,7 +67,8 @@ const WB = [
     const a = await box('[data-ch-rail] .ch-row', from), b = await box('[data-ch-rail] .ch-row', past);
     const axis = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? 'x' : 'y';
     const dir = past > from ? 1 : -1;
-    const to = axis === 'x' ? { x: b.x + dir * b.w * 0.35, y: a.y } : { x: a.x, y: b.y + dir * b.h * 0.35 };
+    // Just past the target's centre: further, and a phone's strip auto-scrolls at the screen's edge.
+    const to = axis === 'x' ? { x: b.x + dir * 10, y: a.y } : { x: a.x, y: b.y + dir * 10 };
     await mouseDrag(a, to);
     await sleep(1200);
     return axis;
@@ -153,6 +154,7 @@ const WB = [
   ok('Cryptos is not offered to follow (no stocks in it: News and Quant use stocks only)', await js(`return !document.querySelector('[data-wlm] [data-wlm-follow-id="wb:13"]') && !!document.querySelector('[data-wlm] [data-wlm-follow-id="tradehub"]');`));
 
   console.log('\n1280: another device, and Webull down');
+  await sleep(8500);   // the page skips its own echo for 8 s after a save (tradehub.html's watchlist listener)
   await js(`__fakeFs.remote('dashboards/tradeboard_watchlist', { wl2: { lists: [{ id: 'c:phone', name: 'From the phone', tickers: ['TSLA'] }], order: [], follow: ['tradehub', 'wb:11'], selected: 'wb:11', showEmpty: false, listTrash: [] }, savedAt: Date.now() + 60000 }, { merge: true }); 1`);
   ok('another device\'s new list arrives through the listener', await until(`[...document.querySelector('[data-wlm] [data-wlm-pick]').options].some(function(o){return /From the phone/.test(o.textContent);})`, 12000));
   webullDown = true;
