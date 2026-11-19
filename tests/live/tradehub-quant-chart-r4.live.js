@@ -188,10 +188,11 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
     const all = {};
     for (const t of ['trend', 'ray', 'rect', 'fib']) {
       await js(`${DR}.use('${t}'); 1`);
+      const wa = await want(a), wb = await want(b);
       if (name === '390') { await finger(a, b); } else await drag(a, b);
       const d = (await list()).slice(-1)[0];
-      const hh = d ? await handles(d.id) : [];
-      all[t] = d && d.kind === t && [a, b].every((p) => hh.some((h) => near(s.l + h.x, p.x, 2) && near(s.t + h.y, p.y, 2)));
+      const q = d ? await anchored(d.id) : null;
+      all[t] = !!(d && d.kind === t && q.on && q.n >= 2 && isAt(q.pts[0], wa) && isAt(q.pts[1], wb));
       await js(`${DR}.clear(); 1`);
     }
     ok(name + ' px: trend, ray, rectangle and Fibonacci each drawn' + (name === '390' ? ' by a finger' : '') + ', handles on the press and let-go points', Object.values(all).every(Boolean), JSON.stringify(all));
@@ -201,10 +202,11 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
       await js(`var g=${CH}.geo; ${DR}.set([{id:'t1',kind:'trend',pts:[{t:g.t(${s.w * 0.2}),p:g.p(${s.h * 0.5})},{t:g.t(${s.w * 0.8}),p:g.p(${s.h * 0.5})}]}]); 1`);
       await finger({ x: s.l + s.w * 0.5, y: s.t + s.h * 0.5 + 11 });
       ok('390 px: a finger 11 px off a line selects it', await js(`return ${DR}.selected()==='t1';`));
-      const h1 = (await handles('t1'))[1], to = { x: s.l + s.w * 0.7, y: s.t + s.h * 0.35 };
+      s = await stage();
+      const h1 = (await handles('t1'))[1], to = { x: s.l + s.w * 0.7, y: s.t + s.h * 0.35 }, wto = await want(to);
       await finger({ x: s.l + h1.x - 9, y: s.t + h1.y + 8 }, to);
-      const h2 = (await handles('t1'))[1];
-      ok('390 px: a finger near its end drags that handle to where the finger lifts', near(s.l + h2.x, to.x, 2) && near(s.t + h2.y, to.y, 2), JSON.stringify(h2));
+      const q = await anchored('t1');
+      ok('390 px: a finger near its end drags that handle to where the finger lifts', q.on && isAt(q.pts[1], wto), JSON.stringify({ q, wto }));
     }
     await shot('r4-draw-' + name);
   }
