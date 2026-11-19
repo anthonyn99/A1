@@ -109,7 +109,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   await drag(fa, fb);
   const fib = (await list()).find((d) => d.kind === 'fib');
   H = await handles(fib.id);
-  ok('a new Fibonacci, saved with extend off; its handles on the two anchors', fib && fib.extend === false && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y) && near(s.l + H[1].x, fb.x) && near(s.t + H[1].y, fb.y), JSON.stringify(H)));
+  ok('a new Fibonacci, saved with extend off; its handles on the two anchors', fib && fib.extend === false && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y) && near(s.l + H[1].x, fb.x) && near(s.t + H[1].y, fb.y), JSON.stringify(H));
   const fc = P(s, 0.6, 0.15);
   await drag(onPage(s, H[1]), fc, 16);
   H = await handles(fib.id);
