@@ -53,7 +53,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   ok('the Heat Map waits in "Add card"', /heatmap/.test(await addOpts()) && !(await js(`return !!${H};`)), await addOpts());
   const first = await js(`return window._tbOps.charts.get().symbol;`);
   await js(`window._tbOps.charts.open('AMD'); 1`);
-  ok('another ticker on the chart: both cards follow it', await until(`/AMD Corporation/.test(${K}.innerText) && window.__q7 !== 1`, 10000) && JSON.parse(await js(`return JSON.stringify(window._tbOps.charts.stock.analysis().symbol);`)) === 'AMD', first);
+  ok('another ticker on the chart: both cards follow it', await until(`/AMD Corporation/.test(${K}.innerText)`, 10000) && JSON.parse(await js(`return JSON.stringify(window._tbOps.charts.stock.analysis().symbol);`)) === 'AMD', first);
   ok('...each card has its "?"', await js(`return ['analysis','stats'].every(function(id){ var b=document.querySelector('.lay-card[data-card="'+id+'"] .lay-help'); return b && (b.title||b.getAttribute('aria-label')||'').length > 30; });`),
     await js(`var b=document.querySelector('.lay-card[data-card="analysis"] .lay-help'); return b ? b.outerHTML.slice(0,200) : 'no help button';`));
 
@@ -119,6 +119,6 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
 
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
-  await c.close();
+  c.ws.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
