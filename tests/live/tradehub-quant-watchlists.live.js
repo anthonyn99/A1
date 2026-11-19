@@ -198,7 +198,7 @@ const WB = [
     ok(`${w}: the rail shows Main`, await until(`[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join()==='NVDA,SNDK,AMD'`, 15000), await rail());
     ok(`${w}: the picker is on screen and inside the card`, await js(`var s=document.querySelector('[data-ch-list]'), c=s.closest('.lay-card'); var a=s.getBoundingClientRect(), b=c.getBoundingClientRect(); return !s.hidden && a.width>0 && a.left>=b.left-1 && a.right<=b.right+1;`));
     ok(`${w}: the strip drags sideways`, await axisRight());
-    await railDrag(0, 1);
+    await railDrag(1, 0);   // leftward: the strip sits at its start, so it cannot auto-scroll under the pointer
     ok(`${w}: a drag in the strip keeps its new order`, (await rail()) === 'SNDK,NVDA,AMD', await rail());
     await tab('prompt');
     ok(`${w}: the manager fits (no sideways scroll)`, await until(`document.querySelector('[data-wlm] .ctl-tk')`, 8000) && await js(`return document.documentElement.scrollWidth<=window.innerWidth+1 && document.querySelector('[data-wlm]').getBoundingClientRect().right<=window.innerWidth+1;`), await js(`return document.documentElement.scrollWidth+' vs '+window.innerWidth;`));
