@@ -28,6 +28,9 @@
  * PCE, GDP and jobless claims at 8:30) draw as ONE card with ONE ▶, which
  * sends the `group` template: every release debriefed in one go. groups()
  * is the rule and both TaskHubs draw from it; 0 turns grouping off.
+ * Untimed Fed events on one day (speeches, panels: no release clock) also
+ * share one card (2026-11-19): "Fed" once, one impact tag when they share
+ * it, else each line its own (isFedGroup, sharedImportance).
  *
  * THE HANDOFF is MAGI's own #tb= fragment (see magi.html "handoff"), with
  * one field added: `p`, the profile. MAGI opens in that profile, switching
@@ -229,11 +232,35 @@
       if (cur && x.ev.date === cur.date && x.m - cur.m <= gm) cur.evs.push(x.ev);
       else { cur = { date: x.ev.date, m: x.m, i: x.i, evs: [x.ev] }; runs.push(cur); }
     });
-    // Back into time order with the stand-alone ones; untimed go last.
-    solo.forEach(function (x) { runs.push({ m: x.m == null ? 1e9 : x.m, i: x.i, evs: [x.ev] }); });
+    // Back into time order with the stand-alone ones; untimed go last. Untimed Fed
+    // events on one day (speeches, panels) share ONE card (Tony, 2026-11-19).
+    var fed = {};
+    solo.forEach(function (x) {
+      if (gm > 0 && isUntimedFed(x.ev, x.m)) {
+        var r = fed[x.ev.date];
+        if (r) { r.evs.push(x.ev); return; }
+        r = fed[x.ev.date] = { m: 1e9, i: x.i, evs: [x.ev] }; runs.push(r); return;
+      }
+      runs.push({ m: x.m == null ? 1e9 : x.m, i: x.i, evs: [x.ev] });
+    });
     runs.sort(function (a, b) { return a.m - b.m || a.i - b.i; });
     runs.forEach(function (r) { out.push(r.evs); });
     return out;
+  }
+  function isUntimedFed(ev, m) {
+    return !!ev && m == null && ev.kind !== 'holiday' && !isEarn(ev) && String(ev.category || '').toLowerCase() === 'fed';
+  }
+  /* True for a card of untimed Fed events (groups() makes them): the card
+   * says "Fed" once, with one impact tag when they all share it. */
+  function isFedGroup(list, macroETof) {
+    return isGroup(list) && list.every(function (ev) { return isUntimedFed(ev, macroETof && macroETof(ev) ? 0 : null); });
+  }
+  /* The impact every event on a card shares ('high' | 'medium' | 'low'), or
+   * null when they differ or one has none: then each line shows its own. */
+  function sharedImportance(list) {
+    list = (list || []).filter(Boolean);
+    var v = list.length ? list[0].importance : null;
+    return v && list.every(function (ev) { return ev.importance === v; }) ? v : null;
   }
   function isGroup(list) {
     return Array.isArray(list) && list.length > 1 && !list.some(isEarn);
@@ -483,7 +510,7 @@
     MAGI_URL: MAGI_URL, DOC: DOC, PROFILES: PROFILES, DELAY_MIN: DELAY_MIN,
     DEFAULT_UNITS: DEFAULT_UNITS, TEMPLATES: TEMPLATES, PLACEHOLDERS: PLACEHOLDERS,
     EARN_ET: EARN_ET, LATE_ET: LATE_ET, GROUP_MIN: GROUP_MIN, GROUP_MAX: GROUP_MAX, KINDS: KINDS,
-    groups: groups, isGroup: isGroup, debriefable: debriefable,
+    groups: groups, isGroup: isGroup, isFedGroup: isFedGroup, sharedImportance: sharedImportance, debriefable: debriefable,
     normalize: normalize, setConfig: setConfig, config: config,
     releaseAt: releaseAt, dueAt: dueAt, isDue: isDue, nextDue: nextDue,
     fill: fill, prompt: prompt, link: link, b64u: b64u, openMagi: openMagi, launch: launch

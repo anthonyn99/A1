@@ -134,6 +134,17 @@ console.log('\nReleases that come out together share one card and one debrief');
   ok('8:15 and three 8:30s share one card, in release order', names[1] === 'ECB Rate Decision+September PCE Report+Q3 2026 GDP+Initial Jobless Claims', names[1]);
   ok('a run is measured from its FIRST release, so 10:00 and 10:30 do not chain', names[2] === 'UMich Sentiment' && names[3] === 'EIA Crude Inventories', names);
   ok('a release with no clock stands alone, last', names[4] === 'Waller speaks' && g.length === 5, names);
+  // Untimed Fed events of one day share ONE card (Tony, 2026-11-19).
+  const cook = mk('fed', 'Fed Governor Cook Speech', 'medium'), jeff = mk('fed', 'Fed Vice Chair Jefferson Discussion', 'medium'), ham = mk('fed', 'Fed Cleveland President Hammack Remarks', 'medium');
+  const fg = D.groups([earn, claims, cook, jeff, ham, eia], met);
+  const fn = fg.map((x) => x.map((e) => e.title).join('+'));
+  ok('untimed Fed events on one day share one card, last, in their order', fn[fn.length - 1] === 'Fed Governor Cook Speech+Fed Vice Chair Jefferson Discussion+Fed Cleveland President Hammack Remarks' && fg.length === 4, fn);
+  ok('...isFedGroup knows that card; a timed group and a lone event are not one', D.isFedGroup(fg[3], met) && !D.isFedGroup(g[1], met) && !D.isFedGroup([cook], met));
+  ok('...a timed Fed event (FOMC at 2:00) stays out of it', D.groups([cook, jeff, { ...mk('fed', 'FOMC Rate Decision', 'high') }], (e) => (e.title.startsWith('FOMC') ? { hh: 14, mm: 0 } : null)).map((x) => x.length).join() === '1,2');
+  ok('...other untimed releases still stand alone; another day is another card', D.groups([cook, { ...jeff, date: '2026-10-30' }, mk('trade', 'Untimed trade item', 'low')], met).length === 3);
+  ok('...0 turns that grouping off too', D.groups([cook, jeff], met, 0).length === 2);
+  ok('sharedImportance: one tag when all agree, null when they differ or one has none', D.sharedImportance([cook, jeff, ham]) === 'medium'
+    && D.sharedImportance([cook, { ...jeff, importance: 'high' }]) === null && D.sharedImportance([cook, { ...jeff, importance: undefined }]) === null && D.sharedImportance([]) === null);
   ok('a 30-minute window takes 10:00 and 10:30 together', D.groups([umich, eia], met, 30).length === 1);
   ok('0 turns grouping off', D.groups([pce, gdp], met, 0).length === 2);
   ok('different days never share a card', D.groups([pce, { ...gdp, date: '2026-10-30' }], met).length === 2);

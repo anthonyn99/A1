@@ -10427,18 +10427,22 @@ function App(){
   // Grouped releases (A1Debrief.groups: same day, within TradeHub's window of
   // the first): ONE card, ONE ▶. Top row = "N releases" and the ▶; below,
   // each release with its own category, time and impact.
-  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),D=window.A1Debrief;
+    // Untimed Fed events of one day (A1Debrief.isFedGroup): "Fed" once, ONE impact tag when they share it, else each line its own.
+    const fed=!!(D&&D.isFedGroup&&D.isFedGroup(g,mcMacroET)),shared=fed&&D.sharedImportance?D.sharedImportance(g):null;
+    const impTag=(v,auto)=>v&&MC_IMP[v]?React.createElement("span",{title:"Market impact: "+v,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[v].c,background:MC_IMP[v].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:auto?"auto":0,border:"1px solid "+MC_IMP[v].c+"40"}},MC_IMP[v].t):null;
     return React.createElement("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...wkCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
-        React.createElement("span",{style:{fontSize:9.5,color:T.TXM,background:T.TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXM+"30"}},g.length+" releases"),
-        mcDebriefBtn({_group:g},true)),
+        React.createElement("span",{style:{fontSize:9.5,color:T.TXM,background:T.TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXM+"30"}},fed?mcCatLabel("fed"):g.length+" releases"),
+        impTag(shared,true),
+        mcDebriefBtn({_group:g},!shared)),
       g.map((e,i)=>React.createElement("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         React.createElement("div",{style:{flex:1,minWidth:0}},
           React.createElement("div",{style:{fontSize:11,fontWeight:700,color:mcTitleC(tone,T.TX,"#cfced2"),lineHeight:1.35,wordBreak:"break-word"}},e.title),
           React.createElement("div",{style:{fontSize:9.5,fontWeight:700,color:T.TXM,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
-        e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null)));};
+            fed?null:[mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
+        shared?null:impTag(e.importance,true))));};
   // Render a day's catalysts in A1Debrief.groups order: 2+ earnings collapse into ONE
   // card that looks IDENTICAL to a single earning — "Earnings" pill on top, "GOOGL, MMM …
   // Earnings" below — by routing it through the same mcChip; releases that come out
@@ -17108,18 +17112,22 @@ function App(){
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       RC("span",{style:{fontSize:11,fontWeight:700,color:tt,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
   // Grouped releases: the same card as Tony's mcGroupChip, in Veda's colours.
-  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),D=window.A1Debrief;
+    // Untimed Fed events of one day (A1Debrief.isFedGroup): "Fed" once, ONE impact tag when they share it, else each line its own.
+    const fed=!!(D&&D.isFedGroup&&D.isFedGroup(g,mcMacroET)),shared=fed&&D.sharedImportance?D.sharedImportance(g):null;
+    const impTag=(v,auto)=>v&&MC_IMP[v]?RC("span",{title:"Market impact: "+v,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[v].c,background:MC_IMP[v].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:auto?"auto":0,border:"1px solid "+MC_IMP[v].c+"40"}},MC_IMP[v].t):null;
     return RC("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...vdCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
-        RC("span",{style:{fontSize:9.5,color:TXM,background:TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXM+"30"}},g.length+" releases"),
-        vdDebriefBtn({_group:g},true)),
+        RC("span",{style:{fontSize:9.5,color:TXM,background:TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXM+"30"}},fed?mcCatLabel("fed"):g.length+" releases"),
+        impTag(shared,true),
+        vdDebriefBtn({_group:g},!shared)),
       g.map((e,i)=>RC("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         RC("div",{style:{flex:1,minWidth:0}},
           RC("div",{style:{fontSize:11,fontWeight:700,color:mcTitleC(tone,TX,"#cfd0d4"),lineHeight:1.35,wordBreak:"break-word"}},e.title),
           RC("div",{style:{fontSize:9.5,fontWeight:700,color:TXM,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
-        e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null)));};
+            fed?null:[mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
+        shared?null:impTag(e.importance,true))));};
   // A1Debrief.groups order: 2+ earnings collapse into ONE card identical to a single earning
   // ("Earnings" pill on top, "GOOGL, MMM … Earnings" below) through the same mcChip;
   // releases that come out together share a mcGroupChip; the rest render individually.

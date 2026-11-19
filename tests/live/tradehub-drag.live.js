@@ -131,7 +131,9 @@ async function gripChecks(c, name, boxJs, key, reopen) {
 }
 
 (async () => {
-  const c = await connect();
+  // The Webull workers are answered here as unavailable: Portfolio shows its offline screen (the
+  // Connect button the theme checks read) every run (401: no retries, so it shows at once), and no test ever reaches the real worker.
+  const c = await connect({ mock: { patterns: ['https://tradeboard-api.av1.workers.dev/*', 'https://trade-dashboard.av1-2.workers.dev/*'], handle: () => ({ status: 401, json: { ok: false, error: 'unavailable (test)' } }) } });
   await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Network.enable');
   await c.send('Network.setCacheDisabled', { cacheDisabled: true });
   await c.send('Network.setBypassServiceWorker', { bypass: true });
