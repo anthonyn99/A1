@@ -424,8 +424,9 @@ function instanceCss(cfg) {
     css.push('html:has(' + F + '),body:has(' + F + '){overflow:hidden!important;}');
   }
   // features.sidebar false: the entry list, its phone drawer and the phone
-  // bar's New button go; the host picks the entry (Notebook.open).
-  if (cfg.features && cfg.features.sidebar === false) css.push(R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop,' + R + ' ' + K + '-bb-new{display:none!important;}');
+  // bar's New button go, and so does the title bar's sidebar toggle (it
+  // toggled nothing); the host picks the entry (Notebook.open).
+  if (cfg.features && cfg.features.sidebar === false) css.push(R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop,' + R + ' ' + K + '-bb-new,' + R + ' ' + K + '-fullscreen-btn{display:none!important;}');
   if (cfg.features && cfg.features.locks === false) css.push(R + ' ' + K + '-mobile-lock-btn,' + R + ' ' + K + '-btn-lock{display:none!important;}');
   if (Array.isArray(cfg.templates)) css.push(R + ' .template-card' + cfg.templates.map(function (t) { return ':not([data-template="' + t + '"])'; }).join('') + '{display:none!important;}');
   return css.join('\n');

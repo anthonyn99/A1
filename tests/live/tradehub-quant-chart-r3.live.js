@@ -53,7 +53,8 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   const pickTf = (v) => js(`var s=document.querySelector('[data-ch-tf]'); s.value=${JSON.stringify(v)}; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   const wheel = async (n, dy, dx = 0) => { const s = await stage(); const x = s.l + s.w * 0.5, y = s.t + s.h * 0.4; for (let i = 0; i < n; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: dx, deltaY: dy }); await sleep(12); } await sleep(400); };
   // The chart's own bars only (the rail reads each ticker's daily bars for its rows and levels).
-  const otherTf = (tf) => api.asked.filter((a) => a.p === '/bars' && /symbol=NVDA&/.test(a.q) && !/tf=1d&from=\d+&to=\d+&adj=1$/.test(a.q.replace(/&$/, '')) && !new RegExp('tf=' + tf + '(&|$)').test(a.q)).map((a) => a.q.slice(0, 60));
+  // (and the levels' daily bars), so daily requests are not counted: a coarser step from 5 minutes is 15 first.
+  const otherTf = (tf) => api.asked.filter((a) => a.p === '/bars' && !/tf=1d&/.test(a.q) && !new RegExp('tf=' + tf + '(&|$)').test(a.q)).map((a) => a.q.slice(0, 60));
   const doc = `(window.__fakeFs.docs['dashboards/tradehub_layout']||{})`;
 
   await size(DESK_W, 900);
