@@ -50,8 +50,9 @@ const WB = [
   const { js, until, size, boot, tab } = driver(c);
   const DOC = `(window.__fakeFs.docs['dashboards/tradeboard_watchlist']||{})`;
   const rail = () => js(`return [...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join();`);
-  const pickRail = async (id) => { await js(`var s=document.querySelector('[data-ch-list]'); s.value=${JSON.stringify(id)}; s.dispatchEvent(new Event('change',{bubbles:true})); 1`); await sleep(500); };
-  const box = (sel, i) => js(`var e=document.querySelectorAll(${JSON.stringify(sel)})[${i}]; if(!e) return 'null'; e.scrollIntoView({block:'center',inline:'center'}); var b=e.getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2,w:b.width,h:b.height});`).then(JSON.parse);
+  // A pick redraws the rail at once and again when its bars and levels land: wait for both before a drag.
+  const pickRail = async (id) => { await js(`var s=document.querySelector('[data-ch-list]'); s.value=${JSON.stringify(id)}; s.dispatchEvent(new Event('change',{bubbles:true})); 1`); await sleep(2000); };
+  const box = (sel, i) => js(`var e=document.querySelectorAll(${JSON.stringify(sel)})[${i}]; if(!e) return 'null'; var b=e.getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2,w:b.width,h:b.height});`).then(JSON.parse);
   async function mouseDrag(from, to) {
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
@@ -61,6 +62,7 @@ const WB = [
   }
   /** Drag rail row `from` past row `past` (along the rail's axis), wait out A1Drag's 600 ms timer. */
   async function railDrag(from, past, axis) {
+    await js(`document.querySelector('.lay-card[data-card="rail"]').scrollIntoView({block:'start'}); document.querySelector('[data-ch-rail]').scrollTo(0,0); 1`); await sleep(200);
     const a = await box('[data-ch-rail] .ch-row', from), b = await box('[data-ch-rail] .ch-row', past);
     const to = axis === 'x' ? { x: b.x + b.w * 0.35, y: a.y } : { x: a.x, y: b.y + b.h * 0.35 };
     await mouseDrag(a, to);
