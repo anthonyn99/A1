@@ -164,8 +164,9 @@ both sides, every host; its look is the last section of `notebook.css`
   with auto, and the host's raised cards painted over the editor (Tony,
   2026-11-18). Reading mode or Back puts it back in the host's box. A host does
   nothing; its own floating buttons and bars are covered while editing, so a
-  host without the list passes `done` for its way out (it shows in the phone
-  bar).
+  host without the list passes `done` for its way out (it shows at the far
+  right end of the phone bar, after ⋮, so the sync word coming and going never
+  moves it).
 - **Editing a page on a touch screen up to 1366px** (a landscape tablet too, with
   the desktop layout): the ribbon is ONE row of 40px icons right under the header,
   in the page's own flow, the same on every screen and keyboard (it first sat
