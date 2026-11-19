@@ -51,6 +51,8 @@
 //   GET  /macro                    rates, credit, the dollar and oil from FRED (no key), refreshed ≤ every 6 h
 //   GET  /macro/dates              past release days per kind (FRED's release calendar, 2025 on) for the event studies
 //   GET  /earnings?symbols=A,B     earnings history from D1; POST /earnings/fetch { mode: nightly|backfill } fills it from Nasdaq
+//   GET  /summary?symbol=X         Yahoo's analysts, targets and key stats (R7's Analysis and Key Stats cards; lib/stock.js)
+//   GET  /heatmap?symbols=A,B      market cap and the day's change for up to 600 symbols (R7's Heat Map; edge-cached)
 //
 // Cron (every minute, wrangler.toml): the alert check, which returns at once
 // unless New York is in a session (lib/alerts.js check).
@@ -80,6 +82,7 @@ import { getBrief, postBrief } from './lib/brief.js';
 import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
 import * as alerts from './lib/alerts.js';
+import { getSummary, getHeatmap } from './lib/stock.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, DRAWINGS_KEEP_MS } from './lib/charts.js';
 export { ALERTS_MAX } from './lib/alerts.js';
@@ -215,6 +218,9 @@ async function route(req, env, url, ctx) {
   if (p === '/macro' && m === 'GET') return getMacro(env);
   if (p === '/macro/dates' && m === 'GET') return getMacroDates(env);
   if (p === '/earnings' && m === 'GET') return getEarnings(env, url);
+  // R7: the Analysis, Key Stats and Heat Map cards (lib/stock.js, Yahoo).
+  if (p === '/summary' && m === 'GET') return getSummary(env, url, ctx, later);
+  if (p === '/heatmap' && m === 'GET') return getHeatmap(env, url, ctx, later);
   if (p === '/earnings/fetch' && m === 'POST') return postEarningsFetch(env, req);
   if (p === '/brief' && m === 'POST') return postBrief(env, req);
   const bt = /^\/backtests\/([\w-]+)$/.exec(p);
