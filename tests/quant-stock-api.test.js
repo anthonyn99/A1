@@ -125,6 +125,9 @@ globalThis.fetch = async (url, o = {}) => {
   Y.reset();
   r = await call(env, '/summary?symbol=NOPE');
   ok('...remembered for an hour: no call the next time', Y.calls.length === 0 && /tried \d+ minutes ago/.test(r.body.failed));
+  Y.reset();
+  r = await call(env, '/summary?symbol=NOPE&fresh=1');
+  ok('...but fresh=1 (Tony asking again) tries Yahoo once more', Y.calls.length >= 1 && /HTTP 404/.test(r.body.failed));
   env.DB.parts.get('SNDK').at -= 7 * 3600000;
   Y.reset(); Y.down = true;
   r = await call(env, '/summary?symbol=SNDK');
@@ -152,7 +155,7 @@ globalThis.fetch = async (url, o = {}) => {
   EDGE.clear(); Y.reset(); Y.down = true;
   r = await call(env, '/heatmap?symbols=AAA,BBB');
   ok('Yahoo down: 503 that names Yahoo', r.status === 503 && /needs Yahoo/.test(r.body.error), JSON.stringify(r.body));
-  ok('every Yahoo call is counted on the ledger', (env.DB.usage.get('yahoo') || 0) > 0);
+  ok('every call is counted on its own ledger line (yahoo-crumb), never the bars chain's yahoo', (env.DB.usage.get('yahoo-crumb') || 0) > 0 && !env.DB.usage.has('yahoo'), JSON.stringify([...env.DB.usage]));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
