@@ -71,7 +71,15 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   // The price axis rescales (and its width changes) while the page settles; the handles follow their anchors then,
   // by design. A step that compares handles with mouse positions waits for a still chart.
   const still = async () => { for (let k = 0, a = null; k < 16; k++) { const b = await js(`return JSON.stringify([${CH}.geo.p(100), ${CH}.geo.width(), ${CH}.geo.t(100)]);`); if (b === a) return; a = b; await sleep(500); } };
-  const savedKinds =() => (api.posted.drawings || []).slice(-1).map((d) => d.drawings.map((x) => x.kind + (x.extend != null ? ':' + x.extend : '') + (x.size ? ':' + x.size : '')).join()).join();
+  // What a page point is in time and price right now (with 2 px of slack each way: CDP rounds the mouse to a pixel).
+  // Anchors are compared in time and price, so a price axis that rescales mid-test (late data) cannot fool a check.
+  const want = async (p) => JSON.parse(await js(`var g=${CH}.geo, b=document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect(), x=${p.x}-b.left, y=${p.y}-b.top; return JSON.stringify({t:g.t(x), p:g.p(y), tp:Math.abs(g.t(x+2)-g.t(x)), pp:Math.abs(g.p(y+2)-g.p(y))});`));
+  const isAt = (pt, w) => !!(pt && w && Math.abs(pt.t - w.t) <= w.tp + 1 && Math.abs(pt.p - w.p) <= w.pp * 1.01 + 1e-9);
+  // A drawing now: its anchors, and whether every handle sits exactly on its point (anchors, a rectangle's other corners).
+  const anchored = async (id) => JSON.parse(await js(`var d=${DR}.get().find(function(x){return x.id===${JSON.stringify(id)};}); if(!d) return 'null'; var g=${CH}.geo, H=${DR}.handles(d.id), P=d.pts.map(function(p){return {x:g.x(p.t),y:g.y(p.p)};});
+    var spot=function(r){ return typeof r==='number' ? P[r] : r==='c01' ? {x:P[0].x,y:P[1].y} : r==='c10' ? {x:P[1].x,y:P[0].y} : null; };
+    return JSON.stringify({pts:d.pts, n:H.length, on:H.every(function(h){var q=spot(h.role); return !q || (Math.abs(h.x-q.x)<0.6 && Math.abs(h.y-q.y)<0.6);})});`));
+  const savedKinds = () => (api.posted.drawings || []).slice(-1).map((d) => d.drawings.map((x) => x.kind + (x.extend != null ? ':' + x.extend : '') + (x.size ? ':' + x.size : '')).join()).join();
 
   await size(DESK_W, 900);
   await boot({ quant: true });
@@ -85,18 +93,20 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   await still();
   let s = await stage();
   await pick('ray');
-  const ra = P(s, 0.25, 0.3), rb = P(s, 0.45, 0.45);
+  const ra = P(s, 0.25, 0.3), rb = P(s, 0.45, 0.45), wa = await want(ra), wb = await want(rb);
   await drag(ra, rb);
   let L = await list();
   const ray = L.find((d) => d.kind === 'ray');
   ok('a ray drawn by a drag is finite (saved extend:false)', ray && ray.extend === false, JSON.stringify(L).slice(0, 200));
-  let H = await handles(ray.id);
-  ok('its handles sit on the press and the let-go points', H.length === 2 && near(s.l + H[0].x, ra.x) && near(s.t + H[0].y, ra.y) && near(s.l + H[1].x, rb.x) && near(s.t + H[1].y, rb.y), JSON.stringify(H));
+  let A = await anchored(ray.id);
+  ok('its anchors are the press and the let-go points; its two handles sit on them', A.n === 2 && A.on && isAt(A.pts[0], wa) && isAt(A.pts[1], wb), JSON.stringify({ A, wa, wb }));
   ok('...and Extend lights up for it (off), Edit stays dimmed', await js(`var e=document.querySelector('[data-ch-extend]'); return !e.disabled && e.getAttribute('aria-pressed')==='false' && document.querySelector('[data-ch-edit]').disabled;`));
-  const rc = P(s, 0.55, 0.25);
+  s = await stage();
+  let H = await handles(ray.id);
+  const rc = P(s, 0.55, 0.25), wc = await want(rc), wa2 = await want(onPage(s, H[0]));
   await drag(onPage(s, H[1]), rc);
-  H = await handles(ray.id);
-  ok('dragging its end handle moves the end under the mouse (length and angle), the start stays', near(s.l + H[1].x, rc.x) && near(s.t + H[1].y, rc.y) && near(s.l + H[0].x, ra.x) && near(s.t + H[0].y, ra.y), JSON.stringify(H) + ' rc=' + JSON.stringify(rc) + ' ra=' + JSON.stringify(ra) + ' s=' + JSON.stringify(s));
+  A = await anchored(ray.id);
+  ok('dragging its end handle puts the end under the mouse (length and angle), the start stays', A.on && isAt(A.pts[1], wc) && isAt(A.pts[0], wa2) && A.pts[0].t === ray.pts[0].t && A.pts[0].p === ray.pts[0].p, JSON.stringify({ A, wc }));
   await js(`document.querySelector('[data-ch-extend]').click(); 1`);
   ok('Extend makes it infinite, the button shows it', (await list()).find((d) => d.id === ray.id).extend === true && await js(`return document.querySelector('[data-ch-extend]').getAttribute('aria-pressed')==='true';`));
   ok('...saved to quant-api with it', await until(`true`, 50) && await (async () => { for (let i = 0; i < 40; i++) { if (/ray:true/.test(savedKinds())) return true; await sleep(100); } return false; })(), savedKinds());
@@ -109,15 +119,16 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   await still();
   s = await stage();
   await pick('fib');
-  const fa = P(s, 0.2, 0.7), fb = P(s, 0.5, 0.25);
+  const fa = P(s, 0.2, 0.7), fb = P(s, 0.5, 0.25), wfa = await want(fa), wfb = await want(fb);
   await drag(fa, fb);
   const fib = (await list()).find((d) => d.kind === 'fib');
-  H = await handles(fib.id);
-  ok('a new Fibonacci, saved with extend off; its handles on the two anchors', fib && fib.extend === false && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y) && near(s.l + H[1].x, fb.x) && near(s.t + H[1].y, fb.y), JSON.stringify(H));
-  const fc = P(s, 0.6, 0.15);
+  A = await anchored(fib.id);
+  ok('a new Fibonacci, saved with extend off; its anchors where pressed and let go, a handle on each', fib && fib.extend === false && A.n === 2 && A.on && isAt(A.pts[0], wfa) && isAt(A.pts[1], wfb), JSON.stringify({ A, wfa, wfb }));
+  s = await stage(); H = await handles(fib.id);
+  const fc = P(s, 0.6, 0.15), wfc = await want(fc);
   await drag(onPage(s, H[1]), fc, 16);
-  H = await handles(fib.id);
-  ok('a handle drag follows the mouse exactly (and the other stays)', near(s.l + H[1].x, fc.x) && near(s.t + H[1].y, fc.y) && near(s.l + H[0].x, fa.x) && near(s.t + H[0].y, fa.y), JSON.stringify(H));
+  A = await anchored(fib.id);
+  ok('a handle drag follows the mouse exactly (and the other anchor stays)', A.on && isAt(A.pts[1], wfc) && A.pts[0].t === fib.pts[0].t && A.pts[0].p === fib.pts[0].p, JSON.stringify({ A, wfc }));
   await shot('r4-fib-1280');
   // A zoom (wheel) and a pan (a drag on empty chart): the handles are worked out again from time and price.
   for (let i = 0; i < 4; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: s.l + s.w * 0.85, y: s.t + s.h * 0.9, deltaX: 0, deltaY: -120 }); await sleep(30); }
@@ -128,16 +139,16 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   console.log('\n3. Rectangle');
   await js(`${DR}.clear(); ${CH}.fit && ${CH}.fit(); 1`); await sleep(300); s = await stage();
   await pick('rect');
-  const qa = P(s, 0.3, 0.3), qb = P(s, 0.5, 0.5);
+  const qa = P(s, 0.3, 0.3), qb = P(s, 0.5, 0.5), wqa = await want(qa), wqb = await want(qb);
   await drag(qa, qb);
   const rect = (await list()).find((d) => d.kind === 'rect');
-  H = await handles(rect.id);
-  ok('a rectangle has four corner handles, one on each corner', H.length === 4 && [[qa.x, qa.y], [qb.x, qb.y], [qa.x, qb.y], [qb.x, qa.y]].every(([x, y]) => H.some((h) => near(s.l + h.x, x) && near(s.t + h.y, y))), JSON.stringify(H));
-  const bl = H.find((h) => h.role === 'c01'), qd = P(s, 0.22, 0.6);
+  A = await anchored(rect.id);
+  ok('a rectangle has four corner handles, each exactly on its corner', A.n === 4 && A.on && isAt(A.pts[0], wqa) && isAt(A.pts[1], wqb), JSON.stringify({ A, wqa, wqb }));
+  s = await stage(); H = await handles(rect.id);
+  const bl = H.find((h) => h.role === 'c01'), qd = P(s, 0.22, 0.6), wqd = await want(qd);
   await drag(onPage(s, bl), qd);
-  H = await handles(rect.id);
-  const tr = H.find((h) => h.role === 'c10');
-  ok('dragging the bottom-left corner moves it under the mouse; the top-right stays', near(s.l + H.find((h) => h.role === 'c01').x, qd.x) && near(s.t + H.find((h) => h.role === 'c01').y, qd.y) && near(s.l + tr.x, qb.x) && near(s.t + tr.y, qa.y), JSON.stringify(H));
+  A = await anchored(rect.id);
+  ok('dragging the bottom-left corner moves its left side and bottom to the mouse; the top-right corner stays', A.on && isAt({ t: A.pts[0].t, p: A.pts[1].p }, wqd) && A.pts[1].t === rect.pts[1].t && A.pts[0].p === rect.pts[0].p, JSON.stringify({ A, wqd }));
 
   console.log('\n4. Text');
   await js(`${DR}.clear(); 1`);
