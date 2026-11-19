@@ -74,8 +74,10 @@ const NDX = { id: 'ndx', name: 'Nasdaq 100', bench: 'QQQ', n: 101, have: 101,
   ok('...market_prefs in the ONE layout doc says semis', await until(`((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market_prefs||{}).universe === 'semis'`, 5000), await layoutDoc());
   await boot({ keep: true }); await tab('market');
   ok('after a reload the tab still measures Semis', await until(`document.querySelector('[data-mk-universe]') && document.querySelector('[data-mk-universe]').value === 'semis' && /^Semis/.test((document.querySelector('[data-mk-breadth-of]')||{}).innerText||'')`, 20000), await text('[data-mk-uni-line]'));
-  await js(`window.__fakeFs.remote('dashboards/tradehub_layout', Object.assign({}, window.__fakeFs.docs['dashboards/tradehub_layout'], { market_prefs: { universe: 'XLE' } })); 1`);
-  ok('picked on another device: this one follows (Energy)', await until(`document.querySelector('[data-mk-universe]').value === 'XLE' && /^Measuring Energy/.test(document.querySelector('[data-mk-uni-line]').innerText)`, 15000), await text('[data-mk-uni-line]'));
+  // The layout doc is read once a load (like Charts' settings): another device's pick shows at the next open.
+  await js(`window.__fakeFs.remote('dashboards/tradehub_layout', Object.assign({}, window.__fakeFs.docs['dashboards/tradehub_layout'], { market_prefs: { universe: 'XLE' } })); localStorage.removeItem('tradehub_layout'); 1`);
+  await boot({ keep: true }); await tab('market');
+  ok('picked on another device: this one opens on it (Energy)', await until(`document.querySelector('[data-mk-universe]').value === 'XLE' && /^Measuring Energy/.test(document.querySelector('[data-mk-uni-line]').innerText)`, 15000), await text('[data-mk-uni-line]'));
 
   console.log('\nOne the snapshot holds');
   api.state.snapshot = { ...FIXTURE, universes: { ndx: NDX } };
@@ -90,7 +92,7 @@ const NDX = { id: 'ndx', name: 'Nasdaq 100', bench: 'QQQ', n: 101, have: 101,
   console.log('\nSectors and Streaks');
   await js(`document.querySelector('[data-mk-sectors-mode="mine"]').click(); 1`);
   ok('My sectors keeps only the sectors of the watchlist\'s stocks', await until(`document.querySelector('[data-mk-sectors="mine"]') && document.querySelectorAll('[data-mk-sectors] .mk-tile').length < 12 && document.querySelectorAll('[data-mk-sectors] .mk-tile').length > 0`, 3000), await js(`return document.querySelectorAll('[data-mk-sectors] .mk-tile').length;`));
-  ok('...Streaks\' Sectors section follows (My sectors)', /My sectors/.test(await text('[data-mk-streak-sec="sectors"]')) && await js(`return document.querySelectorAll('[data-mk-streak-group="sectors"] tr[data-sym]').length === document.querySelectorAll('[data-mk-sectors] .mk-tile').length;`));
+  ok('...Streaks\' Sectors section follows (My sectors)', /My sectors/i.test(await text('[data-mk-streak-sec="sectors"]')) && await js(`return document.querySelectorAll('[data-mk-streak-group="sectors"] tr[data-sym]').length === document.querySelectorAll('[data-mk-sectors] .mk-tile').length;`));
   ok('...and is synced too', await until(`((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market_prefs||{}).sectors === 'mine'`, 5000), await layoutDoc());
   await js(`document.querySelector('[data-mk-sectors-mode="all"]').click(); 1`);
   ok('All sectors brings the 12 back', await until(`document.querySelectorAll('[data-mk-sectors="all"] .mk-tile').length === 12`, 3000));
