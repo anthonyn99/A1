@@ -85,20 +85,22 @@ const ok = (name, cond, extra) => {
     await js(`document.querySelector('.lay-card[data-card="streaks"] .lay-body').scrollTop=0; document.querySelector('.tb-scroll-visible').scrollTop=0; 1`); await sleep(200);
 
     if (w === 1280) {
-      console.log('\nDrag to reorder (mouse)');
-      const before = await order();
+      // Free placement (2026-11-19, Tony): a card goes where it is dropped; the layout keeps its column and row.
+      console.log('\nDrag a card anywhere (mouse)');
+      const spots = () => js(`var g=document.querySelector('.lay-grid').getBoundingClientRect(), o={}; document.querySelectorAll('.lay-grid > .lay-card').forEach(function(e){ var b=e.getBoundingClientRect(); o[e.dataset.card]=Math.round(b.left-g.left)+','+Math.round(b.top-g.top); }); return JSON.stringify(o);`).then(JSON.parse);
+      const before = await spots();
       const a = await centre('.lay-card[data-card="regime"] .lay-title'), b = await centre('.lay-card[data-card="sectors"] .lay-title');
       await mouseDrag({ x: a.x, y: a.y }, { x: b.x + 60, y: b.y + 6 });
-      const after = await order();
-      ok('dragging Regime by its title bar past Sectors reorders the cards', after !== before && after.split(',').indexOf('regime') > 0, before + ' -> ' + after);
+      const after = await spots();
+      ok('dragging Regime by its title bar onto Sectors moves it there', after.regime !== before.regime, before.regime + ' -> ' + after.regime);
       ok('...written once to the layout doc', await until(`window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length === 1`, 4000));
-      ok('...in the order on screen', (await js(`return window.__fakeFs.docs['dashboards/tradehub_layout'].market.desktop.order.join();`)) === after);
+      ok('...with every card\'s column and row', await js(`var p=window.__fakeFs.docs['dashboards/tradehub_layout'].market.desktop.pos; return !!p && !!p.regime && Object.keys(p).length >= 8;`));
       const body = await centre('.lay-card[data-card="breadth"] .lay-body');
       const b2 = await centre('.lay-card[data-card="sectors"] .lay-title');
       await mouseDrag({ x: body.x, y: body.y }, { x: b2.x + 80, y: b2.y });
-      ok('a drag that starts in a card\'s body moves nothing (its text stays selectable)', (await order()) === after);
+      ok('a drag that starts in a card\'s body moves nothing (its text stays selectable)', JSON.stringify(await spots()) === JSON.stringify(after));
       await boot({ keep: true }); await open();
-      ok('the order survives a reload', (await order()) === after, await order());
+      ok('every card is where it was after a reload', JSON.stringify(await spots()) === JSON.stringify(after), JSON.stringify(await spots()));
 
       console.log('\nResize by the se corner handle');
       const span = () => js(`var e=document.querySelector('.lay-card[data-card="breadth"]'); return e.dataset.w+'x'+e.dataset.h;`);
