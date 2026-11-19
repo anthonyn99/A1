@@ -72,7 +72,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   ok('...the tiles stay inside the card', await js(`var b=${H}.querySelector('[data-hm-box]').getBoundingClientRect(); return ${T}.every(function(t){ return t.x >= -1 && t.y >= -1 && t.x + t.w <= b.width + 1 && t.y + t.h <= b.height + 1; });`));
   await js(`${H}.scrollIntoView({ block: 'center' }); 1`); await sleep(300);
   { const p = await centre('NVDA'); await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y }); await sleep(200); }
-  ok('hovering a tile shows its numbers', await js(`return /NVDA/.test(${H}.querySelector('[data-hm-info]').innerText) && /market cap \$4\.50T/.test(${H}.querySelector('[data-hm-info]').innerText);`), await js(`return ${H}.querySelector('[data-hm-info]').innerText;`));
+  ok('hovering a tile shows its numbers', await js(`return /NVDA/.test(${H}.querySelector('[data-hm-info]').innerText) && /market cap \$4\.50T/.test(${H}.querySelector('[data-hm-info]').innerText);`), await js(`return ${H}.querySelector('[data-hm-info]').innerHTML;`));
   await js(`${H}.querySelector('[data-hm-group="industry"]').click(); 1`);
   ok('Industries: many more groups, Semiconductors among them', await until(`${G}.length > 50 && ${G}.some(function(g){return g.name==='Semiconductors';})`, 3000));
   ok('...synced in the layout doc (market_prefs.heatGroup)', await until(`((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market_prefs||{}).heatGroup === 'industry'`, 5000), await prefs());
