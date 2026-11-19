@@ -157,7 +157,8 @@ const SIZES = [
         if (host.done) ok('the host\'s Done is in the bar', out.done, JSON.stringify(out));
         if (!host.overlay) {
           await js(`document.querySelector('${R} .nb-mh-mode').click(); return 1;`); await sleep(700);
-          ok('Reading mode gives the host\'s page back (no longer full screen)', await js(`return !document.getElementById('${K}-root').classList.contains('nb-mfull') && getComputedStyle(document.documentElement).overflow !== 'hidden';`));
+          const st = await js(`var r=document.getElementById('${K}-root'), b=document.getElementById('${K}-btn-edit'); return JSON.stringify({ cls: r.className, htmlOv: getComputedStyle(document.documentElement).overflow, editing: !!(b && b.checked) });`).then(JSON.parse);
+          ok('Reading mode gives the host\'s page back (no longer full screen)', !/\bnb-mfull\b/.test(st.cls) && !st.editing, JSON.stringify(st));
         }
       } else {
         const top = await js(`function vis(e){ if(!e) return 'missing'; var r=e.getBoundingClientRect(); if(!r.width||!r.height) return 'no size'; var x=r.left+Math.min(r.width/2, 40), y=r.top+Math.min(r.height/2, 40); if (y > innerHeight) return 'below the window'; var t=document.elementFromPoint(x, y); return t && document.getElementById('${K}-root').contains(t) ? '' : 'covered by ' + (t ? (t.id || t.tagName + '.' + String(t.className).slice(0,40)) : 'none'); }
