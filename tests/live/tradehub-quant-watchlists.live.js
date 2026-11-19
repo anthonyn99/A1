@@ -173,6 +173,7 @@ const WB = [
   ok('...and the followed list is unchanged (Main is followed but not loaded: the last good list is kept)', (await followed()) === fBefore, await followed());
   ok('...the followed-lists note says it is waiting', await js(`return /Waiting for Webull/.test(document.querySelector('[data-wlm-followed]').textContent);`));
   webullDown = false;
+  await js(`localStorage.setItem('tradehub_quant','0'); 1`);   // keep: the saved followed copy (with SNDK) stays
   await boot({ quant: false, keep: true });
   await sleep(1500);
   ok('TradeHub Quant off: News and the workers use the TradeHub list (as before Phase 1), not the saved followed copy', await until(`tbGetWatchlist().indexOf('SNDK')<0 && tbGetWatchlist().length>0`, 6000) && /SNDK/.test(fBefore), await js(`return tbGetWatchlist().join();`));
