@@ -18,7 +18,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await c.send('Page.navigate', { url: link(TEST) }); await sleep(2800);
   await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(2000);
   await js(`EWApp.go('mindset'); return 1;`); await sleep(1200);
-  console.log(await js(`return [...document.querySelectorAll('[data-note-edit],[data-mind-edit],button[aria-label*=dit]')].map(b=>b.outerHTML.slice(0,140)).join('\n');`));
+  console.log(await js(`return [...document.querySelectorAll('[data-note-edit],[data-mind-edit],button[aria-label*=dit]')].map(b=>b.outerHTML.slice(0,140)).join(' | ');`));
   await js(`window.EWNotes.edit('relationship-principles'); return 1;`); await sleep(3500);
   const shot = async (n) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath('ewr-' + n), Buffer.from(r.result.data, 'base64')); console.log(shotPath('ewr-'+n)); };
   await shot(W + '-open');
