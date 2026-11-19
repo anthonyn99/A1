@@ -70,6 +70,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   ok('...sized by cap: NVDA\'s tile is the biggest', await js(`var t=${T}.sort(function(a,b){return b.w*b.h-a.w*a.h;}); return t[0].sym === 'NVDA';`));
   ok('...coloured green and red by the day (and the canvas really painted them)', await js(`var t=${T}; if (!(t.some(function(x){return /108,203,138/.test(x.color);}) && t.some(function(x){return /236,115,101/.test(x.color);}))) return false; var cv=${H}.querySelector('[data-hm-canvas]'), d=window.devicePixelRatio||1, n=t.find(function(x){return x.sym==='NVDA';}); var px=cv.getContext('2d').getImageData(Math.round((n.x+3)*d), Math.round((n.y+n.h-3)*d), 1, 1).data; return px[1] > px[0] && px[3] > 0;`));
   ok('...the tiles stay inside the card', await js(`var b=${H}.querySelector('[data-hm-box]').getBoundingClientRect(); return ${T}.every(function(t){ return t.x >= -1 && t.y >= -1 && t.x + t.w <= b.width + 1 && t.y + t.h <= b.height + 1; });`));
+  await js(`${H}.scrollIntoView({ block: 'center' }); 1`); await sleep(300);
   { const p = await centre('NVDA'); await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y }); await sleep(200); }
   ok('hovering a tile shows its numbers', await js(`return /NVDA/.test(${H}.querySelector('[data-hm-info]').innerText) && /market cap \$4\.50T/.test(${H}.querySelector('[data-hm-info]').innerText);`), await js(`return ${H}.querySelector('[data-hm-info]').innerText;`));
   await js(`${H}.querySelector('[data-hm-group="industry"]').click(); 1`);
