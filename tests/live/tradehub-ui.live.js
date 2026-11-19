@@ -107,6 +107,7 @@ const worker = {
   await sleep(2500);
 
   console.log('\nControl');
+  await js(`window.tbControlShow && window.tbControlShow('prompts'); 1`);   // R9: Control opens on Watchlists
   await tab('prompt');
   ok('the watchlist shows a tile per ticker', await until(`document.querySelectorAll('#tradeboard-root .ctl-tk').length===3`, 6000), await js(`return document.querySelectorAll('#tradeboard-root .ctl-tk').length;`));
   ok('the prompt list shows both prompts, the first selected', await until(`document.querySelectorAll('#tradeboard-root .tb-pchip').length===2 && document.querySelector('#tradeboard-root .tb-pchip.on').innerText.indexOf('Morning Macro')>=0`, 6000));
@@ -159,6 +160,7 @@ const worker = {
   await tab('playbook');
   ok('leaving the tab mid-edit keeps the edit', await until(`/Short\\./.test(((__fakeFs.docs['dashboards/tradeboard_prompts']||{}).prompts||[]).map(p=>p.text).join('|'))`, 6000), JSON.stringify(await prompts()));
   ok('the Playbook opens beside the prompts editor', await until(`(function(){ var r=document.getElementById('pb-root'), h=document.querySelector('#tradeboard-root .tb-pb-host'); return r && h && h.contains(r); })()`, 20000));
+  await js(`window.tbControlShow && window.tbControlShow('prompts'); 1`);   // R9: Control opens on Watchlists
   await tab('prompt');
   ok('back on Control, the editor is closed and the preview shows the edit', await until(`!document.querySelector('#tradeboard-root .tb-pr-host') && /Short\\./.test((document.querySelector('#tradeboard-root .ctl-pr-preview')||{}).innerText||'')`, 4000));
 
