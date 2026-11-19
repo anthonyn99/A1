@@ -91,12 +91,13 @@ const WB = [
   await pickRail('tradehub');
   ok('picking TradeHub shows the TradeHub list in its order', (await rail()) === WATCHLIST.join(), await rail());
   ok('...and the pick is saved (wl2.selected)', await until(`${DOC}.wl2 && ${DOC}.wl2.selected==='tradehub'`, 4000), await js(`return JSON.stringify(${DOC}.wl2||null);`));
-  await railDrag(0, 2, 'y');
+  ok('the rail drags along its own axis (a column, or sideways as a strip)', await axisRight());
+  await railDrag(0, 2);
   const want1 = [WATCHLIST[1], WATCHLIST[2], WATCHLIST[0], ...WATCHLIST.slice(3)].join();
   ok('a rail drag KEEPS its new order after the drop (no snap back, ask 5)', (await rail()) === want1, await rail());
   ok('...and the TradeHub list is saved in that order (tickers)', await until(`(${DOC}.tickers||[]).join()===${JSON.stringify(want1)}`, 4000), await js(`return (${DOC}.tickers||[]).join();`));
   await pickRail('wb:11');
-  await railDrag(2, 0, 'y');
+  await railDrag(2, 0);
   ok('a Webull list reorders too (AMD to the top), and stays', (await rail()) === 'AMD,NVDA,SNDK', await rail());
   ok('...kept as TradeHub\'s order over it (wl2.order), Webull untouched', await until(`${DOC}.wl2 && JSON.stringify(${DOC}.wl2.order)===JSON.stringify([{id:'wb:11',syms:['AMD','NVDA','SNDK']}])`, 4000), await js(`return JSON.stringify((${DOC}.wl2||{}).order);`));
   await pickRail('wb:13');
@@ -167,15 +168,16 @@ const WB = [
   ok('...the followed-lists note says it is waiting', await js(`return /Waiting for Webull/.test(document.querySelector('[data-wlm-followed]').textContent);`));
   webullDown = false;
 
-  for (const [w, hgt, axis] of [[820, 1000, 'x'], [390, 844, 'x']]) {
+  for (const [w, hgt] of [[820, 1000], [390, 844]]) {
     console.log(`\n${w}: the rail and the manager`);
     await size(w, hgt);
     await boot({ quant: true });
     await tab('charts');
     ok(`${w}: the rail shows Main`, await until(`[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join()==='NVDA,SNDK,AMD'`, 15000), await rail());
     ok(`${w}: the picker is on screen and inside the card`, await js(`var s=document.querySelector('[data-ch-list]'), c=s.closest('.lay-card'); var a=s.getBoundingClientRect(), b=c.getBoundingClientRect(); return !s.hidden && a.width>0 && a.left>=b.left-1 && a.right<=b.right+1;`));
-    await railDrag(0, 1, axis);
-    ok(`${w}: a sideways drag in the strip keeps its new order`, (await rail()) === 'SNDK,NVDA,AMD', await rail());
+    ok(`${w}: the strip drags sideways`, await axisRight());
+    await railDrag(0, 1);
+    ok(`${w}: a drag in the strip keeps its new order`, (await rail()) === 'SNDK,NVDA,AMD', await rail());
     await tab('prompt');
     ok(`${w}: the manager fits (no sideways scroll)`, await until(`document.querySelector('[data-wlm] .ctl-tk')`, 8000) && await js(`return document.documentElement.scrollWidth<=window.innerWidth+1 && document.querySelector('[data-wlm]').getBoundingClientRect().right<=window.innerWidth+1;`), await js(`return document.documentElement.scrollWidth+' vs '+window.innerWidth;`));
   }
