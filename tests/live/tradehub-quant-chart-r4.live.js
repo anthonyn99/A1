@@ -69,8 +69,8 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   const P = (s, fx, fy) => ({ x: s.l + s.w * fx, y: s.t + s.h * fy });
   const onPage = (s, h) => ({ x: s.l + h.x, y: s.t + h.y });
   // The price axis rescales (and its width changes) while the page settles; the handles follow their anchors then,
-  // by design. A step that compares handles with mouse positions waits for a still chart.
-  const still = async () => { for (let k = 0, a = null; k < 16; k++) { const b = await js(`return JSON.stringify([${CH}.geo.p(100), ${CH}.geo.width(), ${CH}.geo.t(100)]);`); if (b === a) return; a = b; await sleep(500); } };
+  // by design. A step that compares anchors with mouse positions waits for a still chart.
+  const still = async () => { let a = null, same = 0; for (let k = 0; k < 30 && same < 4; k++) { const b = await js(`return JSON.stringify([${CH}.geo.p(100), ${CH}.geo.width(), ${CH}.geo.t(100), document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect().top]);`); same = b === a ? same + 1 : 0; a = b; await sleep(500); } };   // 2 s without a change
   // What a page point is in time and price right now (with 2 px of slack each way: CDP rounds the mouse to a pixel).
   // Anchors are compared in time and price, so a price axis that rescales mid-test (late data) cannot fool a check.
   const want = async (p) => JSON.parse(await js(`var g=${CH}.geo, b=document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect(), x=${p.x}-b.left, y=${p.y}-b.top; return JSON.stringify({t:g.t(x), p:g.p(y), tp:Math.abs(g.t(x+2)-g.t(x)), pp:Math.abs(g.p(y+2)-g.p(y))});`));
