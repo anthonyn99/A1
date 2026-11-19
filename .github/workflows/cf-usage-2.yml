@@ -1,0 +1,21 @@
+# Which worker on Cloudflare account 2 used its requests (tools/cf-usage.mjs).
+# Run by hand: Actions → "Cloudflare usage (account 2)" → Run workflow.
+name: Cloudflare usage (account 2)
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days back
+        default: '3'
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/cf-usage.mjs "${{ github.event.inputs.days }}"
+        env:
+          CF_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
+          CF_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_2 }}
