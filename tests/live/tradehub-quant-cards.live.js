@@ -88,7 +88,7 @@ const ok = (name, cond, extra) => {
         : [['regime', 'breadth', 0, 60], ['volume', 'regime']];
     for (const [id, target, dx, dy] of moves) {
       const r = await previewVsDrop(id, target, dx || 0, dy || 0);
-      ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; ') + r.off.join(' | '));
+      ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; outline ' + JSON.stringify(r.ghost) + '; ') + r.off.join(' | '));
     }
     ok('no card overlaps another after the moves', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0;
       for (var i=0;i<a.length;i++) for (var j=i+1;j<a.length;j++) { var p=a[i], q=a[j]; if (p.left < q.right-1 && q.left < p.right-1 && p.top < q.bottom-1 && q.top < p.bottom-1) bad++; } return bad===0;`));
