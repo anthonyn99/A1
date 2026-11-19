@@ -203,10 +203,11 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
       await finger({ x: s.l + s.w * 0.5, y: s.t + s.h * 0.5 + 11 });
       ok('390 px: a finger 11 px off a line selects it', await js(`return ${DR}.selected()==='t1';`));
       s = await stage();
-      const h1 = (await handles('t1'))[1], to = { x: s.l + s.w * 0.7, y: s.t + s.h * 0.35 }, wto = await want(to);
+      // The finger lands 9 px left and 8 px below the handle: the handle moves BY the finger's travel (no jump onto the finger).
+      const h1 = (await handles('t1'))[1], to = { x: s.l + s.w * 0.7, y: s.t + s.h * 0.35 }, wto = await want({ x: to.x + 9, y: to.y - 8 });
       await finger({ x: s.l + h1.x - 9, y: s.t + h1.y + 8 }, to);
       const q = await anchored('t1');
-      ok('390 px: a finger near its end drags that handle to where the finger lifts', q.on && isAt(q.pts[1], wto), JSON.stringify({ q, wto }));
+      ok('390 px: a finger near its end drags that handle by the finger\'s travel', q.on && isAt(q.pts[1], wto), JSON.stringify({ q, wto }));
     }
     await shot('r4-draw-' + name);
   }
