@@ -167,7 +167,7 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: s.l + s.w * 0.4, y: s.t + s.h * 0.35, button: 'left', clickCount: 1 });
     await sleep(300);
     ok('a drawing: Clear lights up, Delete stays dimmed until one is selected', await until(`${CH}.info().drawings === 1 && !document.querySelector('[data-ch-clear]').disabled`, 2000) && await js(`return document.querySelector('[data-ch-del]').disabled === !${CH}.draw().selected();`));
-    await js(`var d=${CH}.draw(); d.select && d.select(d.get()[0].id); 1`);
+    await sleep(500);   // a press straight after the placing one can land before the chart settles
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: s.l + s.w * 0.6, y: s.t + s.h * 0.35, button: 'left', clickCount: 1 });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: s.l + s.w * 0.6, y: s.t + s.h * 0.35, button: 'left', clickCount: 1 });
     ok('...selected: Delete lights up', await until(`!!${CH}.draw().selected() && !document.querySelector('[data-ch-del]').disabled`, 2000),
