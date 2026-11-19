@@ -59,25 +59,32 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
 
   console.log('\n2. Market');
   await tab('market');
-  ok('the Heat Map is on Market, a tile for every stock (S&P 500 + the watchlist)', await until(`${H} && ${H}.querySelectorAll('[data-hm-t]').length > 480`, 20000), await js(`return ${H} ? ${H}.querySelectorAll('[data-hm-t]').length + ' ' + ${H}.innerText.slice(0, 200) : 'no card';`));
+  // R7 review (perf): the tiles are drawn on one canvas; the test reads the drawn boxes (el.__hm.tiles()) and the
+  // card's state, and hovers / clicks with real mouse events at a tile's centre.
+  const T = `${H}.querySelector('[data-hm]').__hm.tiles()`;
+  const G = `window._tbOps.market.stock.heatmap().groups`;
+  const centre = async (sym) => JSON.parse(await js(`var c=${H}.querySelector('[data-hm-canvas]').getBoundingClientRect(), t=${T}.find(function(x){return x.sym==='${sym}';}); return JSON.stringify(t ? { x: c.left + t.x + t.w / 2, y: c.top + t.y + t.h / 2 } : null);`));
+  ok('the Heat Map is on Market, a tile for every stock (S&P 500 + the watchlist), on one canvas', await until(`${H} && ${H}.querySelector('[data-hm-canvas]') && ${T}.length > 480 && !${H}.querySelector('[data-hm-t]')`, 20000), await js(`return ${H} ? ${H}.innerText.slice(0, 200) : 'no card';`));
   ok('...asked in ONE request', JSON.stringify(api.state.heatAsked || []) === '[' + (api.state.heatAsked || [0])[0] + ']' && (api.state.heatAsked || [0])[0] > 500, JSON.stringify(api.state.heatAsked));
-  ok('...grouped by sector, Technology first (NVDA and AAPL are the biggest tiles)', await js(`var g=[...${H}.querySelectorAll('[data-hm-g]')]; return g.length === 11 && g[0].dataset.hmG === 'Technology';`), await js(`return [...${H}.querySelectorAll('[data-hm-g]')].map(function(e){return e.dataset.hmG;}).join(',');`));
-  ok('...sized by cap: NVDA\'s tile is the biggest', await js(`var t=[...${H}.querySelectorAll('[data-hm-t]')].map(function(e){var r=e.getBoundingClientRect(); return [e.dataset.hmT, r.width*r.height];}).sort(function(a,b){return b[1]-a[1];}); return t[0][0] === 'NVDA';`));
-  ok('...coloured green and red by the day', await js(`var bg=[...${H}.querySelectorAll('[data-hm-t]')].map(function(e){return e.style.background;}); return bg.some(function(x){return /108, 203, 138/.test(x);}) && bg.some(function(x){return /236, 115, 101/.test(x);});`));
-  ok('...the tiles stay inside the card', await js(`var b=${H}.querySelector('[data-hm-box]').getBoundingClientRect(); return [...${H}.querySelectorAll('[data-hm-t]')].every(function(e){var r=e.getBoundingClientRect(); return r.left >= b.left - 1 && r.right <= b.right + 1 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1;});`));
-  await js(`${H}.querySelector('[data-hm-t="NVDA"]').dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})); 1`);
-  ok('hovering a tile shows its numbers', await js(`return /NVDA/.test(${H}.querySelector('[data-hm-info]').innerText) && /market cap \\$4\\.50T/.test(${H}.querySelector('[data-hm-info]').innerText);`), await js(`return ${H}.querySelector('[data-hm-info]').innerText;`));
+  ok('...grouped by sector, Technology first (NVDA and AAPL are the biggest tiles)', await js(`var g=${G}; return g.length === 11 && g[0].name === 'Technology';`), await js(`return ${G}.map(function(g){return g.name;}).join(',');`));
+  ok('...sized by cap: NVDA\'s tile is the biggest', await js(`var t=${T}.sort(function(a,b){return b.w*b.h-a.w*a.h;}); return t[0].sym === 'NVDA';`));
+  ok('...coloured green and red by the day (and the canvas really painted them)', await js(`var t=${T}; if (!(t.some(function(x){return /108,203,138/.test(x.color);}) && t.some(function(x){return /236,115,101/.test(x.color);}))) return false; var cv=${H}.querySelector('[data-hm-canvas]'), d=window.devicePixelRatio||1, n=t.find(function(x){return x.sym==='NVDA';}); var px=cv.getContext('2d').getImageData(Math.round((n.x+3)*d), Math.round((n.y+n.h-3)*d), 1, 1).data; return px[1] > px[0] && px[3] > 0;`));
+  ok('...the tiles stay inside the card', await js(`var b=${H}.querySelector('[data-hm-box]').getBoundingClientRect(); return ${T}.every(function(t){ return t.x >= -1 && t.y >= -1 && t.x + t.w <= b.width + 1 && t.y + t.h <= b.height + 1; });`));
+  { const p = await centre('NVDA'); await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y }); await sleep(200); }
+  ok('hovering a tile shows its numbers', await js(`return /NVDA/.test(${H}.querySelector('[data-hm-info]').innerText) && /market cap \$4\.50T/.test(${H}.querySelector('[data-hm-info]').innerText);`), await js(`return ${H}.querySelector('[data-hm-info]').innerText;`));
   await js(`${H}.querySelector('[data-hm-group="industry"]').click(); 1`);
-  ok('Industries: many more groups, Semiconductors among them', await until(`${H}.querySelectorAll('[data-hm-g]').length > 50 && !!${H}.querySelector('[data-hm-g="Semiconductors"]')`, 3000));
+  ok('Industries: many more groups, Semiconductors among them', await until(`${G}.length > 50 && ${G}.some(function(g){return g.name==='Semiconductors';})`, 3000));
   ok('...synced in the layout doc (market_prefs.heatGroup)', await until(`((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market_prefs||{}).heatGroup === 'industry'`, 5000), await prefs());
   await js(`${H}.querySelector('[data-hm-scope="mine"]').click(); 1`);
-  ok('My sectors: fewer stocks, only the watchlist\'s sectors', await until(`${H}.querySelectorAll('[data-hm-t]').length > 0 && ${H}.querySelectorAll('[data-hm-t]').length < 480`, 8000), await js(`return ${H}.querySelectorAll('[data-hm-t]').length;`));
+  ok('My sectors: fewer stocks, only the watchlist\'s sectors, with no new request', await until(`${T}.length > 0 && ${T}.length < 480`, 8000) && (api.state.heatAsked || []).length === 1, await js(`return ${T}.length;`) + ' / ' + JSON.stringify(api.state.heatAsked));
   await sleep(1200);
   await boot({ keep: true }); await tab('market');
   ok('...both picks kept after a reload', await until(`${H} && ${H}.querySelector('[data-hm-group="industry"]').getAttribute('aria-pressed') === 'true' && ${H}.querySelector('[data-hm-scope="mine"]').getAttribute('aria-pressed') === 'true'`, 15000));
   ok('Analysis and Key Stats wait in Market\'s "Add card"', /analysis/.test(await addOpts()) && /stats/.test(await addOpts()), await addOpts());
-  const someTile = await js(`return ${H}.querySelector('[data-hm-t]').dataset.hmT;`);
-  await js(`${H}.querySelector('[data-hm-t="${someTile}"]').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'mouse'})); ${H}.querySelector('[data-hm-t="${someTile}"]').click(); 1`);
+  await until(`${T}.length > 0`, 10000);
+  await js(`${H}.scrollIntoView({ block: 'center' }); 1`); await sleep(300);
+  const someTile = await js(`return ${T}.sort(function(a,b){return b.w*b.h-a.w*a.h;})[0].sym;`);
+  { const p = await centre(someTile); await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y }); await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 }); await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 }); }
   ok('a click on a tile opens it on Charts', await until(`window._tbOps.charts && window._tbOps.charts.get().symbol === '${someTile}'`, 10000), someTile + ' / ' + await js(`return window._tbOps.charts ? window._tbOps.charts.get().symbol : 'charts not open';`));
 
   console.log('\n3. Paper');
@@ -88,7 +95,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   console.log('\n4. Yahoo down');
   api.state.heatDown = true; api.state.summaryDown = true;
   await boot({ keep: true }); await tab('market');
-  ok('the heat map says Yahoo did not answer (nothing made up)', await until(`${H} && /could not be read: .*needs Yahoo/.test(${H}.innerText) && !${H}.querySelector('[data-hm-t]')`, 15000), await js(`return ${H} ? ${H}.innerText.slice(0, 200) : 'no card';`));
+  ok('the heat map says Yahoo did not answer (nothing made up)', await until(`${H} && /could not be read: .*needs Yahoo/.test(${H}.innerText) && !${H}.querySelector('[data-hm-canvas]')`, 15000), await js(`return ${H} ? ${H}.innerText.slice(0, 200) : 'no card';`));
   await tab('charts');
   ok('Analysis with no Yahoo and no dossier: one plain line', await until(`${A} && /No analyst coverage found for/.test(${A}.innerText)`, 15000), await js(`return ${A} ? ${A}.innerText : 'no card';`));
   api.state.heatDown = false; api.state.summaryDown = false;
@@ -113,7 +120,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
       ok(`${name} ${t}: no sideways scroll, ${ids.join(' + ')} inside the page`, await js(`var W=document.documentElement.clientWidth; return document.documentElement.scrollWidth <= W + 1 && ${JSON.stringify(ids)}.every(function(id){ var e=document.querySelector('.lay-card[data-card="'+id+'"]'); var r=e.getBoundingClientRect(); return r.width > 200 && r.right <= W + 1; });`),
         await js(`return document.documentElement.scrollWidth + ' / ' + document.documentElement.clientWidth;`));
       if (t === 'charts') ok(`${name}: the stats' values do not spill out of their cells`, await js(`return [...${K}.querySelectorAll('.sk-stat b')].every(function(b){ return b.scrollWidth <= b.clientWidth + 1 || b.clientWidth > 50; });`));
-      if (t === 'market') ok(`${name}: the heat map has tiles and a real size`, await until(`${H}.querySelectorAll('[data-hm-t]').length > 400 && ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height >= 170`, 8000), await js(`return ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height;`));
+      if (t === 'market') ok(`${name}: the heat map has tiles and a real size`, await until(`${H}.querySelector('[data-hm]').__hm.tiles().length > 400 && ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height >= 170`, 8000), await js(`return ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height;`));
     }
   }
 
