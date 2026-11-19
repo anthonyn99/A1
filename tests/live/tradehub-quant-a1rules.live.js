@@ -112,7 +112,7 @@ const ok = (name, cond, extra) => {
       const unit = JSON.parse(await js(`var g=document.querySelector('.lay-grid'); return JSON.stringify({ x:(g.clientWidth-14*11)/12+14, y:58 });`));
       await js(`document.querySelector('.lay-card[data-card="regime"]').scrollIntoView({ block: 'start' }); 1`); await sleep(200);
       const g0 = await centre('.lay-card[data-card="regime"] .a1-edge[data-edge="se"]');
-      ok('each card carries A1\'s eight handles (9 cards with Phase 13\'s Macro), no old grip', await js(`return document.querySelectorAll('.lay-grid .lay-card > .a1-edge').length === 72 && !document.querySelector('.lay-card .a1-grip') && document.querySelector('.lay-card .a1-edge[data-edge="se"]').getAttribute('aria-label').indexOf('Resize ')===0;`));
+      ok('each card carries A1\'s eight handles (10 cards with Phase 13\'s Macro and R7\'s Heat Map), no old grip', await js(`return document.querySelectorAll('.lay-grid .lay-card > .a1-edge').length === 80 && !document.querySelector('.lay-card .a1-grip') && document.querySelector('.lay-card .a1-edge[data-edge="se"]').getAttribute('aria-label').indexOf('Resize ')===0;`));
       await mouseDrag({ x: g0.x, y: g0.y }, { x: g0.x + unit.x * 2 + 6, y: g0.y + unit.y * 2 + 5 });
       const s1 = await span();
       const [w0, h0] = s0.split('x').map(Number), [w1, h1] = s1.split('x').map(Number);
@@ -147,7 +147,7 @@ const ok = (name, cond, extra) => {
       await touchDrag({ x: a2.x, y: a2.y }, { x: a2.x, y: b.y + (b.y - a.y) * 0.25 + 40 }, 420);
       const after = await order();
       ok('a press held 300 ms picks the card up and drops it below Breadth', after !== before && after.split(',').indexOf('regime') >= 1, before + ' -> ' + after);
-      ok('...kept as the phone\'s own layout', await until(`(window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market && window.__fakeFs.docs['dashboards/tradehub_layout'].market.phone && window.__fakeFs.docs['dashboards/tradehub_layout'].market.phone.order.join() === ${JSON.stringify(after)}`, 4000));
+      ok('...kept as the phone\'s own layout', await until(`(window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market && window.__fakeFs.docs['dashboards/tradehub_layout'].market.phone && (function(p){ return p.order.filter(function(id){ return (p.hidden||[]).indexOf(id) < 0; }).join(); })(window.__fakeFs.docs['dashboards/tradehub_layout'].market.phone) === ${JSON.stringify(after)}`, 4000));   // R7: hidden cards ("Add card") are in the saved order too
       await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
     }
   }
