@@ -206,10 +206,13 @@ check('the shared-document writer passes its leftover room',
 /* ════════════════════════════════════════════════════════════════════════════ */
 section('Sections and counts');
 
-check('there are exactly two sections', TB_TRASH_SECTIONS.length === 2,
+check('there are exactly three sections', TB_TRASH_SECTIONS.length === 3,
       TB_TRASH_SECTIONS.map(s => s.key).join(', '));
-check('they are tickers and prompts (the Playbook has Notebook\'s trash)',
-      TB_TRASH_SECTIONS.map(s => s.key).sort().join(',') === 'prompts,tickers');
+check('they are tickers, prompts and lists (Quant R2: Tony\'s own watchlists; the Playbook has Notebook\'s trash)',
+      TB_TRASH_SECTIONS.map(s => s.key).sort().join(',') === 'lists,prompts,tickers');
+check('a list row is keyed by its id and shows its size',
+      TB_TRASH_SECTIONS.find(s => s.key === 'lists').id({ id: 'c:x' }) === 'c:x' &&
+      TB_TRASH_SECTIONS.find(s => s.key === 'lists').name({ id: 'c:x', name: 'Semis', tickers: ['MU', 'AMD'] }) === 'Semis (2)');
 TB_TRASH_SECTIONS.forEach(s => {
   check(s.key + ' can key and label its rows',
         typeof s.id === 'function' && typeof s.name === 'function' && !!s.label && !!s.icon);
@@ -267,8 +270,11 @@ check('TBPromptPage never writes Firestore itself', !/_fbSaveTBPrompts/.test(pro
 check('its delete goes to the trash', /onTrash\(/.test(promptPage));
 
 
-const wlEditor = slice('function TBWatchlistEditor(', '/* ── Control Page');
-check('removing a ticker goes to the trash', /onTrashTickers/.test(wlEditor));
+const wlEditor = slice('function TBWatchlistEditor(', '/* ── Watchlists ──');
+check('removing a ticker goes to the trash (the editor, Quant off)', wlEditor.length > 500 && /onTrashTickers/.test(wlEditor), wlEditor.length + ' chars');
+const wlManager = slice('function TBWatchlistManager(', '/* ── Control Page');
+check('...and in the list manager (Quant on): the TradeHub list\'s remove is handed onTrashTickers',
+      /onTrashTickers:\(l,next\)=>P\(\)\.onTrashTickers/.test(wlManager), wlManager.length + ' chars');
 
 /* The three persist* helpers in TBApp are the only writers, and each is handed
    the COMPLETE array (live + trashed) by its save* wrapper. */
@@ -290,7 +296,8 @@ check('it writes with merge', /\{ merge: true \}/.test(fbWl),
 check('an omitted trash is left alone, not written as empty',
       /if \(_trash !== undefined\) payload\.trash = _trash/.test(fbWl));
 
-const fbLoad = slice('window._fbLoadTBWatchlist =', 'window._fbSaveTBWatchlist');
+// The read itself (since R2 one read serves TBApp and the watchlists store, through window._fbLoadTBWatchlist).
+const fbLoad = slice('const _tbWlReadOnce =', 'window._fbSaveTBWatchlist');
 check('the loader returns the trash alongside the tickers',
       /tickers:/.test(fbLoad) && /trash:/.test(fbLoad));
 
