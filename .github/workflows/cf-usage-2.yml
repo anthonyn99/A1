@@ -1,5 +1,7 @@
 # Which worker on Cloudflare account 2 used its requests (tools/cf-usage.mjs).
-# Run by hand: Actions → "Cloudflare usage (account 2)" → Run workflow.
+# Runs by hand (Actions → "Cloudflare usage (account 2)" → Run workflow) or when
+# the script changes; the report goes to the `cf-usage` branch (usage.txt), so a
+# session can read it with git alone.
 name: Cloudflare usage (account 2)
 on:
   workflow_dispatch:
@@ -7,6 +9,11 @@ on:
       days:
         description: Days back
         default: '3'
+  push:
+    branches: [main]
+    paths: ['tools/cf-usage.mjs', '.github/workflows/cf-usage-2.yml']
+permissions:
+  contents: write
 jobs:
   usage:
     runs-on: ubuntu-latest
@@ -15,7 +22,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tools/cf-usage.mjs "${{ github.event.inputs.days }}"
+      - name: Read the analytics
+        run: node tools/cf-usage.mjs "${{ github.event.inputs.days || '3' }}" > usage.txt 2>&1 || true; cat usage.txt
         env:
           CF_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
           CF_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_2 }}
+      - name: Keep the report on the cf-usage branch
+        run: |
+          cp usage.txt /tmp/usage.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan cf-usage
+          git rm -rfq . >/dev/null
+          cp /tmp/usage.txt usage.txt
+          date -u >> usage.txt
+          git add usage.txt
+          git commit -qm "cf-usage report"
+          git push -f origin cf-usage
