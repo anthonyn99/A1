@@ -181,8 +181,8 @@ const RUN = {
   // never counts as in, so the wait then runs out at once and opens the Debrief, as it would after an hour.
   const t0 = Date.now() - 61 * 60 * 1000;
   await js(`var real=Date.now; Date.now=function(){ return real() - 61*60*1000; }; try { var b=[...document.querySelectorAll('button')].find(function(b){return /Deploy/.test(b.textContent);}); b.click(); } finally { Date.now=real; } 1`);
-  ok('Deploy arms the morning wait (kept through a reload)', Math.abs(+(await js(`return sessionStorage.getItem('tb_debrief_wait')||0;`)) - t0) < 5000);
-  ok('...and the Debrief opens on the page already open, no reload', await until("document.querySelector('.dbr')", 8000));
+  ok('Deploy arms the wait and the Debrief opens on the page already open, no reload', await until("document.querySelector('.dbr')", 8000), String(t0));
+  ok('...and the request is used up once it opened (a reload does not open it again)', !(await js(`return sessionStorage.getItem('tb_debrief_wait');`)));
 
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check|finnhub|workers\.dev/i.test(e));
   ok('no page errors', !real.length, real.join(' | '));
