@@ -200,7 +200,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   const typed2 = await js(`const ed = [...document.querySelectorAll('#ewn-root [contenteditable="true"]')].find(e => e.offsetParent); if (!ed) return 'no editor';
     ed.focus(); const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
     document.execCommand('insertHTML', false, '<p>Show up daily.</p>'); ed.dispatchEvent(new Event('input', { bubbles: true })); return 'ok';`);
-  await sleep(2500); await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
+  await sleep(2500); await js(`[...document.querySelectorAll('#ewn-root .nb-done-btn')].find(b => b.offsetParent).click(); return 1;`); await sleep(2500);
   ok('what is written there shows on the new card (the same beautiful reader)', typed2 === 'ok' && await js(`return /Show up daily/.test(document.querySelector('.wr-card[data-wr="${newId}"] .wr-ex').textContent);`), typed2);
   // Renamed in Notebook's own title box (Tony 2026-10-20: the card kept the old name).
   const nbTitle = async (t) => {
@@ -210,7 +210,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     if (t != null) await js(`const i = document.getElementById('ewn-entry-title-input'); i.focus(); i.value = ${JSON.stringify(t)}; i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); return 1;`);
     await sleep(2500);
     const shown = await js(`return document.getElementById('ewn-entry-title-input').value + '|' + document.getElementById('ew-nb-title').textContent;`);
-    await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
+    await js(`[...document.querySelectorAll('#ewn-root .nb-done-btn')].find(b => b.offsetParent).click(); return 1;`); await sleep(2500);
     return shown;
   };
   const cardNames = () => js(`return [(document.querySelector('.wr-card[data-wr="${newId}"] .wr-title') || {}).textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
@@ -297,7 +297,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     document.execCommand('insertHTML', false, '<p>Added in Notebook</p>'); ed.dispatchEvent(new Event('input', { bubbles: true })); return 'ok';`);
   ok('the page is editable', typed === 'ok', typed);
   await sleep(2500);
-  await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
+  await js(`[...document.querySelectorAll('#ewn-root .nb-done-btn')].find(b => b.offsetParent).click(); return 1;`); await sleep(2500);
   d = await doc();
   ok('the edit is saved to dashboards/everwell_notes by Notebook', /Added in Notebook/.test(d['e_goals-mindset'].data.html), d['e_goals-mindset'].data.html.slice(-200));
   ok('Done closes the editor, and the Goals tab shows the edit', await js(`return !document.getElementById('ew-nb-overlay').classList.contains('on') && /Added in Notebook/.test(document.querySelector('#goals-notes .lyric').textContent);`));
