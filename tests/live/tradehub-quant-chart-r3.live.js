@@ -83,7 +83,7 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   await sleep(600);
   I = await info();
   ok('wide drag-pans and a sideways wheel keep the interval and the range', I.tf === '5m' && I.range === '5D' && otherTf('5m').length === 0, I.tf + ' ' + I.range + ' ' + otherTf('5m').join(' | '));
-  const ind0 = JSON.stringify((await js(`return JSON.stringify(${CH}.get().indicators);`)));
+  const ind0 = await js(`return JSON.stringify(${CH}.get().indicators);`);
   await js(`document.querySelector('[data-ch-range="1M"]').click(); 1`); await settled();
   I = await info();
   ok('a range click keeps the interval (1M stays at 5 minutes)', I.range === '1M' && I.tf === '5m', I.range + ' ' + I.tf);
@@ -95,13 +95,13 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   I = await info();
   ok('an interval pick keeps the range; the next range click keeps 1 hour', I.range === '5D' && I.tf === '1h', I.range + ' ' + I.tf);
   await pickTf('1d'); await settled();
-  ok('a switch to daily bars leaves the indicators as they were', JSON.stringify(await js(`return JSON.stringify(${CH}.get().indicators);`)) === ind0, await js(`return JSON.stringify(${CH}.get().indicators);`));
+  ok('a switch to daily bars leaves the indicators as they were', (await js(`return JSON.stringify(${CH}.get().indicators);`)) === ind0,await js(`return JSON.stringify(${CH}.get().indicators);`));
   await js(`document.querySelector('[data-ch-preset="weekly"]').click(); 1`); await settled();
   I = await info();
   ok('the Weekly preset sets what it says (5Y, weekly bars)', I.range === '5Y' && I.tf === '1w');
   await js(`document.querySelector('[data-ch-range="5D"]').click(); 1`); await settled();
   await pickTf('5m'); await settled();
-  await js(`var s=${CH}; s.set({indicators: JSON.parse(${JSON.stringify(ind0)})}); 1`);
+  await js(`${CH}.set({indicators: ${ind0}}); 1`);
   I = await info();
   ok('back on 5D at 5 minutes', I.range === '5D' && I.tf === '5m');
   const view0 = I.view;
