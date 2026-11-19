@@ -93,6 +93,8 @@ const see = (c, js) => evalJs(c, `var e=(${js}); if(e) e.scrollIntoView({block:'
 // The phone's tabs live in the drawer (2026-11-15): open it first.
 const openDrawer = async (c) => { await evalJs(c, "var m=document.querySelector('.tb-mobile-header'); if(m&&!m.classList.contains('is-open')) document.querySelector('.tb-mtop-burger').click(); 1"); await sleep(400); };
 async function goTo(c, scope, id) {
+  // R9: Control opens on its Watchlists section; the prompt checks here need Prompts.
+  if (id === 'prompt') await evaluate(c, `window.tbControlShow && window.tbControlShow('prompts'); 1`);
   if (scope === MOB) await openDrawer(c);
   const r = await rect(c, tab(scope, id));
   if (r) await click(c, r.x, r.y);

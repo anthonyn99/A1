@@ -77,6 +77,7 @@ const ok = (name, cond, extra) => {
   seedState();
   await size(1280, 900);
   await boot({ quant: true });
+  await js(`window.tbControlShow('alerts'); 1`);   // R9: Control ▸ Alerts is its own section
   await tab('prompt');
   ok('the card is there', await until(`document.querySelector('[data-tal-control] [data-tal-kinds]')`, 15000));
   ok('six kinds, each with "market hours only" and "TaskHub card"', await js(`return document.querySelectorAll('[data-tal-kind]').length === 6 && document.querySelectorAll('[data-tal-market]').length === 6 && document.querySelectorAll('[data-tal-card]').length === 6;`));

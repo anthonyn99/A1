@@ -48,7 +48,8 @@ const worker = {
     await sleep(2000);
   };
   const TAB = (id) => `[...document.querySelectorAll('.tb-navtab[data-navid="${id}"]')].find(b=>b.offsetParent)`;
-  const go = (id) => js(`var t=${TAB(id)}; if(t) t.click(); 1`);
+  // R9: Control opens on its Watchlists section; the prompt checks here need Prompts.
+  const go = (id) => js(`${id === 'prompt' ? "window.tbControlShow && window.tbControlShow('prompts');" : ''} var t=${TAB(id)}; if(t) t.click(); 1`);
   const shown = `(function(){ var r=document.getElementById('pb-root'), h=document.querySelector('#tradeboard-root .tb-pb-host'); return !!(r && h && h.contains(r) && document.querySelectorAll('#pb-entries-list .entry-item').length > 0); })()`;
   // Leave for `away` the instant Notebook is told to mount `key`: mount() records
   // the instance (mounts[key] = cfg) right after the host's box was handed over.
