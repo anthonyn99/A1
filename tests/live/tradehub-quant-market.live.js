@@ -155,14 +155,14 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   await sleep(2200);
   ok('...and the reload wrote nothing', (await writes()) === 0, await writes());
   await js(`var s=document.querySelector('[data-lay-add]'); s.value='volume'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
-  ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').disabled`, 3000));
+  ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').options[0].textContent === 'Add card (2)'`, 3000));   // R7: Analysis and Key Stats still wait there
   await js(`var m=document.querySelector('[data-lay-reset]'); m.value='orig'; m.dispatchEvent(new Event('change',{bubbles:true})); 1`);
-  ok('Layout ▸ Reset to original restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 9`, 3000));
+  ok('Layout ▸ Reset to original restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 10`, 3000));
   await size(390, 844); await sleep(700);
   await js(`document.querySelector('.lay-card[data-card="analogs"] [data-act="hide"]').click(); 1`); await sleep(2200);
   await size(DESK_W, 900); await sleep(700);
   const two = JSON.parse(await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_layout'].market);`));
-  ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analogs' && two.desktop.hidden.length === 0 && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
+  ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analysis,stats,analogs' && two.desktop.hidden.join() === 'analysis,stats' && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
 
   console.log('\nNo snapshot stored: the page builds it');
   api.state.snapshot = null; api.asked.length = 0; api.posted.claims = 0; api.posted.snapshots.length = 0; api.posted.watchlists.length = 0; api.state.watchlist = null;
