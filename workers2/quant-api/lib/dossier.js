@@ -111,7 +111,7 @@ export async function getDossier(env, url, ctx, later) {
   const parts = {}, failed = {}, pending = [], writes = [];
   for (const r of rows) {
     if (PART_SRC[r.part] && r.at > 0) parts[r.part] = { src: r.src, at: r.at, facts: parse(r.body) || {} };
-    if (resting(r)) failed[r.part] = r.error + ' (tried ' + Math.round((now - r.err_at) / 60000) + ' minutes ago)';
+    if (resting(r) && PART_SRC[r.part]) failed[r.part] = r.error + ' (tried ' + Math.round((now - r.err_at) / 60000) + ' minutes ago)';
   }
   const budget = { used: 0 };
   const L = await Ledger.load(env, now);
