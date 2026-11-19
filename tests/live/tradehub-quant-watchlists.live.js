@@ -138,7 +138,7 @@ const WB = [
   await press('[data-wlm-act="delete"]'); await sleep(400);
   ok('Delete: the list leaves, TradeHub opens, the list waits in wl2.listTrash', await js(`return ![...${mgr('[data-wlm-pick]')}.options].some(function(o){return /Chips/.test(o.textContent);}) && ${mgr('[data-wlm-pick]')}.value==='tradehub';`) && await until(`((${DOC}.wl2||{}).listTrash||[]).some(function(l){return l.name==='Chips';})`, 4000));
   await js(`[...document.querySelectorAll('button')].find(function(b){return /Trash/.test(b.textContent) && b.offsetParent;}).click(); 1`); await sleep(400);
-  ok('Trash has a Lists section with Chips (1)', await js(`return /Lists/.test(document.body.innerText) && /Chips \\(1\\)/.test(document.body.innerText);`));
+  ok('Trash has a Lists section with Chips (1)', await js(`return /\\bLists\\b/i.test(document.body.innerText) && /Chips \\(1\\)/.test(document.body.innerText);`));
   await js(`var row=[...document.querySelectorAll('button')].filter(function(b){return b.textContent==='Restore';}).find(function(b){return /Chips/.test(b.parentNode.parentNode.textContent);}); row.click(); 1`); await sleep(500);
   ok('Restore: Chips is back with AMD', await js(`return [...${mgr('[data-wlm-pick]')}.options].some(function(o){return /^Chips \\(1\\)/.test(o.textContent);});`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(300);
@@ -150,9 +150,7 @@ const WB = [
   const f1 = JSON.parse((await followed()) || '[]');
   ok('ticking Main adds its stocks (SNDK) after the TradeHub list', f1.join() === [...want1.split(','), 'SNDK'].join(), f1.join());
   ok('...saved as wl2.follow', await until(`JSON.stringify((${DOC}.wl2||{}).follow)==='["tradehub","wb:11"]'`, 4000));
-  await js(`document.querySelector('[data-wlm] [data-wlm-follow-id="wb:13"]').click(); 1`); await sleep(600);
-  ok('ticking Cryptos adds nothing (stocks only)', (await followed()) === JSON.stringify(f1), await followed());
-  await js(`document.querySelector('[data-wlm] [data-wlm-follow-id="wb:13"]').click(); 1`); await sleep(400);
+  ok('Cryptos is not offered to follow (no stocks in it: News and Quant use stocks only)', await js(`return !document.querySelector('[data-wlm] [data-wlm-follow-id="wb:13"]') && !!document.querySelector('[data-wlm] [data-wlm-follow-id="tradehub"]');`));
 
   console.log('\n1280: another device, and Webull down');
   await js(`__fakeFs.remote('dashboards/tradeboard_watchlist', { wl2: { lists: [{ id: 'c:phone', name: 'From the phone', tickers: ['TSLA'] }], order: [], follow: ['tradehub', 'wb:11'], selected: 'wb:11', showEmpty: false, listTrash: [] }, savedAt: Date.now() + 60000 }, { merge: true }); 1`);
