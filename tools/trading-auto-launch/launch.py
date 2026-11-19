@@ -277,7 +277,11 @@ from pathlib import Path
 SCRIPT_PATH = Path(__file__).resolve()
 STATE_FILE  = SCRIPT_PATH.parent / ".last_run"
 ANALYSIS_STATE_FILE = SCRIPT_PATH.parent / ".last_analysis"
-LOG_FILE    = SCRIPT_PATH.parent / "launch.log"
+# The last Daily Reminder fetched, so a worker outage still shows Tony's own text
+# (2026-11-19: account 2 ran out of free requests, the worker answered 429 and
+# only the generic fallback showed). Git-ignored: the reminder is personal.
+REMINDER_CACHE_FILE = SCRIPT_PATH.parent / ".daily_reminder.json"
+LOG_FILE   = SCRIPT_PATH.parent / "launch.log"
 TASK_NAME   = "TradingAutoLaunch"
 TASK_FOLDER = "\\Custom\\"
 # Old task names removed on --setup / --uninstall so a rename never leaves a dead
@@ -1658,6 +1662,25 @@ def run_daily_analysis(test: bool = False):
 # Daily Reminder gate  (mandatory confirmation before anything launches)
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _save_reminder_cache(r: dict) -> None:
+    """Keep the reminder just fetched, with today's date, for a day the worker is down."""
+    try:
+        REMINDER_CACHE_FILE.write_text(json.dumps({**r, "fetched": str(date.today())}), encoding="utf-8")
+    except Exception as e:
+        log(f"Daily Reminder: could not keep a local copy ({e}).")
+
+
+def _load_reminder_cache():
+    """The last reminder fetched → {'title','markdown','fetched'}, or None."""
+    try:
+        c = json.loads(REMINDER_CACHE_FILE.read_text(encoding="utf-8"))
+        if (c.get("markdown") or "").strip():
+            return c
+    except Exception:
+        pass
+    return None
+
+
 def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: float = 2.0):
     """GET the Playbook's Daily Reminder page that TradeHub pushed to the worker.
     Returns {'title','markdown'} or None if it never came."""
@@ -1673,8 +1696,10 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
             if data.get("ok") and (data.get("markdown") or "").strip():
-                return {"title": data.get("title") or "Daily Reminder",
-                        "markdown": data["markdown"]}
+                got = {"title": data.get("title") or "Daily Reminder",
+                       "markdown": data["markdown"]}
+                _save_reminder_cache(got)
+                return got
             log("Daily Reminder: worker returned no content.")
             return None
         except urllib.error.HTTPError as e:
@@ -2255,8 +2280,14 @@ def daily_reminder_gate() -> bool:
         return True
 
     r = _fetch_daily_reminder()
+    cached = None if r else _load_reminder_cache()
     if r:
         title, markdown, notice = r["title"], r["markdown"], ""
+    elif cached:
+        # The worker is down: Tony's own reminder, as last fetched, rather than a generic page.
+        title, markdown = cached.get("title") or "Daily Reminder", cached["markdown"]
+        notice = f"The reminder couldn't be fetched just now — showing your copy from {cached.get('fetched') or 'earlier'}."
+        log(f"Daily Reminder: worker unreachable — showing the local copy from {cached.get('fetched')}.")
     else:
         # Still gate the morning — just say why the page is missing.
         title = "Daily Reminder"
