@@ -170,7 +170,8 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     await js(`var d=${CH}.draw(); d.select && d.select(d.get()[0].id); 1`);
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: s.l + s.w * 0.6, y: s.t + s.h * 0.35, button: 'left', clickCount: 1 });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: s.l + s.w * 0.6, y: s.t + s.h * 0.35, button: 'left', clickCount: 1 });
-    ok('...selected: Delete lights up', await until(`!!${CH}.draw().selected() && !document.querySelector('[data-ch-del]').disabled`, 2000));
+    ok('...selected: Delete lights up', await until(`!!${CH}.draw().selected() && !document.querySelector('[data-ch-del]').disabled`, 2000),
+      await js(`var d=${CH}.draw(); return JSON.stringify({sel:d.selected(), n:d.get().length, y:d.get()[0] && ${CH}.geo.y(d.get()[0].pts[0].p), dis:document.querySelector('[data-ch-del]').disabled});`) + ' clickY ' + (s.h * 0.35));
     await js(`document.querySelector('[data-ch-del]').click(); 1`);
     ok('...deleted: both dimmed again', await until(`${CH}.info().drawings === 0 && document.querySelector('[data-ch-del]').disabled && document.querySelector('[data-ch-clear]').disabled`, 2000)); }
 
