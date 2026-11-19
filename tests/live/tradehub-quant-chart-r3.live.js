@@ -211,8 +211,11 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     ok(name + ' px: no sideways scroll', (await js(`return document.documentElement.scrollWidth;`)) <= vw);
     ok(name + ' px: the toolbar\'s controls are all reachable (inside the card, or its own sideways scroller)', await js(`var t=document.querySelector('[data-ch-tools]'), c=t.closest('.lay-card, .mk-card') || t.parentElement, cb=c.getBoundingClientRect(); return [...t.querySelectorAll('.ch-tools-row')].filter(function(r){return r.offsetParent;}).every(function(r){var b=r.getBoundingClientRect(); return b.left >= cb.left - 1 && b.right <= cb.right + 1;});`));
     await js(`var s=document.querySelector('[data-ch-type]'); s.value=(${CH}.get().type==='line'?'candles':'line'); s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+    // R7B: on a phone or tablet the chart type and Compare live in Display (the tool row is the header and the icons).
+    if (name !== '1280') await js(`document.querySelector('[data-ch-display]').click(); 1`);
     ok(name + ' px: a change shows the sync pill on screen, and Compare is there', await until(`(function(){var p=document.querySelector('[data-ch-sync]'), b=p.getBoundingClientRect(), c=document.querySelector('[data-ch-cmp]').getBoundingClientRect(); return /busy|ok/.test(p.getAttribute('data-sync')||'') && b.width > 20 && b.right <= innerWidth && b.left >= 0 && c.width > 40;})()`, 1800),
       await js(`var p=document.querySelector('[data-ch-sync]'); var b=p.getBoundingClientRect(); return p.getAttribute('data-sync') + ' ' + JSON.stringify(b);`));
+    if (name !== '1280') await js(`document.querySelector('[data-ch-display]').click(); 1`);
     await shot('r3-charts-' + name);
   }
 
