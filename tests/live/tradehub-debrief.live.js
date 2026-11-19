@@ -166,6 +166,19 @@ const RUN = {
   const on = await js(`var b=[...document.querySelectorAll('.dbr-tabs button')].find(function(x){ return x.classList.contains('on') || x.getAttribute('aria-selected')==='true'; }); return b ? b.textContent : '';`);
   ok('the morning Debrief opens on Daily Report, not the tab it was closed on (Today’s Movers)', opened && /Daily Report/.test(on), JSON.stringify({ opened, on }));
 
+  // Analysis' Deploy button (2026-11-19): TradeHub is already open, so the launcher reuses it and
+  // never loads #tbdebrief. Deploy arms the same wait on the page itself, and it opens with no reload.
+  console.log('\nDeploy from an open TradeHub');
+  await js(`sessionStorage.removeItem('tb_debrief_wait'); 1`);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
+  await until("document.querySelector('.tb-navtab')", 30000);
+  await sleep(1500);
+  ok('opened with nothing armed: no Debrief', !(await js(`return !!document.querySelector('.dbr');`)));
+  // Deploy's own call (arm), with the morning already in (an hour ago), so the wait opens it at once.
+  await js(`_tbDebriefWait.arm(); _tbDebriefWait.at = Date.now() - 61 * 60 * 1000; window.dispatchEvent(new Event('tb-debrief-arm')); 1`);
+  ok('Deploy arms the wait and the Debrief opens on the page already open', await until("document.querySelector('.dbr')", 8000));
+  ok('the Deploy button arms it (handleDeploy calls _tbDebriefWait.arm)', await js(`return /_tbDebriefWait\\.arm\\(\\)/.test([...document.scripts].map(function(s){return s.textContent;}).join('\\n'));`));
+
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check|finnhub|workers\.dev/i.test(e));
   ok('no page errors', !real.length, real.join(' | '));
   console.log(`\n  screenshots: ${SHOTS}`);
