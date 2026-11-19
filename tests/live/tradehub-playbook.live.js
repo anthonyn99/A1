@@ -156,8 +156,17 @@ const worker = {
   // One drawer at a time (Tony, 2026-11-16): TradeHub's menu and the Playbook's page list.
   const drawers = `return JSON.stringify({ tb: !!document.querySelector('.tb-mobile-header.is-open'), pb: !!document.querySelector('#pb-sidebar.pb-open') });`;
   await js(`window._pbSetDrawer(true); 1`); await sleep(400);
+  const openPage0 = await js(`var a=document.querySelector('#pb-entries-list .entry-item.active'); return a ? a.dataset.entryId : '';`);
   await js(`document.querySelector('.tb-mtop-burger').click(); 1`); await sleep(500);
-  ok('opening TradeHub\'s menu closes the Playbook\'s page list', await js(drawers) === '{"tb":true,"pb":false}', await js(drawers));
+  // Since 2026-11-18 a phone's page list is a SCREEN (Notebook's nb-shell), not a drawer: Notebook.closeDrawer
+  // leaves it alone (closing it opened a page behind TradeHub's menu). TradeHub's menu opens on top of it instead.
+  if (await js(`return document.getElementById('pb-root').classList.contains('nb-shell');`)) {
+    ok('opening TradeHub\'s menu puts it on top of the Playbook\'s page list (a phone screen, not closed)', JSON.parse(await js(drawers)).tb &&
+      await js(`var d=document.querySelector('.tb-mobile-header.is-open .tb-drawer').getBoundingClientRect(); var e=document.elementFromPoint(d.left+d.width/2, d.top+d.height/2); return !!(e && e.closest('.tb-drawer'));`), await js(drawers));
+    ok('...and no page was opened behind it', (await js(`var a=document.querySelector('#pb-entries-list .entry-item.active'); return a ? a.dataset.entryId : '';`)) === openPage0);
+  } else {
+    ok('opening TradeHub\'s menu closes the Playbook\'s page list', await js(drawers) === '{"tb":true,"pb":false}', await js(drawers));
+  }
   await js(`window._pbSetDrawer(true); 1`); await sleep(500);
   ok('...and opening the page list closes TradeHub\'s menu', await js(drawers) === '{"tb":false,"pb":true}', await js(drawers));
   await js(`window._pbSetDrawer(false); 1`); await sleep(400);
