@@ -38,7 +38,34 @@ const EDGE_CANDIDATES = [
   'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
 ];
 
+// A test browser left open after its run keeps its last page alive with no mocks in front of it (the
+// Fetch interception ends with the run). A TradeHub page left like that went on polling the REAL workers
+// every 5 s, headless (never "hidden"), and on 2026-11-19 Cloudflare account 2's 100,000 free requests a
+// day ran out: quant-api, trade-dashboard (the Daily Reminder) and TaskHub's weather all answered 1027.
+// So a run on its OWN port closes its browser when it exits. Port 9333 is shared with other sessions and
+// is left open (give a run its own CDP_PORT); CDP_KEEP=1 keeps the browser for a quick rerun.
+let closeOnExit = false;
+function browserPids() {
+  if (process.platform !== 'win32') return [];
+  try {
+    const out = require('child_process').execSync(
+      `powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'remote-debugging-port=${PORT}( |$)' -and $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.ProcessId }"`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 15000 });
+    return out.split(/\s+/).map(Number).filter((n) => n > 0);
+  } catch (e) { return []; }
+}
+function armClose() {
+  if (closeOnExit || PORT === 9333 || process.env.CDP_KEEP) return;
+  closeOnExit = true;
+  process.on('exit', () => {
+    for (const pid of browserPids()) {
+      try { require('child_process').execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', timeout: 10000 }); } catch (e) {}
+    }
+  });
+}
+
 async function launch() {
+  armClose();
   if (await portAlive()) return;
   const exe = EDGE_CANDIDATES.find((p) => fs.existsSync(p));
   if (!exe) throw new Error('no Edge/Chrome found');
