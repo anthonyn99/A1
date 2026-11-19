@@ -441,6 +441,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-btn:hover { background: #34353b; border-color: #5a5b63; box-shadow: none; }
 .docx-btn.pri { background: #a9b6ef; border-color: #a9b6ef; color: #17181c; font-weight: 700; }
 .docx-btn.pri:hover { background: #a9b6ef; border-color: #a9b6ef; box-shadow: none; }
+/* The primary answers the pointer too, on both sides (TradeHub Quant R9, Tony's ask 6: Trash's "Restore selected"
+   had no hover): a brighter fill on hover, a press that sinks 1 px. Each side keeps its own colours. */
+.docx-btn.pri:not(:disabled):hover { filter: brightness(1.1) saturate(1.05); }
+.docx-btn.pri:not(:disabled):active { filter: brightness(.9); transform: translateY(1px); }
 .docx-btn.danger { background: transparent; color: #e39a8e; border-color: rgba(227,154,142,.42); }
 .docx-btn.danger:hover { background: rgba(227,154,142,.10); border-color: #e39a8e; }
 .docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
