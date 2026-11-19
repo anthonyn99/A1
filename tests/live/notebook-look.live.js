@@ -7,7 +7,7 @@
 //   - under the cursor (:hover forced): background, border, colour, glow
 //   - a real mouse over Bold, then a press: hoverfx's lift and sink
 // Only what a host's mount config turns off may be missing (locks: the Lock
-// button); the sync pill is left out, its colour is its state (idle/synced).
+// button; sidebar: the title bar's sidebar toggle); the sync pill is left out, its colour is its state (idle/synced).
 // A new host goes in HOSTS below.
 //
 // Run: node tests/live/notebook-look.live.js
