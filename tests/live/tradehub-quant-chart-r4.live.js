@@ -28,7 +28,8 @@ const DESK_W = 1280 + 224;
 const TAB = `document.querySelector('[data-charts]').__charts`;
 const CH = `${TAB}.active()`;
 const DR = `${CH}.draw()`;
-const near = (a, b, e = 1.5) => Math.abs(a - b) <= e;
+// 2 px: CDP rounds a fractional mouse position to a whole pixel (each end can be up to a pixel off).
+const near = (a, b, e = 2) => Math.abs(a - b) <= e;
 // The page's in-UI prompt, answered by the test: a new text says Breakout, an edit says Edited (the options are kept).
 const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__prompts.push(o||{}); return Promise.resolve(o&&o.default!=null&&o.default!==''?'Edited':'Breakout'); }; 1`;
 
