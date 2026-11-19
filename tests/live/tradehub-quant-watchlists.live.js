@@ -60,14 +60,20 @@ const WB = [
     await sleep(120);
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
   }
-  /** Drag rail row `from` past row `past` (along the rail's axis), wait out A1Drag's 600 ms timer. */
-  async function railDrag(from, past, axis) {
-    await js(`document.querySelector('.lay-card[data-card="rail"]').scrollIntoView({block:'start'}); document.querySelector('[data-ch-rail]').scrollTo(0,0); 1`); await sleep(200);
+  /** Drag rail row `from` past row `past` along the rail's axis (a column, or a sideways strip when the
+   *  grid is tablet or phone sized), then wait out A1Drag's 600 ms timer. → the axis it used. */
+  async function railDrag(from, past) {
+    await js(`document.querySelector('.lay-card[data-card="rail"]').scrollIntoView({block:'center'}); document.querySelector('[data-ch-rail]').scrollTo(0,0); 1`); await sleep(200);
     const a = await box('[data-ch-rail] .ch-row', from), b = await box('[data-ch-rail] .ch-row', past);
-    const to = axis === 'x' ? { x: b.x + b.w * 0.35, y: a.y } : { x: a.x, y: b.y + b.h * 0.35 };
+    const axis = Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? 'x' : 'y';
+    const dir = past > from ? 1 : -1;
+    const to = axis === 'x' ? { x: b.x + dir * b.w * 0.35, y: a.y } : { x: a.x, y: b.y + dir * b.h * 0.35 };
     await mouseDrag(a, to);
     await sleep(1200);
+    return axis;
   }
+  /** The drag axis A1Drag was given matches the rail's layout (a strip drags sideways). */
+  const axisRight = () => js(`var l=document.querySelector('[data-ch-rail]'); var row=getComputedStyle(l).flexDirection==='row'; return (l._a1drag.o.axis==='x')===row;`);
   const mgr = (sel) => `document.querySelector('[data-wlm] ${sel}')`;
   const pickMgr = async (id) => { await js(`var s=${mgr('[data-wlm-pick]')}; s.value=${JSON.stringify(id)}; s.dispatchEvent(new Event('change',{bubbles:true})); 1`); await sleep(300); };
   const tiles = () => js(`return [...document.querySelectorAll('[data-wlm] .ctl-tk')].map(function(e){return e.dataset.sym;}).join();`);
