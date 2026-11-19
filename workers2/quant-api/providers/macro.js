@@ -9,7 +9,15 @@ export const SERIES = {
   DGS3MO: '3-month Treasury', DGS2: '2-year Treasury', DGS10: '10-year Treasury',
   DFII10: '10-year real yield', BAMLH0A0HYM2: 'High-yield spread', DTWEXBGS: 'Dollar (broad)', DCOILWTICO: 'Oil (WTI)',
 };
-export const KEEP_DAYS = 400;
+// The releases' own figures (2026-11-19, Tony: "do the actual vs previous"): what each release printed
+// last and the time before, for the Macro card. Monthly / quarterly series keep RELEASE_DAYS so a
+// year-over-year change has its year-ago month for both the latest and the previous print.
+export const RELEASE_SERIES = {
+  CPIAUCSL: 'CPI (all items)', PCEPI: 'PCE price index', PPIFIS: 'PPI (final demand)',
+  PAYEMS: 'Nonfarm payrolls', UNRATE: 'Unemployment rate', RSAFS: 'Retail sales', GDPC1: 'Real GDP', DFEDTARU: 'Fed funds target (upper)',
+};
+Object.assign(SERIES, RELEASE_SERIES);
+export const KEEP_DAYS = 400, RELEASE_DAYS = 800;
 const DAY = 86_400_000;
 
 /** FRED's CSV → [[day, value]…] oldest first, missing days left out. */
@@ -23,9 +31,9 @@ export function parseFredCsv(text) {
   return out;
 }
 
-/** One series, the last KEEP_DAYS days (one FRED call). */
+/** One series, the last KEEP_DAYS days (RELEASE_DAYS for a release's series; one FRED call). */
 export async function fredSeries(L, id, now = Date.now()) {
-  const from = new Date(now - KEEP_DAYS * DAY).toISOString().slice(0, 10);
+  const from = new Date(now - (RELEASE_SERIES[id] ? RELEASE_DAYS : KEEP_DAYS) * DAY).toISOString().slice(0, 10);
   const text = await call(L, 'fred', `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}&cosd=${from}`, { text: true, timeout: 10000 });
   const rows = parseFredCsv(text);
   if (!rows.length) throw noteBad(L, 'fred', 'no values for ' + id);

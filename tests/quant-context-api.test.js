@@ -166,6 +166,10 @@ globalThis.fetch = async (url) => {
   ok('every series once, from fredgraph.csv (no key)', fredCalls.length === Object.keys(M.SERIES).length && fredCalls.every((u) => /fredgraph\.csv\?id=/.test(u) && !/api_key/.test(u)), fredCalls.length);
   ok('missing days (".") left out', JSON.stringify(r.body.series.DGS10) === JSON.stringify([['2026-11-12', 3.2], ['2026-11-14', 3.23]]), JSON.stringify(r.body.series.DGS10));
   ok('names for the card', r.body.names.BAMLH0A0HYM2 === 'High-yield spread');
+  const cosd = (id) => { const u = fredCalls.find((x) => x.includes('id=' + id + '&')); return u ? Date.parse(decodeURIComponent(u.split('cosd=')[1])) : NaN; };
+  ok('the releases\' own series come too (CPI, PCE, PPI, payrolls, unemployment, retail, GDP, the Fed target), with ~800 days so a year-ago month exists',
+    ['CPIAUCSL', 'PCEPI', 'PPIFIS', 'PAYEMS', 'UNRATE', 'RSAFS', 'GDPC1', 'DFEDTARU'].every((id) => M.SERIES[id] && fredCalls.some((u) => u.includes('id=' + id + '&')))
+    && cosd('CPIAUCSL') < cosd('DGS10') - 300 * 86_400_000, String(cosd('CPIAUCSL')) + ' / ' + String(cosd('DGS10')));
   const b2 = W.calls.length; await call(env, 'GET', '/macro');
   ok('asked again within 6 hours: no call', W.calls.length === b2);
 

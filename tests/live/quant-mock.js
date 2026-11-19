@@ -148,7 +148,11 @@ function contextRoutes(state, u, p) {
   if (p === '/options') { const sym = u.searchParams.get('symbol'); state.optionsAsked = (state.optionsAsked || 0) + 1; return { json: { ok: true, chain: fakeChain(sym), ivLog: [{ day: '2026-11-10', iv: 0.3 }], calls: 1, cached: false, label: '15 min delayed' } }; }
   if (p === '/macro') {
     const ser = (base, slope) => Array.from({ length: 40 }, (_, i) => [new Date(CLOCK - (40 - i) * 86400000).toISOString().slice(0, 10), +(base + slope * i).toFixed(3)]);
-    return { json: { ok: true, at: CLOCK - 3600000, names: {}, series: { DGS2: ser(3.6, 0), DGS10: ser(4.1, 0.002), DGS3MO: ser(4.3, 0), DFII10: ser(1.9, 0), BAMLH0A0HYM2: ser(3.1, 0.004), DTWEXBGS: ser(121, 0.05), DCOILWTICO: ser(64, -0.1) } } };
+    return { json: { ok: true, at: CLOCK - 3600000, names: {}, series: { DGS2: ser(3.6, 0), DGS10: ser(4.1, 0.002), DGS3MO: ser(4.3, 0), DFII10: ser(1.9, 0), BAMLH0A0HYM2: ser(3.1, 0.004), DTWEXBGS: ser(121, 0.05), DCOILWTICO: ser(64, -0.1),
+      // The releases' own series (actual vs previous): 24 months of CPI and payrolls, a Fed target change.
+      CPIAUCSL: Array.from({ length: 24 }, (_, i) => [`${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`, +(310 * (1 + 0.0025 * i)).toFixed(3)]),
+      PAYEMS: Array.from({ length: 24 }, (_, i) => [`${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`, 158000 + 150 * i + (i === 23 ? 50 : 0)]),
+      DFEDTARU: [['2026-09-16', 4.5], ['2026-09-17', 4.25], ['2026-11-12', 4.25]] } } };
   }
   if (p === '/macro/dates') return { json: { ok: true, dates: { cpi: ['2025-12-10', '2026-01-13', '2026-02-11', '2026-03-11', '2026-04-10', '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12', '2026-09-11', '2026-10-15'] }, from: 2025 } };
   if (p === '/earnings') { const syms = String(u.searchParams.get('symbols') || '').split(','); return { json: { ok: true, reports: Object.fromEntries(syms.map((s) => [s, [{ day: '2026-08-26', time: 'amc', eps: 1.0, est: 0.9 }]])), asked: null } }; }

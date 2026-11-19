@@ -71,6 +71,8 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   await js(`${M}.scrollIntoView({ block: 'start' }); 1`); await sleep(500);
   ok('next up first, then four groups each with a line of meaning', await until(`${M} && ${M}.querySelector('[data-cx-next]') && ${M}.querySelectorAll('[data-cx-group]').length === 4 && ${M}.querySelectorAll('[data-cx-read]').length === 4`, 10000),
     await js(`return ${M} ? ${M}.innerText.slice(0, 300) : 'no card';`));
+  ok('the latest prints: CPI, payrolls and the Fed target, each against the time before', await js(`return ['CPIAUCSL','PAYEMS','DFEDTARU'].every(function(k){ var e=${M}.querySelector('[data-cx-print="'+k+'"]'); return e && /prev /.test(e.innerText); }) && /\\+200k/.test(${M}.querySelector('[data-cx-print="PAYEMS"]').innerText);`),
+    await js(`return [...${M}.querySelectorAll('[data-cx-print]')].map(function(e){return e.innerText.replace(/\\s+/g,' ');}).join(' | ');`));
   ok('...every rate row is still there', await js(`return ['curve2s10','curve3m10','y10','real10','hy','dollar','oil'].every(function(k){ return !!${M}.querySelector('[data-cx-macro="'+k+'"]'); });`));
 
   console.log('\n5. Every width');

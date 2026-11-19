@@ -103,7 +103,7 @@
   AI quant, Market / Charts / Scanner / Neo Quant tabs): TradeHub is in
   A1-Priv, and so is the plan. **All phases built; Phase 15 (the final test)
   run 2026-11-17; the switch is on by default.** **Refinements Batch 1
-  (2026-11-18, phases R0-R10 plus R7B, one per session):** "continue Quant" (or
+  (2026-11-18, phases R0-R10 plus R7B, R8 removed by Tony 2026-11-19, one per session):** "continue Quant" (or
   "R7 go", "next phase", "pick up where you left off") = read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-1.md` and build
   the phase it names. **R0-R6 are done (2026-11-19, all on `main`); next is
