@@ -10,6 +10,7 @@ debug.log
 **/launch.log
 tools/trading-auto-launch/.last_run
 tools/trading-auto-launch/.last_analysis
+tools/trading-auto-launch/.daily_reminder.json
 tools/trading-auto-launch/__pycache__/
 .claude-queue/
 .pytest_cache/
