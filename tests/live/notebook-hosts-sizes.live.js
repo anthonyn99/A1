@@ -154,7 +154,14 @@ const SIZES = [
         const out = await js(`function vis(e){ if(!e) return false; var r=e.getBoundingClientRect(); if(!r.width||!r.height) return false; var t=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); return !!t && (t===e || e.contains(t)); }
           return JSON.stringify({ done: [...document.querySelectorAll('${R} .nb-done-btn')].some(vis), mode: vis(document.querySelector('${R} .nb-mh-mode')), bold: vis(document.getElementById('${K}-pt-bold')) });`).then(JSON.parse);
         ok('its bar and ribbon are on top and usable (Reading mode, Bold)', out.mode && out.bold, JSON.stringify(out));
-        if (host.done) ok('the host\'s Done is in the bar', out.done, JSON.stringify(out));
+        if (host.done) {
+          ok('the host\'s Done is in the bar', out.done, JSON.stringify(out));
+          // Done never moves when the sync word comes and goes (Tony, 2026-11-18).
+          const at = await js(`var s=document.getElementById('${K}-bb-saved'), d=[...document.querySelectorAll('#${K}-mobile-header .nb-done-btn')].find(b=>b.offsetParent), out=[];
+            ['', 'Syncing…', 'Sync failed — tap to retry', 'Synced', ''].forEach(function(t){ s.textContent=t; var r=d.getBoundingClientRect(); out.push(Math.round(r.left)+','+Math.round(r.top)+','+Math.round(r.width)); });
+            s.textContent=''; return JSON.stringify({ at: out, right: Math.round(innerWidth - d.getBoundingClientRect().right) });`).then(JSON.parse);
+          ok('Done stays put whether the sync word shows or not, at the bar\'s right end', new Set(at.at).size === 1 && at.right <= 12, JSON.stringify(at));
+        }
         if (!host.overlay) {
           await js(`document.querySelector('${R} .nb-mh-mode').click(); return 1;`); await sleep(700);
           const st = await js(`var r=document.getElementById('${K}-root'), b=document.getElementById('${K}-btn-edit'); return JSON.stringify({ cls: r.className, htmlOv: getComputedStyle(document.documentElement).overflow, editing: !!(b && b.checked) });`).then(JSON.parse);
