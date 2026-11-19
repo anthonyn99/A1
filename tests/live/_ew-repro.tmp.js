@@ -6,7 +6,7 @@ const BASE = 'https://anthonyn99.github.io/A1/', PAGE = BASE + 'everwell.html';
 const TEST = { v: 1, pages: { 'relationship-principles': '<ul>' + Array.from({length:30},(_, i)=>'<li>Point '+i+' long text here to wrap</li>').join('') + '</ul>' } };
 const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toString('base64url');
 (async () => {
-  const c = await connect({ mock: firebaseMock({ patterns: ['https://taskhub-reminders.av1.workers.dev/*'], handle(req){ return req.method==='OPTIONS'?{status:204,text:''}:{ json: { ok: true, locks: {} } }; } }) });
+  const c = await connect({ mock: firebaseMock({ patterns: ['https://taskhub-reminders.av1.workers.dev/*'], handle(req){ if(req.method==='OPTIONS')return{status:204,text:''}; const p=new URL(req.url).pathname,b=req.postData?JSON.parse(req.postData):{}; if(p==='/auth/journal/status-many'){const out={};(b.locks||[]).forEach(l=>{out[l.journal+':'+l.entryId]={hasLock:false,ver:null};});return{json:{ok:true,locks:out}};} if(p==='/auth/journal/verify')return{json:{ok:false,noLock:true}}; return {json:{ok:true}}; } }) });
   await c.send('Page.enable'); await c.send('Runtime.enable');
   c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') console.log('ERR', (m.params.exceptionDetails.exception||{}).description || m.params.exceptionDetails.text); });
   const js = (e) => evalJs(c, e);
@@ -19,7 +19,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(2000);
   await js(`EWApp.go('mindset'); return 1;`); await sleep(1200);
   console.log(await js(`return [...document.querySelectorAll('[data-note-edit],[data-mind-edit],button[aria-label*=dit]')].map(b=>b.outerHTML.slice(0,140)).join(' | ');`));
-  await js(`window.EWNotes.edit('relationship-principles'); return 1;`); await sleep(3500);
+  await js(`document.querySelector('#mind-seg button:last-child, [data-seg=writings]')?.click(); return 1;`); await sleep(800); await js(`document.querySelector('[data-wr-edit]').click(); return 1;`); await sleep(3500);
   const shot = async (n) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath('ewr-' + n), Buffer.from(r.result.data, 'base64')); console.log(shotPath('ewr-'+n)); };
   await shot(W + '-open');
   console.log(await js(`const r=document.getElementById('ewn-root'), o=document.getElementById('ew-nb-overlay'); return JSON.stringify({rc:r&&r.className, rpos:r&&getComputedStyle(r).position, rbg:r&&getComputedStyle(r).backgroundColor, rz: r&&getComputedStyle(r).zIndex, rr: r&&r.getBoundingClientRect(), ov:o&&o.className, ovdisp:o&&getComputedStyle(o).display, parent: r&&r.parentElement.id});`));
