@@ -83,7 +83,7 @@ const ok = (name, cond, extra) => {
     await size(w === 1280 ? 1504 : w, h);
     await boot({ quant: true });
     await open();
-    const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors'], ['macro', 'breadth'], ['rotation', 'volume']]
+    const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors'], ['rotation', 'volume']]
       : w === 820 ? [['regime', 'sectors'], ['volume', 'regime'], ['sectors', 'analogs']]
         : [['regime', 'breadth', 0, 60], ['volume', 'regime']];
     for (const [id, target, dx, dy] of moves) {
@@ -92,6 +92,22 @@ const ok = (name, cond, extra) => {
     }
     ok('no card overlaps another after the moves', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0;
       for (var i=0;i<a.length;i++) for (var j=i+1;j<a.length;j++) { var p=a[i], q=a[j]; if (p.left < q.right-1 && q.left < p.right-1 && p.top < q.bottom-1 && q.top < p.bottom-1) bad++; } return bad===0;`));
+    if (w !== 390) {
+      // Free placement reaches a spot off screen: held at the top edge, the page scrolls and the outline climbs.
+      const sc = `(function(){ var p=${G}.parentElement; while(p && p!==document.body){ var o=getComputedStyle(p).overflowY; if((o==='auto'||o==='scroll') && p.scrollHeight>p.clientHeight+1) return p; p=p.parentElement; } return document.scrollingElement; })()`;
+      await js(`document.querySelector('[data-mk] .lay-card[data-card="macro"]').scrollIntoView({block:'end'}); 1`); await sleep(300);
+      const top0 = (await rects()).macro[1], s0 = await js(`return ${sc}.scrollTop;`);
+      const m = await centre('[data-mk] .lay-card[data-card="macro"] .lay-title');
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: m.x, y: m.y });
+      await press(m.x, m.y);
+      await moveTo(m, { x: m.x, y: 8 });
+      await sleep(1600);
+      const s1 = await js(`return ${sc}.scrollTop;`);
+      const g1 = await js(`var g=${G}.querySelector('.lay-ghost'), gr=${G}.getBoundingClientRect(); return g ? Math.round(g.getBoundingClientRect().top - gr.top) : null;`);
+      await release(m.x, 8); await sleep(800);
+      const top1 = (await rects()).macro[1];
+      ok(w + ' px: a card held at the top edge scrolls the page up, and lands higher than it was', s1 < s0 - 100 && g1 != null && g1 < top0 && Math.abs(top1 - g1) <= 2, JSON.stringify({ s0, s1, top0, g1, top1 }));
+    }
 
     console.log(`${w} px: "?" on every card`);
     ok('every Market card has a "?" with its text', await js(`return [...document.querySelectorAll('[data-mk] .lay-card')].every(function(e){ var q=e.querySelector('[data-lay-help]'); return q && ((q.getAttribute('title')||q._a1cTitle||'').length > 12) && /^About /.test(q.getAttribute('aria-label')); });`));
