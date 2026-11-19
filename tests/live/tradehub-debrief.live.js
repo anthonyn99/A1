@@ -174,10 +174,15 @@ const RUN = {
   await until("document.querySelector('.tb-navtab')", 30000);
   await sleep(1500);
   ok('opened with nothing armed: no Debrief', !(await js(`return !!document.querySelector('.dbr');`)));
-  // Deploy's own call (arm), with the morning already in (an hour ago), so the wait opens it at once.
-  await js(`_tbDebriefWait.arm(); _tbDebriefWait.at = Date.now() - 61 * 60 * 1000; window.dispatchEvent(new Event('tb-debrief-arm')); 1`);
-  ok('Deploy arms the wait and the Debrief opens on the page already open', await until("document.querySelector('.dbr')", 8000));
-  ok('the Deploy button arms it (handleDeploy calls _tbDebriefWait.arm)', await js(`return /_tbDebriefWait\\.arm\\(\\)/.test([...document.scripts].map(function(s){return s.textContent;}).join('\\n'));`));
+  // The real Deploy button on Analysis (headless Chrome ignores its tradingautolaunch:// link).
+  await js(`var t=document.querySelector('.tb-navtab[data-navid="analysis"]'); if(t) t.click(); 1`);
+  await until("[...document.querySelectorAll('button')].some(function(b){return /Deploy/.test(b.textContent);})", 10000);
+  const t0 = Date.now();
+  await js(`var b=[...document.querySelectorAll('button')].find(function(b){return /Deploy/.test(b.textContent);}); b.click(); 1`);
+  ok('Deploy arms the morning wait (kept through a reload)', Math.abs(+(await js(`return sessionStorage.getItem('tb_debrief_wait')||0;`)) - t0) < 5000);
+  // The mock's morning is all in, so the wait opens the Debrief on its next check (at most 15 s), with no reload.
+  await js(`window.__dbrClosed = !document.querySelector('.dbr'); 1`);
+  ok('...and the Debrief opens on the page already open', await until("document.querySelector('.dbr')", 20000));
 
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check|finnhub|workers\.dev/i.test(e));
   ok('no page errors', !real.length, real.join(' | '));
