@@ -83,12 +83,44 @@ const ok = (name, cond, extra) => {
     await size(w === 1280 ? 1504 : w, h);
     await boot({ quant: true });
     await open();
-    const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors'], ['rotation', 'volume']]
-      : w === 820 ? [['regime', 'sectors'], ['volume', 'regime'], ['sectors', 'analogs']]
-        : [['regime', 'breadth', 0, 60], ['volume', 'regime']];
-    for (const [id, target, dx, dy] of moves) {
-      const r = await previewVsDrop(id, target, dx || 0, dy || 0);
-      ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; outline ' + JSON.stringify(r.ghost) + '; ') + r.off.join(' | '));
+    if (w === 390) {
+      // The phone stack: A1Drag reorders it, and the preview is the landing.
+      for (const [id, target, dx, dy] of [['regime', 'breadth', 0, 60], ['volume', 'regime']]) {
+        const r = await previewVsDrop(id, target, dx || 0, dy || 0);
+        ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; ') + r.off.join(' | '));
+      }
+    } else {
+      // Desktop and tablet (Tony, 2026-11-19): no card ever displaces another. Over a card the outline is red,
+      // nothing else moves during the drag, and the drop is refused.
+      const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors']] : [['regime', 'sectors'], ['volume', 'regime']];
+      for (const [id, target, dx, dy] of moves) {
+        const before = await rects();
+        await scrollTo(target);
+        const t = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
+        await scrollTo(id);
+        const a = await centre(`[data-mk] .lay-card[data-card="${id}"] .lay-title`), t2 = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
+        await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
+        await press(a.x, a.y); await moveTo(a, { x: t2.x + (dx || 0), y: t2.y + (dy || 0) }); await sleep(300);
+        const red = await js(`var g=${G}.querySelector('.lay-ghost'); return !!g && g.classList.contains('is-blocked');`);
+        const mid = await rects();
+        await release(t2.x + (dx || 0), t2.y + (dy || 0)); await sleep(700);
+        const after = await rects();
+        const still = (x) => Object.keys(before).every((k) => (k === id && x === mid) || before[k].every((v, i) => Math.abs(v - x[k][i]) <= 1.5));
+        ok(`${id} over ${target}: a red outline, no other card moves, and the drop is refused`, red && still(mid) && still(after), JSON.stringify({ red, t: !!t }));
+      }
+      // A free spot takes the card, exactly on its outline: hide Regime, then drag Breadth into its hole.
+      await js(`document.querySelector('[data-mk] .lay-card[data-card="regime"] [data-act="hide"]').click(); 1`); await sleep(500);
+      const unitX = await js(`var g=${G}; var cols=${w === 1280 ? 12 : 8}; return (g.clientWidth-14*(cols-1))/cols+14;`);
+      await scrollTo('breadth');
+      const bt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-title'), b0 = await rects();
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: bt.x, y: bt.y });
+      await press(bt.x, bt.y); await moveTo(bt, { x: bt.x - 4 * unitX, y: bt.y }); await sleep(300);
+      const ghost = await js(`var g=${G}.querySelector('.lay-ghost'); if(!g) return 'null'; var b=g.getBoundingClientRect(), gr=${G}.getBoundingClientRect(); return JSON.stringify({ red: g.classList.contains('is-blocked'), r: [Math.round(b.left-gr.left), Math.round(b.top-gr.top), Math.round(b.width), Math.round(b.height)] });`).then(JSON.parse);
+      await release(bt.x - 4 * unitX, bt.y); await sleep(700);
+      const b1 = await rects();
+      ok('into a free hole: the outline is not red, the card lands exactly on it, the others stay', ghost && !ghost.red && b1.breadth.every((v, i) => Math.abs(v - ghost.r[i]) <= 2) && b1.breadth[0] < b0.breadth[0] - 50
+        && Object.keys(b0).every((k) => k === 'breadth' || b0[k].every((v, i) => Math.abs(v - b1[k][i]) <= 1.5)), JSON.stringify({ ghost, was: b0.breadth, now: b1.breadth }));
+      await menu('orig'); await sleep(500);
     }
     ok('no card overlaps another after the moves', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0;
       for (var i=0;i<a.length;i++) for (var j=i+1;j<a.length;j++) { var p=a[i], q=a[j]; if (p.left < q.right-1 && q.left < p.right-1 && p.top < q.bottom-1 && q.top < p.bottom-1) bad++; } return bad===0;`));
@@ -104,9 +136,11 @@ const ok = (name, cond, extra) => {
       await sleep(1600);
       const s1 = await js(`return ${sc}.scrollTop;`);
       const g1 = await js(`var g=${G}.querySelector('.lay-ghost'), gr=${G}.getBoundingClientRect(); return g ? Math.round(g.getBoundingClientRect().top - gr.top) : null;`);
+      const red = await js(`var g=${G}.querySelector('.lay-ghost'); return !!g && g.classList.contains('is-blocked');`);
       await release(m.x, 8); await sleep(800);
       const top1 = (await rects()).macro[1];
-      ok(w + ' px: a card held at the top edge scrolls the page up, and lands higher than it was', s1 < s0 - 100 && g1 != null && g1 < top0 && Math.abs(top1 - g1) <= 2, JSON.stringify({ s0, s1, top0, g1, top1 }));
+      // Up there every spot is another card's: the outline climbs (red) and the drop is refused (2026-11-19).
+      ok(w + ' px: a card held at the top edge scrolls the page up and its outline climbs; over the cards there it is red and stays put', s1 < s0 - 100 && g1 != null && g1 < top0 && red && Math.abs(top1 - top0) <= 2, JSON.stringify({ s0, s1, top0, g1, top1, red }));
     }
 
     console.log(`${w} px: "?" on every card`);
@@ -153,7 +187,9 @@ const ok = (name, cond, extra) => {
     const b = await centre(`[data-mk] .lay-card[data-card="breadth"] .a1-edge[data-edge="${edge}"]`);
     return { x: b.x, y: b.y };
   };
-  // Room on every side first: the card is dragged (free placement) one column right and three rows down.
+  // Room on every side first (no card is pushed any more, 2026-11-19): its neighbours are hidden, then the
+  // card is dragged (free placement) one column right and three rows down.
+  for (const n of ['regime', 'sectors', 'rotation', 'streaks']) { await js(`document.querySelector('[data-mk] .lay-card[data-card="${n}"] [data-act="hide"]').click(); 1`); await sleep(250); }
   { await scrollTo('breadth'); const tt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-title'); await mouseDrag(tt, { x: tt.x + unit.x, y: tt.y + 3 * unit.y }); }
   const cases = [['e', 1, 0, [1, 0]], ['w', -1, 0, [1, 0]], ['s', 0, 1, [0, 1]], ['n', 0, -1, [0, 1]], ['se', -1, -1, [-1, -1]], ['nw', 1, 1, [-1, -1]], ['ne', 1, -1, [1, 1]], ['sw', -1, 1, [1, 1]]];
   for (const [edge, ux, uy, [dw, dh]] of cases) {
