@@ -1,0 +1,27 @@
+'use strict';
+const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
+const { firebaseMock } = require('./fake-firebase.js');
+const fs = require('fs');
+const BASE = 'https://anthonyn99.github.io/A1/', PAGE = BASE + 'everwell.html';
+const TEST = { v: 1, pages: { 'relationship-principles': '<ul>' + Array.from({length:30},(_, i)=>'<li>Point '+i+' long text here to wrap</li>').join('') + '</ul>' } };
+const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toString('base64url');
+(async () => {
+  const c = await connect({ mock: firebaseMock({ patterns: ['https://taskhub-reminders.av1.workers.dev/*'], handle(req){ return req.method==='OPTIONS'?{status:204,text:''}:{ json: { ok: true, locks: {} } }; } }) });
+  await c.send('Page.enable'); await c.send('Runtime.enable');
+  c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') console.log('ERR', (m.params.exceptionDetails.exception||{}).description || m.params.exceptionDetails.text); });
+  const js = (e) => evalJs(c, e);
+  const W = +(process.argv[2]||412), H = +(process.argv[3]||915);
+  await c.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: W < 1000 });
+  await c.send('Emulation.setTouchEmulationEnabled', { enabled: W < 1400, maxTouchPoints: 5 });
+  await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
+  await js(`localStorage.clear(); sessionStorage.clear(); return 1;`);
+  await c.send('Page.navigate', { url: link(TEST) }); await sleep(2800);
+  await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(2000);
+  await js(`EWApp.go('mindset'); return 1;`); await sleep(1200);
+  console.log(await js(`return [...document.querySelectorAll('[data-note-edit],[data-mind-edit],button[aria-label*=dit]')].map(b=>b.outerHTML.slice(0,140)).join('\n');`));
+  await js(`window.EWNotes.edit('relationship-principles'); return 1;`); await sleep(3500);
+  const shot = async (n) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(shotPath('ewr-' + n), Buffer.from(r.result.data, 'base64')); console.log(shotPath('ewr-'+n)); };
+  await shot(W + '-open');
+  console.log(await js(`const r=document.getElementById('ewn-root'), o=document.getElementById('ew-nb-overlay'); return JSON.stringify({rc:r&&r.className, rpos:r&&getComputedStyle(r).position, rbg:r&&getComputedStyle(r).backgroundColor, rz: r&&getComputedStyle(r).zIndex, rr: r&&r.getBoundingClientRect(), ov:o&&o.className, ovdisp:o&&getComputedStyle(o).display, parent: r&&r.parentElement.id});`));
+  process.exit(0);
+})();
