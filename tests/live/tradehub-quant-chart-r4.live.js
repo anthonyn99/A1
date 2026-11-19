@@ -92,7 +92,7 @@ const PROMPT = `window.__prompts=[]; window.uiPrompt=function(m,o){ window.__pro
   const rc = P(s, 0.55, 0.25);
   await drag(onPage(s, H[1]), rc);
   H = await handles(ray.id);
-  ok('dragging its end handle moves the end under the mouse (length and angle), the start stays', near(s.l + H[1].x, rc.x) && near(s.t + H[1].y, rc.y) && near(s.l + H[0].x, ra.x) && near(s.t + H[0].y, ra.y), JSON.stringify(H));
+  ok('dragging its end handle moves the end under the mouse (length and angle), the start stays', near(s.l + H[1].x, rc.x) && near(s.t + H[1].y, rc.y) && near(s.l + H[0].x, ra.x) && near(s.t + H[0].y, ra.y), JSON.stringify(H) + ' rc=' + JSON.stringify(rc) + ' ra=' + JSON.stringify(ra) + ' s=' + JSON.stringify(s));
   await js(`document.querySelector('[data-ch-extend]').click(); 1`);
   ok('Extend makes it infinite, the button shows it', (await list()).find((d) => d.id === ray.id).extend === true && await js(`return document.querySelector('[data-ch-extend]').getAttribute('aria-pressed')==='true';`));
   ok('...saved to quant-api with it', await until(`true`, 50) && await (async () => { for (let i = 0; i < 40; i++) { if (/ray:true/.test(savedKinds())) return true; await sleep(100); } return false; })(), savedKinds());
