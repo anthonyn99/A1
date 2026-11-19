@@ -1453,6 +1453,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root #tj-mobile-title, #bj-root #bj-mobile-title { font-size: 18px !important; font-weight: 600 !important; padding: 0 6px !important; }
   #bj-root #bj-mobile-title { font-size: 16px !important; }
   #tj-root.nb-nolist #tj-mobile-title, #bj-root.nb-nolist #bj-mobile-title { padding-left: 12px !important; }
+  /* A host's Done (notebook.js addDone) sits at the far right end of the bar,
+     after ⋮: the sync word ("Syncing…" / "Synced" / nothing) comes and goes
+     beside the title and only the title gives way, never Done (Tony, 2026-11-18). */
+  #tj-root #tj-mobile-header > .nb-done, #bj-root #bj-mobile-header > .nb-done { order: 99; flex: 0 0 auto !important; margin: 0 6px 0 2px !important; }
   /* Lock moved into ⋮ (the bar keeps three tools, like Samsung Notes'). */
   #tj-root #tj-mobile-lock-btn, #bj-root #bj-mobile-lock-btn { display: none !important; }
   #tj-root .nb-mh-btn, #bj-root .nb-mh-btn {
