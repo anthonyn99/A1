@@ -2590,11 +2590,14 @@ function pickEarningsDates(earnMap, dateVotes){
 // Finnhub is per-symbol (above), so a 40-ticker followed list (Tony's Webull Main)
 // would take 40 of the build's 50 subrequests beside Nasdaq's ~22 pages. Nasdaq (every
 // US report, by date) and AlphaVantage (one bulk call) run FIRST; Finnhub is then
-// asked only about tickers those two do not already agree on, the ones with no date
-// at all first, within what is left of the budget. A ticker left out simply has one
+// asked only about tickers those two do not already agree on, within what is left of the
+// budget: first the ones only ONE source dates (Finnhub's vote confirms them, dropping the
+// EST tag), then those with no date at all (most report nothing in a 30-day window). A ticker left out simply has one
 // vote less this build (never a removal: the front-end removes only what every
 // source answered for).
-const EARN_SUBREQ_TOTAL = 50, EARN_SUBREQ_RESERVE = 4;   // AV 1, macro 1 (when not cached), the AI search 1, one spare
+// Reserve = the worst case of everything else in a build: AV 1, the macro search up to 3 (it steps down
+// Gemini models on a 429), the AI earnings search up to 2, the push to Firebase 1, one spare.
+const EARN_SUBREQ_TOTAL = 50, EARN_SUBREQ_RESERVE = 8;
 function earnFinnhubTargets(wl, nasEarn, avEarn, budget){
   const dates = new Map();   // ticker → Map(date → Set(src))
   const add = (src, e) => { if (!e || !e.ticker || !e.date) return; if (!dates.has(e.ticker)) dates.set(e.ticker, new Map()); const m = dates.get(e.ticker); if (!m.has(e.date)) m.set(e.date, new Set()); m.get(e.date).add(src); };
@@ -2602,7 +2605,7 @@ function earnFinnhubTargets(wl, nasEarn, avEarn, budget){
   for (const e of avEarn || []) add('av', e);
   const agreed = (t) => [...(dates.get(t) || new Map()).values()].some((srcs) => srcs.size >= 2);
   const none = wl.filter((t) => !dates.has(t)), one = wl.filter((t) => dates.has(t) && !agreed(t));
-  return [...none, ...one].slice(0, Math.max(0, budget));
+  return [...one, ...none].slice(0, Math.max(0, budget));
 }
 
 async function fetchEarningsCalendar(wl, env, fromD, toD, diag, cov){
@@ -2645,8 +2648,8 @@ async function fetchEarningsCalendar(wl, env, fromD, toD, diag, cov){
 
 // ── Earnings cross-check via AlphaVantage EARNINGS_CALENDAR ───────────────────
 // Second independent source. Returns a bulk CSV of expected report dates for the
-// next ~3 months; we filter to the watchlist + window. Used to CONFIRM Finnhub
-// dates (both sources agree → confirmed) and to fill tickers Finnhub misses.
+// next ~3 months; we filter to the watchlist + window. With Nasdaq it decides which
+// tickers Finnhub is still asked about (earnFinnhubTargets), and its date is one vote.
 // Free tier is ~25 req/day — fine since /calendar is cached 12h.
 async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag, cov){
   if (!env.ALPHAVANTAGE_KEY){ diag&&diag.push('av-earn: NO KEY'); return []; }
@@ -2747,7 +2750,7 @@ async function fetchEarningsNasdaq(wl, env, fromD, toD, diag, cov){
 // Grounding can't be combined with responseSchema, so we ask for a JSON array in
 // the text and parse + salvage it, then hard-filter against the whitelist+window.
 // The window's macro answer barely changes within a day, and each build is close
-// to Cloudflare's 50 subrequests (Finnhub per ticker + Nasdaq per weekday), so
+// to Cloudflare's 50 subrequests (Nasdaq per weekday + Finnhub on what is left), so
 // it is searched once per window and reused — which is what pays for the
 // earnings search (fetchEarningsAI) on the same budget.
 async function fetchMacroCalendarCached(env, fromD, toD, diag){
@@ -3186,6 +3189,7 @@ async function buildCalendar(wl, env, days, diag){
   const fhBudget = EARN_SUBREQ_TOTAL - EARN_SUBREQ_RESERVE - cov.nasdaqTries;
   const fhList = earnFinnhubTargets(wl, nasEarn, avEarn, fhBudget);
   diag && diag.push('finnhub targets: ' + fhList.length + ' of ' + wl.length + ' (budget ' + fhBudget + ')');
+  cov.finnhubAsked = fhList.slice();   // `partial` compares Finnhub's answers with what it was asked, not the whole list
   const earn = await fetchEarningsCalendar(fhList, env, fromD, toD, diag, cov);
 
   // 2b) Merge earnings across all three sources by ticker+date. Finnhub & Nasdaq
@@ -3278,7 +3282,7 @@ async function buildCalendar(wl, env, days, diag){
   // source for ADRs like TSM) or Finnhub symbols that never answered. Cached only
   // briefly (CAL_PARTIAL_TTL) so the next open rebuilds instead of serving the
   // holes for 12h; the front-end keeps published dates through it either way.
-  const partial = !degraded && (cov.nasdaqFailed.length > 0 || cov.finnhubSyms.length < wl.length);
+  const partial = !degraded && (cov.nasdaqFailed.length > 0 || cov.finnhubSyms.length < (cov.finnhubAsked || wl).length);
   return { events, recent, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded, partial, coverage: cov };
 }
 
