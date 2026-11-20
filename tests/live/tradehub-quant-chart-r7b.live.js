@@ -123,7 +123,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   ok('desktop: exactly as before (ranges and interval back in the top row, no bottom bar, no indicators line)', await until(`!document.querySelector('[data-charts]').hasAttribute('data-touch') && document.querySelectorAll('.ch-main-row [data-ch-range]').length === 9 && document.querySelector('.ch-main-row [data-ch-tf]') && document.querySelector('[data-ch-bottom]').hidden && document.querySelector('[data-ch-indline]').hidden`, 8000));
   ok('desktop: the header back over the chart, volume in its own pane, the wide price axis', await until(`!${CH}.touch() && document.querySelector('[data-ch-main] .ch > .ch-head') && ${CH}.chart().panes().length === 3 && ${CH}.chart().priceScale('right').width() >= 78`, 8000),
     await js(`return ${CH}.chart().panes().length + ' / ' + ${CH}.chart().priceScale('right').width();`));
-  ok('desktop: no pane label, no RSI band', await js(`return !document.querySelector('[data-ch-panelbl]');`));
+  ok('desktop: lower panes named top left (B4, ask 27), no RSI band (touch only)', await js(`return !!document.querySelector('[data-ch-panelbl]');`));
   ok('the switches kept the interval and range', JSON.stringify(await opts()) === JSON.stringify(o1));
   await size(390, 844); await sleep(1200);
   await tab('market'); await sleep(800);
