@@ -1,16 +1,17 @@
-// Quant refinements R7 (A1-Priv docs/TradeHub/quant/r1-07.md): the data for
-// three new cards, from Yahoo (providers/yahoo-session.js; R0 found it matches
-// Tony's Webull screenshot exactly on SNDK).
+// Quant refinements R7 (A1-Priv docs/TradeHub/quant/r1-07.md) and Batch 2 B1 (r2-01.md): the data
+// for three cards. Yahoo answers HTTP 406 to Cloudflare (Tony's screenshot, 2026-11-20), so:
 //
-//   GET /summary?symbol=X[&fresh=1]  { symbol, src, at, facts: { analysis, stats }, failed? }
-//        The Analysis and Key Stats cards. Kept in D1 as the dossier part
-//        'yahoo' (no new table) for SUMMARY_TTL; a failure is remembered for
-//        FAIL_TTL and answered as { failed } (200), so the page falls back to
-//        the dossier's Nasdaq / Finnhub parts at once. At most 3 Yahoo calls.
+//   GET /summary?symbol=X[&fresh=1]  { symbol, src, at, facts: { analysis, stats, statSrc? }, failed?, yahoo? }
+//        The Analysis and Key Stats cards. Yahoo's quoteSummary first (dossier part 'yahoo',
+//        SUMMARY_TTL); when Yahoo fails, rests (FAIL_TTL) or is known down (YAHOO_DOWN_S, any Yahoo
+//        failure), the stats come from Nasdaq and Finnhub (providers/nasdaq-stats.js, dossier part
+//        'stats', SUMMARY_TTL) with each field's source in `statSrc`; `yahoo` says why Yahoo was not
+//        used. Analysis then falls back to the dossier on the page, as before.
 //   GET /heatmap?symbols=A,B,…       { items: { SYM: { cap, chg, price, t, name } }, asOf, src, missing }
-//        The Heat Map: up to HEAT_MAX symbols, one Yahoo call per 170 (+2 for
-//        a new session), kept in the edge cache HEAT_LIVE_S in market hours
-//        (04:00-20:00 New York) and HEAT_QUIET_S outside. 503 when Yahoo fails.
+//        The Heat Map: up to HEAT_MAX symbols. Today's price and change from Alpaca's stock snapshots
+//        (200 a call), the share count from Nasdaq's screener (one call a day, providers/screener.js),
+//        cap = shares × price. Yahoo's batch quote only when Alpaca fails and Yahoo is not known down.
+//        Kept in the edge cache HEAT_LIVE_S in market hours (04:00-20:00 New York), HEAT_QUIET_S outside.
 import { fail, json } from './http.js';
 import { Ledger } from './ledger.js';
 import { symOf } from './charts.js';
@@ -18,9 +19,16 @@ import { ProviderError } from './net.js';
 import { marketHours } from './time.js';
 import { jsonCache } from './dossier.js';
 import * as Y from '../providers/yahoo-session.js';
+import * as A from '../providers/alpaca.js';
+import { shares as screenerShares } from '../providers/screener.js';
+import { stats as freeStats } from '../providers/nasdaq-stats.js';
 
 const HOUR = 3600_000;
-export const SUMMARY_TTL = 6 * HOUR, FAIL_TTL = HOUR, HEAT_MAX = 600, HEAT_LIVE_S = 120, HEAT_QUIET_S = 1800;
+export const SUMMARY_TTL = 6 * HOUR, FAIL_TTL = HOUR, HEAT_MAX = 600, HEAT_LIVE_S = 120, HEAT_QUIET_S = 1800, YAHOO_DOWN_S = 3600;
+/** One flag for every Yahoo route: a Yahoo failure is not tried again for an hour, for any symbol. */
+const DOWN_KEY = 'https://quant-api.cache/yahoo-down';
+export const yahooDown = async () => { const d = await jsonCache.get(DOWN_KEY); return d && d.why ? d.why : null; };
+const markDown = (why) => jsonCache.put(DOWN_KEY, { why, at: Date.now() }, YAHOO_DOWN_S);
 const parse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const noTable = (e) => /no such table/i.test(String((e && e.message) || e));
 
