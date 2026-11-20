@@ -56,3 +56,26 @@ export async function bars(L, env, sym, tf, from, to, adj, now) {
   const iex = tf !== '1d' && to > edge ? await page(L, env, sym, tf, Math.max(from, edge), to, adj, 'iex') : [];
   return mergeBars(sip, iex);
 }
+
+/** Today's price and the previous session's close for many stocks (the heat map, B1): SNAP_CHUNK a call.
+ *  → { SYM: { price, t, prev } }: `prev` is the close before the latest trade's session (the daily bar's
+ *  own close when the latest trade came after it, e.g. before the open or at a weekend). */
+export const SNAP_CHUNK = 200;
+export async function snapshots(L, env, syms) {
+  const list = syms.filter(canQuote), out = {};
+  for (let i = 0; i < list.length; i += SNAP_CHUNK) {
+    const chunk = list.slice(i, i + SNAP_CHUNK);
+    const j = await call(L, 'alpaca', `${BASE}/v2/stocks/snapshots?symbols=${encodeURIComponent(chunk.join(','))}&feed=iex`, { headers: headers(env) });
+    for (const s of chunk) {
+      const x = j && j[s], tr = x && x.latestTrade, d = x && x.dailyBar, pd = x && x.prevDailyBar;
+      const price = tr && tr.p > 0 ? tr.p : d && d.c > 0 ? d.c : null;
+      if (!price) continue;
+      const t = tr ? Date.parse(tr.t) : d ? Date.parse(d.t) : null;
+      // The latest trade inside the daily bar's session: compare with the session before; else with that bar.
+      const sameDay = d && t != null && new Date(t).toISOString().slice(0, 10) === String(d.t).slice(0, 10);
+      const prev = sameDay ? (pd && pd.c > 0 ? pd.c : null) : (d && d.c > 0 ? d.c : null);
+      out[s] = { price, t, prev };
+    }
+  }
+  return out;
+}
