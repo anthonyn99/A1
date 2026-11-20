@@ -1,7 +1,7 @@
-// quant-api, Quant refinements R7 (A1-Priv docs/TradeHub/quant/r1-07.md):
-// GET /summary (the Analysis and Key Stats cards) and GET /heatmap (the Heat
-// Map), from Yahoo's cookie + crumb routes. The worker runs against a small
-// in-memory D1, a fake edge cache and a fake `fetch` playing Yahoo.
+// quant-api, Quant refinements R7 (A1-Priv docs/TradeHub/quant/r1-07.md) and Batch 2 B1 (r2-01.md):
+// GET /summary (the Analysis and Key Stats cards: Yahoo, else Nasdaq + Finnhub) and GET /heatmap
+// (Alpaca snapshots × Nasdaq's share counts, Yahoo as a fallback). The worker runs against a small
+// in-memory D1, a fake edge cache and a fake `fetch` playing Yahoo, Alpaca, Nasdaq and Finnhub.
 //
 // Run: node tests/quant-stock-api.test.js
 'use strict';
@@ -16,12 +16,13 @@ const ok = (name, cond, extra) => {
 };
 
 function fakeDb() {
-  const parts = new Map(), usage = new Map();
-  const db = { parts, usage };
+  const parts = new Map(), usage = new Map(), stats = new Map();
+  const db = { parts, usage, stats };
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     async first() {
       if (/FROM dossier_parts WHERE symbol = \? AND part = 'yahoo'/.test(sql)) { const r = parts.get(args[0]); return r ? { ...r } : null; }
+      if (/FROM dossier_parts WHERE symbol = \? AND part = 'stats'/.test(sql)) { const r = stats.get(args[0]); return r ? { ...r } : null; }
       throw new Error('first: ' + sql);
     },
     async all() {
@@ -38,6 +39,7 @@ function fakeDb() {
         parts.set(symbol, old ? { ...old, error, err_at: errAt } : { at: 0, body: '{}', error, err_at: errAt }); return {};
       }
       if (/^INSERT INTO dossier_parts .*VALUES \(\?, 'yahoo', \?, 'yahoo', \?, NULL, NULL\)/.test(sql)) { parts.set(args[0], { at: args[1], body: args[2], error: null, err_at: null }); return {}; }
+      if (/^INSERT INTO dossier_parts .*VALUES \(\?, 'stats', \?, 'nasdaq', \?, NULL, NULL\)/.test(sql)) { stats.set(args[0], { at: args[1], body: args[2] }); return {}; }
       throw new Error('run: ' + sql);
     },
   });
@@ -64,8 +66,42 @@ const SNDK = {
   calendarEvents: { earnings: { earningsDate: [{ raw: 1793304000 }], earningsAverage: { raw: 57.12 } } },
   upgradeDowngradeHistory: { history: [{ epochGradeDate: 1793646189, firm: 'Fox Advisors', toGrade: 'Equal-Weight', fromGrade: 'Overweight', action: 'down', currentPriceTarget: 0 }, { epochGradeDate: 1793386601, firm: 'Rosenblatt', toGrade: 'Buy', fromGrade: 'Buy', action: 'main', currentPriceTarget: 2400 }] },
 };
+// B1: the other sources, played here. N.down / AP.down switch them off.
+const N = { calls: [], down: false }, AP = { calls: [], down: false };
+const SCREEN = { data: { rows: [
+  { symbol: 'S0', name: 'S0 Inc. Common Stock', lastsale: '$100.00', marketCap: '1000000000.00' },
+  { symbol: 'SNDK', name: 'Sandisk Corporation Common Stock', lastsale: '$755.16', marketCap: '967062099221.00' },
+  { symbol: 'BRK/B', name: 'Berkshire Hathaway Inc. Class B', lastsale: '$500.00', marketCap: '1000000000000.00' },
+] } };
+const MU = {
+  summary: { data: { summaryData: { MarketCap: { value: '684,948,451,474' }, PreviousClose: { value: '$690.44' }, TodayHighLow: { value: '$668.99/$599.15' }, FiftTwoWeekHighLow: { value: '$1255/$192.59' },
+    AnnualizedDividend: { value: '$0.60' }, ExDividendDate: { value: 'Oct 14, 2026' }, Yield: { value: '0.09%' } } } },
+  info: { data: { primaryData: { lastSalePrice: '$605.88' } } },
+  forecast: { data: { quarterlyForecast: { rows: [{ consensusEPSForecast: 37.95 }, { consensusEPSForecast: 41.74 }, { consensusEPSForecast: 44 }, { consensusEPSForecast: 46.31 }] } } },
+  short: { data: { shortInterestTable: { rows: [{ settlementDate: '10/30/2026', interest: '23,385,015' }] } } },
+  metric: { metric: { peTTM: 9.58, psTTM: 6.11, epsTTM: 74.21, beta: 2.48, pbQuarterly: 4.2, bookValuePerShareQuarterly: 144.1, '52WeekHigh': 1255, '52WeekLow': 192.59, marketCapitalization: 684948 } },
+};
 globalThis.fetch = async (url, o = {}) => {
   const u = String(url), hd = o.headers || {};
+  if (/data\.alpaca\.markets/.test(u)) {
+    AP.calls.push(u);
+    if (AP.down) return res({ message: 'down' }, 500);
+    const syms = decodeURIComponent(/symbols=([^&]+)/.exec(u)[1]).split(',');
+    // Even rows: a trade in today's session (against the day before); odd rows: after hours past
+    // midnight UTC (still today's New York session: against the day before too).
+    return res(Object.fromEntries(syms.filter((s) => s !== 'ZZZZ').map((s, i) => [s, { latestTrade: { p: 110, t: i % 2 ? '2026-11-21T01:30:00Z' : '2026-11-20T18:00:00Z' }, dailyBar: { t: '2026-11-20T05:00:00Z', c: 108 }, prevDailyBar: { t: '2026-11-19T05:00:00Z', c: 100 } }])));
+  }
+  if (/api\.nasdaq\.com/.test(u)) {
+    N.calls.push(u);
+    if (N.down) return res({ data: null }, 500);
+    if (/screener/.test(u)) return res(SCREEN);
+    if (/quote\/MU\/summary/.test(u)) return res(MU.summary);
+    if (/quote\/MU\/info/.test(u)) return res(MU.info);
+    if (/analyst\/MU\/earnings-forecast/.test(u)) return res(MU.forecast);
+    if (/quote\/MU\/short-interest/.test(u)) return res(MU.short);
+    return res({ data: null, status: { rCode: 400 } });
+  }
+  if (/finnhub\.io/.test(u)) { N.calls.push(u); return /symbol=MU/.test(u) ? res(MU.metric) : res({ metric: {} }); }
   Y.calls.push(u);
   if (Y.down) return res({ error: 'down' }, 500);
   if (u === 'https://fc.yahoo.com/') return res('<html>404</html>', 404, { 'set-cookie': 'A3=d=AQAB' + (++Y.crumbs) + '; Max-Age=31557600; Domain=.yahoo.com' });
@@ -93,7 +129,8 @@ globalThis.fetch = async (url, o = {}) => {
     let j = null; try { j = await r.json(); } catch (e) {}
     return { status: r.status, body: j };
   };
-  const env = { DB: fakeDb(), ALLOWED_KEYS: hash };
+  const env = { DB: fakeDb(), ALLOWED_KEYS: hash, FINNHUB_KEY: 'fh_test' };
+  const clearDown = () => { for (const k of [...EDGE.keys()]) if (/yahoo-down/.test(k)) EDGE.delete(k); };
 
   console.log('\n/summary: Analysis and Key Stats');
   ok('the route needs the key', (await call(env, '/summary?symbol=SNDK', { key: null })).status === 401);
@@ -128,10 +165,30 @@ globalThis.fetch = async (url, o = {}) => {
   Y.reset();
   r = await call(env, '/summary?symbol=NOPE&fresh=1');
   ok('...but fresh=1 (Tony asking again) tries Yahoo once more', Y.calls.length >= 1 && /HTTP 404/.test(r.body.failed));
+  ok('...a symbol Yahoo does not know does not mark Yahoo down', ![...EDGE.keys()].some((k) => /yahoo-down/.test(k)));
   env.DB.parts.get('SNDK').at -= 7 * 3600000;
   Y.reset(); Y.down = true;
   r = await call(env, '/summary?symbol=SNDK');
-  ok('Yahoo down with old facts: they still answer with their time, and `failed` says why', r.status === 200 && r.body.facts.analysis.targetHigh === 3000 && r.body.failed && r.body.at < Date.now() - 6 * 3600000, JSON.stringify(r.body).slice(0, 200));
+  ok('Yahoo down with old facts: they still answer with their time, and `failed` says why', r.status === 200 && r.body.facts.analysis.targetHigh === 3000 && r.body.failed && (r.body.analysisAt || r.body.at) < Date.now() - 6 * 3600000, JSON.stringify(r.body).slice(0, 200));
+  ok('...and Yahoo now rests for every symbol (an hour)', [...EDGE.entries()].some(([k, v]) => /yahoo-down/.test(k) && v.age === S.YAHOO_DOWN_S));
+
+  console.log('\n/summary without Yahoo (B1): Nasdaq + Finnhub');
+  Y.reset(); N.calls.length = 0;
+  r = await call(env, '/summary?symbol=MU');
+  const ms = (r.body.facts && r.body.facts.stats) || {}, src = (r.body.facts && r.body.facts.statSrc) || {};
+  ok('Yahoo resting: not asked at all for a new symbol', Y.calls.length === 0, Y.calls.join(' '));
+  ok('...the stats come from Nasdaq and Finnhub (src nasdaq, `yahoo` says why)', r.status === 200 && r.body.src === 'nasdaq' && /resting/.test(r.body.yahoo || ''), JSON.stringify(r.body).slice(0, 300));
+  ok('...market cap, dividend, ex-dividend, yield, previous close, day and 52-week ranges from Nasdaq', ms.marketCap === 684948451474 && ms.divRate === 0.6 && ms.exDiv === '2026-10-14' && Math.abs(ms.divYield - 0.0009) < 1e-9 && ms.prevClose === 690.44 && ms.dayHigh === 668.99 && ms.dayLow === 599.15 && ms.high52 === 1255 && ms.low52 === 192.59, JSON.stringify(ms));
+  ok('...shares = cap / price, P/E (FWD) = price / the next four quarters, short % of shares', ms.shares === Math.round(684948451474 / 605.88) && Math.abs(ms.peFwd - 605.88 / 170) < 1e-9 && Math.abs(ms.shortFloat - 23385015 / ms.shares) < 1e-12, JSON.stringify([ms.shares, ms.peFwd, ms.shortFloat]));
+  ok('...P/E, P/S, EPS, beta, P/B and BPS from Finnhub', ms.peTtm === 9.58 && ms.ps === 6.11 && ms.epsTtm === 74.21 && ms.beta === 2.48 && ms.pb === 4.2 && ms.bps === 144.1, JSON.stringify(ms));
+  ok('...each field names its source', src.marketCap === 'nasdaq' && src.shares === 'computed' && src.peFwd === 'computed' && src.pb === 'finnhub', JSON.stringify(src));
+  ok('...kept as dossier part "stats"', env.DB.stats.has('MU'));
+  N.calls.length = 0;
+  r = await call(env, '/summary?symbol=MU');
+  ok('...a second look within 6 h: no call', N.calls.length === 0 && r.body.facts.stats.pb === 4.2);
+  r = await call(env, '/summary?symbol=QQQQ');
+  ok('a symbol neither source knows: the old answer (no facts, `failed`)', r.status === 200 && r.body.facts === null && !!r.body.failed, JSON.stringify(r.body).slice(0, 200));
+  clearDown();
 
   console.log('\n/heatmap');
   EDGE.clear(); Y.reset();
