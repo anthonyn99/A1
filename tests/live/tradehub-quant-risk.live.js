@@ -223,6 +223,7 @@ const RULES = { rules: [
   // (a leftover headless page: 401, no App Check) they asked /api/portfolio/summary twice a second, forever.
   console.log('\nWebull refusing: no loop');
   let summaries = 0;
+  const longBefore = await js(`return window.__long.filter(function(x){return x>200;});`);   // the boot below reloads the page
   api.state.tradeboard = (req) => {
     const p = new URL(req.url).pathname;
     if (p === '/api/portfolio/summary') { summaries++; return { status: 401, json: { ok: false, error: 'unauthorized' } }; }
@@ -230,6 +231,8 @@ const RULES = { rules: [
   };
   await size(1504, 950);
   await boot({ quant: true, docs });
+  await sleep(1500);
+  await js(`window.__long=[]; 1`);   // this boot's own JSX compile is not a Risk task
   await tab('portfolio');
   await js(`var b=[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}); if(b) b.click(); 1`);
   await until(`${R} && ${R}.querySelectorAll('.lay-card').length === 8`, 8000);
@@ -237,10 +240,9 @@ const RULES = { rules: [
   await tab('journal');
   await sleep(6000);
   ok('Risk then Edge open 12 s with the portfolio refused: it is asked at most twice (was ~25)', summaries <= 2, summaries);
-  await js(`window.__long=[]; 1`);   // this second boot's own JSX compile is not a Risk task
 
   console.log('\nSide effects');
-  const long = await js(`return window.__long.filter(function(x){return x>200;});`);
+  const long = longBefore.concat(await js(`return window.__long.filter(function(x){return x>200;});`));
   ok('no main-thread task over 200 ms (Monte Carlo runs in the worker)', long.length === 0, JSON.stringify(long));
   ok('no page errors', errs.length === 0, errs.join(' | '));
 
