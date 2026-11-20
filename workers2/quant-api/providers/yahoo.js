@@ -6,6 +6,7 @@
 // (at most 8 days a request), 5m-30m for 60 days, 1h for 730 days.
 import { call, noteBad, UA_BROWSER, QUOTE_TIMEOUT, BARS_TIMEOUT } from '../lib/net.js';
 import { bar, dailyStamp, mergeBars, unsplit } from '../lib/bars.js';
+import { markYahooVolume } from '../lib/volume.js';
 
 const BASE = 'https://query1.finance.yahoo.com';
 const H = { 'user-agent': UA_BROWSER, accept: 'application/json' };
@@ -74,5 +75,6 @@ export async function bars(L, env, sym, tf, from, to, adj, now) {
     parts.push(p.bars); splits.push(...p.splits);
   }
   const all = mergeBars(...parts);
+  if (tf !== '1d') markYahooVolume(all);   // BV: Yahoo's intraday volume has zeros and lumps; never shown as real
   return Object.assign(adj ? all : unsplit(all, splits), { clipped });
 }

@@ -55,6 +55,9 @@ export async function bars(L, env, sym, tf, from, to, adj, now) {
   const edge = now - SIP_LAG;
   const sip = from < edge ? await page(L, env, sym, tf, from, Math.min(to, edge), adj, 'sip') : [];
   const iex = tf !== '1d' && to > edge ? await page(L, env, sym, tf, Math.max(from, edge), to, adj, 'iex') : [];
+  // BV: the newest 16 minutes are one exchange's volume (IEX), a few percent of the market's: marked, so the
+  // page draws them as partial and re-reads them once SIP has them.
+  for (const b of iex) b.vx = 'iex';
   return mergeBars(sip, iex);
 }
 
