@@ -29,8 +29,9 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
   const info = async () => JSON.parse(await js(`return JSON.stringify(${CH}.info());`));
   const settled = async () => { await sleep(300); return until(`${CH}.info().bars > 0 && document.querySelector('[data-ch-main] [data-ch-note]').hidden`, 15000); };
   const set = async (patch) => { await js(`${CH}.set(${JSON.stringify(patch)}); 1`); await settled(); await sleep(500); };
-  // The newest bar's logical index is bars + gaps - 1; "on the front" = it is inside the view.
-  const front = (I) => I.view && I.view.to >= I.bars + I.gaps - 1.5 && I.view.from <= I.bars + I.gaps - 1;
+  // The newest bar's logical index is bars + gaps - 1; "on the front" = it is inside the view, near its right
+  // edge (at most a sixth of the view, or 3 bars, of empty room after it: never a screen of blank).
+  const front = (I) => { const n = I.bars + I.gaps, v = I.view; return !!v && v.to >= n - 1.5 && v.from <= n - 1 && v.to <= n - 1 + Math.max(3, (v.to - v.from) / 6); };
   const fmt = (I) => `${I.symbol} ${I.range} ${I.tf} n=${I.bars + I.gaps} view=${I.view && I.view.from.toFixed(1)}..${I.view && I.view.to.toFixed(1)}`;
 
   for (const [w, h] of [[1504, 900], [820, 1100], [390, 844]]) {
@@ -42,8 +43,8 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     const steps = [{ range: '1D', tf: '5m' }, { tf: '4h' }, { tf: '5m' }, { tf: '1h' }, { tf: '4h' }, { range: '1Y', tf: '1d' }, { tf: '4h' }, { range: '6M' }, { tf: '1d' }, { tf: '4h' }, { symbol: 'MU' }, { tf: '15m' }];
     const seen = [];
     let all = true;
-    for (const s of steps) { await set(s); const I = await info(); seen.push(fmt(I)); if (!front(I)) all = false; }
-    ok('every switch from a front view stays on the newest bar', all, seen.filter((x, i) => x).join(' | '));
+    for (const s of steps) { await set(s); const I = await info(); seen.push((front(I) ? "" : "BAD ") + fmt(I)); if (!front(I)) all = false; }
+    ok("every switch from a front view stays on the newest bar", all, seen.filter((x) => /^BAD/.test(x)).join(" | "));
 
     if (w > 800) {
       // The zoom: at the front, the cursor at 30% across the plot, one wheel step in.
