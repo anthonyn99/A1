@@ -105,8 +105,11 @@
   run 2026-11-17; the switch is on by default.** **Refinements Batch 1
   (2026-11-18, phases R0-R10 plus R7B, R8 removed by Tony 2026-11-19):** **COMPLETE
   2026-11-19** (§0 of `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-1.md`
-  and `quant/r1-10.md` list what is left with Tony). A new round of asks starts
-  Refinements Batch 2 (a new plan file there, same session protocol). The plan stays
+  and `quant/r1-10.md` list what is left with Tony). **Refinements Batch 2
+  (2026-11-20, 41 asks, phases B0-B11): "continue Quant" = read §0 of
+  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-2.md` and build the
+  phase it names** (its §0 also says how Tony's and Veda's Claude accounts hand
+  the plan artifact to each other). The plan stays
   in private A1-Priv (A1 is public). Otherwise read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` (what is left
   with Tony, what to do with a new ask) and `quant-README.md` beside it (the
