@@ -14,6 +14,7 @@
 //   GET  /quotes?symbols=A,B       { quotes: {SYM: Quote}, asOf, missing, tried }   max 60; 503 when nobody answered
 //   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried, check? }
 //                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
+//   GET  /splits?symbol           { symbol, splits: [{ t, ratio, ex }] }  from Alpaca's corporate actions (Yahoo fallback), 6 h
 //   GET  /stream-keys              { alpaca: {key, secret}, finnhub: {key} }   the page's two live streams
 //   GET  /corrections?limit=50     the data doctor's log, newest first
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
@@ -62,6 +63,7 @@
 // heard, realtime and delayMs, so it can turn STALE by time alone.
 import { CAPS, Ledger, day, readLatency, median } from './lib/ledger.js';
 import { getQuotes, getBars, parseSymbols } from './lib/data.js';
+import { getSplits } from './lib/splits.js';
 import { TFS, INTRADAY } from './lib/bars.js';
 import { marketHours, nyMonthStart, nyMidnight } from './lib/time.js';
 import * as alpaca from './providers/alpaca.js';
@@ -134,6 +136,10 @@ async function route(req, env, url, ctx) {
   if (m === 'GET' && p === '/usage') return usage(env);
   if (m === 'GET' && p === '/quotes') return quotes(env, url, ctx);
   if (m === 'GET' && p === '/bars') return bars(env, url, ctx);
+  if (m === 'GET' && p === '/splits') {   // the page joins bars from different reads by these (lib/splits.js)
+    const sym = String(url.searchParams.get('symbol') || '').trim().toUpperCase(), now = Date.now(), L = await Ledger.load(env, now);
+    try { return json({ ok: true, symbol: sym, splits: await getSplits(L, env, sym, now) }); } finally { await later(ctx, L.flush()); }
+  }
   if (m === 'GET' && p === '/stream-keys') {
     return json({
       ok: true,
