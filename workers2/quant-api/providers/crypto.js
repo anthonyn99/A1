@@ -11,10 +11,13 @@ const AP = 'https://data.alpaca.markets/v1beta3/crypto/us';
 const CB = 'https://api.exchange.coinbase.com';
 const AP_TF = { '1m': '1Min', '5m': '5Min', '15m': '15Min', '30m': '30Min', '1h': '1Hour', '1d': '1Day' };
 const CB_GRAN = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '1d': 86400 };
-export const CB_PAGES = 12, CB_MAX = 300;
-// Coins Coinbase has no X-USD market for (they ARE its dollar): never asked, so their 404 can never trip
-// the ledger's three-failures skip for every other coin.
-export const CB_NONE = new Set(['USDC', 'USDT']);
+export const CB_PAGES = 12, CB_MAX = 300, AP_PAGES = 10;
+/** Alpaca's crypto history starts here (checked 2026-11-20): older daily bars come from Coinbase. */
+export const AP_CRYPTO_START = Date.UTC(2021, 0, 1);
+// Coins in lib/crypto.js BASES that Coinbase has no X-USD market for (its product list, 2026-11-20; USDC is
+// its dollar): never asked, so their 404s can never trip the ledger's three-failures skip for every other coin.
+// Keep in step with A1-Priv TradeHub/core/crypto.js CB_NONE.
+export const CB_NONE = new Set(['USDC', 'TRX', 'MATIC', 'JUP', 'KAS', 'XMR', 'MKR', 'EOS']);
 const onCoinbase = (sym) => !CB_NONE.has(baseOf(sym));
 const H = { 'user-agent': 'TradeHub personal research (quant-api worker)', accept: 'application/json' };
 const apHeaders = (env) => (env.ALPACA_KEY && env.ALPACA_SECRET ? { 'APCA-API-KEY-ID': env.ALPACA_KEY, 'APCA-API-SECRET-KEY': env.ALPACA_SECRET, accept: 'application/json' } : { accept: 'application/json' });
@@ -25,15 +28,18 @@ export async function alpacaBars(L, env, sym, tf, from, to) {
   if (!AP_TF[tf]) return null;
   const pair = alpacaPair(sym), out = [];
   let token = '';
-  for (let i = 0; i < 10; i++) {
-    const u = `${AP}/bars?symbols=${encodeURIComponent(pair)}&timeframe=${AP_TF[tf]}&start=${new Date(from).toISOString()}&end=${new Date(to).toISOString()}&limit=10000&sort=asc${token ? '&page_token=' + encodeURIComponent(token) : ''}`;
+  // Newest first: a span longer than 10 pages keeps its NEWEST bars and is marked `clipped`.
+  for (let i = 0; i < AP_PAGES; i++) {
+    const u = `${AP}/bars?symbols=${encodeURIComponent(pair)}&timeframe=${AP_TF[tf]}&start=${new Date(from).toISOString()}&end=${new Date(to).toISOString()}&limit=10000&sort=desc${token ? '&page_token=' + encodeURIComponent(token) : ''}`;
     const j = await call(L, 'alpaca', u, { headers: apHeaders(env), timeout: BARS_TIMEOUT });
     if (!j || typeof j.bars !== 'object') throw noteBad(L, 'alpaca', 'crypto bars in an unknown shape');
     for (const b of (j.bars && j.bars[pair]) || []) { const x = bar(stamp(tf, Date.parse(b.t)), b.o, b.h, b.l, b.c, b.v); if (x) out.push(x); }
     token = j.next_page_token;
     if (!token) break;
   }
-  return mergeBars(out);
+  const bars = mergeBars(out);
+  if (token) bars.clipped = true;
+  return bars;
 }
 
 /** Coinbase candles between `from` and `to` (ms), newest first, at most CB_PAGES calls: a longer span

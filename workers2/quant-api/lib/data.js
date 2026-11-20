@@ -29,15 +29,14 @@ export function parseSymbols(s) {
 }
 
 /** { quotes: {SYM: Quote}, missing: {SYM: [tried]}, tried: [{provider, error}] } */
-export async function getQuotes(L, env, syms, now) {
+export async function getQuotes(L, env, asked, now) {
   const quotes = {}, tried = [];
   // Crypto (B1): Coinbase's 24-hour stats, then Alpaca's crypto trades; never the stock chain.
-  const coins = syms.filter(isCrypto);
+  const coins = asked.filter(isCrypto), syms = asked.filter((s) => !isCrypto(s));
   if (coins.length) {
     const got = await cryptoData.quotes(L, env, coins, now);
     for (const s of coins) if (got[s]) quotes[s] = got[s];
     tried.push({ provider: 'crypto', answered: Object.keys(got).length });
-    syms = syms.filter((s) => !isCrypto(s));
   }
   for (const p of QUOTE_CHAIN) {
     const left = syms.filter((s) => !quotes[s]);
@@ -54,7 +53,7 @@ export async function getQuotes(L, env, syms, now) {
     }
   }
   const missing = {};
-  for (const s of syms) if (!quotes[s]) missing[s] = tried.map((t) => t.provider);
+  for (const s of asked) if (!quotes[s]) missing[s] = isCrypto(s) ? ['coinbase', 'alpaca'] : tried.filter((t) => t.provider !== 'crypto').map((t) => t.provider);
   return { quotes, missing, tried };
 }
 
@@ -97,7 +96,15 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
     // Crypto (B1): Alpaca's crypto bars, then Coinbase; no split re-basing, UTC 4-hour buckets.
     const s = await stretch(L, env, CHAIN.crypto, sym, base, from, to, adj, now, tried);
     if (!s) return null;
-    return { symbol: sym, tf, bars: toTimeframe(within(s.bars, from, to), tf, { crypto: true }), provider: s.provider, complete: !s.clipped, tried };
+    let bars = s.bars, provider = s.provider, clipped = s.clipped;
+    // Alpaca's crypto history starts in 2021: older DAILY bars from Coinbase (BTC from 2015).
+    if (base === '1d' && s.provider === 'alpacaCrypto' && from < cryptoData.AP_CRYPTO_START && bars.length && bars[0].t > from + 7 * 86_400_000) {
+      try {
+        const old = await cryptoData.coinbaseBars(L, sym, '1d', from, bars[0].t - 1);
+        if (old && old.length) { bars = mergeBars(old, bars); provider = 'coinbase+alpacaCrypto'; clipped = clipped || !!old.clipped; }
+      } catch (e) { if (!(e instanceof ProviderError)) throw e; tried.push({ provider: 'coinbase', error: e.message }); clipped = true; }
+    }
+    return { symbol: sym, tf, bars: toTimeframe(within(bars, from, to), tf, { crypto: true }), provider, complete: !clipped, tried };
   }
   if (INTRADAY.has(base)) {
     const s = await stretch(L, env, CHAIN.intraday, sym, base, from, to, adj, now, tried);

@@ -116,7 +116,9 @@ export async function getHeatmap(env, url, ctx, later) {
           const w = sh[s];
           items[s] = clean({ cap: w ? w.n * x.price : null, chg: x.prev > 0 ? x.price / x.prev - 1 : null, price: x.price, t: x.t, name: w ? w.name : null });
         }
-        src = Object.keys(sh).length ? 'alpaca+nasdaq' : 'alpaca';
+        src = 'alpaca+nasdaq';
+        // No share counts (the screener failed): no tile can be sized, so this answer is no answer (never cached).
+        if (!Object.values(items).some((x) => x.cap > 0)) { why.push('nasdaq: no share counts'); items = {}; }
       } catch (e) { if (!(e instanceof ProviderError)) throw e; why.push('alpaca: ' + e.message); }
     } else why.push('alpaca: no key');
     if (!Object.keys(items).length) {
