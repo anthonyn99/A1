@@ -4,8 +4,9 @@
 //
 //   getSplits(L, env, sym, now) → [{ t, ratio, ex }]   t = 00:00 New York on the ex-date, ratio = new
 //                                   shares per old (8 for an 8-for-1, 0.1 for a 1-for-10). Alpaca's
-//                                   corporate actions first, Yahoo's split events if Alpaca has no key or
-//                                   fails. Edge-cached 6 h (Cache API, no KV); [] when neither answers.
+//                                   corporate actions AND Yahoo's split events, merged (Alpaca lags a fresh
+//                                   split by days). Edge-cached 6 h, 15 min when a source failed (Cache API,
+//                                   no KV); [] when neither answers.
 //   resplit(bars, splits)        → bars with every bar before an ex-date divided by its ratio, but ONLY
 //                                   where the seam still shows the unadjusted jump (the last close before
 //                                   the ex-date over the first open after it ≈ the ratio). Bars a provider
