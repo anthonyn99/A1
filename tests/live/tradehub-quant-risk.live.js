@@ -237,6 +237,7 @@ const RULES = { rules: [
   await tab('journal');
   await sleep(6000);
   ok('Risk then Edge open 12 s with the portfolio refused: it is asked at most twice (was ~25)', summaries <= 2, summaries);
+  await js(`window.__long=[]; 1`);   // this second boot's own JSX compile is not a Risk task
 
   console.log('\nSide effects');
   const long = await js(`return window.__long.filter(function(x){return x>200;});`);
