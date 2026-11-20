@@ -29,6 +29,7 @@ export const SUMMARY_TTL = 6 * HOUR, FAIL_TTL = HOUR, HEAT_MAX = 600, HEAT_LIVE_
 const DOWN_KEY = 'https://quant-api.cache/yahoo-down';
 export const yahooDown = async () => { const d = await jsonCache.get(DOWN_KEY); return d && d.why ? d.why : null; };
 const markDown = (why) => jsonCache.put(DOWN_KEY, { why, at: Date.now() }, YAHOO_DOWN_S);
+const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null));
 const parse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const noTable = (e) => /no such table/i.test(String((e && e.message) || e));
 
@@ -94,7 +95,7 @@ async function keyOf(syms) {
   return 'https://quant-api.cache/heatmap/' + [...d.slice(0, 12)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** GET /heatmap?symbols=…: market cap and the day's change for each, from Yahoo's batch quote. */
+/** GET /heatmap?symbols=…: market cap and the day's change for each (Alpaca × Nasdaq's share counts; Yahoo as a fallback). */
 export async function getHeatmap(env, url, ctx, later) {
   const syms = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => symOf(s)).filter((s) => !s.startsWith('^')))];
   if (!syms.length) throw fail(400, 'symbols= is needed');
@@ -104,14 +105,30 @@ export async function getHeatmap(env, url, ctx, later) {
   if (hit && hit.items) return json({ ok: true, ...hit, cached: true });
   const L = await Ledger.load(env, now);
   try {
-    const items = await Y.quoteMany(L, syms, jsonCache);
-    if (!Object.keys(items).length) throw fail(503, 'Yahoo answered with no quotes');
+    let items = {}, src = null;
+    const why = [];
+    if (A.has(env)) {
+      try {
+        const [snap, sh] = await Promise.all([A.snapshots(L, env, syms), screenerShares(L, jsonCache, now).catch((e) => { why.push('nasdaq: ' + (e.message || e)); return {}; })]);
+        for (const s of syms) {
+          const x = snap[s];
+          if (!x) continue;
+          const w = sh[s];
+          items[s] = clean({ cap: w ? w.n * x.price : null, chg: x.prev > 0 ? x.price / x.prev - 1 : null, price: x.price, t: x.t, name: w ? w.name : null });
+        }
+        src = Object.keys(sh).length ? 'alpaca+nasdaq' : 'alpaca';
+      } catch (e) { if (!(e instanceof ProviderError)) throw e; why.push('alpaca: ' + e.message); }
+    } else why.push('alpaca: no key');
+    if (!Object.keys(items).length) {
+      const down = await yahooDown();
+      if (down) throw fail(503, `the heat map could not be read (${why.join('; ')}; Yahoo is resting: ${down})`);
+      try { items = await Y.quoteMany(L, syms, jsonCache); src = 'yahoo'; }
+      catch (e) { if (!(e instanceof ProviderError)) throw e; await markDown(e.message); throw fail(503, `the heat map could not be read (${[...why, 'yahoo: ' + e.message].join('; ')})`); }
+      if (!Object.keys(items).length) throw fail(503, 'the heat map could not be read: no source had quotes');
+    }
     const asOf = Math.max(0, ...Object.values(items).map((x) => x.t || 0)) || now;
-    const out = { items, asOf, src: 'yahoo', missing: syms.filter((s) => !items[s]) };
+    const out = { items, asOf, src, missing: syms.filter((s) => !items[s]) };
     await jsonCache.put(key, out, marketHours(now) ? HEAT_LIVE_S : HEAT_QUIET_S);
     return json({ ok: true, ...out, cached: false });
-  } catch (e) {
-    if (e instanceof ProviderError) throw fail(503, 'the heat map needs Yahoo, which did not answer (' + e.message + ')');
-    throw e;
   } finally { await later(ctx, L.flush()); }
 }
