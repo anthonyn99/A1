@@ -443,7 +443,7 @@ async function bars(env, url, ctx) {
   // raw. Split-adjusted history changes the day a split happens, so it is
   // kept for a day only.
   const closed = to < nyMonthStart(now);
-  const key = `https://quant-api.cache/bars?s=${symbol}&tf=${tf}&from=${from}&to=${to}&adj=${adj ? 1 : 0}`;
+  const key = `https://quant-api.cache/bars?v=2&s=${symbol}&tf=${tf}&from=${from}&to=${to}&adj=${adj ? 1 : 0}`;   // v=2 (BV): answers stored before the volume marks are asked again
   if (closed) { const hit = await cacheGet(key); if (hit) return hit; }
   const L = await Ledger.load(env, now);
   let out;

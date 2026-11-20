@@ -58,6 +58,9 @@ export async function bars(L, env, sym, tf, from, to, adj, now) {
   // BV: the newest 16 minutes are one exchange's volume (IEX), a few percent of the market's: marked, so the
   // page draws them as partial and re-reads them once SIP has them.
   for (const b of iex) b.vx = 'iex';
+  // ...and a SIP bar that runs past the edge (15m, 30m, 1h): its volume stops at the edge, so partial too.
+  const len = { '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000 }[tf];
+  if (len) for (const b of sip) if (b.t + len > edge) b.vx = 'iex';
   return mergeBars(sip, iex);
 }
 

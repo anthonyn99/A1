@@ -7,7 +7,7 @@
 // ones, and 4-hour bars from hourly ones (buckets 04:00, 08:00, 12:00, 16:00
 // New York), so every provider gives the same buckets.
 import { nyClock, nyDate, nyMidnight } from './time.js';
-import { joinVx } from './volume.js';
+import { vxOf } from './volume.js';
 
 export const TFS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1mo'];
 export const INTRADAY = new Set(['1m', '5m', '15m', '30m', '1h', '4h']);
@@ -34,16 +34,17 @@ export function mergeBars(...lists) {
 /** Group bars by `keyOf(t)` into one bar each (first open, highest high,
  *  lowest low, last close, summed volume), stamped with the group's key. */
 export function aggregate(bars, keyOf) {
-  const out = [];
+  const out = [], parts = [];
   let cur = null;
+  const close = () => { if (cur) { const vx = vxOf(parts); if (vx) cur.vx = vx; else delete cur.vx; } parts.length = 0; };   // BV: a built bar's volume is only as good as its parts
   for (const b of bars) {
     const k = keyOf(b.t);
-    if (!cur || cur.t !== k) { cur = { t: k, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }; if (b.vx) cur.vx = b.vx; out.push(cur); continue; }
+    if (!cur || cur.t !== k) { close(); cur = { t: k, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }; parts.push(b); out.push(cur); continue; }
     if (b.h > cur.h) cur.h = b.h;
     if (b.l < cur.l) cur.l = b.l;
-    cur.c = b.c; cur.v += b.v;
-    const vx = joinVx(cur.vx, b.vx); if (vx) cur.vx = vx;   // BV: a built bar's volume is only as good as its worst part
+    cur.c = b.c; cur.v += b.v; parts.push(b);
   }
+  close();
   return out;
 }
 /** The Monday of the New York week holding `t` (daily bars are New York midnights). */
