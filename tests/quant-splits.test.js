@@ -29,6 +29,14 @@ const mod = (f) => import(pathToFileURL(path.join(__dirname, '..', f)).href);
   ok('twice over is the same as once', JSON.stringify(S.resplit(S.resplit(raw, splits), splits)) === JSON.stringify(fixed));
   const before = [bar(ex - 3 * D, 800), bar(ex - 2 * D, 790)];
   ok('a range that ends before the ex-date has no seam: as the provider sent it', S.resplit(before, splits) === before);
+  // B3, Tony's SNDK at 13:29: Nov 19 came already on the new basis, Nov 17-18 still raw, ex-date Nov 20.
+  const early = [bar(ex - 3 * D, 830), bar(ex - 2 * D, 800), bar(ex - D, 94.4), bar(ex, 80)];
+  const fe = S.resplit(early, splits);
+  ok('a jump a day BEFORE the ex-date is found: Nov 17-18 come down (800 → 100), Nov 19 is left (already new)', Math.abs(fe[1].c - 100) < 1e-9 && Math.abs(fe[0].c - 103.75) < 1e-9 && fe[2] === early[2] && fe[3] === early[3], JSON.stringify(fe.map((b) => b.c)));
+  const earlyNoEx = early.slice(0, 3);
+  ok('...also in a range that ends before the ex-date (an older chunk loaded on a pan)', Math.abs(S.resplit(earlyNoEx, splits)[1].c - 100) < 1e-9);
+  const far = [bar(ex - 20 * D, 800), bar(ex - 19 * D, 100), bar(ex, 95)];
+  ok('a jump far from any ex-date (20 days) is never treated as the split', S.resplit(far, splits) === far);
   const intraday = [{ t: ex - 3600_000, o: 780, h: 781, l: 779, c: 780, v: 10 }, { t: ex + 9.5 * 3600_000, o: 92, h: 93, l: 91, c: 92, v: 100 }];
   ok('intraday: the last bar of the day before and the first of the ex-date make the seam', Math.abs(S.resplit(intraday, splits)[0].c - 97.5) < 1e-9);
   const rev = [bar(ex - D, 2), bar(ex, 20)];
