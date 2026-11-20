@@ -5,10 +5,23 @@
 // run's own port, or, on the shared 9333, closes that browser's pages (their timers go with them).
 //
 //   node cdp-reaper.js <run pid> <port> <own: 1|0>
+// or, from any harness that starts its own browser: require('./cdp-reaper.js').watch(port)
+// (A1/tests, V1/scripts/cdp.mjs, A1-Priv's riftiq-live: every test browser, 2026-11-19).
 'use strict';
 const http = require('http');
-const { execSync } = require('child_process');
-const [parent, port, own] = process.argv.slice(2).map(Number);
+const { execSync, spawn } = require('child_process');
+
+/** Start the watchdog for this process: once it is gone, the browser on `port` goes too (own) or
+ *  just its pages (own = false: a browser shared with other runs). CDP_KEEP=1 skips it. */
+function watch(port, own = true) {
+  if (process.env.CDP_KEEP) return;
+  try {
+    spawn(process.execPath, [__filename, String(process.pid), String(port), own ? '1' : '0'],
+      { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch (e) {}
+}
+module.exports = { watch };
+const [parent, port, own] = require.main === module ? process.argv.slice(2).map(Number) : [];
 
 const get = (u) => new Promise((res) => {
   http.get(u, (r) => { let b = ''; r.on('data', (c) => { b += c; }); r.on('end', () => res(b)); }).on('error', () => res(''));
@@ -35,9 +48,11 @@ async function reap() {
   }
 }
 
-if (!parent || !port) process.exit(2);
-setInterval(async () => {
-  if (alive(parent)) return;
-  await reap();
-  process.exit(0);
-}, 3000);
+if (require.main === module) {
+  if (!parent || !port) process.exit(2);
+  setInterval(async () => {
+    if (alive(parent)) return;
+    await reap();
+    process.exit(0);
+  }, 3000);
+}

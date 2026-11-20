@@ -57,12 +57,7 @@ function browserPids() {
 }
 // The exit hook never runs when a run is KILLED (a timeout, a stopped background task), and that is how
 // most leftovers happen, so a detached watchdog (cdp-reaper.js) outlives the run and cleans up after it.
-function armReaper() {
-  try {
-    spawn(process.execPath, [path.join(__dirname, 'cdp-reaper.js'), String(process.pid), String(PORT), PORT === 9333 ? '0' : '1'],
-      { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-  } catch (e) {}
-}
+const armReaper = () => require('./cdp-reaper.js').watch(PORT, PORT !== 9333);
 function armClose() {
   if (closeOnExit || process.env.CDP_KEEP) return;
   closeOnExit = true;
