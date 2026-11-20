@@ -30,11 +30,12 @@ const av = [{ ticker: 'T0', date: '2026-12-01' }, { ticker: 'T1', date: '2026-12
 let out = pick(wl, nas, av, 100);
 ok('a ticker Nasdaq and AlphaVantage agree on is not asked of Finnhub (T0)', !out.includes('T0'));
 ok('...one they disagree on, or that only one lists, still is (T1, T2, T3)', ['T1', 'T2', 'T3'].every((t) => out.includes(t)));
-ok('...tickers with no date anywhere come first, then the single-source ones', out.indexOf('T4') < out.indexOf('T1') && out[0] === 'T4', out.slice(0, 5).join());
-out = pick(wl, nas, av, 46 - 22);
-ok('a 40-ticker list with 22 Nasdaq pages: Finnhub gets what is left (24), never more', out.length === 24);
+ok('...single-source dates first (Finnhub's vote confirms them), then tickers with no date at all', out.slice(0, 3).join() === 'T1,T2,T3' && out[3] === 'T4', out.slice(0, 5).join());
+out = pick(wl, nas, av, 50 - ctx.RESERVE - 22);
+ok('a 40-ticker list with 22 Nasdaq pages: Finnhub gets what is left (20), never more', out.length === 50 - ctx.RESERVE - 22, out.length);
 ok('...no budget left: Finnhub is not asked at all', pick(wl, nas, av, -3).length === 0);
-ok('the whole build stays inside 50: Nasdaq pages + reserve + Finnhub', ctx.TOTAL === 50 && ctx.RESERVE >= 3);
+ok('the reserve covers the worst case of the rest (AV 1, macro up to 3, AI search up to 2, the push 1, a spare)', ctx.TOTAL === 50 && ctx.RESERVE >= 8);
+ok('a build is partial only when Finnhub missed a ticker it was ASKED about (not every ticker it was not)', /cov\.finnhubAsked = fhList\.slice\(\);/.test(SRC) && /cov\.finnhubSyms\.length < \(cov\.finnhubAsked \|\| wl\)\.length/.test(SRC));
 
 const build = SRC.slice(SRC.indexOf('async function buildCalendar('), SRC.indexOf('async function buildCalendar(') + 4000);
 ok('buildCalendar runs Nasdaq and AlphaVantage before Finnhub', build.indexOf('fetchEarningsNasdaq(wl') > 0 && build.indexOf('fetchEarningsCalendar(fhList') > build.indexOf('fetchEarningsNasdaq(wl'));
