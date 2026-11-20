@@ -102,11 +102,11 @@ const WB = [
   ok('a Webull list reorders too (AMD to the top), and stays', (await rail()) === 'AMD,NVDA,SNDK', await rail());
   ok('...kept as TradeHub\'s order over it (wl2.order), Webull untouched', await until(`${DOC}.wl2 && JSON.stringify(${DOC}.wl2.order)===JSON.stringify([{id:'wb:11',syms:['AMD','NVDA','SNDK']}])`, 4000), await js(`return JSON.stringify((${DOC}.wl2||{}).order);`));
   await pickRail('wb:13');
-  ok('Cryptos: quiet "no data" rows', await js(`var r=[...document.querySelectorAll('[data-ch-rail] .ch-row')]; return r.length===2 && r.every(function(e){return e.classList.contains('is-nodata') && /no data/.test(e.textContent);});`));
-  const symBefore = await js(`return document.querySelector('[data-charts]').__charts.active() ? document.querySelector('[data-charts]').__charts.active().get().symbol : '';`);
-  await js(`document.querySelector('[data-ch-rail] .ch-row').click(); 1`); await sleep(300);
-  ok('...a click on one leaves the chart alone (no chart for crypto yet)', (await js(`return document.querySelector('[data-charts]').__charts.active().get().symbol;`)) === symBefore);
-  ok('...and the chart shows a stock, not BTCUSD', symBefore && symBefore !== 'BTCUSD', symBefore);
+  // Batch 2 B1 (Tony 2026-11-20): crypto has data now: full rows, and a click charts the coin.
+  ok('Cryptos: full rows (B1: no more "no data")', await js(`var r=[...document.querySelectorAll('[data-ch-rail] .ch-row')]; return r.length===2 && r.every(function(e){return !e.classList.contains('is-nodata') && !/no data/.test(e.textContent);});`));
+  const coin = await js(`return document.querySelectorAll('[data-ch-rail] .ch-row')[1].dataset.sym;`);
+  await js(`document.querySelectorAll('[data-ch-rail] .ch-row')[1].click(); 1`); await sleep(400);
+  ok('...a click on one charts that coin', (await js(`return document.querySelector('[data-charts]').__charts.active().get().symbol;`)) === coin, coin);
 
   console.log('\n1280: Control ▸ Watchlists');
   await tab('prompt');
