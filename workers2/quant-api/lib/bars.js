@@ -76,7 +76,7 @@ export function unsplit(bars, splits) {
   return bars.map((b) => {
     let f = 1;
     for (const s of splits) if (b.t < s.t && s.ratio > 0) f *= s.ratio;
-    return f === 1 ? b : { t: b.t, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f, v: Math.round(b.v / f) };
+    return f === 1 ? b : { ...b, o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f, v: Math.round(b.v / f) };   // ...b keeps vx (BV)
   });
 }
 
