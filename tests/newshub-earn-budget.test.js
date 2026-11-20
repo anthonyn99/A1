@@ -30,7 +30,7 @@ const av = [{ ticker: 'T0', date: '2026-12-01' }, { ticker: 'T1', date: '2026-12
 let out = pick(wl, nas, av, 100);
 ok('a ticker Nasdaq and AlphaVantage agree on is not asked of Finnhub (T0)', !out.includes('T0'));
 ok('...one they disagree on, or that only one lists, still is (T1, T2, T3)', ['T1', 'T2', 'T3'].every((t) => out.includes(t)));
-ok('...single-source dates first (Finnhub's vote confirms them), then tickers with no date at all', out.slice(0, 3).join() === 'T1,T2,T3' && out[3] === 'T4', out.slice(0, 5).join());
+ok('...single-source dates first (Finnhub\'s vote confirms them), then tickers with no date at all', out.slice(0, 3).join() === 'T1,T2,T3' && out[3] === 'T4', out.slice(0, 5).join());
 out = pick(wl, nas, av, 50 - ctx.RESERVE - 22);
 ok('a 40-ticker list with 22 Nasdaq pages: Finnhub gets what is left (20), never more', out.length === 50 - ctx.RESERVE - 22, out.length);
 ok('...no budget left: Finnhub is not asked at all', pick(wl, nas, av, -3).length === 0);
