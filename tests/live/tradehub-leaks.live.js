@@ -12,10 +12,16 @@
 //      ("Detached HTMLDivElement", "LineSeries", ...): the top growers are printed.
 //
 // LEAK_MIN (default 3), WARM_S (default 45), CYCLES (default 40), TABS=market,charts (default all).
+// B5 (r2-05.md): REAL=1 is the realistic-volume mode: Tony's 35-ticker Main as the watchlist and a 1-minute
+// pan to the chart's cap. Every sample also prints the committed heap (JSHeapTotalSize, closer to the
+// browser's figure Tony read) beside the used heap, and the work-out counts the stream connections made.
 // Run: CDP_PORT=93xx node tests/live/tradehub-leaks.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, WATCHLIST } = require('./quant-mock.js');
+const REAL = !!process.env.REAL;
+// Tony's Main had 35 tickers (R0); the mock answers bars and quotes for any symbol.
+const MAIN35 = [...new Set([...WATCHLIST, 'MU', 'SNDK', 'AMD', 'NVDA', 'TSLA', 'PLTR', 'AAPL', 'META', 'AMZN', 'MSFT', 'GOOGL', 'AVGO', 'TSM', 'SMCI', 'COIN', 'HOOD', 'SOFI', 'RKLB', 'IONQ', 'ARM', 'NFLX', 'CRWD', 'SHOP', 'UBER', 'INTC', 'MRVL', 'ANET', 'DELL', 'ORCL', 'LRCX', 'AMAT', 'KLAC', 'QCOM', 'ADBE', 'CRM'])].slice(0, 35);
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -63,10 +69,11 @@ async function census(c) {
     await c.send('HeapProfiler.collectGarbage'); await sleep(400); await c.send('HeapProfiler.collectGarbage');
     const m = Object.fromEntries((await c.send('Performance.getMetrics')).result.metrics.map((x) => [x.name, x.value]));
     const canv = await js(`return document.querySelectorAll('canvas').length;`);
-    return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, canvases: canv };
+    return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), committedMB: +(m.JSHeapTotalSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, canvases: canv };
   };
   await size(1504, 900);
-  await boot({ quant: true });
+  await boot(REAL ? { quant: true, watchlist: MAIN35 } : { quant: true });
+  if (REAL) console.log(`  (REAL: ${MAIN35.length} tickers on the watchlist)`);
   ok('the app is up with Quant on', await until(`document.querySelector('.tbq-on')`, 10000));
   await js(`window.__ws.auto(100); 1`);
 
@@ -79,7 +86,7 @@ async function census(c) {
     const z = await sample();
     const g = (z.heapMB - a.heapMB) / a.heapMB;
     table.push({ id, a, z });
-    console.log(`    ${id.padEnd(10)} heap ${a.heapMB} → ${z.heapMB} MB (${(g * 100).toFixed(1)}%), nodes ${a.nodes} → ${z.nodes}, listeners ${a.listeners} → ${z.listeners}, canvases ${a.canvases} → ${z.canvases}`);
+    console.log(`    ${id.padEnd(10)} heap ${a.heapMB} → ${z.heapMB} MB (${(g * 100).toFixed(1)}%, committed ${a.committedMB} → ${z.committedMB}), nodes ${a.nodes} → ${z.nodes}, listeners ${a.listeners} → ${z.listeners}, canvases ${a.canvases} → ${z.canvases}`);
     ok(`${id}: heap after GC grows under 10% over ${LEAK_MIN} min`, g < 0.1, `${a.heapMB} → ${z.heapMB}`);
     ok(`${id}: DOM nodes within 10%`, z.nodes <= a.nodes * 1.1, `${a.nodes} → ${z.nodes}`);
     ok(`${id}: listeners within 10%`, z.listeners <= a.listeners * 1.1, `${a.listeners} → ${z.listeners}`);
@@ -104,11 +111,15 @@ async function census(c) {
     const round = async (k) => { await step(k); await sleep(500); await undo(k); await sleep(400); };
     for (let k = 0; k < 6; k++) await round(k);   // warm: every kind of object made once
     const a = await sample(), before = await census(c);
+    const ws0 = await js(`return window.__ws.state.sockets.length;`);
     for (let k = 6; k < 6 + CYCLES; k++) await round(k);
     // Back to where the warm-up ended (the same ticker, interval, type and range), so only what is held differs.
     await round(5);
     await sleep(1500);
     const z = await sample(), after = await census(c);
+    const wsMade = (await js(`return window.__ws.state.sockets.length;`)) - ws0;
+    console.log(`    stream connections opened during the work-out: ${wsMade}`);
+    ok('...a ticker switch never closes and reopens a stream (at most 3 connections over the rounds)', wsMade <= 3, wsMade);
     console.log(`    heap ${a.heapMB} → ${z.heapMB} MB, nodes ${a.nodes} → ${z.nodes}, listeners ${a.listeners} → ${z.listeners}, canvases ${a.canvases} → ${z.canvases}`);
     const grow = [...after].map(([name, e]) => ({ name, dn: e.n - ((before.get(name) || {}).n || 0), dkb: Math.round((e.size - ((before.get(name) || {}).size || 0)) / 1024) }))
       .filter((x) => x.dn > 0).sort((x, y) => y.dkb - x.dkb || y.dn - x.dn).slice(0, 25);
@@ -121,6 +132,15 @@ async function census(c) {
     ok('...canvases do not pile up', z.canvases <= a.canvases + 2, `${a.canvases} → ${z.canvases}`);
     ok('...listeners within 10%', z.listeners <= a.listeners * 1.1, `${a.listeners} → ${z.listeners}`);
     ok('...detached DOM does not grow', detached <= detached0 * 1.1 + 50, `${detached0} → ${detached}`);
+  }
+  if (REAL && TABS.includes('charts')) {
+    console.log('\n3. A 1-minute pan to the cap (REAL)');
+    await js(`var ch=document.querySelector('[data-charts]').__charts.active(); ch.set({ tf: '1m' }); 1`); await sleep(2500);
+    for (let i = 0; i < 25; i++) { await js(`var ch=document.querySelector('[data-charts]').__charts.active(); var ts=ch.chart().timeScale(); var r=ts.getVisibleLogicalRange(); ts.setVisibleLogicalRange({ from: -5, to: (r.to - r.from) - 5 }); 1`); await sleep(1800); }
+    const held = await js(`return document.querySelector('[data-charts]').__charts.active().info().bars;`);
+    const s1 = await sample();
+    console.log(`    1-minute bars held after 25 pans back: ${held}; heap ${s1.heapMB} MB, committed ${s1.committedMB} MB`);
+    ok('a 1-minute chart never holds more than ~8,000 bars (B5 cap, plus one older step)', held <= 8000 + 3600, held);
   }
   await js(`window.__ws.auto(0); 1`);
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
