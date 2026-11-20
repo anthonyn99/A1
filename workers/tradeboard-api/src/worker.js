@@ -1052,6 +1052,156 @@ async function fetchSequential(accountId, env) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   CAPABILITIES PROBE  (GET /api/portfolio/capabilities, 2026-11-20)
+   Asks Webull, one call at a time, whether this key may use each READ endpoint
+   the worker already relies on, and reports only what came back: HTTP status,
+   allowed / denied (401, 403, 417) / errored, and how many fields or rows the
+   answer had. Never the token, the secret, an account id or any balance,
+   position or order value. The one write-shaped call is Webull's token check
+   (a POST that only reads the token's state, as /token-status does). No order,
+   preview, replace or cancel endpoint is ever named here: Webull stays
+   read-only in TradeHub.
+   ══════════════════════════════════════════════════════════════════════════ */
+const CAP_GAP_MS = 1100;   // balance, positions, orders and detail allow 2 calls per 2 s
+const capVerdict = (s) => (s >= 200 && s < 300 ? 'allowed' : (s === 401 || s === 403 || s === 417) ? 'denied' : 'errored');
+function capShape(raw) {
+  if (Array.isArray(raw)) return { rows: raw.length, fields: raw[0] && typeof raw[0] === 'object' ? Object.keys(raw[0]).length : 0 };
+  if (raw && typeof raw === 'object') {
+    const inner = listOf(raw);
+    return { fields: Object.keys(raw).length, ...(Array.isArray(inner) && inner !== raw ? { rows: inner.length } : {}) };
+  }
+  return { fields: 0 };
+}
+/* Short string values under a key naming the account's type or class (CASH,
+   MARGIN, INDIVIDUAL...), one level deep. Nothing else is read off the answer. */
+function capAccountTypes(raw) {
+  const out = new Set();
+  const scan = (o) => {
+    if (!o || typeof o !== 'object') return;
+    for (const [k, v] of Object.entries(o)) {
+      if (/^(account_?type|account_?class|account_?category|margin_?type|type)$/i.test(k) && typeof v === 'string' && v.length <= 24 && !/\d{5,}/.test(v)) out.add(k + '=' + v);
+    }
+  };
+  const list = Array.isArray(raw) ? raw : (listOf(raw).length ? listOf(raw) : [raw]);
+  for (const a of list) { scan(a); if (a && typeof a === 'object') for (const v of Object.values(a)) if (v && typeof v === 'object' && !Array.isArray(v)) scan(v); }
+  return [...out];
+}
+function capTimeLeft(expire) {
+  if (expire == null || expire === '') return null;
+  const n = typeof expire === 'number' || /^\d+$/.test(String(expire)) ? Number(expire) : Date.parse(expire);
+  if (!isFinite(n)) return null;
+  const ms = (n < 1e12 ? n * 1000 : n) - Date.now();
+  return { expiresAt: new Date(ms + Date.now()).toISOString(), msLeft: ms, daysLeft: Math.round(ms / 864e5 * 10) / 10 };
+}
+
+async function probeCapabilities(env) {
+  const results = [];
+  const probe = async (name, method, endpoint, opts = {}) => {
+    const row = { endpoint: name, path: endpoint, method, version: opts.version || 'v2' };
+    try {
+      const raw = await wb(method, endpoint, opts, env);
+      Object.assign(row, { status: 200, result: 'allowed' }, capShape(raw));
+      results.push(row);
+      return raw;
+    } catch (e) {
+      if (e && e.code) Object.assign(row, { status: null, result: 'skipped', reason: e.code });
+      else {
+        const d = (e && e.wbData) || {};
+        const status = (e && e.status) || null;
+        Object.assign(row, { status, result: status ? capVerdict(status) : 'errored' });
+        const code = d.error_code || d.code || d.errorCode;
+        const msg = d.message || d.msg || (e && e.message);
+        if (code) row.webullCode = String(code).slice(0, 60);
+        if (msg) row.webullMessage = String(msg).slice(0, 160);
+      }
+      results.push(row);
+      return null;
+    } finally { await delay(CAP_GAP_MS); }
+  };
+
+  // Token: the cached state, then Webull's own check of it.
+  const cached = await loadToken(env);
+  const token = { cached: cached?.token ? (cached.status || 'UNKNOWN') : 'NONE', createdAt: cached?.createTime || null };
+  if (cached?.token) {
+    const endpoint = '/openapi/auth/token/check';
+    const row = { endpoint: 'token check', path: endpoint, method: 'POST', version: 'v2' };
+    try {
+      const body = JSON.stringify({ token: cached.token });
+      const headers = await makeHeaders({ reqPath: endpoint, body, env });
+      const res = await fetch(`${WB_BASE}${endpoint}`, { method: 'POST', headers, body, signal: AbortSignal.timeout(10000) });
+      const data = await res.json().catch(() => ({}));
+      Object.assign(row, { status: res.status, result: capVerdict(res.status), fields: Object.keys(data || {}).length });
+      token.webullStatus = data.status || data.token_status || null;
+      token.checkExpiry = data.expireTime ?? data.expire_time ?? data.expires_at ?? null;
+    } catch (e) { Object.assign(row, { status: null, result: 'errored', reason: (e && e.message || 'failed').slice(0, 120) }); }
+    results.push(row);
+    const exp = token.checkExpiry ?? cached.expireTime ?? null;
+    token.expiry = exp;
+    token.timeLeft = capTimeLeft(exp);
+    if (cached.createTime) token.ageDays = Math.round((Date.now() - Date.parse(cached.createTime)) / 864e5 * 10) / 10;
+    await delay(CAP_GAP_MS);
+  }
+
+  // Account list → its types, then the account the dashboard reads.
+  const list = await probe('account list', 'GET', '/openapi/account/list');
+  const accounts = list ? (Array.isArray(list) ? list : (list.data || list.accounts || [])) : [];
+  const accountTypes = list ? capAccountTypes(list) : [];
+  let accountId = null;
+  if (accounts.length) {
+    const cachedId = await env.TB_KV.get('wb_account');
+    const ids = accounts.map(acctIdOf).filter(Boolean);
+    accountId = cachedId && ids.includes(cachedId) ? cachedId : ids[0] || null;
+  }
+  const acct = accountId ? { account_id: accountId } : null;
+  const skip = (name, path, version = 'v2') => results.push({ endpoint: name, path, method: 'GET', version, status: null, result: 'skipped', reason: 'no account id' });
+
+  let balanceTypes = [];
+  if (acct) {
+    const bal = await probe('balance', 'GET', '/openapi/assets/balance', { query: acct });
+    if (bal) balanceTypes = capAccountTypes(bal);
+    await probe('positions', 'GET', '/openapi/assets/positions', { query: acct });
+    const hist = await probe('order history (7 days)', 'GET', '/openapi/trade/order/history', { query: { ...acct, page_size: 10 } });
+    await probe('open orders', 'GET', '/openapi/trade/order/open', { query: { ...acct, page_size: 10 } });
+    const first = hist ? flattenOrderGroups(listOf(hist)).find((o) => o && o.client_order_id) : null;
+    if (first) {
+      for (const [path, version] of FEE_DETAIL_PATHS) {
+        await probe('order detail ' + version, 'GET', path, { query: { ...acct, client_order_id: first.client_order_id }, version });
+      }
+    } else for (const [path, version] of FEE_DETAIL_PATHS) results.push({ endpoint: 'order detail ' + version, path, method: 'GET', version, status: null, result: 'skipped', reason: 'no order in the last 7 days to look up' });
+    const end = new Date(), start = new Date(end.getTime() - 7 * 864e5);
+    await probe('cash activities (7 days)', 'GET', '/trading/activities/cash-activities/list', { query: { ...acct, start_time: isoMs(start), end_time: isoMs(end) }, version: 'v3' });
+  } else {
+    skip('balance', '/openapi/assets/balance'); skip('positions', '/openapi/assets/positions');
+    skip('order history (7 days)', '/openapi/trade/order/history'); skip('open orders', '/openapi/trade/order/open');
+    for (const [path, version] of FEE_DETAIL_PATHS) skip('order detail ' + version, path, version);
+    skip('cash activities (7 days)', '/trading/activities/cash-activities/list', 'v3');
+  }
+
+  const wl = await probe('watchlists', 'GET', '/market-data/watchlists/list', { version: 'v3' });
+  const wlList = wl ? (Array.isArray(wl) ? wl : listOf(wl)) : [];
+  const wlId = wlList.length ? String(wlList[0].watchlist_id ?? wlList[0].id ?? '') : '';
+  if (wlId) await probe('watchlist instruments', 'GET', '/market-data/watchlists/instruments/list', { query: { watchlist_id: wlId }, version: 'v3' });
+  const snap = await probe('quote snapshot (SPY)', 'GET', '/market-data/stocks/snapshots/list', { query: { symbols: 'SPY', category: 'US_ETF', extend_hour_required: 'true' }, version: 'v3' });
+  const snapRow = results[results.length - 1];
+  const snapRows = snap ? (Array.isArray(snap) ? snap : (snap.data || snap.result || [])) : [];
+  const marketData = snapRow.result === 'allowed'
+    ? (snapRows.length ? 'subscribed (quotes returned)' : 'allowed but no quotes returned')
+    : snapRow.result === 'denied' ? 'not subscribed (' + snapRow.status + ')' : snapRow.result + (snapRow.status ? ' (' + snapRow.status + ')' : '');
+
+  const tally = results.reduce((t, r) => (t[r.result] = (t[r.result] || 0) + 1, t), {});
+  return {
+    ok: true,
+    asOf: new Date().toISOString(),
+    token,
+    accounts: { count: accounts.length, types: accountTypes, balanceTypeFields: balanceTypes },
+    marketData,
+    tally,
+    results,
+    note: 'Read endpoints only. No order, preview, replace or cancel endpoint was called. 5-minute bars (a POST) were not probed.',
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    ROUTER  (matches original Express routes exactly)
    ══════════════════════════════════════════════════════════════════════════ */
 async function handleRequest(request, env) {
@@ -1128,6 +1278,16 @@ async function handleRequest(request, env) {
       return json({ ok: true, status, message: status === 'NORMAL' ? '✓ Token active.' : `Status: ${status}. Verify in Webull app.` });
     } catch(err) {
       return json({ ok: false, error: err.message }, 500);
+    }
+  }
+
+  // ── Capabilities (GET only; see probeCapabilities) ────────────────────────
+  if (path === '/api/portfolio/capabilities' && method === 'GET') {
+    try {
+      const out = await probeCapabilities(env);
+      return new Response(JSON.stringify(out), { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', ...corsHeaders() } });
+    } catch (err) {
+      return json({ ok: false, error: (err && err.message) || 'probe failed' }, 500);
     }
   }
 
