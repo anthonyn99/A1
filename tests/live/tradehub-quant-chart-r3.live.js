@@ -140,24 +140,27 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   await js(`${CH}.fit(); 1`); await sleep(300);
 
   console.log('\n2b. Never frozen under a hand (Tony 2026-11-20: a drag froze, the cursor price went "—")');
-  { const s = await stage(), y = s.t + s.h * 0.45, x0 = s.l + s.w * 0.2;
-    const n0 = (await info()).bars, views = [], tagTexts = [];
+  { const s = await stage(), y = s.t + s.h * 0.45, x0 = s.l + s.w * 0.5;
+    const n = (await info()).bars + (await info()).gaps;
+    await js(`${CH}.chart().timeScale().setVisibleLogicalRange({from:${n} - 300, to:${n} - 150}); 1`); await sleep(300);
+    const sym = (await info()).symbol, total = () => js(`var i=${CH}.info(); return i.bars + i.gaps;`);
+    const n0 = await total(), views = [], tagTexts = [];
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y });
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y, button: 'left', buttons: 1, clickCount: 1 });
-    // One long drag to the left edge of the data: older history is asked for mid-drag and lands while the button is down.
-    for (let i = 1; i <= 60; i++) {
-      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (i % 2 ? 1 : -1) * 0 + Math.min(i, 30) * s.w * 0.025 - Math.max(0, i - 30) * s.w * 0.012, y, button: 'left', buttons: 1 });
-      await sleep(40);
-      if (i % 5 === 0) { views.push((await info()).view); tagTexts.push(await js(`var e=document.querySelector('[data-ch-main] [data-ch-cursor]'); return e && e.style.display !== 'none' ? e.textContent : '';`)); }
+    for (let i = 1; i <= 30; i++) {
+      // Mid-drag: a trade opens a new bar, the one thing that always redraws the whole chart.
+      if (i === 8) await js(`window.__ws && window.__ws.tick(${JSON.stringify(sym)}, 1234.5); 1`);
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (i <= 15 ? i : 30 - i) * s.w * 0.012, y, button: 'left', buttons: 1 });
+      await sleep(50);
+      if (i >= 10) { views.push((await info()).view.from); tagTexts.push(await js(`var e=document.querySelector('[data-ch-main] [data-ch-cursor]'); return e && e.style.display !== 'none' ? e.textContent : '';`)); }
     }
-    const held = (await info()).bars;
-    const lastMoves = views.slice(-4).map((v) => v.from);
-    ok('a long drag keeps panning to its last move (the view still follows the mouse)', new Set(lastMoves.map((x) => x.toFixed(2))).size >= 3, JSON.stringify(lastMoves));
+    const held = await total();
+    ok('a drag keeps following the mouse after a new bar arrives mid-drag', new Set(views.slice(-8).map((x) => x.toFixed(2))).size >= 4, JSON.stringify(views));
     ok('...the cursor price never turns into a dash while dragging', tagTexts.every((t) => !/^\s*—\s*$/.test(t)), JSON.stringify(tagTexts));
-    ok('...older history waits for the button: no redraw under the hand', held === n0, n0 + ' → ' + held);
+    ok('...the redraw waits for the button: nothing redrawn under the hand', held === n0, n0 + ' → ' + held);
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x0, y, button: 'left', buttons: 0, clickCount: 1 });
-    const merged = await until(`${CH}.info().bars > ${n0}`, 6000);
-    ok('...and joins the chart once the button is let go', merged, n0 + ' → ' + (await info()).bars);
+    const joined = await until(`(function(){var i=${CH}.info(); return i.bars + i.gaps > ${n0};})()`, 4000);
+    ok('...and the new bar is drawn once the button is let go', joined, n0 + ' → ' + (await total()));
   }
   await js(`${CH}.fit(); 1`); await sleep(300);
 
