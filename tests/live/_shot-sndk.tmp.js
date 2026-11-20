@@ -20,7 +20,7 @@ const OUT = process.env.OUT;
     await boot({ quant: true }); await tab('charts');
     await until(`${TAB} && ${CH}`, 20000); await sleep(1500);
     if (process.env.SLOW) { api.state.barsDelay = { SNDK: 4000 }; }
-    await js(`${CH}.set({ symbol: process.env.SYM || 'SNDK', range: '1D', tf: '4h', indicators: [{ type: 'ema', n: 200 }] }); 1`);
+    await js(`${CH}.set({ symbol: '${process.env.SYM || 'SNDK'}', range: '1D', tf: '4h', indicators: [{ type: 'ema', n: 200 }] }); 1`);
     if (process.env.SLOW) { await sleep(1200); const s = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(OUT, `loading-${w}.png`), Buffer.from(s.result.data, 'base64')); }
     await sleep(process.env.SLOW ? 6000 : 3000);
     api.state.barsDelay = {};
