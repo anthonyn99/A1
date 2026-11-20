@@ -351,6 +351,8 @@ function quantApi() {
         for (const s of u.searchParams.get('symbols').split(',')) {
           const row = FIXTURE.rows[s];
           if (row) quotes[s] = { symbol: s, price: +(row.c * 1.001).toFixed(2), t: CLOCK - 3000, heard: CLOCK - 1000, provider: 'alpaca', realtime: true, delayMs: 0 };
+          // B1: a coin answers as the worker does, from Coinbase with its 24-hour open.
+          else if (/^(BTC|ETH|SOL|SUI|XRP|DOGE)USD$/.test(s)) quotes[s] = { symbol: s, price: 100, open24: 95, t: CLOCK - 3000, heard: CLOCK - 1000, provider: 'coinbase', realtime: true, delayMs: 0 };
         }
         return { json: { ok: true, quotes, asOf: CLOCK, missing: {} } };
       }
@@ -387,17 +389,22 @@ const PAGE_SETUP = `(() => {
   window.__ws = { state,
     tick(sym, price) { emit([{ T: 't', S: sym, p: price, s: 1, t: new Date(Date.now()).toISOString() }]); },
     auto(ms) { clearInterval(state.timer); if (!ms) return; let n = 0; state.timer = setInterval(() => { n++; emit([...state.subs].map((S, i) => ({ T: 't', S, p: 100 + i + (n % 7) * 0.05, s: 1, t: new Date(Date.now()).toISOString() }))); }, ms); },
+    // Batch 2 B1: Coinbase's ticker channel (crypto), faked like the others. cbTick('BTC-USD', 91800, 90000).
+    cbSubs: new Set(),
+    cbTick(pid, price, open24) { for (const w of state.sockets) if (w.coinbase && w.readyState === 1 && w.onmessage) w.onmessage({ data: JSON.stringify({ type: 'ticker', product_id: pid, price: String(price), open_24h: String(open24 || price), last_size: '0.01', time: new Date(Date.now()).toISOString() }) }); },
   };
   class FakeWS {
     constructor(url) {
-      if (!/alpaca\\.markets|finnhub\\.io/.test(url)) return new Real(url);
-      this.url = url; this.readyState = 0; this.alpaca = /alpaca/.test(url); state.sockets.push(this);
+      if (!/alpaca\\.markets|finnhub\\.io|coinbase\\.com/.test(url)) return new Real(url);
+      this.url = url; this.readyState = 0; this.alpaca = /alpaca/.test(url); this.coinbase = /coinbase/.test(url); state.sockets.push(this);
       setTimeout(() => { this.readyState = 1; this.onopen && this.onopen({}); if (this.alpaca) this.onmessage && this.onmessage({ data: JSON.stringify([{ T: 'success', msg: 'connected' }]) }); }, 30);
     }
     send(s) {
       const m = JSON.parse(s); state.sent.push(m);
       if (m.action === 'auth') this.onmessage && this.onmessage({ data: JSON.stringify([{ T: 'success', msg: 'authenticated' }]) });
       if (m.action === 'subscribe') for (const x of m.trades || []) state.subs.add(x);
+      if (m.type === 'subscribe' && this.coinbase) for (const x of m.product_ids || []) window.__ws.cbSubs.add(x);
+      if (m.type === 'unsubscribe' && this.coinbase) for (const x of m.product_ids || []) window.__ws.cbSubs.delete(x);
     }
     close() { this.readyState = 3; setTimeout(() => this.onclose && this.onclose({}), 0); }
   }
