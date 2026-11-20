@@ -58,8 +58,34 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
       ok('a wheel zoom-in at the front keeps the bar under the cursor under it', Math.abs(L1 - L0) < 1.5 && (I1.view.to - I1.view.from) < (I0.view.to - I0.view.from), `bar ${L0.toFixed(1)} -> ${L1.toFixed(1)}; view ${fmt(I0)} -> ${fmt(I1)}`);
     }
   }
+  // SNDK's real 8-for-1 (ex 2026-11-20), served on the OLD basis as Alpaca did (A1-Priv fixture), moved by
+  // whole weeks to end before the mock's clock. Tony: "loading SNDK again loaded back the chart BEFORE the
+  // price cut, showing a steep drop", and at 4H "the latest data is all the way back in June".
+  {
+    const fs = require('fs'), path = require('path');
+    const F = JSON.parse(fs.readFileSync(path.join(process.env.A1_PRIV || path.join(__dirname, '..', '..', '..', 'A1-Priv'), 'tests', 'fixtures', 'quant', 'sndk-split.json'), 'utf8'));
+    const { CLOCK } = require('./quant-mock.js'), WEEK = 7 * 86_400_000;
+    const shift = -Math.ceil((F.now - CLOCK) / WEEK) * WEEK, mv = (b) => ({ ...b, t: b.t + shift });
+    api.state.realBars = { SNDK: Object.fromEntries(['5m', '1h', '4h', '1d'].map((tf) => [tf, F[tf].map(mv)])) };
+    api.state.splits = { SNDK: [{ ...F.split, t: F.split.t + shift }] };
+    const last = F['5m'][F['5m'].length - 1].c;   // the new basis (~$81)
+    await size(1504, 900);
+    for (const round of [1, 2]) {   // round 2 = the device's month store already holds SNDK (Tony's "loading again")
+      await boot({ quant: true });
+      await tab('charts');
+      await until(`${TAB} && ${CH}`, 20000); await settled();
+      for (const tf of ['5m', '1h', '4h', '1d']) {
+        await set({ symbol: 'SNDK', range: tf === '1d' ? '1Y' : tf === '4h' ? '6M' : '5D', tf });
+        const I = await info();
+        const hi = Number(await js(`var ch=${CH}.chart(), s=ch.panes()[0].getSeries()[0], d=s.data(); var m=0; for (var i=0;i<d.length;i++) if (d[i].high>m) m=d[i].high; return m;`));
+        ok(`round ${round}, SNDK ${tf}: every bar on today's basis (highest ${hi.toFixed(2)}, last ${last})`, hi > 0 && hi < last * 4, fmt(I));
+        ok(`round ${round}, SNDK ${tf}: the view is on the newest bar`, front(I), fmt(I));
+      }
+    }
+    api.state.realBars = null;
+  }
   ok('no page errors', !errs.length, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
-  await c.close();
+  try { c.ws.close(); } catch (e) {}
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
