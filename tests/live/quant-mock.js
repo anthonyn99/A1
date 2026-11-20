@@ -299,11 +299,15 @@ function quantApi() {
       if (p === '/snapshot' && req.method === 'POST') { const s = JSON.parse(req.postData).snapshot; posted.snapshots.push(s); state.snapshot = s; return { json: { ok: true } }; }
       if (p === '/snapshot/claim') { posted.claims = (posted.claims || 0) + 1; return { json: { ok: true, granted: state.claim !== false } }; }
       if (p === '/watchlist') { const l = JSON.parse(req.postData).symbols; posted.watchlists.push(l); state.watchlist = l; return { json: { ok: true, symbols: l } }; }
+      if (p === '/splits') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, symbol: sym, splits: (state.splits && state.splits[sym]) || [] } }; }
       if (p === '/bars') {
         const sym = u.searchParams.get('symbol'), tf = u.searchParams.get('tf') || '1d', from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
         // Batch 2 (B0): a test can make one symbol's bars fail (state.barsFail) or arrive late (state.barsDelay ms).
         if (state.barsFail && state.barsFail.includes(sym)) return { status: 404, json: { ok: false, error: 'no bars for ' + sym } };
-        const bars = TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
+        // 2026-11-20: state.realBars = { SYM: { tf: bars } } plays a recorded real series (already moved to the mock's
+        // clock by the test), e.g. SNDK's 8-for-1, served on the old basis as Alpaca did.
+        const real = state.realBars && state.realBars[sym] && state.realBars[sym][tf];
+        const bars = real ? real.filter((b) => b.t >= from && b.t <= to).map((b) => ({ ...b })) : TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
         // BV: state.barsVx = { SYM: { iex: n, none: [i…] } } marks the newest n bars as one exchange's volume
         // and the listed bar indexes (from the end) as unknown, as quant-api does.
         const vx = state.barsVx && state.barsVx[sym];
