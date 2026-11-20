@@ -108,6 +108,12 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     const tfDrift = [];
     for (const tf of ['15m', '1h', '5m']) { await pick('[data-ch-tf]', tf); const w = await win(); const tol = { '15m': 1800, '1h': 7200, '5m': 900 }[tf]; if (!w || Math.abs(w[0] - w0[0]) > tol || Math.abs(w[1] - w0[1]) > tol) tfDrift.push(tf + ':' + JSON.stringify(w)); }
     ok('B3', 'an interval switch keeps the same stretch of time (within a bar of the new interval)', tfDrift.length === 0, JSON.stringify({ w0, tfDrift }));
+    // Tony, 13:29: after a big price range the candles stayed squashed when he zoomed back in.
+    await js(`var ch=${CH}; ch.center(ch.info().bars ? 1 : 1); ch.chart().priceScale('right').applyOptions({ autoScale: false }); 1`);
+    const sc = await stage();
+    for (let i = 0; i < 4; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: sc.l + sc.w * 0.7, y: sc.t + sc.h * 0.4, deltaX: 0, deltaY: -120 }); await sleep(40); }
+    await sleep(500);
+    ok('B3', 'a zoom by hand fits the prices again (auto scale back on), so candles never stay squashed', await js(`return ${CH}.chart().priceScale('right').options().autoScale === true;`));
   }
 
   if (want('B4')) {
