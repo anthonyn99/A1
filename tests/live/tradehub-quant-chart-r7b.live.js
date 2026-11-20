@@ -35,7 +35,8 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   });
   const { js, until, size, boot, tab } = driver(c);
   const CH = `document.querySelector('[data-charts]').__charts.active()`;
-  const view = async () => JSON.parse(await js(`var r=${CH}.chart().timeScale().getVisibleLogicalRange(); return JSON.stringify(r ? { from: r.from, to: r.to } : null);`));
+  // Counted back from the newest bar: older history may land mid-test (it is asked a screen ahead now), shifting every index.
+  const view = async () => JSON.parse(await js(`var c=${CH}.chart(), r=c.timeScale().getVisibleLogicalRange(), n=c.panes()[0].getSeries()[0].data().length; return JSON.stringify(r ? { from: r.from - n, to: r.to - n } : null);`));
   const opts = async () => JSON.parse(await js(`var o=${CH}.get(); return JSON.stringify({ tf: o.tf, range: o.range });`));
   const stage = async () => JSON.parse(await js(`var b=document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect(); return JSON.stringify({ l: b.left, t: b.top, w: b.width, h: b.height, b: b.bottom });`));
   const touch = (type, pts) => c.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, i) => ({ x: Math.round(p.x), y: Math.round(p.y), id: i, radiusX: 4, radiusY: 4, force: 1 })) });
@@ -108,7 +109,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
     await touch('touchStart', [pts]); await touch('touchEnd', []); await sleep(90);
     await touch('touchStart', [pts]); await touch('touchEnd', []); await still();
     const v = await view(), n = JSON.parse(await js(`return JSON.stringify(${CH}.info().bars + ${CH}.info().gaps);`));
-    ok('a double tap fits the range (the newest bar at the right edge)', v && Math.abs(v.to - (n - 1)) < 2, JSON.stringify([v, n])); }
+    ok('a double tap fits the range (the newest bar at the right edge)', v && Math.abs(v.to + 1) < 2, JSON.stringify([v, n])); }   // view() counts back from the newest bar: -1 is the newest
   const o1 = await opts();
   ok('no gesture changed the range or the interval', JSON.stringify(o0) === JSON.stringify(o1), JSON.stringify([o0, o1]));
   { const v0 = await view(); await touch('touchStart', [{ x: s.l + s.w * 0.5, y: s.t + 10 }]); await touch('touchEnd', []); await sleep(200);

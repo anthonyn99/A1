@@ -82,6 +82,9 @@
     '  box-sizing:border-box;padding:0;cursor:pointer;color:inherit;border:1.5px solid color-mix(in srgb,currentColor 72%,transparent);border-radius:4px;',
     '  background:color-mix(in srgb,currentColor 24%,transparent);transition:background-color .15s,border-color .15s,box-shadow .15s}',
     'input[data-a1c][type=radio]{border-radius:50%}',
+    // TradeHub B6/B7 (asks 24, 41): a box made after load takes A1's look at once, never animating from the
+    // browser's own look (that animation made every re-built checkbox flash when one was clicked).
+    'input[data-a1c-new],input[data-a1c-new]::after{transition:none!important}',
     'input[data-a1c][type=checkbox]::after,[contenteditable] input[type=checkbox]:not([data-native])::after{content:"";width:10px;height:10px;',
     '  background:var(--a1c-on,var(--a1c-side-on));transform:scale(0);transition:transform .14s ease;',
     '  -webkit-mask:var(--a1c-tick) center/contain no-repeat;mask:var(--a1c-tick) center/contain no-repeat}',
@@ -960,8 +963,9 @@
     if (el._a1c || skip(el)) return;
     el._a1c = true;
     if (editable(el)) return;                         // CSS alone: never write into a document
+    el.setAttribute('data-a1c-new', '');               // no transition while it changes from the native look (see the CSS)
     var cs = getComputedStyle(el);
-    if (cs.appearance === 'none') return;             // the page draws its own
+    if (cs.appearance === 'none') { el.removeAttribute('data-a1c-new'); return; }   // the page draws its own
     var ac = cs.accentColor;
     if (ac && ac !== 'auto') {
       var c = rgb(ac);
@@ -969,6 +973,8 @@
       if (c) el.style.setProperty('--a1c-on', lum(c) > 0.55 ? '#1a1a1d' : '#fff');
     }
     el.setAttribute('data-a1c', '');
+    var settle = function () { el.removeAttribute('data-a1c-new'); };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { requestAnimationFrame(settle); }); else settle();
     if (el.type === 'range') {
       var paintRange = function () {
         var min = el.min === '' ? 0 : +el.min, max = el.max === '' ? 100 : +el.max, v = +el.value;

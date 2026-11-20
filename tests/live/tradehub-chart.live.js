@@ -66,7 +66,7 @@ const CH = `${TAB}.active()`;
   let I = await info();
   const fitSpan = I.view.to - I.view.from;
   // Fitted = the range's bars in view, the newest at the right edge (older history may sit to the left).
-  const fitted = (J) => Math.abs((J.view.to - J.view.from) - fitSpan) <= 2 && J.view.to >= J.bars + J.gaps - 3;
+  const fitted = (J) => Math.abs((J.view.to - J.view.from) - fitSpan) <= Math.max(2, fitSpan * 0.01) && J.view.to >= J.bars + J.gaps - 3;   // within 1%: older history loaded since adds the gap markers between its sessions
   ok('the chart opens on 5D at 5 minutes, from alpaca', I.range === '5D' && I.tf === '5m' && I.bars > 300 && I.provider === 'alpaca', JSON.stringify(I).slice(0, 200));
   ok('the header: price, change, a freshness label, provider and time', await until(`/LIVE|DELAYED/.test(document.querySelector('[data-ch-label]').textContent) && /alpaca/.test(document.querySelector('[data-ch-src]').textContent)`, 8000));
   ok('the price axis carries our tags: the last price filled, levels named on theirs', await js(`var t=[...document.querySelectorAll('.ch-tag')].filter(function(x){return x.style.display!=='none';}); return t.some(function(x){return x.dataset.kind==='last';}) && t.some(function(x){return x.dataset.kind==='level' && /^[RS]\\d /.test(x.textContent);});`));

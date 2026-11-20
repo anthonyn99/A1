@@ -232,7 +232,8 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   ok('the × clears it (input empty, no compare line)', !(await js(`return ${CH}.get().compare;`)) && (await js(`return document.querySelector('[data-ch-cmp]').value;`)) === '' && await js(`return document.querySelector('[data-ch-cmp-clear]').hidden;`));
   await js(`var e=document.querySelector('[data-ch-cmp]'); e.value='QQQ'; e.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   await js(`var s=document.querySelector('[data-ch-type]'); s.value='bars'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
-  ok('a setting change: the sync pill says Syncing, then Synced', await until(`(function(){var p=document.querySelector('[data-ch-sync]'); return p && p.getAttribute('data-sync')==='ok' && /Synced/.test(p.textContent);})()`, 5000), await js(`var p=document.querySelector('[data-ch-sync]'); return p ? p.outerHTML.slice(0,200) : 'no pill';`));
+  // B7 (ask 10): the chart reports to TradeHub's ONE pill (under the title), not a pill of its own.
+  ok('a setting change: the one sync pill says Syncing, then Synced', await until(`(function(){var p=[].slice.call(document.querySelectorAll('.a1-sync')).find(function(e){return e.offsetParent;}); return p && p.getAttribute('data-sync')==='ok' && /Synced/.test(p.textContent);})()`, 5000), await js(`var p=document.querySelector('[data-ch-sync]'); return p ? p.outerHTML.slice(0,200) : 'no pill';`));
   ok('...kept in the layout doc: type, interval, range, compare per symbol', await until(`${doc}.chart_prefs && ${doc}.chart_prefs.type === 'bars' && ${doc}.chart_prefs.tf === '5m' && ${doc}.chart_prefs.range === '5D' && ${doc}.chart_prefs.compareBy && ${doc}.chart_prefs.compareBy['${A}'] === 'QQQ'`, 5000), await js(`return JSON.stringify(${doc}.chart_prefs);`));
   await boot({ quant: true, keep: true });
   await tab('charts'); await ready();
@@ -253,7 +254,7 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     await js(`var s=document.querySelector('[data-ch-type]'); s.value=(${CH}.get().type==='line'?'candles':'line'); s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
     // R7B: on a phone or tablet the chart type and Compare live in Display (the tool row is the header and the icons).
     if (name !== '1280') await js(`document.querySelector('[data-ch-display]').click(); 1`);
-    ok(name + ' px: a change shows the sync pill on screen, and Compare is there', await until(`(function(){var p=document.querySelector('[data-ch-sync]'), b=p.getBoundingClientRect(), c=document.querySelector('[data-ch-cmp]').getBoundingClientRect(); return /busy|ok/.test(p.getAttribute('data-sync')||'') && b.width > 20 && b.right <= innerWidth && b.left >= 0 && c.width > 40;})()`, 1800),
+    ok(name + ' px: a change shows the one sync pill on screen, and Compare is there', await until(`(function(){var p=[].slice.call(document.querySelectorAll('.a1-sync')).find(function(e){return e.offsetParent && /busy|ok/.test(e.getAttribute('data-sync')||'');}); if(!p) return false; var b=p.getBoundingClientRect(), c=document.querySelector('[data-ch-cmp]').getBoundingClientRect(); return /busy|ok/.test(p.getAttribute('data-sync')||'') && b.width > 20 && b.right <= innerWidth && b.left >= 0 && c.width > 40;})()`, 1800),
       await js(`var p=document.querySelector('[data-ch-sync]'); var b=p.getBoundingClientRect(); return p.getAttribute('data-sync') + ' ' + JSON.stringify(b);`));
     if (name !== '1280') await js(`document.querySelector('[data-ch-display]').click(); 1`);
     await shot('r3-charts-' + name);
