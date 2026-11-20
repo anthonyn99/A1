@@ -18,7 +18,12 @@ export const AP_CRYPTO_START = Date.UTC(2021, 0, 1);
 // its dollar): never asked, so their 404s can never trip the ledger's three-failures skip for every other coin.
 // Keep in step with A1-Priv TradeHub/core/crypto.js CB_NONE.
 export const CB_NONE = new Set(['USDC', 'TRX', 'MATIC', 'JUP', 'KAS', 'XMR', 'MKR', 'EOS']);
-const onCoinbase = (sym) => !CB_NONE.has(baseOf(sym));
+export const onCoinbase = (sym) => !CB_NONE.has(baseOf(sym));
+/** B4 (ask 44): Coinbase answers this span within its page budget (5-minute candles for 30 minutes). */
+export function coinbaseFits(sym, tf, from, to) {
+  const g = CB_GRAN[tf === '30m' ? '5m' : tf];
+  return !!g && onCoinbase(sym) && (to - from) / (g * 1000) <= CB_PAGES * CB_MAX;
+}
 const H = { 'user-agent': 'TradeHub personal research (quant-api worker)', accept: 'application/json' };
 const apHeaders = (env) => (env.ALPACA_KEY && env.ALPACA_SECRET ? { 'APCA-API-KEY-ID': env.ALPACA_KEY, 'APCA-API-SECRET-KEY': env.ALPACA_SECRET, accept: 'application/json' } : { accept: 'application/json' });
 const stamp = (tf, t) => (tf === '1d' ? cryptoDayStamp(t) : t);

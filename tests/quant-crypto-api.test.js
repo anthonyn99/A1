@@ -63,11 +63,13 @@ const L = { spent: {}, blocked: () => null, spend(p, n = 1) { this.spent[p] = (t
   ok('the pairs each source writes', C.coinbasePair('SUIUSD') === 'SUI-USD' && C.alpacaPair('BTCUSD') === 'BTC/USD');
   ok('a crypto day is stamped New York midnight of its UTC date', C.cryptoDayStamp(Date.UTC(2026, 10, 20, 0, 0)) === T.nyMidnight('2026-11-20'));
 
-  console.log('\nBars: Alpaca first, then Coinbase');
+  console.log('\nBars: Coinbase first when the span fits its pages (B4: real volume), else Alpaca');
   NET.calls.length = 0;
   let r = await D.getBars(L, env, 'BTCUSD', '5m', now - 6 * H, now, true, now);
-  ok('BTC at 5 minutes from Alpaca\'s crypto bars, complete, no split call', r && r.provider === 'alpacaCrypto' && r.bars.length === 73 && r.complete && !NET.calls.some((u) => /splits|coinbase/.test(u)), JSON.stringify([r && r.provider, r && r.bars.length, NET.calls]));
-  ok('...asked as BTC/USD', NET.calls.some((u) => /symbols=BTC%2FUSD/.test(u)));
+  ok('BTC at 5 minutes from Coinbase (its volume is the market\'s, not Alpaca\'s small venue\'s), complete, no split call', r && r.provider === 'coinbase' && r.bars.length === 73 && r.complete && !NET.calls.some((u) => /splits|alpaca/.test(u)) && r.bars.every((b) => !b.vx), JSON.stringify([r && r.provider, r && r.bars.length, NET.calls]));
+  NET.calls.length = 0;
+  r = await D.getBars(L, env, 'BTCUSD', '1m', now - 30 * DAY, now, true, now);
+  ok('a month of BTC minutes (past Coinbase\'s pages): Alpaca, asked as BTC/USD, its volume marked partial', r && r.provider === 'alpacaCrypto' && NET.calls.some((u) => /symbols=BTC%2FUSD/.test(u)) && !NET.calls.some((u) => /coinbase/.test(u)) && r.bars.length && r.bars.every((b) => b.vx === 'part'), JSON.stringify([r && r.provider, NET.calls.length, r && r.bars[0]]));
   NET.calls.length = 0;
   r = await D.getBars(L, env, 'SUIUSD', '5m', now - 6 * H, now, true, now);
   ok('SUI (not on Alpaca): Coinbase answers, one call for 6 hours', r && r.provider === 'coinbase' && r.bars.length === 73 && r.complete && NET.calls.filter((u) => /coinbase/.test(u)).length === 1, JSON.stringify([r && r.provider, r && r.bars.length]));

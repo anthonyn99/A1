@@ -103,7 +103,7 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   ok('the Weekly preset sets what it says (5Y, weekly bars)', I.range === '5Y' && I.tf === '1w');
   await js(`document.querySelector('[data-ch-range="5D"]').click(); 1`); await settled();
   await pickTf('5m'); await settled();
-  await js(`${CH}.set({indicators: ${ind0}}); 1`);
+  await js(`${CH}.set({indicators: ${ind0}}); 1`); await settled();   // B4: an indicator may load its warm-up bars first
   I = await info();
   ok('back on 5D at 5 minutes', I.range === '5D' && I.tf === '5m');
   const view0 = I.view;

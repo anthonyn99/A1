@@ -94,9 +94,13 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
   const parts = [];
   if (isCrypto(sym)) {
     // Crypto (B1): Alpaca's crypto bars, then Coinbase; no split re-basing, UTC 4-hour buckets.
-    const s = await stretch(L, env, CHAIN.crypto, sym, base, from, to, adj, now, tried);
+    // B4 (ask 44): Alpaca's crypto volume is its own small venue's (a fraction of a coin a bar), so
+    // Coinbase answers first whenever the span fits its free page budget; Alpaca's bars, when they are
+    // used, carry their volume as partial (vx 'part': drawn faint, never counted as the market's).
+    const names = cryptoData.coinbaseFits(sym, base, from, to) ? ['coinbase', 'alpacaCrypto'] : CHAIN.crypto;
+    const s = await stretch(L, env, names, sym, base, from, to, adj, now, tried);
     if (!s) return null;
-    let bars = s.bars, provider = s.provider, clipped = s.clipped;
+    let bars = s.provider === 'alpacaCrypto' ? s.bars.map((b) => ({ ...b, vx: 'part' })) : s.bars, provider = s.provider, clipped = s.clipped;
     // Alpaca's crypto history starts in 2021: older DAILY bars from Coinbase (BTC from 2015).
     if (base === '1d' && s.provider === 'alpacaCrypto' && from < cryptoData.AP_CRYPTO_START && bars.length && bars[0].t > from + 7 * 86_400_000) {
       try {
