@@ -49,6 +49,7 @@ export async function metric(L, env, sym) {
     marketCap: cap == null ? null : cap * 1e6,
     pe: pick(m, 'peTTM', 'peBasicExclExtraTTM', 'peExclExtraTTM'),
     ps: pick(m, 'psTTM'), evs: pick(m, 'evRevenueTTM'),
+    pb: pick(m, 'pbQuarterly', 'pbAnnual'), bps: pick(m, 'bookValuePerShareQuarterly', 'bookValuePerShareAnnual'),   // B1: Key Stats without Yahoo
     eps: pick(m, 'epsTTM', 'epsBasicExclExtraItemsTTM', 'epsExclExtraItemsTTM'),
     epsFy: pick(m, 'epsAnnual', 'epsBasicExclExtraItemsAnnual', 'epsExclExtraItemsAnnual'),
     grossMargin: pct(pick(m, 'grossMarginTTM')), grossMarginFy: pct(pick(m, 'grossMarginAnnual')),
