@@ -12,9 +12,8 @@
 //                                   already adjusted show no jump and pass untouched, so a split is never
 //                                   applied twice. A range that ends before the ex-date has no seam: left as
 //                                   the provider sent it.
-import { call } from './net.js';
+import { call, ProviderError, UA_BROWSER } from './net.js';
 import { nyMidnight, nyDate } from './time.js';
-import { ProviderError } from './ledger.js';
 import * as yahooP from '../providers/yahoo.js';
 
 export const SPLIT_TOL = 0.3, SPLITS_TTL_S = 6 * 3600, SPLITS_BACK_DAYS = 3 * 365;
@@ -57,7 +56,7 @@ export async function getSplits(L, env, sym, now = Date.now(), { cache = globalT
   if (!list) {
     try {
       const j = await call(L, 'yahoo', `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooP.ysym(sym))}?period1=${Math.floor((now - SPLITS_BACK_DAYS * DAY) / 1000)}&period2=${Math.ceil(now / 1000)}&interval=1d&events=split`,
-        { headers: { 'user-agent': 'Mozilla/5.0', accept: 'application/json' } });
+        { headers: { 'user-agent': UA_BROWSER, accept: 'application/json' } });
       list = fromYahoo(j);
     } catch (e) { if (!(e instanceof ProviderError)) throw e; return []; }
   }

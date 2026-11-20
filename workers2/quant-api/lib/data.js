@@ -6,6 +6,7 @@ import * as alpaca from '../providers/alpaca.js';
 import * as yahoo from '../providers/yahoo.js';
 import { finnhub, publicCom, tiingo } from '../providers/others.js';
 import { ProviderError } from './net.js';
+import { getSplits, resplit } from './splits.js';
 import { BASE_TF, INTRADAY, mergeBars, toTimeframe, within } from './bars.js';
 
 /* ── quotes ─────────────────────────────────────────────────────────────── */
@@ -104,7 +105,11 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
   }
   const ok = parts.filter((p) => p.bars);
   // Trim the base bars first, so a week or month that began before `from` still comes out.
-  const bars = toTimeframe(within(mergeBars(...ok.map((p) => p.bars)), from, to), tf);
+  let base0 = within(mergeBars(...ok.map((p) => p.bars)), from, to);
+  // A provider still on the old share basis after a split (Alpaca's history lags the ex-date): the
+  // split events from the sources put it right (lib/splits.js; a split already applied is left alone).
+  if (adj && base0.length > 1) { try { base0 = resplit(base0, await getSplits(L, env, sym, now)); } catch (e) { if (!(e instanceof ProviderError)) throw e; } }
+  const bars = toTimeframe(base0, tf);
   return {
     symbol: sym, tf, bars,
     provider: [...new Set(ok.map((p) => p.provider))].join('+'),
