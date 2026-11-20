@@ -87,9 +87,9 @@ const L = { spent: {}, blocked: () => null, spend(p, n = 1) { this.spent[p] = (t
   NET.apDown = true; NET.calls.length = 0;
   r = await D.getBars(L, env, 'ETHUSD', '1h', now - DAY, now, true, now);
   ok('Alpaca down: Coinbase answers ETH', r && r.provider === 'coinbase' && r.bars.length > 0, JSON.stringify(r && r.tried));
-  NET.apDown = false;
-  r = await D.getBars(L, env, 'AAPL', '1d', now - 10 * DAY, now, true, now).catch((e) => ({ err: e.message }));
-  ok('a stock never goes to the crypto sources', !NET.calls.slice(-3).some((u) => /crypto\/us|coinbase/.test(u)) || (r && r.provider !== 'coinbase'), JSON.stringify(r).slice(0, 120));
+  NET.apDown = false; NET.calls.length = 0;
+  await D.getBars(L, env, 'AAPL', '1d', now - 10 * DAY, now, true, now).catch(() => null);
+  ok('a stock never goes to the crypto sources', NET.calls.length > 0 && !NET.calls.some((u) => /crypto\/us|coinbase/.test(u)), NET.calls.join(' ').slice(0, 300));
 
   console.log('\nQuotes');
   NET.calls.length = 0;
