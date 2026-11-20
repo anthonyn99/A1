@@ -149,7 +149,8 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y, button: 'left', buttons: 1, clickCount: 1 });
     for (let i = 1; i <= 30; i++) {
       // Mid-drag: a trade opens a new bar, the one thing that always redraws the whole chart.
-      if (i === 8) await js(`window.__ws && window.__ws.tick(${JSON.stringify(sym)}, 1234.5); 1`);
+      // (Six minutes on from the page's clock, so it opens the next 5-minute bar, not the one already there.)
+      if (i === 8) await js(`var m=JSON.stringify([{T:'t',S:${JSON.stringify(sym)},p:(${CH}.info().bars, 123.45),s:5,t:new Date(Date.now()+6*60000).toISOString()}]); window.__ws.state.sockets.forEach(function(w){ if(w.alpaca&&w.readyState===1&&w.onmessage) w.onmessage({data:m}); }); 1`);
       await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (i <= 15 ? i : 30 - i) * s.w * 0.012, y, button: 'left', buttons: 1 });
       await sleep(50);
       if (i >= 10) { views.push((await info()).view.from); tagTexts.push(await js(`var e=document.querySelector('[data-ch-main] [data-ch-cursor]'); return e && e.style.display !== 'none' ? e.textContent : '';`)); }
