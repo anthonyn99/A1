@@ -214,6 +214,10 @@ globalThis.fetch = async (url, o = {}) => {
   r = await call(env2, '/heatmap?symbols=S0,S2');
   ok('a new set later: Nasdaq\'s counts from the day\'s cache (no screener call)', r.status === 200 && N.calls.length === 0 && AP.calls.length === 1, JSON.stringify([N.calls.length, AP.calls.length]));
   console.log('  Yahoo as the fallback');
+  EDGE.clear(); Y.reset(); N.down = true;
+  r = await call(env2, '/heatmap?symbols=AAA,BBB');
+  ok('Nasdaq\'s screener down (no share counts, nothing can be sized): Yahoo answers instead of an empty map', r.status === 200 && r.body.src === 'yahoo' && r.body.items.AAA.cap === 1e9, JSON.stringify(r.body).slice(0, 200));
+  N.down = false;
   EDGE.clear(); Y.reset(); AP.down = true;
   r = await call(env2, '/heatmap?symbols=AAA,BBB');
   ok('Alpaca down: Yahoo\'s batch quote answers (src yahoo)', r.status === 200 && r.body.src === 'yahoo' && r.body.items.AAA.cap === 1e9, JSON.stringify(r.body).slice(0, 200));
