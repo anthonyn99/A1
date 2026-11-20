@@ -139,10 +139,46 @@ const sat = (hex) => { const n = parseInt(String(hex).slice(1, 7), 16), r = (n >
   ok('...and the interval never moved', (await info()).tf === '5m');
   await js(`${CH}.fit(); 1`); await sleep(300);
 
+  console.log('\n2b. Never frozen under a hand (Tony 2026-11-20: a drag froze, the cursor price went "—")');
+  { const s = await stage(), y = s.t + s.h * 0.45, x0 = s.l + s.w * 0.2;
+    const n0 = (await info()).bars, views = [], tagTexts = [];
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y });
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y, button: 'left', buttons: 1, clickCount: 1 });
+    // One long drag to the left edge of the data: older history is asked for mid-drag and lands while the button is down.
+    for (let i = 1; i <= 60; i++) {
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (i % 2 ? 1 : -1) * 0 + Math.min(i, 30) * s.w * 0.025 - Math.max(0, i - 30) * s.w * 0.012, y, button: 'left', buttons: 1 });
+      await sleep(40);
+      if (i % 5 === 0) { views.push((await info()).view); tagTexts.push(await js(`var e=document.querySelector('[data-ch-main] [data-ch-cursor]'); return e && e.style.display !== 'none' ? e.textContent : '';`)); }
+    }
+    const held = (await info()).bars;
+    const lastMoves = views.slice(-4).map((v) => v.from);
+    ok('a long drag keeps panning to its last move (the view still follows the mouse)', new Set(lastMoves.map((x) => x.toFixed(2))).size >= 3, JSON.stringify(lastMoves));
+    ok('...the cursor price never turns into a dash while dragging', tagTexts.every((t) => !/^\s*—\s*$/.test(t)), JSON.stringify(tagTexts));
+    ok('...older history waits for the button: no redraw under the hand', held === n0, n0 + ' → ' + held);
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x0, y, button: 'left', buttons: 0, clickCount: 1 });
+    const merged = await until(`${CH}.info().bars > ${n0}`, 6000);
+    ok('...and joins the chart once the button is let go', merged, n0 + ' → ' + (await info()).bars);
+  }
+  await js(`${CH}.fit(); 1`); await sleep(300);
+
+  console.log('\n2c. A new ticker keeps the view (Tony 2026-11-20)');
+  { const n = (await info()).bars + (await info()).gaps;
+    await js(`${CH}.chart().timeScale().setVisibleLogicalRange({from:${n} - 260, to:${n} - 140}); 1`); await sleep(300);
+    const v0 = (await info()).view, sym0 = (await info()).symbol;
+    const other = await js(`var r=[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).filter(function(s){return s!==${JSON.stringify(sym0)};}); return r[0]||'';`);
+    await js(`document.querySelector('[data-ch-rail] .ch-row[data-sym="' + ${JSON.stringify(other)} + '"]').click(); 1`);
+    await until(`${CH}.info().symbol === ${JSON.stringify(other)} && document.querySelector('[data-ch-main] [data-ch-note]').hidden`, 10000); await sleep(400);
+    const v1 = (await info()).view, nn = (await info()).bars + (await info()).gaps;
+    ok('switching ticker keeps the zoom (the same number of bars across)', other && Math.abs((v1.to - v1.from) - (v0.to - v0.from)) < 3, JSON.stringify({ other, v0, v1 }));
+    ok('...and the same stretch back from the newest bar (not the default / live view)', nn - v1.to > 100, JSON.stringify({ v1, nn }));
+    await js(`document.querySelector('[data-ch-rail] .ch-row[data-sym="' + ${JSON.stringify(sym0)} + '"]').click(); 1`); await settled(); await js(`${CH}.fit(); 1`); await sleep(300);
+  }
+
   console.log('\n3. The look');
   I = await info();
   ok('no background grid lines', I.look && I.look.grid === false, JSON.stringify(I.look));
-  ok('candles: a more vivid green and red than before', I.look && sat(I.look.up) >= sat('#a4b986') + 0.15 && sat(I.look.down) >= sat('#d68a7c') + 0.15, JSON.stringify(I.look));
+  // Tony 2026-11-20: back to TradeHub's own soft pair (--tbb / --tbr), after R3's more vivid one.
+  ok('candles: TradeHub\'s soft green and red (--tbb #a4b986, --tbr #d68a7c)', I.look && I.look.up === '#a4b986' && I.look.down === '#d68a7c', JSON.stringify(I.look));
   ok('the library draws no cursor price label of its own (ours sits in front)', I.look && I.look.crossLabel === false);
   await js(`var ts=${CH}.chart().timeScale(), n=${I.bars + I.gaps}; ts.setVisibleLogicalRange({from:n-301, to:n-201}); 1`);
   ok('Live is the double-arrow icon only', await until(`(function(){var b=document.querySelector('[data-ch-main] [data-ch-front]'); return b && !b.hidden && !b.textContent.trim() && b.querySelector('svg') && /live/i.test(b.getAttribute('aria-label'));})()`, 3000),
