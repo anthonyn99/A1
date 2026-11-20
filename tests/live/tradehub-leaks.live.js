@@ -96,11 +96,17 @@ async function census(c) {
       var ty=q('[data-ch-type]'); if(ty){ ty.value=ty.options[k % ty.options.length].value; ty.dispatchEvent(new Event('change',{bubbles:true})); }
       var r=document.querySelectorAll('[data-ch-range]'); if(r.length) r[k % r.length].click();
       q('[data-ch-ind]').click();
-      var boxes=[].slice.call(document.querySelectorAll('[data-ch-kind]')); if(boxes.length){ var b=boxes[k % boxes.length]; b.click(); }
+      var boxes=[].slice.call(document.querySelectorAll('[data-ch-kind]')); if(boxes.length){ boxes[k % boxes.length].click(); } 1`);
+    // Each round puts the indicator back as it was (the menu rebuilds its rows on a tick), so the chart
+    // ends every round showing what it started with: whatever is left over is held, not shown.
+    const undo = async (k) => js(`var boxes=[].slice.call(document.querySelectorAll('[data-ch-kind]')); if(boxes.length){ boxes[${k} % boxes.length].click(); }
       document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`);
-    for (let k = 0; k < 6; k++) { await step(k); await sleep(700); }   // warm: every kind of object made once
+    const round = async (k) => { await step(k); await sleep(500); await undo(k); await sleep(400); };
+    for (let k = 0; k < 6; k++) await round(k);   // warm: every kind of object made once
     const a = await sample(), before = await census(c);
-    for (let k = 6; k < 6 + CYCLES; k++) { await step(k); await sleep(700); }
+    for (let k = 6; k < 6 + CYCLES; k++) await round(k);
+    // Back to where the warm-up ended (the same ticker, interval, type and range), so only what is held differs.
+    await round(6 + CYCLES - CYCLES % 6 === 6 + CYCLES ? 0 : 0);
     await sleep(1500);
     const z = await sample(), after = await census(c);
     console.log(`    heap ${a.heapMB} → ${z.heapMB} MB, nodes ${a.nodes} → ${z.nodes}, listeners ${a.listeners} → ${z.listeners}, canvases ${a.canvases} → ${z.canvases}`);
