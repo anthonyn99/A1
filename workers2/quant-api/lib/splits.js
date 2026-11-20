@@ -16,7 +16,7 @@ import { call, ProviderError, UA_BROWSER } from './net.js';
 import { nyMidnight, nyDate } from './time.js';
 import * as yahooP from '../providers/yahoo.js';
 
-export const SPLIT_TOL = 0.3, SPLITS_TTL_S = 6 * 3600, SPLITS_BACK_DAYS = 3 * 365, SEAM_BACK_MS = 5 * 86_400_000, SEAM_FIT = 0.06;
+export const SPLIT_TOL = 0.3, SPLITS_TTL_S = 6 * 3600, SPLITS_PART_TTL_S = 15 * 60, SPLITS_BACK_DAYS = 3 * 365, SEAM_BACK_MS = 5 * 86_400_000, SEAM_FIT = 0.06;
 const DAY = 86_400_000;
 
 /** Alpaca's v1 corporate actions → [{ ex, ratio }]. */
@@ -45,23 +45,21 @@ export async function getSplits(L, env, sym, now = Date.now(), { cache = globalT
   const key = `https://quant-api.cache/splits?s=${encodeURIComponent(sym)}&d=${nyDate(now)}`;
   if (cache) { try { const hit = await cache.match(key); if (hit) return await hit.json(); } catch (e) { /* ask again */ } }
   const start = nyDate(now - SPLITS_BACK_DAYS * DAY), end = nyDate(now + 30 * DAY);
-  let list = null;
-  if (env.ALPACA_KEY && env.ALPACA_SECRET) {
-    try {
-      const j = await call(L, 'alpaca', `https://data.alpaca.markets/v1/corporate-actions?symbols=${encodeURIComponent(sym)}&types=forward_split,reverse_split&start=${start}&end=${end}&limit=1000`,
-        { headers: { 'APCA-API-KEY-ID': env.ALPACA_KEY, 'APCA-API-SECRET-KEY': env.ALPACA_SECRET, accept: 'application/json' } });
-      list = fromAlpaca(j, sym);
-    } catch (e) { if (!(e instanceof ProviderError)) throw e; }
-  }
-  if (!list) {
-    try {
-      const j = await call(L, 'yahoo', `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooP.ysym(sym))}?period1=${Math.floor((now - SPLITS_BACK_DAYS * DAY) / 1000)}&period2=${Math.ceil(now / 1000)}&interval=1d&events=split`,
-        { headers: { 'user-agent': UA_BROWSER, accept: 'application/json' } });
-      list = fromYahoo(j);
-    } catch (e) { if (!(e instanceof ProviderError)) throw e; return []; }
-  }
-  const out = shape(list);
-  if (cache) { try { await cache.put(key, new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=' + SPLITS_TTL_S } })); } catch (e) { /* fine */ } }
+  // Tony 2026-11-20 (SNDK's 8-for-1, "loading SNDK again loaded back the chart BEFORE the price cut"): Alpaca's
+  // corporate actions can answer with NO split for days after one goes ex, and an empty answer used to stop
+  // here (Yahoo never asked, the empty list cached 6 h), so the chart stayed on the old basis. Both sources are
+  // asked every time and merged (same ex-date = one split); an answer missing a source is kept 15 min only.
+  const ask = async (fn) => { try { return await fn(); } catch (e) { if (!(e instanceof ProviderError)) throw e; return null; } };
+  const [a, y] = await Promise.all([
+    env.ALPACA_KEY && env.ALPACA_SECRET ? ask(async () => fromAlpaca(await call(L, 'alpaca', `https://data.alpaca.markets/v1/corporate-actions?symbols=${encodeURIComponent(sym)}&types=forward_split,reverse_split&start=${start}&end=${end}&limit=1000`,
+      { headers: { 'APCA-API-KEY-ID': env.ALPACA_KEY, 'APCA-API-SECRET-KEY': env.ALPACA_SECRET, accept: 'application/json' } }), sym)) : null,
+    ask(async () => fromYahoo(await call(L, 'yahoo', `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooP.ysym(sym))}?period1=${Math.floor((now - SPLITS_BACK_DAYS * DAY) / 1000)}&period2=${Math.ceil(now / 1000)}&interval=1d&events=split`,
+      { headers: { 'user-agent': UA_BROWSER, accept: 'application/json' } }))),
+  ]);
+  if (!a && !y) return [];
+  const out = shape([...(y || []), ...(a || [])]);   // Alpaca's ratio wins on the same ex-date
+  const ttl = a && y ? SPLITS_TTL_S : SPLITS_PART_TTL_S;
+  if (cache) { try { await cache.put(key, new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=' + ttl } })); } catch (e) { /* fine */ } }
   return out;
 }
 
