@@ -155,7 +155,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   await sleep(2200);
   ok('...and the reload wrote nothing', (await writes()) === 0, await writes());
   await js(`var s=document.querySelector('[data-lay-add]'); s.value='volume'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
-  ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').options[0].textContent === 'Add card (2)'`, 3000));   // R7: Analysis and Key Stats still wait there
+  ok('Add card brings it back', await until(`document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('[data-lay-add]').options[0].textContent === 'Add card'`, 3000));   // B6: no count; Analysis and Key Stats are not Market's (ask 39)
   await js(`var m=document.querySelector('[data-lay-reset]'); m.value='orig'; m.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('Layout ▸ Reset to original restores the default', await until(`!document.querySelector('.lay-card.is-collapsed') && document.querySelectorAll('.lay-grid .lay-card').length === 10`, 3000));
   await size(390, 844); await sleep(700);
