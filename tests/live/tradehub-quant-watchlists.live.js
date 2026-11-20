@@ -122,7 +122,8 @@ const WB = [
     ok('...and back', (await tiles()) === want1, await tiles());
   }
   await pickMgr('wb:11');
-  ok('a Webull list: the lock note, no add row, no remove buttons', await js(`return !${mgr('[data-wlm-note]')}.hidden && /Read-only from Webull/.test(${mgr('[data-wlm-note]')}.textContent) && ${mgr('[data-wlm-add]')}.hidden && !document.querySelector('[data-wlm] [data-wlm-remove]');`));
+  // "…never changed.null" (2026-11-20): replaceChildren(null) printed the missing button as "null".
+  ok('a Webull list: the lock note (no stray "null"), no add row, no remove buttons', await js(`return !${mgr('[data-wlm-note]')}.hidden && /Read-only from Webull/.test(${mgr('[data-wlm-note]')}.textContent) && !/null/.test(${mgr('[data-wlm-note]')}.textContent) &&${mgr('[data-wlm-add]')}.hidden && !document.querySelector('[data-wlm] [data-wlm-remove]');`));
   ok('Rename and Delete are off for a Webull list', await js(`return ${mgr('[data-wlm-act="rename"]')}.disabled && ${mgr('[data-wlm-act="delete"]')}.disabled;`));
   ok('"Match Webull\'s order" shows (the list was reordered)', await js(`return !!${mgr('[data-wlm-match]')};`));
   await press('[data-wlm-match]'); await sleep(400);
