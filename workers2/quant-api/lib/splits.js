@@ -16,7 +16,7 @@ import { call, ProviderError, UA_BROWSER } from './net.js';
 import { nyMidnight, nyDate } from './time.js';
 import * as yahooP from '../providers/yahoo.js';
 
-export const SPLIT_TOL = 0.3, SPLITS_TTL_S = 6 * 3600, SPLITS_BACK_DAYS = 3 * 365, SEAM_BACK_MS = 5 * 86_400_000;
+export const SPLIT_TOL = 0.3, SPLITS_TTL_S = 6 * 3600, SPLITS_BACK_DAYS = 3 * 365, SEAM_BACK_MS = 5 * 86_400_000, SEAM_FIT = 0.06;
 const DAY = 86_400_000;
 
 /** Alpaca's v1 corporate actions → [{ ex, ratio }]. */
@@ -71,19 +71,22 @@ export function resplit(bars, splits) {
   // Newest first: an older split's seam is then compared on bars already on one basis.
   for (const s of [...splits].sort((a, b) => b.t - a.t)) {
     if (!(s.ratio > 0) || Math.abs(s.ratio - 1) < 1e-9) continue;
-    // B3 (Tony's SNDK, 2026-11-20 13:29): the unadjusted jump is not always AT the ex-date: Alpaca sent Nov 19
-    // already on the new basis and Nov 17-18 still raw, so the seam sat a day early and nothing was fixed. The
-    // jump is looked for from SEAM_BACK_MS before the ex-date to a day after it (the one nearest the ex-date),
-    // also in a range that ends before the ex-date; every bar before it is put on the new basis.
-    let i = -1;
-    for (let j = 1; j < out.length; j++) {
-      const t = out[j].t;
-      if (t < s.t - SEAM_BACK_MS) continue;
-      if (t > s.t + 86_400_000) break;
-      const before = out[j - 1].c, after = out[j].o > 0 ? out[j].o : out[j].c;
-      if (before > 0 && after > 0 && Math.abs(before / after / s.ratio - 1) <= SPLIT_TOL) i = j;
+    // B3 (Tony's SNDK, 2026-11-20 13:29): the unadjusted jump is not always AT the ex-date (Alpaca sent Nov 19 on
+    // the new basis and Nov 17-18 raw). The ex-date's own seam first, as before; only when it shows no jump, the
+    // boundary in the SEAM_BACK_MS before it that matches the ratio best, and only a clearly split-sized one
+    // (within SEAM_FIT in log terms, and over half the split's size: an earnings gap or a flat day never is).
+    const k = out.findIndex((b) => b.t >= s.t), gap = (j) => { const b0 = out[j - 1].c, a = out[j].o > 0 ? out[j].o : out[j].c; return b0 > 0 && a > 0 ? b0 / a : null; };
+    let i = k > 0 && gap(k) && Math.abs(gap(k) / s.ratio - 1) <= SPLIT_TOL ? k : -1;
+    if (i < 0) {
+      let best = SEAM_FIT;
+      for (let j = 1; j < out.length && out[j].t < s.t; j++) {
+        if (out[j].t < s.t - SEAM_BACK_MS) continue;
+        const g = gap(j); if (!g) continue;
+        const err = Math.abs(Math.log(g) - Math.log(s.ratio));
+        if (err < best && Math.abs(Math.log(g)) > Math.abs(Math.log(s.ratio)) / 2) { best = err; i = j; }
+      }
     }
-    if (i <= 0) continue;   // no unadjusted jump near the ex-date: already adjusted (or no seam held)
+    if (i <= 0) continue;   // no unadjusted jump at or before the ex-date: already adjusted (or no seam held)
     const r = s.ratio;
     out = out.map((b, k) => (k >= i ? b : { ...b, o: b.o / r, h: b.h / r, l: b.l / r, c: b.c / r, v: Math.round(b.v * r) }));
   }
