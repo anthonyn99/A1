@@ -1004,24 +1004,34 @@ function mapError(err) {
    WATCHLISTS (read-only; Webull OpenAPI v3, added by Webull 2026-09-20)
    GET /market-data/watchlists/list → [{ watchlist_id, name, sort, ... }]
    GET /market-data/watchlists/instruments/list?watchlist_id= → { instruments: [{ symbol, name, exchange_code, sort }] }
-   Both come sorted by `sort` descending (Webull's own order, top first).
+   Both come sorted by `sort` DESCENDING, which is the REVERSE of Webull's app (Tony,
+   2026-11-20: Trackers came back SOXX, DXY, VIX; his app shows VIX, DXY, SOXX). So both
+   are put in `sort` ascending order here: the app's order, top first.
+   An instrument with no `symbol` (futures and Treasury yields in Trackers came back
+   missing) is kept under its other name fields; one with none is counted in `skipped`
+   with the fields it had, so a gap says why instead of hiding.
    At most 20 lists, so ≤ 21 subrequests.
    ══════════════════════════════════════════════════════════════════════════ */
+// Webull's app order: `sort` ascending; equal sorts keep the reverse of the order received.
+const wlAppOrder = (a) => a.slice().reverse().sort((x, y) => (Number(x.sort) || 0) - (Number(y.sort) || 0));
+const wlSymbol = (i) => String(i.symbol || i.ticker || i.disSymbol || i.display_symbol || i.symbol_name || i.code || '').trim().toUpperCase();
 async function fetchWatchlists(env) {
   const raw = await wb('GET', '/market-data/watchlists/list', { version: 'v3' }, env);
-  const lists = Array.isArray(raw) ? raw : listOf(raw);
+  const lists = wlAppOrder((Array.isArray(raw) ? raw : listOf(raw)).slice(0, 20));
   const out = [];
-  for (const l of lists.slice(0, 20)) {
+  for (const l of lists) {
     const id = String(l.watchlist_id ?? l.id ?? '');
     if (!id) continue;
-    let tickers = [], error = null;
+    let tickers = [], error = null, skipped = null;
     try {
       const r = await wb('GET', '/market-data/watchlists/instruments/list', { query: { watchlist_id: id }, version: 'v3' }, env);
-      const items = Array.isArray(r?.instruments) ? r.instruments : listOf(r);
-      tickers = items.map((i) => ({ symbol: String(i.symbol || '').toUpperCase(), name: i.name || '', exchange: i.exchange_code || '', sort: Number(i.sort) || 0 }))
-        .filter((t) => t.symbol);
+      const items = (Array.isArray(r?.instruments) ? r.instruments : listOf(r)).filter((i) => i && typeof i === 'object');
+      const bad = items.filter((i) => !wlSymbol(i));
+      if (bad.length) skipped = { n: bad.length, fields: Object.keys(bad[0]).slice(0, 20) };
+      tickers = wlAppOrder(items.filter((i) => wlSymbol(i)))
+        .map((i) => ({ symbol: wlSymbol(i), name: i.name || '', exchange: i.exchange_code || '', sort: Number(i.sort) || 0 }));
     } catch (e) { error = e.message || 'failed'; }
-    out.push({ id, name: String(l.name || ''), sort: Number(l.sort) || 0, updated: l.update_time || null, tickers, ...(error ? { error } : {}) });
+    out.push({ id, name: String(l.name || ''), sort: Number(l.sort) || 0, updated: l.update_time || null, tickers, ...(skipped ? { skipped } : {}), ...(error ? { error } : {}) });
   }
   return out;
 }

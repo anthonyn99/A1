@@ -286,9 +286,11 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
       return { body: {} };
     });
     const r = await call('GET', '/api/portfolio/watchlists');
-    ok('lists with their tickers, Webull order kept', r.ok && r.lists.length === 2 && r.lists[0].name === 'Main' && r.lists[0].tickers.map(t => t.symbol).join() === 'NVDA,BTCUSD', JSON.stringify(r).slice(0, 300));
+    // Webull sends sort DESCENDING, the reverse of its app (Tony 2026-11-20): shown sort ascending.
+    ok('lists and tickers in Webull app order (sort ascending, the reverse of what the API sends)', r.ok && r.lists.length === 2 && r.lists.map(l => l.name).join() === 'Broken,Main' && r.lists[1].tickers.map(t => t.symbol).join() === 'BTCUSD,NVDA', JSON.stringify(r).slice(0, 300));
+    ok('an instrument with no symbol is counted in skipped, with its fields', r.lists[1].skipped && r.lists[1].skipped.n === 1 && r.lists[1].skipped.fields.join() === 'symbol', JSON.stringify(r.lists[1].skipped));
     ok('every call is a GET with x-version v3', calls.every(c => c.method === 'GET' && c.version === 'v3'));
-    ok('one list failing keeps the others, with its error', r.lists[1].tickers.length === 0 && /bad list/.test(r.lists[1].error));
+    ok('one list failing keeps the others, with its error', r.lists[0].tickers.length === 0 && /bad list/.test(r.lists[0].error));
     const n = calls.length; await call('GET', '/api/portfolio/watchlists');
     ok('a second ask within a minute comes from the edge cache', calls.length === n);
     await call('GET', '/api/portfolio/watchlists?fresh=1');
