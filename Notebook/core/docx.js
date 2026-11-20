@@ -522,20 +522,89 @@ function hexpand(html) {
   if (!html || html.indexOf('\uE001') < 0) return html;
   return html.replace(/\uE001(\d+)\uE002/g, function (m, i) { return _HX.list[+i] || ''; });
 }
+// Length hexpand(html) would have, without building it (a page of pasted
+// screenshots expands to many MB, only to be measured and dropped).
+function hexpandLen(html) {
+  if (!html || html.indexOf('\uE001') < 0) return html ? html.length : 0;
+  var n = html.length;
+  html.replace(/\uE001(\d+)\uE002/g, function (m, i) { n += (_HX.list[+i] || '').length - m.length; return m; });
+  return n;
+}
+/* The table above was never emptied: every image of every page opened in the
+ * session stayed in memory until the tab closed, so reading through a few
+ * illustrated pages held all of their pictures for good (Tony, 2026-11-20,
+ * "it lags, I have a lot of text and images"). Each history registers what it
+ * still refers to; when a page is (re)opened, anything no live history needs
+ * is let go. Ids are never reused, so a token can never point at the wrong
+ * picture. */
+var _HX_LIVE = [];
+function _hxGc() {
+  var keep = Object.create(null), re = /\uE001(\d+)\uE002/g, m, i, j, strs;
+  for (i = 0; i < _HX_LIVE.length; i++) {
+    strs = _HX_LIVE[i]();
+    for (j = 0; j < strs.length; j++) {
+      var h = strs[j];
+      if (!h || h.indexOf('\uE001') < 0) continue;
+      re.lastIndex = 0;
+      while ((m = re.exec(h))) keep[m[1]] = 1;
+    }
+  }
+  _HX.byKey.forEach(function (ids, k) {
+    var left = ids.filter(function (id) {
+      if (keep[id]) return true;
+      _HX.list[id] = undefined;
+      return false;
+    });
+    if (left.length) _HX.byKey.set(k, left); else _HX.byKey.delete(k);
+  });
+}
 function makeHistory(ctx) {
   var stack = [], idx = -1, lastT = 0, obs = null, pending = null, persistT = null;
   // Remote patches (OurJournal): each is fn(state)→state carrying the other
   // person's change into an older undo state, so Ctrl+Z walks back YOUR steps
   // and never quietly reverts what the other person just typed. A state holds
   // `rv`, the patch count when it was taken; materialize() replays the rest.
-  var patches = [], patchBase = 0;
-  function snap() { return { html: hcompact(ctx.edEl.innerHTML), caret: caretOffset(ctx.edEl), rv: patchBase + patches.length }; }
+  var patches = [], patchBase = 0, patchStrs = [];
+  // What this history still points into _HX with (see _hxGc).
+  _HX_LIVE.push(function () {
+    var out = [];
+    for (var i = 0; i < stack.length; i++) out.push(stack[i].html);
+    return out.concat(patchStrs);
+  });
+  // The editor's html, read once per change. On a page of pasted pictures one
+  // read is many MB, and the undo step at a pause, autosave a moment later and
+  // record() itself (twice) each read it again although nothing had changed.
+  // Every change in the editor reaches the observer below, which drops the
+  // copy; takeRecords() catches a change whose callback has not run yet.
+  var rawC = null, cmpC = null;
+  function rawHtml() {
+    if (!obs) return ctx.edEl.innerHTML;
+    if (obs.takeRecords().length) onMutation();
+    if (rawC === null) rawC = ctx.edEl.innerHTML;
+    return rawC;
+  }
+  function compactHtml() {
+    var r = rawHtml();
+    if (!cmpC || cmpC.src !== r) cmpC = { src: r, out: hcompact(r) };
+    return cmpC.out;
+  }
+  function snap() { return { html: compactHtml(), caret: caretOffset(ctx.edEl), rv: patchBase + patches.length }; }
   function materialize(st) {
     var h = st.html;
     for (var i = Math.max(0, (st.rv || 0) - patchBase); i < patches.length; i++) h = patches[i](h);
     return h;
   }
-  function seed() { patches = []; patchBase = 0; stack = [snap()]; idx = 0; updateBtns(); }
+  function seed() { patches = []; patchStrs = []; patchBase = 0; stack = []; idx = -1; _hxGc(); stack = [snap()]; idx = 0; updateBtns(); }
+  // Memory budget for the in-memory stack, besides its 400 steps. A long page
+  // (text alone, its pictures are shared above) cost a full copy per step, so
+  // 400 steps of a 300KB page held ~240MB. Oldest steps go first.
+  var HIST_MAX_CHARS = 12000000;
+  function trimStack() {
+    if (stack.length > 400) { stack.shift(); idx--; }
+    var total = 0, i;
+    for (i = 0; i < stack.length; i++) total += stack[i].html.length;
+    while (total > HIST_MAX_CHARS && stack.length > 2 && idx > 0) { total -= stack[0].html.length; stack.shift(); idx--; }
+  }
   // ── Cross-session persistence (item 13): while open we keep the full stack in memory;
   //    we also mirror a small window (current ± 2 states) to localStorage so undo/redo
   //    survives close+reopen. Docs whose snapshots are huge (big embedded images) are skipped.
@@ -625,6 +694,9 @@ function makeHistory(ctx) {
     var key = histKey(); if (!key) return;
     try {
       var lo = Math.max(0, idx - 2), hi = Math.min(stack.length, idx + 3);
+      // The first state is stored whole: past the cap it can only be dropped,
+      // so drop it before expanding its pictures into a multi-MB string.
+      if (stack[lo] && hexpandLen(materialize(stack[lo])) > HIST_MAX_KEY) { localStorage.removeItem(key); return; }
       var slice = stack.slice(lo, hi).map(function (x) { return { html: hexpand(materialize(x)), caret: x.caret }; });
       // `t` (inside the payload) is what pruneHistories() sorts on — without it
       // every key looks equally old and eviction order is arbitrary.
@@ -661,25 +733,25 @@ function makeHistory(ctx) {
       // previous session and autoSave immediately published it over the current one.
       // A divergent stack is worth nothing next to that risk — start fresh.
       if (saved[savedIdx].html !== ctx.edEl.innerHTML) { try { localStorage.removeItem(key); } catch (e) {} seed(); return; }
-      patches = []; patchBase = 0;
+      patches = []; patchStrs = []; patchBase = 0;
       stack = saved.map(function (x) { return { html: hcompact(x.html), caret: x.caret, rv: 0 }; }); idx = savedIdx;
       updateBtns();
     } catch (e) {}
   }
   function syncBase() {
-    if (idx < 0 || !stack[idx] || materialize(stack[idx]) !== hcompact(ctx.edEl.innerHTML)) seed();
+    if (idx < 0 || !stack[idx] || materialize(stack[idx]) !== compactHtml()) seed();
   }
   function record(force) {
     if (ctx._histSuppress) return;
     if (idx < 0) { seed(); return; }
-    var html = hcompact(ctx.edEl.innerHTML);
+    var html = compactHtml();
     if (stack[idx] && materialize(stack[idx]) === html) { stack[idx] = { html: html, caret: caretOffset(ctx.edEl), rv: patchBase + patches.length }; return; }
     var now = Date.now();
     if (!force && now - lastT < 500) { stack[idx] = snap(); lastT = now; updateBtns(); return; }  // coalesce fast typing
     stack = stack.slice(0, idx + 1);
     stack.push(snap());
-    if (stack.length > 400) stack.shift();
     idx = stack.length - 1;
+    trimStack();
     lastT = now;
     updateBtns();
     schedulePersist();
@@ -703,17 +775,19 @@ function makeHistory(ctx) {
   }
   // A MutationObserver captures EVERY DOM change (typing, execCommand, surroundContents,
   // paste, drag, AI format) so undo/redo works for any edit, not just 'input' events.
+  function onMutation() {
+    rawC = null; cmpC = null;     // always: a suppressed change is still a change
+    if (ctx._histSuppress) return;
+    clearTimeout(pending);
+    pending = setTimeout(function () { record(false); }, 260);
+  }
   function start() {
     if (obs) return;
-    obs = new MutationObserver(function () {
-      if (ctx._histSuppress) return;
-      clearTimeout(pending);
-      pending = setTimeout(function () { record(false); }, 260);
-    });
+    obs = new MutationObserver(onMutation);
     obs.observe(ctx.edEl, { childList: true, subtree: true, characterData: true, attributes: true });
   }
   return {
-    seed: seed, syncBase: syncBase, record: record, start: start,
+    seed: seed, syncBase: syncBase, record: record, start: start, html: rawHtml,
     canUndo: function () { return idx > 0; },
     canRedo: function () { return idx < stack.length - 1; },
     undo: function () { clearTimeout(pending); syncBase(); if (idx > 0) { idx--; apply(stack[idx]); } },
@@ -729,10 +803,11 @@ function makeHistory(ctx) {
       if (!merge || idx < 0) { seed(); return; }
       var b = hcompact(before), a = hcompact(after);
       patches.push(function (h) { return merge(b, h, a); });
+      patchStrs.push(b, a);
       if (patches.length > 40) {
         // Too far back to replay cheaply: states that would need the dropped
         // patch are dropped with it.
-        patches.shift(); patchBase++;
+        patches.shift(); patchStrs.splice(0, 2); patchBase++;
         var cut = 0;
         while (cut < stack.length && (stack[cut].rv || 0) < patchBase) cut++;
         if (cut > idx) { seed(); return; }
@@ -4310,6 +4385,11 @@ function _selectionFontSizes(ctx, range) {
 //  • multi-size selection → "—" dash (item 8)
 //  • empty editor (all text deleted) → keep showing the LAST active size (item 5)
 //  • otherwise → the size at the caret
+function _docxHasText(el) {
+  var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null), n;
+  while ((n = w.nextNode())) if (/[^​\s]/.test(n.nodeValue)) return true;
+  return false;
+}
 function syncFontSizeUI(ctx) {
   var sel = window.getSelection();
   if (!sel || !sel.rangeCount || !ctx.edEl.contains(sel.anchorNode)) return;
@@ -4320,7 +4400,9 @@ function syncFontSizeUI(ctx) {
     return;
   }
   // Collapsed caret. If the editor has no real text left, hold the last active size.
-  if (!ctx.edEl.textContent.replace(/[​\s]/g, '').length) { _setFontSizeDisplay(ctx, ctx._activeFontSize || ''); return; }
+  // (Stops at the first real character: copying a long page's whole text on
+  // every keyup only to learn it was not empty was a large share of typing lag.)
+  if (!_docxHasText(ctx.edEl)) { _setFontSizeDisplay(ctx, ctx._activeFontSize || ''); return; }
   var n = sel.anchorNode; n = n.nodeType === 1 ? n : n.parentNode;
   if (!n) return;
   setFontSizeUI(ctx, Math.round(parseFloat(getComputedStyle(n).fontSize) || 0));
@@ -4515,7 +4597,14 @@ function wireImageDelegation(ctx) {
     _docxDropAtPoint(ed, w, e.clientX, e.clientY);
     fireInput(ed);
   });
-  new MutationObserver(rebindAll).observe(ed, { childList: true, subtree: true });
+  // Once a frame at most: it reads the whole page, and typing can change the
+  // tree several times between two frames.
+  var rbQ = false;
+  new MutationObserver(function () {
+    if (rbQ) return;
+    rbQ = true;
+    requestAnimationFrame(function () { rbQ = false; rebindAll(); });
+  }).observe(ed, { childList: true, subtree: true });
   rebindAll();
 }
 
@@ -5169,6 +5258,12 @@ function _docxRestoreScroll(ctx) {
  * Each journal binds through its own closure, named by its config's bindImg. Binding is
  * idempotent (_pgBound), making this safe to call on any path that might have
  * replaced content, whether or not it actually did. */
+// The editor's current html (its innerHTML), from the undo history's copy when
+// nothing changed since the last read. The journals' autosave reads it this way.
+window._docxHtml = function (edEl) {
+  var ctx = edEl && ALLCTX.find(function (c) { return c.edEl === edEl; });
+  return ctx && ctx.history && ctx.history.html ? ctx.history.html() : (edEl ? edEl.innerHTML : '');
+};
 window._docxRebindImages = function (edEl, app) {
   if (!edEl) return;
   var bind = APPS[app] && window[APPS[app].bindImg];

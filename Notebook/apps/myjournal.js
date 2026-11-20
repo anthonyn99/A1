@@ -381,10 +381,14 @@ let _tjUserEdited = false;
 let tjSyncStatus = 'idle'; // idle | saving | saved | error
 
 function _tjSetSync(status) {
-  tjSyncStatus = status;
   var pill = document.getElementById('tj-sync-pill');
   var txt  = document.getElementById('tj-sync-text');
   var bb   = document.getElementById('tj-bb-saved');
+  // autoSave says Syncing on every keystroke. Saying it again changes nothing on
+  // screen, but rebuilt the pill's markup each time, and every watcher of the
+  // page (popups, TaskHub's backdrop check, the phone layout) then re-read it.
+  if (status === 'syncing' && tjSyncStatus === 'syncing' && pill && pill.className === 'tj-sync-pill tj-sync-syncing') return;
+  tjSyncStatus = status;
   if (!pill || !txt) return;
   // Everwell's pill (apphead.js): "Synced" fades after two seconds, "Sync
   // failed" stays. Offline, a success reads "Offline".
@@ -445,8 +449,34 @@ function _tjOmitCanvas(k, v) {
   // placeholder rather than their bytes — loadActiveEntry rehydrates them on
   // paint, exactly as it does for an entry that arrived from Firebase. This is
   // most of the blob by size, and it is re-serialised on every autosave.
-  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-tjkey="') >= 0) return _tjSlimHtml(v);
+  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-tjkey="') >= 0) return _tjSlimMemo(v);
   return v;
+}
+// The slimmed copy of each html, kept from one cache write to the next: an
+// entry that did not change (every one but the page being typed in) is not
+// scanned again. Holds only the strings of the latest write.
+var _tjSlimPrev = new Map(), _tjSlimNext = null;
+function _tjSlimMemo(v) {
+  var o = _tjSlimPrev.get(v);
+  if (o === undefined) o = _tjSlimHtml(v);
+  if (_tjSlimNext) _tjSlimNext.set(v, o);
+  return o;
+}
+// What the cache write would store, in characters, without building it: html
+// dominates (as slimmed), the rest is small. The browser refuses a value past
+// its ~5M-character localStorage quota, so a bigger blob was built (tens of MB
+// with pasted pictures), refused, and thrown away on EVERY autosave. Past the
+// quota it is now not built at all, which keeps the last good cache exactly as
+// the refusal did.
+var _TJ_CACHE_MAX = 5300000;
+function _tjCacheChars() {
+  var n = 0;
+  (state.entries || []).forEach(function (e) {
+    var d = e && e.data; if (!d) return;
+    if (typeof d.html === 'string') n += d.html.length > 8192 && d.html.indexOf('data-tjkey="') >= 0 ? _tjSlimMemo(d.html).length : d.html.length;
+    if (d.dates) Object.keys(d.dates).forEach(function (dk) { var h = d.dates[dk] && d.dates[dk].html; if (typeof h === 'string') n += h.length > 8192 && h.indexOf('data-tjkey="') >= 0 ? _tjSlimMemo(h).length : h.length; });
+  });
+  return n;
 }
 function _tjSlimHtml(h) {
   return h.replace(/<[^>]*\bdata-tjkey="([^"]+)"[^>]*>/g, function (tag, key) {
@@ -455,8 +485,12 @@ function _tjSlimHtml(h) {
 }
 function _tjWriteCache() {
   if (_tjIsOJ()) { if (window.OJ) window.OJ.writeCache('tj'); return; }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _tjOmitCanvas)); }
+  _tjSlimNext = new Map();
+  try {
+    if (_tjCacheChars() <= _TJ_CACHE_MAX) localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _tjOmitCanvas));
+  }
   catch (e) { /* quota exceeded / private mode: keep last good cache; Firebase holds the full data */ }
+  finally { _tjSlimPrev = _tjSlimNext; _tjSlimNext = null; }
 }
 
 function saveState() {
@@ -1267,7 +1301,7 @@ function saveCurrentEntry() {
   // Only a page or a Journal Entries entry is ever painted (an old template's
   // entry is converted first).
   if (entry.template !== 'page' && entry.template !== 'journal-entries') return;
-  if (entry.template === 'page') { _next.html = document.getElementById('tj-page-editor').innerHTML; }
+  if (entry.template === 'page') { const _pe = document.getElementById('tj-page-editor'); _next.html = window._docxHtml ? window._docxHtml(_pe) : _pe.innerHTML; }
   if (entry.template === 'journal-entries') {
     // _jeSaveActiveDate writes into entry.data.dates, so give it a detached dates
     // map — otherwise the proposal would mutate the entry before it is vetted.
@@ -1308,8 +1342,8 @@ function saveCurrentEntry() {
   // stale content used to make the stale copy the permanent winner — the real remote
   // content was dropped on arrival and overwritten on the next write. This is the
   // root cause of content silently reverting after a background/refresh.
-  if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
-                       window.JGuard.sig(entry.template, _next, _title)) {
+  if (window.JGuard && (window.JGuard.same ? window.JGuard.same(entry.template, entry.data, _next, entry.title, _title)
+                       : window.JGuard.sig(entry.template, entry.data, entry.title) === window.JGuard.sig(entry.template, _next, _title))) {
     // Nothing new to save: autoSave already said Syncing, so say Synced again
     // unless some entry is still waiting for the cloud to confirm it.
     if (!state.entries.some(function (x) { return x._dirty; })) _tjSetSync('synced');
@@ -2828,7 +2862,12 @@ function autoSave() {
   // uninterrupted burst of typing reached neither localStorage nor the cloud until
   // the user paused — a crash or a closed lid in the middle of a paragraph lost all
   // of it. However long the burst runs, the entry is now persisted at least every 1.5s.
-  autoTimer = setTimeout(saveCurrentEntry, (_now - _tjAutoFirstAt >= 1500) ? 0 : 500);
+  // A very long page (pasted pictures: every save reads, compares and uploads
+  // the whole thing, MBs at a time) saves on a longer rhythm, at least every 5s:
+  // at 1.5s its saves were a steady stutter under the typing (2026-11-20).
+  // The tab-hide flush (_tjPersistNow) still saves the last keystrokes.
+  const _a = getActive(), _big = !!(_a && _a.data && typeof _a.data.html === 'string' && _a.data.html.length > 1500000);
+  autoTimer = setTimeout(saveCurrentEntry, (_now - _tjAutoFirstAt >= (_big ? 5000 : 1500)) ? 0 : (_big ? 1200 : 500));
 }
 // Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
 window._tjPersistNow = function() {

@@ -6162,7 +6162,11 @@ if (window.Beacon) Beacon.mount('taskhub', {
     for(var i=0;i<l.length;i++){if(l[i].getClientRects().length&&getComputedStyle(l[i]).visibility!=='hidden'){on=true;break;}}
     if(root.classList.contains('a1-pop-open')!==on)root.classList.toggle('a1-pop-open',on);
   }
-  function soon(){if(!raf)raf=requestAnimationFrame(check);}
+  // Typing in a page (MyJournal, Brainstorm) changes the tree on every key, and a
+  // backdrop never lives inside editable text: those changes are not looked at,
+  // or every keystroke re-scanned the whole document (2026-11-20 typing lag).
+  function inEdit(m){var t=m.target;t=t.nodeType===1?t:t.parentElement;return !!(t&&t.isContentEditable);}
+  function soon(list){if(raf)return;if(list&&list.length&&list.every(inEdit))return;raf=requestAnimationFrame(check);}
   function start(){new MutationObserver(soon).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-a1-scrim','class','style']});soon();}
   if(document.body)start();else document.addEventListener('DOMContentLoaded',start);
 })();
@@ -19837,7 +19841,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=ec2f7cf5f6"></script>
+<script src="Notebook/notebook.js?v=b9f95723ba"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ profile: 'veda' });</script>

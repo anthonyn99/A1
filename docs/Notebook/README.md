@@ -405,13 +405,33 @@ their own side**, never the other's:
 |---|---|---|
 | Open (each mount / reconnect) | 1 forced server read + the listener's first snapshot | 0 |
 | Another device saves | 1 per change (listener) | 0 |
-| Typing | 0 | 1 per autosave burst (≥ every 1.5 s while typing): the one entry field |
+| Typing | 0 | 1 per autosave burst (≥ every 1.5 s while typing, 5 s on a page over 1.5 MB): the one entry field |
 | New / trash / restore / reorder | 0 | 1 each |
 | New image on a page | 0 | 1 image document (never re-uploaded: cached by signature) |
 | Opening a page with images | from cache first (free); 1 per image not cached | 0 |
 
 Writes wait until the server has been seen once per connection (the stale-overwrite
 guard), so a cold start from cache never overwrites newer cloud data.
+
+## Typing cost on long pages
+
+A page's pictures live in its html as base64, so a page of screenshots is many
+MB, and every step that copies or re-parses the page while typing shows up as
+lag (Tony, 2026-11-20). The rules, held by `tests/notebook-typing-cost.test.js`:
+
+- Read the editor through `window._docxHtml(ed)`, not `ed.innerHTML`: the undo
+  history keeps one copy per change (its observer drops it on any edit).
+- No whole-page string building on each keystroke or save: `JGuard.same`
+  (not two `sig`s), `JGuard.emptyHtml` (stops at the first character), the
+  cache write skipped past the localStorage quota instead of built and refused,
+  `fb.js`'s image extraction on the string (`_jExtractImgs`, the DOM path only
+  for markup it cannot be sure of).
+- Saying the same sync state again (`Syncing` on every key) touches nothing:
+  any change outside the editor wakes every page-wide observer.
+- The undo history shares each picture once (`_HX`), lets go of pictures no
+  history refers to when a page opens, and keeps at most 12M characters of steps.
+- Page-wide observers (popups.js, TaskHub's backdrop check) ignore changes inside
+  editable text.
 
 ## Index.html (the native host)
 

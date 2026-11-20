@@ -239,6 +239,89 @@ function install(F) {
       if (snap && snap.exists() && snap.data().img) _jImgMark(ref.id, snap.data().img);
       return snap;
     };
+    // String fast path for the journals' image extraction (below). Autosave runs
+    // every 1.5s while typing, and the extraction used to parse the WHOLE page
+    // into a DOM and serialise it back on every one: with pasted screenshots,
+    // tens of MB a save and the main cause of typing lag on an illustrated page
+    // (Tony, 2026-11-20). The page's html comes from the editor's innerHTML,
+    // whose markup is regular (double quotes, lower-case names, only & " < >
+    // and nbsp escaped in values), so the tags holding a large inline
+    // src/href are found and rewritten in the string, the same edit the DOM
+    // path made (the key attribute added at the end of the tag, the value
+    // replaced by the placeholder). Returns null when the html holds an inline
+    // image this cannot see (single quotes, a style url(...)): the caller then
+    // takes the DOM path exactly as before.
+    const _jUnesc = (v) => v.indexOf('&') < 0 ? v : v.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, '\u00a0').replace(/&amp;/g, '&');
+    const _jAttr = (tag, name) => { const m = new RegExp('\\s' + name + '="([^"]*)"').exec(tag); return m ? m[1] : null; };
+    const _jTagOk = /^<[a-zA-Z][^\s>\/"'=]*(?:\s+[^\s"'>\/=]+(?:="[^"]*")?)*\s*\/?>$/;
+    const _jExtractImgs = async (html, keyAttr, scheme, keyFor, put) => {
+      html = String(html || '');
+      if (html.indexOf('data:') < 0) return html;
+      // indexOf, not a regex over the page: it skips through MBs of base64
+      // without looking at each character, and only the first 2040 of an
+      // image's characters are ever read to call it big.
+      const run = /[^"'\s<>]{2040}/y;
+      let bigRuns = 0, at = html.indexOf('data:');
+      while (at >= 0) { run.lastIndex = at + 5; if (run.test(html)) bigRuns++; at = html.indexOf('data:', at + 5); }
+      if (!bigRuns) return html;
+      const found = [];
+      at = html.indexOf('="data:');
+      while (at >= 0) {
+        const isSrc = html.substr(at - 4, 5) === ' src=', isHref = html.substr(at - 5, 6) === ' href=';
+        const tagStart = html.lastIndexOf('<', at), valEnd = html.indexOf('"', at + 2);
+        const tagEnd = valEnd < 0 ? -1 : html.indexOf('>', valEnd);
+        // Inside a tag: no '>' between its '<' and this attribute (text that
+        // merely reads src="data:... is escaped as &lt;... and fails this).
+        if ((isSrc || isHref) && tagStart >= 0 && tagEnd > 0 && html.lastIndexOf('>', at) < tagStart) {
+          const tag = html.slice(tagStart, tagEnd + 1);
+          // The tag with this value emptied: the checks below then read a few
+          // dozen characters instead of the picture's MBs. The value holds no
+          // '"' (it ends at the first), so emptying it changes nothing else.
+          const head = html.slice(tagStart, at + 2), tail = html.slice(valEnd, tagEnd + 1);
+          const lite = head + tail;
+          // A whole, well-formed tag or nothing: markup written by an older
+          // browser can hold a raw '>' in a value, which would cut it short.
+          // Not counted here, it sends the page down the DOM path instead.
+          if (!_jTagOk.test(lite)) { at = html.indexOf('="data:', at + 7); continue; }
+          const here = isSrc ? 'src' : 'href', value = html.slice(at + 2, valEnd);
+          const sv = here === 'src' ? value : _jAttr(lite, 'src'), hv = here === 'href' ? value : _jAttr(lite, 'href');
+          const attr = (sv || '').startsWith('data:') ? 'src' : (hv || '').startsWith('data:') ? 'href' : '';
+          const src = attr ? _jUnesc(attr === 'src' ? sv : hv) : '';
+          if (src.length >= 2048) {
+            const own = _jAttr(lite, keyAttr);
+            // Rewritten from head/tail when the image is this value (always, in
+            // practice); otherwise the whole tag is edited as it is.
+            found.push({ at: tagStart, tag, attr, src, key: own ? _jUnesc(own) : keyFor(src), own,
+              head: attr === here ? head : null, tail });
+          }
+          at = html.indexOf('="data:', tagEnd);
+        } else {
+          at = html.indexOf('="data:', at + 7);
+        }
+      }
+      if (found.length < bigRuns) return null;
+      const ok = await Promise.all(found.map((f) => put(f.key, f.src)));
+      let out = '', from = 0;
+      found.forEach((f, i) => {
+        let t = f.tag;
+        if (ok[i]) {
+          const kq = new RegExp('(\\s' + keyAttr + ')=""');
+          if (f.head != null) {
+            let hd = f.head, tl = f.tail;
+            if (f.own === '') { if (kq.test(hd)) hd = hd.replace(kq, '$1="' + f.key + '"'); else tl = tl.replace(kq, '$1="' + f.key + '"'); }
+            else if (f.own == null) tl = tl.slice(0, -1) + ' ' + keyAttr + '="' + f.key + '">';
+            t = hd + scheme + f.key + tl;
+          } else {
+            if (f.own === '') t = t.replace(kq, '$1="' + f.key + '"');
+            else if (f.own == null) t = t.slice(0, -1) + ' ' + keyAttr + '="' + f.key + '">';
+            t = t.replace(new RegExp('(\\s' + f.attr + ')="[^"]*"'), '$1="' + scheme + f.key + '"');
+          }
+        }
+        out += html.slice(from, f.at) + t;
+        from = f.at + f.tag.length;
+      });
+      return out + html.slice(from);
+    };
     // @nb-shared }
 
     // Extract inline data: images from an HTML string into their own docs. The
@@ -246,6 +329,32 @@ function install(F) {
     // (with retry); if the upload ultimately fails the inline data URI is kept so a
     // pasted screenshot is never silently lost.
     const _bjExtractHtmlImages = async (html, e) => {
+      const keyFor = (src) => {
+        let h = 0;
+        const step = Math.max(1, Math.floor(src.length / 512));
+        for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
+        h = (Math.imul(31, h) + src.length) | 0;
+        const imgKey = 'journal_img_' + e.id + '_' + Math.abs(h).toString(36);
+        return imgKey;
+      };
+      // Already in the cloud with these exact bytes: point at it, no write.
+      // Otherwise write it; true once it is safely there (with retry), false
+      // to keep the inline data URI so nothing is lost.
+      const put = async (imgKey, src) => {
+        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) return true;
+        // The document id is the key itself, unprefixed (Backup/backup.js relies on it).
+        const imgRef = doc(db(), 'dashboards', imgKey);
+        try {
+          await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'BJ img ' + imgKey);
+          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
+          return true;
+        } catch(err) {
+          console.warn('BJ image upload failed, keeping inline:', imgKey, err.message);
+          return false;
+        }
+      };
+      const fast = await _jExtractImgs(html, 'data-bjkey', 'bj-fbimg://', keyFor, put);
+      if (fast !== null) return fast;
       // A <template> is inert: unlike a detached <div>, assigning innerHTML
       // does not make the browser try to fetch every src it finds — which is
       // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
@@ -263,28 +372,10 @@ function install(F) {
         // Leave trivial ones alone: a separate document plus a fetch to save a
         // few hundred bytes is a worse trade than leaving it in place.
         if (src.length < 2048) return;
-        let imgKey = img.getAttribute('data-bjkey') || '';
-        if (!imgKey) {
-          let h = 0;
-          const step = Math.max(1, Math.floor(src.length / 512));
-          for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
-          h = (Math.imul(31, h) + src.length) | 0;
-          imgKey = 'journal_img_' + e.id + '_' + Math.abs(h).toString(36);
-        }
-        const imgRef = doc(db(), 'dashboards', imgKey);
-        // Already in the cloud with these exact bytes: point at it, no write.
-        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) {
+        const imgKey = img.getAttribute('data-bjkey') || keyFor(src);
+        if (await put(imgKey, src)) {
           img.setAttribute('data-bjkey', imgKey);
           img.setAttribute(attr, 'bj-fbimg://' + imgKey);
-          return;
-        }
-        try {
-          await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'BJ img ' + imgKey);
-          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
-          img.setAttribute('data-bjkey', imgKey);
-          img.setAttribute(attr, 'bj-fbimg://' + imgKey);
-        } catch(err) {
-          console.warn('BJ image upload failed, keeping inline:', imgKey, err.message);
         }
       }));
       return div.innerHTML;
@@ -849,6 +940,33 @@ function install(F) {
     // tj-fbimg:// placeholder is written ONLY after the image is confirmed saved
     // (with retry); on failure the inline data URI is kept so nothing is lost.
     const _tjExtractHtmlImages = async (html, e, dateKey) => {
+      const keyFor = (src) => {
+        let h = 0;
+        const step = Math.max(1, Math.floor(src.length / 512));
+        for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
+        h = (Math.imul(31, h) + src.length) | 0;
+        const suffix = dateKey ? (dateKey.replace(/-/g,'') + '_') : '';
+        const imgKey = 'tony_journal_img_' + e.id + '_' + suffix + Math.abs(h).toString(36);
+        return imgKey;
+      };
+      // Already in the cloud with these exact bytes: point at it, no write.
+      // Otherwise write it; true once it is safely there (with retry), false
+      // to keep the inline data URI so nothing is lost.
+      const put = async (imgKey, src) => {
+        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) return true;
+        // The document id is the key itself, unprefixed (Backup/backup.js relies on it).
+        const imgRef = doc(db(), 'dashboards', imgKey);
+        try {
+          await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
+          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
+          return true;
+        } catch(err) {
+          console.warn('TJ image upload failed, keeping inline:', imgKey, err.message);
+          return false;
+        }
+      };
+      const fast = await _jExtractImgs(html, 'data-tjkey', 'tj-fbimg://', keyFor, put);
+      if (fast !== null) return fast;
       // A <template> is inert: unlike a detached <div>, assigning innerHTML
       // does not make the browser try to fetch every src it finds — which is
       // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
@@ -866,29 +984,10 @@ function install(F) {
         // Leave trivial ones alone: a separate document plus a fetch to save a
         // few hundred bytes is a worse trade than leaving it in place.
         if (src.length < 2048) return;
-        let imgKey = img.getAttribute('data-tjkey') || '';
-        if (!imgKey) {
-          let h = 0;
-          const step = Math.max(1, Math.floor(src.length / 512));
-          for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
-          h = (Math.imul(31, h) + src.length) | 0;
-          const suffix = dateKey ? (dateKey.replace(/-/g,'') + '_') : '';
-          imgKey = 'tony_journal_img_' + e.id + '_' + suffix + Math.abs(h).toString(36);
-        }
-        const imgRef = doc(db(), 'dashboards', imgKey);
-        // Already in the cloud with these exact bytes: point at it, no write.
-        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) {
+        const imgKey = img.getAttribute('data-tjkey') || keyFor(src);
+        if (await put(imgKey, src)) {
           img.setAttribute('data-tjkey', imgKey);
           img.setAttribute(attr, 'tj-fbimg://' + imgKey);
-          return;
-        }
-        try {
-          await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
-          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
-          img.setAttribute('data-tjkey', imgKey);
-          img.setAttribute(attr, 'tj-fbimg://' + imgKey);
-        } catch(err) {
-          console.warn('TJ image upload failed, keeping inline:', imgKey, err.message);
         }
       }));
       return div.innerHTML;
