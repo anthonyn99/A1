@@ -12,6 +12,10 @@ const CB = 'https://api.exchange.coinbase.com';
 const AP_TF = { '1m': '1Min', '5m': '5Min', '15m': '15Min', '30m': '30Min', '1h': '1Hour', '1d': '1Day' };
 const CB_GRAN = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '1d': 86400 };
 export const CB_PAGES = 12, CB_MAX = 300;
+// Coins Coinbase has no X-USD market for (they ARE its dollar): never asked, so their 404 can never trip
+// the ledger's three-failures skip for every other coin.
+export const CB_NONE = new Set(['USDC', 'USDT']);
+const onCoinbase = (sym) => !CB_NONE.has(baseOf(sym));
 const H = { 'user-agent': 'TradeHub personal research (quant-api worker)', accept: 'application/json' };
 const apHeaders = (env) => (env.ALPACA_KEY && env.ALPACA_SECRET ? { 'APCA-API-KEY-ID': env.ALPACA_KEY, 'APCA-API-SECRET-KEY': env.ALPACA_SECRET, accept: 'application/json' } : { accept: 'application/json' });
 const stamp = (tf, t) => (tf === '1d' ? cryptoDayStamp(t) : t);
@@ -35,6 +39,7 @@ export async function alpacaBars(L, env, sym, tf, from, to) {
 /** Coinbase candles between `from` and `to` (ms), newest first, at most CB_PAGES calls: a longer span
  *  comes back `clipped` (its newest part), so the answer is marked incomplete. 30 minutes = 5-minute candles joined. */
 export async function coinbaseBars(L, sym, tf, from, to) {
+  if (!onCoinbase(sym)) return null;
   if (tf === '30m') {
     const five = await coinbaseBars(L, sym, '5m', from, to);
     if (!five) return null;
@@ -48,7 +53,7 @@ export async function coinbaseBars(L, sym, tf, from, to) {
     return out;
   }
   const g = CB_GRAN[tf];
-  if (!g) return null;
+  if (!g || !onCoinbase(sym)) return null;
   const span = g * 1000 * CB_MAX, out = [];
   let end = to, pages = 0;
   while (end > from && pages < CB_PAGES) {
@@ -69,6 +74,7 @@ export async function coinbaseBars(L, sym, tf, from, to) {
 export async function quotes(L, env, syms, now) {
   const out = {};
   for (const s of syms.slice(0, 20)) {
+    if (!onCoinbase(s)) continue;
     try {
       const j = await call(L, 'coinbase', `${CB}/products/${coinbasePair(s)}/stats`, { headers: H });
       const last = Number(j && j.last), open = Number(j && j.open);
