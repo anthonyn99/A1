@@ -5,6 +5,8 @@
 import * as alpaca from '../providers/alpaca.js';
 import * as yahoo from '../providers/yahoo.js';
 import { finnhub, publicCom, tiingo } from '../providers/others.js';
+import * as cryptoData from '../providers/crypto.js';
+import { isCrypto } from './crypto.js';
 import { ProviderError } from './net.js';
 import { getSplits, resplit } from './splits.js';
 import { BASE_TF, INTRADAY, mergeBars, toTimeframe, within } from './bars.js';
@@ -29,6 +31,14 @@ export function parseSymbols(s) {
 /** { quotes: {SYM: Quote}, missing: {SYM: [tried]}, tried: [{provider, error}] } */
 export async function getQuotes(L, env, syms, now) {
   const quotes = {}, tried = [];
+  // Crypto (B1): Coinbase's 24-hour stats, then Alpaca's crypto trades; never the stock chain.
+  const coins = syms.filter(isCrypto);
+  if (coins.length) {
+    const got = await cryptoData.quotes(L, env, coins, now);
+    for (const s of coins) if (got[s]) quotes[s] = got[s];
+    tried.push({ provider: 'crypto', answered: Object.keys(got).length });
+    syms = syms.filter((s) => !isCrypto(s));
+  }
   for (const p of QUOTE_CHAIN) {
     const left = syms.filter((s) => !quotes[s]);
     if (!left.length) break;
@@ -53,10 +63,12 @@ export async function getQuotes(L, env, syms, now) {
 export const ALPACA_START = Date.UTC(2016, 0, 4);
 const BARS = {
   alpaca: { has: alpaca.has, bars: alpaca.bars },
+  alpacaCrypto: { has: () => true, bars: (L, e, s, tf, f, t) => cryptoData.alpacaBars(L, e, s, tf, f, t) },
+  coinbase: { has: () => true, bars: (L, e, s, tf, f, t) => cryptoData.coinbaseBars(L, s, tf, f, t) },
   yahoo: { has: () => true, bars: yahoo.bars },
   tiingo: { has: tiingo.has, bars: (L, e, s, tf, f, t, a) => tiingo.bars(L, e, s, tf, f, t, a) },
 };
-const CHAIN = { intraday: ['alpaca', 'yahoo'], daily: ['alpaca', 'yahoo', 'tiingo'], old: ['yahoo', 'tiingo'] };
+const CHAIN = { intraday: ['alpaca', 'yahoo'], daily: ['alpaca', 'yahoo', 'tiingo'], old: ['yahoo', 'tiingo'], crypto: ['alpacaCrypto', 'coinbase'] };
 
 /** One stretch of history from the first provider in `names` that answers. */
 async function stretch(L, env, names, sym, tf, from, to, adj, now, tried) {
@@ -81,6 +93,12 @@ async function stretch(L, env, names, sym, tf, from, to, adj, now, tried) {
 export async function getBars(L, env, sym, tf, from, to, adj, now) {
   const base = BASE_TF[tf] || tf, tried = [];
   const parts = [];
+  if (isCrypto(sym)) {
+    // Crypto (B1): Alpaca's crypto bars, then Coinbase; no split re-basing, UTC 4-hour buckets.
+    const s = await stretch(L, env, CHAIN.crypto, sym, base, from, to, adj, now, tried);
+    if (!s) return null;
+    return { symbol: sym, tf, bars: toTimeframe(within(s.bars, from, to), tf, { crypto: true }), provider: s.provider, complete: !s.clipped, tried };
+  }
   if (INTRADAY.has(base)) {
     const s = await stretch(L, env, CHAIN.intraday, sym, base, from, to, adj, now, tried);
     if (s) parts.push(s);

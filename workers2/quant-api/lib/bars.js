@@ -59,10 +59,11 @@ export function fourHourKey(t) {
   return nyMidnight(c.date) + start * 60_000;
 }
 /** Bars of `base` turned into `tf` (only the pairs in BASE_TF). */
-export function toTimeframe(bars, tf) {
+export function toTimeframe(bars, tf, { crypto = false } = {}) {
   if (tf === '1w') return aggregate(bars, weekKey);
   if (tf === '1mo') return aggregate(bars, monthKey);
-  if (tf === '4h') return aggregate(bars, fourHourKey);
+  // Crypto trades around the clock: 4-hour buckets on the UTC clock (B1), not New York's sessions.
+  if (tf === '4h') return aggregate(bars, crypto ? (t) => Math.floor(t / 14_400_000) * 14_400_000 : fourHourKey);
   return bars;
 }
 

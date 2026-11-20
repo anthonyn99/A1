@@ -9,6 +9,7 @@
 export const CAPS = {
   finnhub: 20000,   // free: 60 a minute
   alpaca: 30000,    // free: 200 a minute
+  coinbase: 5000,   // crypto candles and 24-hour stats, no key (B1)
   public: 5000,
   yahoo: 5000,
   'yahoo-crumb': 2000,   // R7's cookie + crumb routes (lib/stock.js): their own line, so a refusal there never skips the bars chain
