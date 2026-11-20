@@ -56,6 +56,7 @@ async function newPage(url) {
   try { fs.rmSync(udd, { recursive: true, force: true }); } catch (e) {}
   const child = spawn(exe, [`--remote-debugging-port=${PORT}`, '--headless=new', '--disable-gpu', '--mute-audio', `--user-data-dir=${udd}`, '--no-first-run', '--disable-popup-blocking', 'about:blank'], { detached: true, stdio: 'ignore' });
   child.unref();
+  require('./cdp-reaper.js').watch(PORT);   // closes this browser even if the run is killed
   for (let i = 0; i < 60; i++) { await sleep(250); try { await pages(); break; } catch (e) {} }
 
   // The console: a MAGI tab, opened by hand.

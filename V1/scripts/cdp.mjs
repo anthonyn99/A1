@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 
 const PORT = 9344;
 
@@ -41,6 +42,8 @@ export async function launch() {
     '--allow-file-access-from-files', 'about:blank',
   ], { detached: true, stdio: 'ignore' });
   p.unref();
+  // Closed once this run ends, cleanly or killed (A1 tests/live/cdp-reaper.js, 2026-11-19).
+  createRequire(import.meta.url)('../../tests/live/cdp-reaper.js').watch(PORT);
   for (let i = 0; i < 60; i++) {
     if (await portAlive()) return p;
     await new Promise(r => setTimeout(r, 250));

@@ -127,6 +127,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'a1-restore-test-'));
   const proc = spawn(edge, ['--headless=new', '--disable-gpu', '--no-first-run', '--remote-debugging-port=' + port,
                             '--user-data-dir=' + udd, 'about:blank'], { stdio: 'ignore' });
+  require('./live/cdp-reaper.js').watch(port);   // closes this browser even if the run is killed
   try {
     let list;
     for (let i = 0; i < 50 && !list; i++) { try { list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json(); } catch (e) { await sleep(200); } }
