@@ -32,7 +32,7 @@ const markDown = (why) => jsonCache.put(DOWN_KEY, { why, at: Date.now() }, YAHOO
 const parse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const noTable = (e) => /no such table/i.test(String((e && e.message) || e));
 
-/** GET /summary?symbol=X: Yahoo's analysts, targets and key stats for one symbol. */
+/** GET /summary?symbol=X: Yahoo's analysts, targets and key stats; Nasdaq and Finnhub's stats when Yahoo cannot answer. */
 export async function getSummary(env, url, ctx, later) {
   const sym = symOf(url.searchParams.get('symbol'));
   if (sym.startsWith('^')) throw fail(400, 'symbol= (a stock or fund) is needed');
@@ -42,24 +42,49 @@ export async function getSummary(env, url, ctx, later) {
   catch (e) { if (!noTable(e)) throw e; }
   const facts = row && row.at > 0 ? parse(row.body) : null;
   if (facts && (now - row.at < SUMMARY_TTL) && !fresh) return json({ ok: true, symbol: sym, src: 'yahoo', at: row.at, facts });
-  // A failure rests an hour (no call), unless Tony asks again on purpose (fresh=1).
-  if (!fresh && row && row.error && row.err_at && now - row.err_at < FAIL_TTL) {
-    return json({ ok: true, symbol: sym, src: 'yahoo', at: facts ? row.at : null, facts, failed: row.error + ' (tried ' + Math.round((now - row.err_at) / 60000) + ' minutes ago)' });
-  }
+  // A failure rests an hour (no call), and so does Yahoo itself once it refused anything, unless Tony asks again (fresh=1).
+  let why = null;
+  if (!fresh && row && row.error && row.err_at && now - row.err_at < FAIL_TTL) why = row.error + ' (tried ' + Math.round((now - row.err_at) / 60000) + ' minutes ago)';
+  else if (!fresh) { const down = await yahooDown(); if (down) why = 'yahoo: ' + down + ' (resting for every symbol)'; }
   const L = await Ledger.load(env, now);
   try {
-    const f = await Y.summary(L, sym, jsonCache, now);
-    await env.DB.prepare("INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, 'yahoo', ?, 'yahoo', ?, NULL, NULL) "
-      + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL, err_at = NULL').bind(sym, now, JSON.stringify(f)).run().catch((e) => { if (!noTable(e)) throw e; });
-    return json({ ok: true, symbol: sym, src: 'yahoo', at: now, facts: f });
-  } catch (e) {
-    if (!(e instanceof ProviderError)) throw e;
-    const why = 'yahoo: ' + e.message;
-    await env.DB.prepare("INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, 'yahoo', 0, 'yahoo', '{}', ?, ?) "
-      + 'ON CONFLICT (symbol, part) DO UPDATE SET error = excluded.error, err_at = excluded.err_at').bind(sym, why, now).run().catch((x) => { if (!noTable(x)) throw x; });
+    if (!why) {
+      try {
+        const f = await Y.summary(L, sym, jsonCache, now);
+        await env.DB.prepare("INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, 'yahoo', ?, 'yahoo', ?, NULL, NULL) "
+          + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL, err_at = NULL').bind(sym, now, JSON.stringify(f)).run().catch((e) => { if (!noTable(e)) throw e; });
+        return json({ ok: true, symbol: sym, src: 'yahoo', at: now, facts: f });
+      } catch (e) {
+        if (!(e instanceof ProviderError)) throw e;
+        why = 'yahoo: ' + e.message;
+        await env.DB.prepare("INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, 'yahoo', 0, 'yahoo', '{}', ?, ?) "
+          + 'ON CONFLICT (symbol, part) DO UPDATE SET error = excluded.error, err_at = excluded.err_at').bind(sym, why, now).run().catch((x) => { if (!noTable(x)) throw x; });
+        // A symbol Yahoo does not know says nothing about Yahoo; anything else rests every Yahoo route an hour.
+        if (!/HTTP 404/.test(e.message)) await markDown(e.message);
+      }
+    }
+    // B1: the stats from Nasdaq and Finnhub. Yahoo's last analysis (if any) still answers, marked by `failed`.
+    const alt = await altStats(env, L, sym, now, fresh);
+    if (alt && Object.keys(alt.stats).length) {
+      return json({ ok: true, symbol: sym, src: 'nasdaq', at: alt.at, facts: { analysis: facts ? facts.analysis : undefined, stats: alt.stats, statSrc: alt.statSrc }, analysisAt: facts ? row.at : null, failed: why, yahoo: why });
+    }
     // The old facts (if any) still answer, marked with their time; the page says how old they are.
     return json({ ok: true, symbol: sym, src: 'yahoo', at: facts ? row.at : null, facts, failed: why });
   } finally { await later(ctx, L.flush()); }
+}
+
+/** The free routes' stats for `sym`, kept as dossier part 'stats' for SUMMARY_TTL → { at, stats, statSrc } or null. */
+async function altStats(env, L, sym, now, fresh) {
+  let row = null;
+  try { row = await env.DB.prepare("SELECT at, body FROM dossier_parts WHERE symbol = ? AND part = 'stats'").bind(sym).first(); }
+  catch (e) { if (!noTable(e)) throw e; }
+  const kept = row && row.at > 0 ? parse(row.body) : null;
+  if (kept && !fresh && now - row.at < SUMMARY_TTL) return { at: row.at, ...kept };
+  const got = await freeStats(L, env, sym);
+  if (!Object.keys(got.stats).length) return kept ? { at: row.at, ...kept } : null;
+  await env.DB.prepare("INSERT INTO dossier_parts (symbol, part, at, src, body, error, err_at) VALUES (?, 'stats', ?, 'nasdaq', ?, NULL, NULL) "
+    + 'ON CONFLICT (symbol, part) DO UPDATE SET at = excluded.at, src = excluded.src, body = excluded.body, error = NULL, err_at = NULL').bind(sym, now, JSON.stringify(got)).run().catch((e) => { if (!noTable(e)) throw e; });
+  return { at: now, ...got };
 }
 
 /** A short, stable cache key for a set of symbols (order does not matter). */
