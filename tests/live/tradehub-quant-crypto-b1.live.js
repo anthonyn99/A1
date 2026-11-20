@@ -50,7 +50,7 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
       await js(`return ${row('BTCUSD')}.textContent;`));
     ok('...and the chart head', await until(`/101/.test((document.querySelector('[data-ch-main] .ch-head')||document.body).textContent)`, 5000));
     const card = await until(`document.querySelectorAll('[data-sk-crypto]').length >= 2`, 15000);
-    ok('Analysis and Key Stats say they are for stocks', card && await js(`return [].slice.call(document.querySelectorAll('[data-sk-crypto]')).every(function(e){ return /is a coin/.test(e.textContent); });``), await js(`return [].slice.call(document.querySelectorAll('[data-card=analysis],[data-card=stats]')).map(function(e){return e.textContent.slice(0,90);}).join(' || ');`));
+    ok('Analysis and Key Stats say they are for stocks', card && await js(`return [].slice.call(document.querySelectorAll('[data-sk-crypto]')).every(function(e){ return /is a coin/.test(e.textContent); });`), await js(`return [].slice.call(document.querySelectorAll('[data-card=analysis],[data-card=stats]')).map(function(e){return e.textContent.slice(0,90);}).join(' || ');`));
     await shot('b1-crypto-' + name);
   }
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
