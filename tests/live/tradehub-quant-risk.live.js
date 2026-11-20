@@ -219,6 +219,25 @@ const RULES = { rules: [
     await shot('edge-' + w);
   }
 
+  // 2026-11-19: Risk and Edge refresh on every change and a failed read is a change, so with Webull refusing
+  // (a leftover headless page: 401, no App Check) they asked /api/portfolio/summary twice a second, forever.
+  console.log('\nWebull refusing: no loop');
+  let summaries = 0;
+  api.state.tradeboard = (req) => {
+    const p = new URL(req.url).pathname;
+    if (p === '/api/portfolio/summary') { summaries++; return { status: 401, json: { ok: false, error: 'unauthorized' } }; }
+    return null;
+  };
+  await size(1504, 950);
+  await boot({ quant: true, docs });
+  await tab('portfolio');
+  await js(`var b=[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}); if(b) b.click(); 1`);
+  await until(`${R} && ${R}.querySelectorAll('.lay-card').length === 8`, 8000);
+  await sleep(6000);
+  await tab('journal');
+  await sleep(6000);
+  ok('Risk then Edge open 12 s with the portfolio refused: it is asked at most twice (was ~25)', summaries <= 2, summaries);
+
   console.log('\nSide effects');
   const long = await js(`return window.__long.filter(function(x){return x>200;});`);
   ok('no main-thread task over 200 ms (Monte Carlo runs in the worker)', long.length === 0, JSON.stringify(long));
