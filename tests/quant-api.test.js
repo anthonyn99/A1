@@ -408,7 +408,8 @@ globalThis.fetch = async (url, init = {}) => {
   W.reset(); W.down.add('alpaca');
   r = await call(env, `/bars?symbol=NVDA&tf=1m&from=${NOW - 40 * DAY}&to=${NOW}`, { key: GOOD });
   ok('Yahoo keeps 30 days of 1-minute bars: asked further back, it says the answer is incomplete', r.status === 200 && r.body.provider === 'yahoo' && r.body.complete === false);
-  ok('...and asks at most 8 days a request', W.calls.filter((u) => u.includes('/chart/')).every((u) => { const q = new URL(u).searchParams; return q.get('period2') - q.get('period1') <= 7 * 86400 + 1; }));
+  // Bar requests only (they carry includePrePost); the split lookup (lib/splits.js, 2026-11-20) reads three years of events, no bars.
+  ok('...and asks at most 8 days a request', W.calls.filter((u) => u.includes('/chart/') && u.includes('includePrePost')).every((u) => { const q = new URL(u).searchParams; return q.get('period2') - q.get('period1') <= 7 * 86400 + 1; }));
   r = await call(env, '/bars?symbol=NVDA&tf=2h', { key: GOOD });
   ok('an unknown timeframe: 400', r.status === 400);
   r = await call(env, `/bars?symbol=NVDA&tf=1m&from=${NOW - 90 * DAY}`, { key: GOOD });
