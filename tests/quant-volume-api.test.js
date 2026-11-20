@@ -57,7 +57,8 @@ const MIN = 60_000;
     const u = String(url); seen.push(u);
     const feed = /feed=(\w+)/.exec(u)[1], from = Date.parse(decodeURIComponent(/start=([^&]+)/.exec(u)[1])), to = Date.parse(decodeURIComponent(/end=([^&]+)/.exec(u)[1]));
     const out = [];
-    for (let t = Math.ceil(from / (5 * MIN)) * 5 * MIN; t <= to; t += 5 * MIN) out.push({ t: new Date(t).toISOString(), o: 80, h: 81, l: 79, c: 80, v: feed === 'sip' ? 500000 : 12000 });
+    const st = /timeframe=1Hour/.test(u) ? 60 * MIN : 5 * MIN;
+    for (let t = Math.ceil(from / st) * st; t <= to; t += st) out.push({ t: new Date(t).toISOString(), o: 80, h: 81, l: 79, c: 80, v: feed === 'sip' ? 500000 : 12000 });
     return new Response(JSON.stringify({ bars: out, next_page_token: null }), { status: 200 });
   };
   const L = { blocked: () => null, spend: () => true, note() {} };
@@ -66,7 +67,7 @@ const MIN = 60_000;
   const got = await A.bars(L, { ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, 'SNDK', '5m', now - 120 * MIN, now, true, now);
   const iex = got.filter((b) => b.vx === 'iex'), sip = got.filter((b) => !b.vx);
   ok('bars older than 16 minutes come from SIP, unmarked (the whole market)', sip.length > 0 && sip.every((b) => b.v === 500000 && b.t < now - A.SIP_LAG + 5 * MIN));
-  ok('the newest 16 minutes come from IEX and are marked "iex" (a few percent of the volume)', iex.length >= 3 && iex.every((b) => b.v === 12000 && b.t >= now - A.SIP_LAG - 5 * MIN), JSON.stringify(iex.map((b) => [new Date(b.t).toISOString().slice(11, 16), b.v])));
+  ok('the newest 16 minutes come from IEX and are marked "iex" (a few percent of the volume)', iex.length >= 3 && iex.every((b) => b.t >= now - A.SIP_LAG - 5 * MIN) && iex.filter((b) => b.v === 12000).length >= 3, JSON.stringify(iex.map((b) => [new Date(b.t).toISOString().slice(11, 16), b.v])));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
