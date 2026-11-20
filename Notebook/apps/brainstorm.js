@@ -282,10 +282,14 @@ let _bjUserEdited = false;
 let bjSyncStatus = 'idle'; // idle | saving | saved | error
 
 function _bjSetSync(status) {
-  bjSyncStatus = status;
   var pill = document.getElementById('bj-sync-pill');
   var txt  = document.getElementById('bj-sync-text');
   var bb   = document.getElementById('bj-bb-saved');
+  // autoSave says Syncing on every keystroke. Saying it again changes nothing on
+  // screen, but rebuilt the pill's markup each time, and every watcher of the
+  // page (popups, TaskHub's backdrop check, the phone layout) then re-read it.
+  if (status === 'syncing' && bjSyncStatus === 'syncing' && pill && pill.className === 'bj-sync-pill bj-sync-syncing') return;
+  bjSyncStatus = status;
   if (!pill || !txt) return;
   // Everwell's pill (apphead.js): "Synced" fades after two seconds, "Sync
   // failed" stays. Offline, a success reads "Offline".
@@ -397,8 +401,34 @@ function _bjOmitCanvas(k, v) {
   // placeholder rather than their bytes — loadActiveEntry rehydrates them on
   // paint, exactly as it does for an entry that arrived from Firebase. This is
   // most of the blob by size, and it is re-serialised on every autosave.
-  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-bjkey="') >= 0) return _bjSlimHtml(v);
+  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-bjkey="') >= 0) return _bjSlimMemo(v);
   return v;
+}
+// The slimmed copy of each html, kept from one cache write to the next: an
+// entry that did not change (every one but the page being typed in) is not
+// scanned again. Holds only the strings of the latest write.
+var _bjSlimPrev = new Map(), _bjSlimNext = null;
+function _bjSlimMemo(v) {
+  var o = _bjSlimPrev.get(v);
+  if (o === undefined) o = _bjSlimHtml(v);
+  if (_bjSlimNext) _bjSlimNext.set(v, o);
+  return o;
+}
+// What the cache write would store, in characters, without building it: html
+// dominates (as slimmed), the rest is small. The browser refuses a value past
+// its ~5M-character localStorage quota, so a bigger blob was built (tens of MB
+// with pasted pictures), refused, and thrown away on EVERY autosave. Past the
+// quota it is now not built at all, which keeps the last good cache exactly as
+// the refusal did.
+var _BJ_CACHE_MAX = 5300000;
+function _bjCacheChars() {
+  var n = 0;
+  (state.entries || []).forEach(function (e) {
+    var d = e && e.data; if (!d) return;
+    if (typeof d.html === 'string') n += d.html.length > 8192 && d.html.indexOf('data-bjkey="') >= 0 ? _bjSlimMemo(d.html).length : d.html.length;
+    if (d.dates) Object.keys(d.dates).forEach(function (dk) { var h = d.dates[dk] && d.dates[dk].html; if (typeof h === 'string') n += h.length > 8192 && h.indexOf('data-bjkey="') >= 0 ? _bjSlimMemo(h).length : h.length; });
+  });
+  return n;
 }
 function _bjSlimHtml(h) {
   return h.replace(/<[^>]*\bdata-bjkey="([^"]+)"[^>]*>/g, function (tag, key) {
@@ -407,8 +437,12 @@ function _bjSlimHtml(h) {
 }
 function _bjWriteCache() {
   if (_bjIsOJ()) { if (window.OJ) window.OJ.writeCache('bj'); return; }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _bjOmitCanvas)); }
+  _bjSlimNext = new Map();
+  try {
+    if (_bjCacheChars() <= _BJ_CACHE_MAX) localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _bjOmitCanvas));
+  }
   catch (e) { /* quota exceeded / private mode: keep last good cache; Firebase holds the full data */ }
+  finally { _bjSlimPrev = _bjSlimNext; _bjSlimNext = null; }
 }
 
 function saveState() {
@@ -1204,7 +1238,7 @@ function saveCurrentEntry() {
   if (_bjPendingMargins && _bjPendingMargins.id === entry.id) _next.margins = _bjPendingMargins.m;
   // Only a page is ever painted (an old template's entry is converted first).
   if (entry.template !== 'page') return;
-  _next.html = document.getElementById('bj-page-editor').innerHTML;
+  { const _pe = document.getElementById('bj-page-editor'); _next.html = window._docxHtml ? window._docxHtml(_pe) : _pe.innerHTML; }
 
   // Auto-title: derive from content while the title is empty; a user-typed title
   // always wins. Read from the PROPOSED data above, not the stored data — otherwise a title taken from the
@@ -1236,8 +1270,8 @@ function saveCurrentEntry() {
   // GUARD (no-op): only stamp `updated` when something ACTUALLY changed — the remote
   // merge resolves conflicts on that timestamp, so a no-op save on a session holding
   // stale content used to make the stale copy the permanent winner.
-  if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
-                       window.JGuard.sig(entry.template, _next, _title)) {
+  if (window.JGuard && (window.JGuard.same ? window.JGuard.same(entry.template, entry.data, _next, entry.title, _title)
+                       : window.JGuard.sig(entry.template, entry.data, entry.title) === window.JGuard.sig(entry.template, _next, _title))) {
     // Nothing new to save: autoSave already said Syncing, so say Synced again
     // unless some entry is still waiting for the cloud to confirm it.
     if (!state.entries.some(function (x) { return x._dirty; })) _bjSetSync('synced');
@@ -2086,7 +2120,12 @@ function autoSave() {
   // burst of typing reached neither localStorage nor the cloud until the user
   // paused — a crash mid-paragraph lost all of it. However long the burst runs, the
   // entry is now persisted at least every 1.5s.
-  autoTimer = setTimeout(saveCurrentEntry, (_now - _bjAutoFirstAt >= 1500) ? 0 : 700);
+  // A very long page (pasted pictures: every save reads, compares and uploads
+  // the whole thing, MBs at a time) saves on a longer rhythm, at least every 5s:
+  // at 1.5s its saves were a steady stutter under the typing (2026-11-20).
+  // The tab-hide flush (_bjPersistNow) still saves the last keystrokes.
+  const _a = getActive(), _big = !!(_a && _a.data && typeof _a.data.html === 'string' && _a.data.html.length > 1500000);
+  autoTimer = setTimeout(saveCurrentEntry, (_now - _bjAutoFirstAt >= (_big ? 5000 : 1500)) ? 0 : (_big ? 1200 : 700));
 }
 // Persist the current entry synchronously RIGHT NOW: flush the pending autoSave
 // (DOM→state), then flush the pending Firebase write. Called on tab-hide/close so the

@@ -166,7 +166,19 @@ function emptyHtml(html) {
   if (!html) return true;
   var s = String(html);
   if (/<(img|table|canvas|svg|iframe|video|audio|hr|input|object|embed)\b/i.test(s)) return false;
-  return s.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, '').length === 0;
+  // Stops at the first visible character instead of copying the page three
+  // times over (this runs on every autosave of a long page). Same answer as
+  // stripping the tags, turning &nbsp; into a space and dropping whitespace:
+  // a '<' that never closes is text, as the old /<[^>]*>/ left it.
+  var inTag = false, i, c;
+  for (i = 0; i < s.length; i++) {
+    c = s.charAt(i);
+    if (inTag) { if (c === '>') inTag = false; continue; }
+    if (c === '<') { if (s.indexOf('>', i + 1) < 0) return false; inTag = true; continue; }
+    if (c === '&' && s.substr(i, 6).toLowerCase() === '&nbsp;') { i += 5; continue; }
+    if (!/\s/.test(c)) return false;
+  }
+  return true;
 }
 function emptyText(v) { return !v || String(v).replace(/\s+/g, '').length === 0; }
 
@@ -264,6 +276,35 @@ function sig(template, data, title) {
     try { parts.push('m' + JSON.stringify(d.margins)); } catch (e) {}
   }
   return parts.join('');
+}
+
+// sig(t, a, ta) === sig(t, b, tb), field by field: a long page's sig is the
+// whole page glued into one new string, and autosave built two of them on
+// every save (with pasted pictures, tens of MB a save). Never says "same" where
+// the sigs differ; it is only stricter where two different contents happened
+// to glue into the same string.
+function same(template, a, b, ta, tb) {
+  var x = a || {}, y = b || {};
+  if (String(ta == null ? '' : ta) !== String(tb == null ? '' : tb)) return false;
+  function js(v) { try { return JSON.stringify(v); } catch (e) { return '?'; } }
+  switch (template) {
+    case 'page':
+      if ((x.html || '') !== (y.html || '')) return false;
+      break;
+    case 'journal-entries': {
+      if ((x.dateOrder || []).join(',') !== (y.dateOrder || []).join(',')) return false;
+      var dx = x.dates || {}, dy = y.dates || {}, kx = Object.keys(dx).sort(), ky = Object.keys(dy).sort();
+      if (kx.join('\u0001') !== ky.join('\u0001')) return false;
+      for (var i = 0; i < kx.length; i++) {
+        if (((dx[kx[i]] && dx[kx[i]].html) || '') !== ((dy[kx[i]] && dy[kx[i]].html) || '')) return false;
+      }
+      break;
+    }
+    default: return sig(template, x, ta) === sig(template, y, tb);
+  }
+  if (js(x.attachments || []) !== js(y.attachments || [])) return false;
+  var mx = x.margins ? 'm' + js(x.margins) : '', my = y.margins ? 'm' + js(y.margins) : '';
+  return mx === my;
 }
 
 // Rough content size, used only to decide whether a version is worth keeping.
@@ -443,7 +484,7 @@ function recover(app, entry) {
 
 window.JGuard = {
   emptyHtml: emptyHtml, emptyText: emptyText, emptyData: emptyData, emptyEntry: emptyEntry,
-  wouldLose: wouldLose, sig: sig, size: size,
+  wouldLose: wouldLose, sig: sig, same: same, size: size,
   backup: backup, latestBackup: latestBackup, histRecover: histRecover, recover: recover,
   markCleared: markCleared, clearedAt: clearedAt,
   // Manual escape hatch from the console: JGuard.versions('tj', entryId)

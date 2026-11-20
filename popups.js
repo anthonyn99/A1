@@ -157,6 +157,10 @@
   var mo = new MutationObserver(function (list) {
     for (var i = 0; i < list.length; i++) {
       var m = list[i];
+      // Inside editable text (a journal page being typed in): never a backdrop,
+      // and it changes on every key, so it is not read at all.
+      var tg = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+      if (tg && tg.isContentEditable) continue;
       if (m.type === 'childList') {
         for (var k = 0; k < m.addedNodes.length; k++) if (m.addedNodes[k].nodeType === 1) pendingAdd.push(m.addedNodes[k]);
       } else if (m.attributeName !== 'data-a1-scrim') {
