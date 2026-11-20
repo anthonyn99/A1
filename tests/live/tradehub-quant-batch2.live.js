@@ -98,6 +98,16 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     const seen = [];
     for (const tf of ['5m', '1d', '5m', '4h', '1h', '5m']) { await pick('[data-ch-tf]', tf); seen.push(tf + ':' + (await info()).bands); }
     ok('B3', 'session shading holds through every interval switch', seen.every((x) => /^1d:/.test(x) || !/:0$/.test(x)), seen.join(' '));
+    // The switch matrix: the window Tony looks at stays put (Tony: "preserve EXACT position").
+    await pick('[data-ch-tf]', '5m');
+    await js(`var ch=${CH}, n=ch.info().bars; ch.chart().timeScale().setVisibleLogicalRange({ from: n - 300, to: n - 100 }); 1`); await sleep(500);
+    const win = async () => JSON.parse(await js(`var r=${CH}.chart().timeScale().getVisibleRange(); return JSON.stringify(r ? [r.from, r.to] : null);`));
+    const w0 = await win(), drift = [];
+    for (const ty of ['bars', 'line', 'area', 'hollow', 'ha', 'candles']) { await pick('[data-ch-type]', ty); const w = await win(); if (!w || Math.abs(w[0] - w0[0]) > 600 || Math.abs(w[1] - w0[1]) > 600) drift.push(ty + ':' + JSON.stringify(w)); }
+    ok('B3', 'every chart type keeps the exact window (within a bar)', drift.length === 0, JSON.stringify({ w0, drift }));
+    const tfDrift = [];
+    for (const tf of ['15m', '1h', '5m']) { await pick('[data-ch-tf]', tf); const w = await win(); const tol = { '15m': 1800, '1h': 7200, '5m': 900 }[tf]; if (!w || Math.abs(w[0] - w0[0]) > tol || Math.abs(w[1] - w0[1]) > tol) tfDrift.push(tf + ':' + JSON.stringify(w)); }
+    ok('B3', 'an interval switch keeps the same stretch of time (within a bar of the new interval)', tfDrift.length === 0, JSON.stringify({ w0, tfDrift }));
   }
 
   if (want('B4')) {
