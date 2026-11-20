@@ -49,6 +49,15 @@ const PRICES = { 'BTC-USD': 58243.61, 'ETH-USD': 1595.76, 'SOL-USD': 67.28, 'AVA
   const cardsN = await js(`return document.querySelectorAll('.lay-card').length;`);
   ok('no slanted grip drawn in any card corner (ask 30), and the corner still resizes', cardsN > 0 && hatch === 0 && (await js(`return document.querySelectorAll('.lay-card > .a1-edge[data-edge="se"]').length;`)) > 0, `${hatch} of ${cardsN}`);
 
+  // Asks 15/19: footers leave the card face and are read into its "?" (Charts' Key Stats and Analysis follow a stock).
+  await boot({ quant: true }); await tab('charts');
+  await until(`document.querySelector('.lay-card[data-card="stats"] .sk-src, .lay-card[data-card="analysis"] .sk-src')`, 20000); await sleep(800);
+  const shown = await js(`return [].slice.call(document.querySelectorAll('.lay-card .lay-body .sk-src, .lay-card .lay-body [data-help-note]')).filter(function(e){ return e.offsetParent !== null; }).length;`);
+  ok('no source or "updated" footer is shown on any Charts card (ask 19)', shown === 0, shown);
+  const help = await js(`var b=document.querySelector('[data-lay-help="stats"]')||document.querySelector('[data-lay-help="analysis"]'); if(!b) return ''; b.click(); var t=document.querySelector('[data-lay-helptip]'); return t ? t.textContent : '';`);
+  ok('...the card\'s "?" carries them under "Sources and updates"', /Sources and updates/.test(help) && /Source|follow the chart/i.test(help), help.slice(0, 200));
+  await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`);
+
   // Asks 35 and 39 on Market.
   await size(1280, 900); await tab('market'); await sleep(1500);
   const add = JSON.parse(await js(`var s=document.querySelector('[data-lay-add]'); return JSON.stringify(s ? { label: s.options[0].textContent, opts: [].slice.call(s.options).slice(1).map(function(o){return o.value;}), hidden: s.hidden } : null);`));

@@ -142,14 +142,14 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   const writes = () => js(`return window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length;`);
   ok('nothing was written just for looking', (await writes()) === 0);
   await js(`document.querySelector('.lay-card[data-card="volume"] [data-act="hide"]').click(); 1`);
-  // R7: Analysis and Key Stats start in Market's "Add card", so hiding Volume makes it 3.
-  ok('hiding a card takes it off the grid and into Add card', await until(`!document.querySelector('.lay-grid .lay-card[data-card="volume"]') && /Add card \\(3\\)/.test(document.querySelector('[data-lay-add]').options[0].textContent)`, 3000));
+  // B6: no count on Add card (ask 35); Volume is offered there once hidden.
+  ok('hiding a card takes it off the grid and into Add card', await until(`!document.querySelector('.lay-grid .lay-card[data-card="volume"]') && [].some.call(document.querySelector('[data-lay-add]').options, function(o){ return o.value === 'volume'; })`, 3000));
   await js(`document.querySelector('.lay-card[data-card="breadth"] [data-act="collapse"]').click(); 1`);
   ok('collapsing leaves the title bar', await until(`document.querySelector('.lay-card[data-card="breadth"]').classList.contains('is-collapsed') && document.querySelector('.lay-card[data-card="breadth"]').getBoundingClientRect().height < 50`, 3000));
   ok('not written at once', (await writes()) === 0);
   ok('...written once, 1.5 s after the last change', await until(`window.__fakeFs.log.filter(function(w){ return /tradehub_layout/.test(w.path); }).length === 1`, 4000));
   const doc = JSON.parse(await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_layout']);`));
-  ok('one doc, by tab and size class, in grid units', doc.market && doc.market.desktop && doc.market.desktop.hidden.join() === 'analysis,stats,volume' && doc.market.desktop.collapsed.join() === 'breadth' && !doc.market.phone && !/px/.test(JSON.stringify(doc)), JSON.stringify(doc).slice(0, 300));
+  ok('one doc, by tab and size class, in grid units', doc.market && doc.market.desktop && doc.market.desktop.hidden.join() === 'volume' && doc.market.desktop.collapsed.join() === 'breadth' && !doc.market.phone && !/px/.test(JSON.stringify(doc)), JSON.stringify(doc).slice(0, 300));
   await boot({ keep: true }); await tab('market');
   ok('after a reload the card is still hidden and the other still collapsed', await until(`document.querySelector('[data-mk-score]') && !document.querySelector('.lay-grid .lay-card[data-card="volume"]') && document.querySelector('.lay-card[data-card="breadth"]').classList.contains('is-collapsed')`, 10000));
   await sleep(2200);
@@ -162,7 +162,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   await js(`document.querySelector('.lay-card[data-card="analogs"] [data-act="hide"]').click(); 1`); await sleep(2200);
   await size(DESK_W, 900); await sleep(700);
   const two = JSON.parse(await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_layout'].market);`));
-  ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analysis,stats,analogs' && two.desktop.hidden.join() === 'analysis,stats' && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
+  ok('a phone keeps its own arrangement: hidden there, still shown on the desktop', two.phone.hidden.join() === 'analogs' && two.desktop.hidden.join() === '' && await js(`return !!document.querySelector('.lay-grid .lay-card[data-card="analogs"]');`), JSON.stringify(two).slice(0, 300));
 
   console.log('\nNo snapshot stored: the page builds it');
   api.state.snapshot = null; api.asked.length = 0; api.posted.claims = 0; api.posted.snapshots.length = 0; api.posted.watchlists.length = 0; api.state.watchlist = null;

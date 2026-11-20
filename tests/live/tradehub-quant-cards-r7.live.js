@@ -81,7 +81,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   await sleep(1200);
   await boot({ keep: true }); await tab('market');
   ok('...both picks kept after a reload', await until(`${H} && ${H}.querySelector('[data-hm-group="industry"]').getAttribute('aria-pressed') === 'true' && ${H}.querySelector('[data-hm-scope="mine"]').getAttribute('aria-pressed') === 'true'`, 15000));
-  ok('Analysis and Key Stats wait in Market\'s "Add card"', /analysis/.test(await addOpts()) && /stats/.test(await addOpts()), await addOpts());
+  ok('B6 (ask 39): Analysis and Key Stats are not offered in Market\'s "Add card"', !/analysis/.test(await addOpts()) && !/stats/.test(await addOpts()), await addOpts());
   await until(`${T}.length > 0`, 10000);
   await js(`${H}.scrollIntoView({ block: 'center' }); 1`); await sleep(300);
   const someTile = await js(`return ${T}.sort(function(a,b){return b.w*b.h-a.w*a.h;})[0].sym;`);
