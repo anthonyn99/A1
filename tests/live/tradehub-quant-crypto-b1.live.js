@@ -49,7 +49,7 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     ok('a Coinbase tick moves the rail price and the 24-hour change (101 against 95 = +6.32%)', await until(`/101/.test(${row('BTCUSD')}.querySelector('[data-ch-px]').textContent) && /6\\.32/.test(${row('BTCUSD')}.querySelector('[data-ch-chg]').textContent)`, 5000),
       await js(`return ${row('BTCUSD')}.textContent;`));
     ok('...and the chart head', await until(`/101/.test((document.querySelector('[data-ch-main] .ch-head')||document.body).textContent)`, 5000));
-    const card = await until(`document.querySelector('[data-sk-crypto]')`, 6000);
+    const card = await until(`document.querySelectorAll('[data-sk-crypto]').length >= 2`, 15000);
     ok('Analysis and Key Stats say they are for stocks', card && await js(`return [].slice.call(document.querySelectorAll('[data-sk-crypto]')).every(function(e){ return /is a coin/.test(e.textContent); });`));
     await shot('b1-crypto-' + name);
   }
