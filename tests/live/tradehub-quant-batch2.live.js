@@ -131,12 +131,13 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     if (pts.gapAt > 20) {
       const res = JSON.parse(await js(`var ch=${CH}, d=ch.draw(), g=ch.geo; var c=ch.chart(), ser=c.panes()[0].getSeries()[0], data=ser.data();
         // chart time -> the bar's own time: ask the geometry at the bar's x
-        var ts=c.timeScale(); var xa=ts.logicalToCoordinate(${pts.gapAt}-14), xb=ts.logicalToCoordinate(${pts.gapAt}-4);
+        // Both ends before the night, the pointer carried 15 bars, across it: the left end must stop short of the night.
+        var ts=c.timeScale(); var xa=ts.logicalToCoordinate(${pts.gapAt}-20), xb=ts.logicalToCoordinate(${pts.gapAt}-10);
         var a={t:g.t(xa), p:g.p(200)}, b={t:g.t(xb), p:g.p(260)};
         d.set([{ id:'b0-trend', kind:'trend', pts:[a,b] }]);
         return JSON.stringify({ax:g.x(a.t), ay:g.y(a.p), bx:g.x(b.t), by:g.y(b.p), spacing:g.spacing()});`));
       const s2 = await stage();
-      const mx = s2.l + (res.ax + res.bx) / 2, my = s2.t + (res.ay + res.by) / 2, dx = res.spacing * 24;
+      const mx = s2.l + (res.ax + res.bx) / 2, my = s2.t + (res.ay + res.by) / 2, dx = res.spacing * 15;
       await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: mx, y: my });
       await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mx, y: my, button: 'left', buttons: 1, clickCount: 1 });
       for (let i = 1; i <= 12; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: mx + dx * i / 12, y: my, button: 'left', buttons: 1 }); await sleep(16); }
