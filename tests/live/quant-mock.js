@@ -301,8 +301,12 @@ function quantApi() {
       if (p === '/watchlist') { const l = JSON.parse(req.postData).symbols; posted.watchlists.push(l); state.watchlist = l; return { json: { ok: true, symbols: l } }; }
       if (p === '/bars') {
         const sym = u.searchParams.get('symbol'), tf = u.searchParams.get('tf') || '1d', from = Number(u.searchParams.get('from')), to = Number(u.searchParams.get('to'));
+        // Batch 2 (B0): a test can make one symbol's bars fail (state.barsFail) or arrive late (state.barsDelay ms).
+        if (state.barsFail && state.barsFail.includes(sym)) return { status: 404, json: { ok: false, error: 'no bars for ' + sym } };
         const bars = TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
-        return { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null } };
+        const out = { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null } };
+        const late = state.barsDelay && state.barsDelay[sym];
+        return late ? new Promise((ok) => setTimeout(() => ok(out), late)) : out;
       }
       if (p === '/drawings' && req.method === 'GET') { const sym = u.searchParams.get('symbol'); return { json: { ok: true, symbol: sym, drawings: state.drawings[sym] || [], at: state.drawings[sym] ? 1 : null } }; }
       if (p === '/drawings' && req.method === 'PUT') { const b = JSON.parse(req.postData); state.drawings[b.symbol] = b.drawings; (posted.drawings = posted.drawings || []).push(b); return { json: { ok: true, n: b.drawings.length, at: CLOCK } }; }
