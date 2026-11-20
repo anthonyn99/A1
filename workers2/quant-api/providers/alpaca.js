@@ -5,6 +5,7 @@
 // edge comes from IEX (`feed=iex`), whose volume is a fraction of the market's.
 import { call, noteBad, BARS_TIMEOUT } from '../lib/net.js';
 import { bar, dailyStamp, mergeBars } from '../lib/bars.js';
+import { nyDate } from '../lib/time.js';
 
 const BASE = 'https://data.alpaca.markets';
 const TF = { '1m': '1Min', '5m': '5Min', '15m': '15Min', '30m': '30Min', '1h': '1Hour', '1d': '1Day' };
@@ -72,7 +73,7 @@ export async function snapshots(L, env, syms) {
       if (!price) continue;
       const t = tr ? Date.parse(tr.t) : d ? Date.parse(d.t) : null;
       // The latest trade inside the daily bar's session: compare with the session before; else with that bar.
-      const sameDay = d && t != null && new Date(t).toISOString().slice(0, 10) === String(d.t).slice(0, 10);
+      const sameDay = d && t != null && nyDate(t) === nyDate(Date.parse(d.t));   // New York dates: an after-hours trade is past midnight UTC
       const prev = sameDay ? (pd && pd.c > 0 ? pd.c : null) : (d && d.c > 0 ? d.c : null);
       out[s] = { price, t, prev };
     }
