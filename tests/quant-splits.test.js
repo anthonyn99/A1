@@ -66,7 +66,18 @@ const mod = (f) => import(pathToFileURL(path.join(__dirname, '..', f)).href);
   globalThis.fetch = async (u) => { calls.push(String(u)); return new Response(JSON.stringify(String(u).includes('alpaca') ? alp : yh), { status: 200, headers: { 'content-type': 'application/json' } }); };
   try {
     const got = await S.getSplits(L, { ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, 'sndk', ex + D, { cache: null });
-    ok('Alpaca first: one call to its corporate actions, splits as { t: 00:00 New York on the ex-date, ratio }', calls.length === 1 && /data\.alpaca\.markets\/v1\/corporate-actions\?symbols=SNDK&types=forward_split,reverse_split/.test(calls[0]) && got.length === 1 && got[0].t === ex && got[0].ratio === 8, JSON.stringify({ calls, got }));
+    ok('both sources asked (Alpaca\'s corporate actions + Yahoo\'s events), one split per ex-date, { t: 00:00 New York, ratio }', calls.length === 2 && calls.some((u) => /data\.alpaca\.markets\/v1\/corporate-actions\?symbols=SNDK&types=forward_split,reverse_split/.test(u)) && calls.some((u) => /finance\/chart\/SNDK/.test(u)) && got.length === 1 && got[0].t === ex && got[0].ratio === 8, JSON.stringify({ calls, got }));
+    calls.length = 0;
+    // Tony 2026-11-20: Alpaca answered with NO split days after SNDK's went ex, and Yahoo was never asked.
+    const realF = globalThis.fetch;
+    globalThis.fetch = async (u) => { calls.push(String(u)); return new Response(JSON.stringify(String(u).includes('alpaca') ? { corporate_actions: {} } : yh), { status: 200, headers: { 'content-type': 'application/json' } }); };
+    const lag = await S.getSplits(L, { ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, 'SNDK', ex + D, { cache: null });
+    ok('Alpaca answers with no split yet: Yahoo\'s split still counts', lag.length === 1 && lag[0].ratio === 8 && lag[0].t === ex, JSON.stringify(lag));
+    const puts = [];
+    globalThis.fetch = async (u) => { calls.push(String(u)); return String(u).includes('yahoo') ? new Response('no', { status: 406 }) : new Response(JSON.stringify({ corporate_actions: {} }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+    await S.getSplits(L, { ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, 'SNDK', ex + D, { cache: { match: async () => null, put: async (k, r) => puts.push(r.headers.get('cache-control')) } });
+    ok('an answer missing a source is kept 15 minutes, not 6 hours', puts.length === 1 && puts[0] === 'max-age=' + S.SPLITS_PART_TTL_S, JSON.stringify(puts));
+    globalThis.fetch = realF;
     calls.length = 0;
     const y = await S.getSplits(L, {}, 'SNDK', ex + D, { cache: null });
     ok('no Alpaca key: Yahoo\'s split events', calls.length === 1 && /finance\/chart\/SNDK/.test(calls[0]) && y.length === 1 && y[0].ratio === 8, JSON.stringify({ calls, y }));
