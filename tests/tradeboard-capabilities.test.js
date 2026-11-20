@@ -141,7 +141,7 @@ const fullWebull = (p) => {
 
   console.log('\n-- source');
   {
-    const start = SRC.indexOf('CAPABILITIES PROBE'), end = SRC.indexOf('ROUTER  (matches');
+    const start = SRC.indexOf('CAPABILITIES CHECK'), end = SRC.indexOf('ROUTER  (matches');
     const block = SRC.slice(start, end);
     ok('probe names no order write path', !/\/(trading\/orders|openapi\/trade\/order)\/(place|replace|cancel|preview|batch)/i.test(block));
   }

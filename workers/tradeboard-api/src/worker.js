@@ -1052,7 +1052,7 @@ async function fetchSequential(accountId, env) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   CAPABILITIES PROBE  (GET /api/portfolio/capabilities, 2026-11-20)
+   CAPABILITIES CHECK  (GET /api/portfolio/capabilities, 2026-11-20)
    Asks Webull, one call at a time, whether this key may use each READ endpoint
    the worker already relies on, and reports only what came back: HTTP status,
    allowed / denied (401, 403, 417) / errored, and how many fields or rows the
