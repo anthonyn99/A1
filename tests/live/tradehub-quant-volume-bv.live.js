@@ -32,12 +32,14 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     await until(`${TAB} && ${CH} && ${CH}.info().symbol === 'NVDA' && ${CH}.info().bars > 0 && document.querySelector('[data-ch-main] [data-ch-note]').hidden`, 20000);
     await sleep(600);
     const v = JSON.parse(await js(`var ch=${CH}.chart(); var s=null; ch.panes().forEach(function(p){ p.getSeries().forEach(function(x){ if(!s && x.seriesType()==='Histogram' && x.options().priceFormat.type==='volume') s=x; }); });
-      var d=s?s.data():[]; var n=d.length; return JSON.stringify({ n:n, last3: d.slice(-3).map(function(p){return p.color;}), before: d[n-4] && d[n-4].color, unknown: d[n-11] ? ('value' in d[n-11]) : 'missing' });`));
+      var d=s?s.data():[]; var n=d.length; return JSON.stringify({ n:n, bars: ${CH}.info().bars, last3: d.slice(-3).map(function(p){return p.color;}), before: d[n-4] && d[n-4].color, beforeT: d[n-4] && d[n-4].time });`));
+    // The library's data() leaves blank points out: the unknown bar is the one missing.
+    v.unknown = v.n === v.bars - 1 ? false : true;
     ok('the newest 3 bars (IEX only) are drawn faint', v.last3.length === 3 && v.last3.every((col) => /0\.2\)?$/.test(col) || /,\s*0\.2\)/.test(col)), JSON.stringify(v));
     ok('...the bar before them (whole) at full strength', v.before && !/0\.2\)/.test(v.before) && /0\.(6|32)\)/.test(v.before), v.before);
     ok('a bar whose volume is not known has no volume bar (a gap, not a 0)', v.unknown === false, JSON.stringify(v));
-    const avg = JSON.parse(await js(`var ch=${CH}.chart(); var out=null; ch.panes().forEach(function(p){ p.getSeries().forEach(function(x){ if(x.seriesType()==='Line' && x.options().priceFormat && x.options().priceFormat.type==='volume') out=x.data(); }); }); if(!out) return 'null'; var n=out.length; return JSON.stringify(out.slice(-4).map(function(p){return 'value' in p;}));`));
-    if (name === 'desktop') ok('the volume average stops at the partial bars (never dragged down by them)', JSON.stringify(avg) === JSON.stringify([true, false, false, false]), JSON.stringify(avg));
+    const avg = JSON.parse(await js(`var ch=${CH}.chart(); var out=null; ch.panes().forEach(function(p){ p.getSeries().forEach(function(x){ if(x.seriesType()==='Line' && x.options().priceFormat && x.options().priceFormat.type==='volume') out=x.data(); }); }); if(!out) return 'null'; return JSON.stringify(out.length ? out[out.length-1].time : null);`));
+    if (name === 'desktop') ok('the volume average stops at the last whole bar (never dragged down by the partial ones)', avg === v.beforeT, JSON.stringify([avg, v.beforeT]));
     // the read-out on the newest bar (crosshair at the right edge)
     const box = JSON.parse(await js(`var b=document.querySelector('[data-ch-main] [data-ch-box]').getBoundingClientRect(); return JSON.stringify({x:b.left,y:b.top,w:b.width,h:b.height});`));
     const lx = await js(`var ts=${CH}.chart().timeScale(); var n=${CH}.info().bars; return ts.logicalToCoordinate(n-1);`);
