@@ -56,30 +56,10 @@ function browserPids() {
   } catch (e) { return []; }
 }
 // The exit hook never runs when a run is KILLED (a timeout, a stopped background task), and that is how
-// most leftovers happen. So a small detached watchdog outlives the run: once the run's process is gone,
-// it kills the browser (own port) or, on the shared 9333, closes its pages (their timers go with them).
-const REAPER = `
-const [parent, port, own] = process.argv.slice(1).map(Number);
-const http = require('http'), { execSync } = require('child_process');
-const get = (u) => new Promise((res) => http.get(u, (r) => { let b = ''; r.on('data', (c) => b += c); r.on('end', () => res(b)); }).on('error', () => res('')));
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-setInterval(async () => {
-  if (alive(parent)) return;
-  if (own) {
-    try {
-      const out = execSync('powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'remote-debugging-port=' + port + '( |$)' -and $_.CommandLine -notmatch '--type=' } | ForEach-Object { $_.ProcessId }"', { encoding: 'utf8', timeout: 15000 });
-      for (const pid of out.split(/\s+/).map(Number).filter((n) => n > 0)) { try { execSync('taskkill /PID ' + pid + ' /T /F', { stdio: 'ignore' }); } catch (e) {} }
-    } catch (e) {}
-  } else {
-    let list = []; try { list = JSON.parse(await get('http://127.0.0.1:' + port + '/json/list')); } catch (e) {}
-    for (const t of list) if (t.type === 'page') await get('http://127.0.0.1:' + port + '/json/close/' + t.id);
-  }
-  process.exit(0);
-}, 3000);
-`;
+// most leftovers happen, so a detached watchdog (cdp-reaper.js) outlives the run and cleans up after it.
 function armReaper() {
   try {
-    spawn(process.execPath, ['-e', REAPER, String(process.pid), String(PORT), PORT === 9333 ? '0' : '1'],
+    spawn(process.execPath, [path.join(__dirname, 'cdp-reaper.js'), String(process.pid), String(PORT), PORT === 9333 ? '0' : '1'],
       { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   } catch (e) {}
 }
