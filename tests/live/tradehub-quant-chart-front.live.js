@@ -67,7 +67,7 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
     const { CLOCK } = require('./quant-mock.js'), WEEK = 7 * 86_400_000;
     const shift = -Math.ceil((F.now - CLOCK) / WEEK) * WEEK, mv = (b) => ({ ...b, t: b.t + shift });
     api.state.realBars = { SNDK: Object.fromEntries(['5m', '1h', '4h', '1d'].map((tf) => [tf, F[tf].map(mv)])) };
-    api.state.splits = { SNDK: [{ ...F.split, t: F.split.t + shift }] };
+    api.state.splits = process.env.NO_SPLITS ? {} : { SNDK: [{ ...F.split, t: F.split.t + shift }] };
     const last = F['5m'][F['5m'].length - 1].c;   // the new basis (~$81)
     await size(1504, 900);
     for (const round of [1, 2]) {   // round 2 = the device's month store already holds SNDK (Tony's "loading again")
