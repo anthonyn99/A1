@@ -111,6 +111,15 @@ const WB = [
   console.log('\n1280: Control ▸ Watchlists');
   await tab('prompt');
   ok('the manager is there, the TradeHub list open, one tile per ticker in its order', await until(`document.querySelector('[data-wlm] .ctl-tk')`, 8000) && (await tiles()) === want1, await tiles());
+  // Tony 2026-11-20: the refresh arrow broke up on lower-density screens; it draws thicker than the 1.5 icons
+  // (2.5 on this 1x headless screen), on Control (ui/dom.js) and on Portfolio's React head alike.
+  const arrowW = (sel) => js(`var p=document.querySelector(${JSON.stringify(sel + ' svg path')}); return p ? getComputedStyle(p).strokeWidth : 'none';`);
+  ok('the refresh arrow is thicker (Control): 2.5px on a 1x screen', (await arrowW('[data-wlm] .tb-refresh')) === '2.5px', await arrowW('[data-wlm] .tb-refresh'));
+  await tab('portfolio');
+  await until(`document.querySelector('#tradeboard-root .tb-refresh-ic svg path')`, 8000);
+  ok('…and on Portfolio\'s top-right refresh', (await arrowW('#tradeboard-root .tb-refresh-ic')) === '2.5px', await arrowW('#tradeboard-root .tb-refresh-ic'));
+  await tab('prompt');
+  await until(`document.querySelector('[data-wlm] .ctl-tk')`, 8000);
   {
     // A tile drag reorders the open list too (A1Drag's grid axis), and stays.
     const a = await box('[data-wlm] .ctl-tk', 0), b = await box('[data-wlm] .ctl-tk', 1);
