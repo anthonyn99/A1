@@ -48,7 +48,7 @@ const MIN = 60_000;
   ok('...and with an unknown hour, unknown', B.toTimeframe([{ t: day + 600 * MIN, o: 1, h: 1, l: 1, c: 1, v: 1, vx: 'iex' }, { t: day + 660 * MIN, o: 1, h: 1, l: 1, c: 1, v: 1, vx: 'none' }], '4h')[0].vx === 'none');
   ok('vxOf: a lump makes it unknown; IEX next; unknown-zero hours beside known ones make it partial; all whole, none', V.vxOf([{ v: 5, vx: 'none' }, { v: 1 }]) === 'none' && V.vxOf([{ v: 1, vx: 'iex' }, { v: 0, vx: 'none' }]) === 'iex' && V.vxOf([{ v: 0, vx: 'none' }, { v: 9 }]) === 'part' && V.vxOf([{ v: 0, vx: 'none' }]) === 'none' && V.vxOf([{ v: 1 }, { v: 2 }]) === undefined);
   const morn = B.toTimeframe([{ t: day + 480 * MIN, o: 1, h: 1, l: 1, c: 1, v: 0, vx: 'none' }, { t: day + 540 * MIN, o: 1, h: 1, l: 1, c: 1, v: 0, vx: 'none' }, { t: day + 600 * MIN, o: 1, h: 1, l: 1, c: 1, v: 900 }], '4h');
-  ok('Yahoo's 08:00 4-hour bar (pre-market hours unknown, the session hour known) is partial, keeping its known volume', morn[0].vx === 'part' && morn[0].v === 900, JSON.stringify(morn));
+  ok('Yahoo\'s 08:00 4-hour bar (pre-market hours unknown, the session hour known) is partial, keeping its known volume', morn[0].vx === 'part' && morn[0].v === 900, JSON.stringify(morn));
   ok('unsplit keeps the mark (raw prices for adj=0)', B.unsplit([{ t: 1, o: 10, h: 10, l: 10, c: 10, v: 100, vx: 'iex' }], [{ t: 5, ratio: 10 }])[0].vx === 'iex');
 
   console.log('\nAlpaca: the newest 16 minutes are IEX');
