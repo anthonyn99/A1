@@ -24,6 +24,9 @@ const ok = (name, cond, extra) => {
 };
 
 // Webull's lists as tradeboard-api returns them (R0's shape): SNDK has no fixture bars, BTCUSD is crypto.
+// B2: these checks are R2's (the TradeHub list as Tony left it), so the one-time switch to Webull's Main
+// (Refinements Batch 2) is marked done in the seeded doc; tradehub-quant-watchlists-b2 tests the switch.
+const R2_DOC = () => ({ 'dashboards/tradeboard_watchlist': { tickers: WATCHLIST, trash: [], wl2: { follow: ['tradehub'], matchedOnce: 'test' } } });
 const WB = [
   { id: 11, name: 'Main', sort: 9, tickers: [{ symbol: 'NVDA', exchange: 'NASDAQ' }, { symbol: 'SNDK', exchange: 'NASDAQ' }, { symbol: 'AMD', exchange: 'NASDAQ' }] },
   { id: 12, name: 'My Positions', sort: 8, tickers: [] },
@@ -84,7 +87,7 @@ const WB = [
 
   console.log('\n1280: Charts\' Watchlist card');
   await size(1280, 900);
-  await boot({ quant: true });
+  await boot({ quant: true, docs: R2_DOC() });
   await tab('charts');
   ok('the rail shows Webull\'s Main by default', await until(`[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join()==='NVDA,SNDK,AMD'`, 15000), await rail());
   ok('the picker lists Webull\'s lists and Mine (My Positions is empty: hidden)', await js(`var s=document.querySelector('[data-ch-list]'); var o=[...s.options].map(function(x){return x.textContent;}); return !s.hidden && o.some(function(t){return /^Main \\(3\\)/.test(t);}) && o.some(function(t){return /^Cryptos/.test(t);}) && o.some(function(t){return /^TradeHub/.test(t);}) && !o.some(function(t){return /My Positions/.test(t);});`));
@@ -203,7 +206,7 @@ const WB = [
   for (const [w, hgt] of [[820, 1000], [390, 844]]) {
     console.log(`\n${w}: the rail and the manager`);
     await size(w, hgt);
-    await boot({ quant: true });
+    await boot({ quant: true, docs: R2_DOC() });
     await tab('charts');
     ok(`${w}: the rail shows Main`, await until(`[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join()==='NVDA,SNDK,AMD'`, 15000), await rail());
     ok(`${w}: the picker is on screen and inside the card`, await js(`var s=document.querySelector('[data-ch-list]'), c=s.closest('.lay-card'); var a=s.getBoundingClientRect(), b=c.getBoundingClientRect(); return !s.hidden && a.width>0 && a.left>=b.left-1 && a.right<=b.right+1;`));
