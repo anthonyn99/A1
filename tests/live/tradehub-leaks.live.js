@@ -106,7 +106,7 @@ async function census(c) {
     const a = await sample(), before = await census(c);
     for (let k = 6; k < 6 + CYCLES; k++) await round(k);
     // Back to where the warm-up ended (the same ticker, interval, type and range), so only what is held differs.
-    await round(6 + CYCLES - CYCLES % 6 === 6 + CYCLES ? 0 : 0);
+    await round(5);
     await sleep(1500);
     const z = await sample(), after = await census(c);
     console.log(`    heap ${a.heapMB} → ${z.heapMB} MB, nodes ${a.nodes} → ${z.nodes}, listeners ${a.listeners} → ${z.listeners}, canvases ${a.canvases} → ${z.canvases}`);
