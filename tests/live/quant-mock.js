@@ -304,6 +304,10 @@ function quantApi() {
         // Batch 2 (B0): a test can make one symbol's bars fail (state.barsFail) or arrive late (state.barsDelay ms).
         if (state.barsFail && state.barsFail.includes(sym)) return { status: 404, json: { ok: false, error: 'no bars for ' + sym } };
         const bars = TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
+        // BV: state.barsVx = { SYM: { iex: n, none: [i…] } } marks the newest n bars as one exchange's volume
+        // and the listed bar indexes (from the end) as unknown, as quant-api does.
+        const vx = state.barsVx && state.barsVx[sym];
+        if (vx && TF_MS[tf]) { bars.slice(-(vx.iex || 0)).forEach((b) => { b.vx = 'iex'; }); for (const k of vx.none || []) if (bars[bars.length - 1 - k]) bars[bars.length - 1 - k].vx = 'none'; }
         const out = { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null } };
         const late = state.barsDelay && state.barsDelay[sym];
         return late ? new Promise((ok) => setTimeout(() => ok(out), late)) : out;
