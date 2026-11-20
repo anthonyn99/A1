@@ -16,7 +16,7 @@ const res = (body, status = 200) => new Response(JSON.stringify(body), { status,
 const MIN = 60_000, H = 3600_000, DAY = 86_400_000;
 
 // Alpaca lists BTC, ETH and USDC; Coinbase lists BTC, ETH and SUI (not USDC: it is its dollar).
-const NET = { calls: [], apDown: false };
+const NET = { calls: [], apDown: false, apMore: false };   // apMore: Alpaca always says there is another page
 globalThis.fetch = async (url) => {
   const u = String(url);
   NET.calls.push(u);
@@ -27,8 +27,10 @@ globalThis.fetch = async (url) => {
     if (!['BTC/USD', 'ETH/USD', 'USDC/USD'].includes(pair)) return res({ bars: {}, next_page_token: null });
     const step = { '1Min': MIN, '5Min': 5 * MIN, '1Hour': H, '1Day': DAY }[tf];
     const out = [];
-    for (let t = Math.ceil(from / step) * step; t <= to; t += step) out.push({ t: new Date(t).toISOString(), o: 100, h: 101, l: 99, c: 100.5, v: 2 });
-    return res({ bars: { [pair]: out }, next_page_token: null });
+    // Alpaca's crypto history starts in 2021 (checked live 2026-11-20).
+    for (let t = Math.ceil(Math.max(from, Date.UTC(2021, 0, 1)) / step) * step; t <= to; t += step) out.push({ t: new Date(t).toISOString(), o: 100, h: 101, l: 99, c: 100.5, v: 2 });
+    if (/sort=desc/.test(u)) out.reverse();
+    return res({ bars: { [pair]: out }, next_page_token: NET.apMore ? 'more' : null });
   }
   if (/data\.alpaca\.markets\/v1beta3\/crypto\/us\/latest\/trades/.test(u)) return res({ trades: { 'USDC/USD': { p: 0.9998, t: '2026-11-20T18:00:00Z' } } });
   if (/api\.exchange\.coinbase\.com\/products\/([A-Z]+-USD)\/candles/.test(u)) {
@@ -90,6 +92,20 @@ const L = { spent: {}, blocked: () => null, spend(p, n = 1) { this.spent[p] = (t
   NET.apDown = false; NET.calls.length = 0;
   await D.getBars(L, env, 'AAPL', '1d', now - 10 * DAY, now, true, now).catch(() => null);
   ok('a stock never goes to the crypto sources', NET.calls.length > 0 && !NET.calls.some((u) => /crypto\/us|coinbase/.test(u)), NET.calls.join(' ').slice(0, 300));
+
+  console.log('\nReview fixes (B1)');
+  NET.calls.length = 0;
+  r = await D.getBars(L, env, 'BTCUSD', '1d', Date.UTC(2015, 0, 1), now, true, now);
+  ok('BTC daily from 2015: Alpaca from 2021, the older years from Coinbase, complete', r && r.provider === 'coinbase+alpacaCrypto' && r.bars[0].t < Date.UTC(2015, 1, 1) + 6 * H && r.complete, JSON.stringify([r && r.provider, r && new Date(r.bars[0].t).toISOString(), r && r.complete]));
+  NET.calls.length = 0;
+  r = await D.getBars(L, env, 'XMRUSD', '1h', now - DAY, now, true, now);
+  ok('a coin Coinbase does not list (XMR): Coinbase is never asked (its 404s would rest Coinbase for every coin)', !NET.calls.some((u) => /coinbase/.test(u)), NET.calls.join(' '));
+  NET.apMore = true; NET.calls.length = 0;
+  r = await D.getBars(L, env, 'BTCUSD', '1m', now - 3 * DAY, now, true, now);
+  ok(`Alpaca past ${P.AP_PAGES} pages: newest first, and the answer says it is incomplete`, r && !r.complete && NET.calls.filter((u) => /crypto\/us\/bars/.test(u)).length === P.AP_PAGES && NET.calls.every((u) => !/crypto\/us\/bars/.test(u) || /sort=desc/.test(u)), JSON.stringify([r && r.complete, NET.calls.length]));
+  NET.apMore = false;
+  const mq = await D.getQuotes(L, env, ['XMRUSD', 'BTCUSD'], now);
+  ok('a coin no source answered is listed in `missing`', mq.missing.XMRUSD && !mq.missing.BTCUSD && mq.quotes.BTCUSD, JSON.stringify(mq.missing));
 
   console.log('\nQuotes');
   NET.calls.length = 0;
