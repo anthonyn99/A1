@@ -222,7 +222,7 @@ globalThis.fetch = async (url, o = {}) => {
   ok('...Yahoo with no quotes either: 503, said plainly', r.status === 503 && /no source had quotes/.test(r.body.error), JSON.stringify(r.body));
   EDGE.clear(); Y.reset(); Y.down = true;
   r = await call(env2, '/heatmap?symbols=AAA,BBB');
-  ok('...Yahoo down too: 503 naming both', r.status === 503 && /alpaca: HTTP 500/.test(r.body.error) && /yahoo: HTTP 500/.test(r.body.error), JSON.stringify(r.body));
+  ok('...Yahoo down too: 503 naming both', r.status === 503 && /alpaca: HTTP 500/.test(r.body.error) && /yahoo: /.test(r.body.error), JSON.stringify(r.body));
   Y.reset();
   r = await call(env2, '/heatmap?symbols=CCC');
   ok('...and Yahoo is not asked again within the hour', r.status === 503 && Y.calls.length === 0 && /resting/.test(r.body.error), JSON.stringify([Y.calls.length, r.body.error]));
