@@ -291,8 +291,15 @@
       }
     }
     if (!isDoc) m.grip = gripStop(el, rect);
+    // A floating button over the box's right edge (TradeHub's Neo Quant launchers) marks itself
+    // data-sb-bottom: the vertical bar ends 6px above the highest one showing, so it never runs under it.
+    var stop = Infinity, fl = doc.querySelectorAll('[data-sb-bottom]');
+    for (var fi = 0; fi < fl.length; fi++) {
+      var fr = fl[fi].getBoundingClientRect();
+      if (fr.height > 0 && fr.right >= rect.right - 40 && fr.left <= rect.right && fr.top > rect.top && fr.top < rect.bottom) stop = Math.min(stop, fr.top - 6);
+    }
     m.g = {
-      top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh()),
+      top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh(), stop),
       left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
       border: isDoc ? { t: 0, r: 0, b: 0, l: 0 } : { t: el.clientTop, l: el.clientLeft, r: rect.width - el.clientWidth - el.clientLeft, b: rect.height - el.clientHeight - el.clientTop },
     };
