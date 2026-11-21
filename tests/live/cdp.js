@@ -206,7 +206,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       });
       return;
     }
-    if (mock && !request.url.startsWith(PAGES)) {
+    if (mock && !request.url.startsWith(PAGES) && !/^https:\/\/anthonyn99\.github\.io\/a1\/dm\//.test(request.url)) {
       let r = mock.handle(request);
       // A promise: a slow upstream (a test can catch the page mid-wait).
       if (r && typeof r.then === 'function') {
