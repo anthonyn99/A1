@@ -348,6 +348,33 @@ export async function testPush(env) {
   return json({ ok: r.ok, sent: r.sent || 0, failed: r.failed || 0, devices: r.devices || [], ...(r.ms ? { ms: r.ms } : {}), ...(r.error ? { error: r.error } : {}) });
 }
 export const pageUrl = (route) => PAGE_URL + '#alert=' + route;
+
+/** B10: one example of every kind, in the words the real alert uses, marked "[Test]". */
+export const TEST_KINDS = [
+  { kind: 'price', what: 'price crossed above', title: 'NVDA crossed above R1 172.30', body: 'NVDA 172.41', url: 'chart:NVDA' },
+  { kind: 'price', what: 'price crossed below', title: 'NVDA crossed below S1 166.40', body: 'NVDA 166.31', url: 'chart:NVDA' },
+  { kind: 'price', what: 'zone entered', title: 'AMD entered the zone 160.10–161.00', body: 'AMD 160.55', url: 'chart:AMD' },
+  { kind: 'price', what: 'holds (two checks)', title: 'MU crossed above 650.00', body: 'MU 651.20, held for two checks', url: 'chart:MU' },
+  { kind: 'signal', what: 'new GO', title: 'New GO: AMD breakout', body: 'long swing, entry 162.50, stop 157.80', url: 'scanner' },
+  { kind: 'graded', what: 'a taken signal hit target 1', title: 'AMD hit target 1', body: 'The breakout signal you took: +1.7R', url: 'scanner' },
+  { kind: 'graded', what: 'a taken signal hit its stop', title: 'TSLA hit its stop', body: 'The vwap-reclaim signal you took: -1R', url: 'scanner' },
+  { kind: 'regime', what: 'regime change', title: 'Regime: Constructive → Risk-off', body: 'At the midday snapshot', url: 'market' },
+  { kind: 'catalyst', what: 'catalyst coming up', title: 'CPI in 15 min', body: 'For NVDA, AMD, MU', url: 'catalysts' },
+  { kind: 'data', what: 'a data provider down', title: 'alpaca is down for 12 min', body: 'TradeHub Quant falls through to the next source.', url: 'status' },
+  { kind: 'data', what: 'a budget past 70%', title: 'groq at 72% of today\'s budget', body: '72 of 100 calls', url: 'status' },
+];
+/** POST /alerts/test-all: B10's "Send every kind once" in Control ▸ Alerts. Each goes through the real push route to
+ *  Tony's devices only (taskhub-reminders /quant-push), one notification each, with what quiet hours, "market hours
+ *  only" and the kind switch WOULD do right now reported beside it (a test is always sent, so he sees every text). */
+export async function testAll(env, now = Date.now(), { send = push } = {}) {
+  const cfg = await readCfg(env), run = now.toString(36), out = [];
+  for (const [i, t] of TEST_KINDS.entries()) {
+    const would = cfg.kinds[t.kind] === false ? 'kind is off' : isQuiet(cfg, now) ? 'quiet hours' : cfg.marketOnly[t.kind] && !inSession(now) ? 'outside market hours' : null;
+    const r = await send(env, { title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), tag: 'tbq-tall-' + run + '-' + i, card: false, kind: t.kind });
+    out.push({ kind: t.kind, what: t.what, title: '[Test] ' + t.title, body: t.body, ok: !!r.ok, devices: r.devices || [], error: r.ok ? null : r.error || null, normally: would || 'pushed' });
+  }
+  return json({ ok: out.every((x) => x.ok), sent: out.filter((x) => x.ok).length, of: out.length, results: out, notPushed: ['paper fills', 'strategy pauses'] });
+}
 /** A short, stable notification tag for a rule's trigger. */
 export function tagOf(str) { let a = 5381, b = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); a = (a * 33) ^ c; b = (b * 33) ^ c; } return (a >>> 0).toString(36) + (b >>> 0).toString(36); }
 
@@ -418,6 +445,18 @@ async function retry(env, rules, now, send) {
   return out;
 }
 
+/* ── standing rules (B10) ──────────────────────────────────────────────── */
+// B0 found that every kind fired only through a rule in the table and nothing made one, so with every kind ticked
+// "On" and no rules (Tony's screen) no signal, graded, regime, catalyst or data alert could ever reach him. Now a kind
+// that is On and has no rule of Tony's gets a standing one, for every ticker, with the defaults. It lives only in the
+// run (never written to the table); its fires are kept under its own id (`std:<kind>`), so each event still pushes once.
+export const STANDING = { signal: null, graded: null, regime: null, catalyst: { minutes: 15 }, data: { downMin: 10, budgetPct: 70 } };
+export function standingRules(cfg, rules, kinds = Object.keys(STANDING)) {
+  const have = new Set(rules.map((r) => r.kind));
+  return kinds.filter((k) => k in STANDING && cfg.kinds[k] !== false && !have.has(k))
+    .map((k) => ruleOf({ id: 'std:' + k, kind: k, symbol: '*', params: STANDING[k] ? JSON.stringify(STANDING[k]) : null, active: 1, state: null, fired_at: null, cooldown_min: null, quiet: 0 }));
+}
+
 /* ── the check (cron) ───────────────────────────────────────────────────── */
 const DIR_WORD = { above: 'crossed above', below: 'crossed below', in: 'entered', cross: 'crossed' };
 function priceItem(r, q, ev) {
@@ -438,8 +477,8 @@ export async function check(env, now = Date.now(), { force = false, send = push 
   try { rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND (kind IN ('price', 'level', 'catalyst', 'data') OR state LIKE '%\"retry\"%')").all()).results || []; }
   catch (e) { if (noTable(e)) return { skipped: 'no alerts table' }; throw e; }
   const rules = rows.map(ruleOf);
-  if (!rules.length) return { rules: 0, fired: [] };
-  // The second read: config, catalysts, provider health and today's usage, in one query.
+  // The second read: config, catalysts, provider health and today's usage, in one query (B10: read even with no rule
+  // of Tony's, since a kind that is On now fires through its standing rule).
   const d = utcDay(now);
   const ctx = (await env.DB.prepare(
     "SELECT 'meta' AS t, k AS a, v AS b, at AS c, NULL AS d, NULL AS e, NULL AS f FROM meta WHERE k IN ('alert_cfg', 'alert_catalysts') "
@@ -452,6 +491,8 @@ export async function check(env, now = Date.now(), { force = false, send = push 
     else used[x.a] = x.b;
   }
   const cfg = configOf(parse(meta.alert_cfg, {}));
+  rules.push(...standingRules(cfg, rules, ['catalyst', 'data']));
+  if (!rules.length) return { rules: 0, fired: [] };
   const items = [], writes = [];
   const out = { rules: rules.length, quotes: 0, fired: [], retried: [] };
   out.retried = await retry(env, rules.filter((r) => r.state && r.state.retry), now, send);
@@ -523,8 +564,10 @@ export async function raise(env, kind, events, now = Date.now(), { send = push }
   let rows;
   try { rows = (await env.DB.prepare('SELECT * FROM alerts WHERE active = 1 AND kind = ?').bind(kind).all()).results || []; }
   catch (e) { if (noTable(e)) return []; throw e; }
-  if (!rows.length) return [];
-  const rules = rows.map(ruleOf), cfg = await readCfg(env), items = [];
+  const cfg = await readCfg(env), rules = rows.map(ruleOf);
+  rules.push(...standingRules(cfg, rules, [kind]));   // B10: On with no rule of Tony's = his standing rule
+  if (!rules.length) return [];
+  const items = [];
   for (const r of rules) for (const e of events) {
     if (kind === 'signal') {
       if (e.verdict !== 'GO') continue;

@@ -247,6 +247,7 @@ function alertsRoute(req, env, url, p, m) {
   if (p === '/alerts/config' && m === 'PUT') return alerts.putConfig(env, req);
   if (p === '/alerts/catalysts' && m === 'PUT') return alerts.putCatalysts(env, req);
   if (p === '/alerts/test' && m === 'POST') return alerts.testPush(env);
+  if (p === '/alerts/test-all' && m === 'POST') return alerts.testAll(env);   // B10: every kind once
   if (p === '/alerts/check' && m === 'POST') return alerts.checkRoute(env, url);
   throw fail(404, 'no such route');
 }
