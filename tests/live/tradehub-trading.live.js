@@ -70,6 +70,6 @@ const ok = (ph, name, cond, extra) => {
 
   console.log('\nBy phase: ' + Object.entries(byPhase).map(([k, v]) => `${k} ${v.pass}/${v.pass + v.fail}`).join(', '));
   console.log(`${pass} passed, ${fail} failed`);
-  await c.close();
+  c.ws.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
