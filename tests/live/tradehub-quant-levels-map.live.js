@@ -61,6 +61,10 @@ const ok = (name, cond, extra) => {
   ok('⟲ snaps back to the whole chart', v2[0] <= 0 && v2[1] >= Number(d.lvmBars) - 1, JSON.stringify([v1, v2, d.lvmBars]));
   // The shade's look (one dim band, 0.1, a dashed edge) is proven in tests/quant-levels-map.test.js: the mock's
   // history starts only days before the levels' window, so there is no band wide enough to read here.
+  // Tony 2026-11-21: "Now" (the latest trade) read as wrong beside the last candle; when it differs from the newest
+  // bar's close, the close is named under it and drawn as its own line.
+  const nc = JSON.parse(await js(`var b=${BOX}, c=b.querySelector('[data-lvm-close-px]'); return JSON.stringify({ shown: !!c && !c.hidden, text: c ? c.textContent : '', lines: Number(b.dataset.lvmLines) });`));
+  ok('"Now" carries the last close when they differ (and never a blank one)', !nc.shown || /close .* \\d/.test(nc.text) && /latest trade/.test(nc.text), JSON.stringify(nc));
   ok('...the X is centred in its button (a drawn cross)', await js(`var x=${BOX}.querySelector('[data-lvm-close]'), s=x.querySelector('svg'); if (!s) return false; var a=x.getBoundingClientRect(), c=s.getBoundingClientRect(); return Math.abs((a.left+a.right)/2-(c.left+c.right)/2) < 1 && Math.abs((a.top+a.bottom)/2-(c.top+c.bottom)/2) < 1;`));
   ok('...the ⟲ sits beside ×',await js(`var r=${BOX}.querySelector('[data-lvm-reset]'); return !!r && r.nextElementSibling === ${BOX}.querySelector('[data-lvm-close]');`));
   // A zone's colour at the plot's right edge, past the last bar (the canvas under the candles).
