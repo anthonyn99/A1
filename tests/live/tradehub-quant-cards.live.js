@@ -243,7 +243,7 @@ const ok = (name, cond, extra) => {
     ['Scanner ▸ Backtest', async () => { await js(`var i=document.querySelector('[data-sc-horizon="swing"]'); if(i) i.click(); var b=document.querySelector('[data-sc-view="backtest"]'); if(b) b.click(); 1`); }, '[data-backtest]', 13],
     ['Neo', async () => { await tab('neo'); }, '[data-lay="neo"]', 4],
     ['Control ▸ Memory', async () => { await tab('prompt'); }, '[data-memory]', 4],
-    ['Paper', async () => { await tab('paper'); }, '[data-lay="paper"]', 7],
+    ['Paper', async () => { await tab('trading'); }, '[data-lay="paper"]', 7],
     ['Portfolio ▸ Risk', async () => { await tab('portfolio'); await until(`[...document.querySelectorAll('.tbtabs [role=tab]')].some(function(b){return /^Risk/.test(b.textContent);})`, 8000); await js(`[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}).click(); 1`); }, '[data-risk-view]', 8],
     ['Journal ▸ Edge', async () => { await tab('journal'); await until(`[...document.querySelectorAll('[data-journal-view] button')].some(function(b){return b.textContent==='Edge';})`, 8000); await js(`[...document.querySelectorAll('[data-journal-view] button')].find(function(b){return b.textContent==='Edge';}).click(); 1`); }, '[data-edge-view]', 6],
   ];

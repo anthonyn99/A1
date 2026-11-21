@@ -90,7 +90,7 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
   ok('a click on a tile opens it on Charts', await until(`window._tbOps.charts && window._tbOps.charts.get().symbol === '${someTile}'`, 10000), someTile + ' / ' + await js(`return window._tbOps.charts ? window._tbOps.charts.get().symbol : 'charts not open';`));
 
   console.log('\n3. Paper');
-  await tab('paper');
+  await tab('trading');
   ok('Analysis and Key Stats follow the open position (NVDA)', await until(`${K} && /NVDA Corporation/.test(${K}.innerText) && ${A}.querySelector('[data-sk-rec]')`, 15000), await js(`return ${K} ? ${K}.innerText.slice(0, 120) : 'no card';`));
   ok('...the position\'s ticker is a bordered button that picks it', await js(`var b=document.querySelector('[data-pp-sym="NVDA"]'); return b && b.tagName === 'BUTTON' && getComputedStyle(b).borderTopStyle === 'solid' && b.classList.contains('is-on');`));
 
