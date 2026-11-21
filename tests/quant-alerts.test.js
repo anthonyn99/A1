@@ -521,8 +521,10 @@ globalThis.fetch = async (url, opts = {}) => {
     const g2 = await A.raise(e2, 'signal', [{ id: 'sb12', symbol: 'AMD', setup: 'orb', horizon: 'day', dir: 'long', verdict: 'GO' }], MON_10);
     ok('Tony has his own signal rule (NVDA only): no standing rule beside it, so AMD does not push', g2.length === 0);
     // Every kind once, through the real route.
+    // 2026-11-21: the phone showed 8 of 11 (Android drops a burst from one app): the sends are spaced by default.
+    ok('test-all spaces its sends (at least 500 ms; a test env sets TEST_GAP_MS 0)', A.TEST_GAP_MS >= 500);
     const n1 = W.pushes.length;
-    const t = await call(mkEnv(), 'POST', '/alerts/test-all');
+    const t = await call({ ...mkEnv(), TEST_GAP_MS: '0' }, 'POST', '/alerts/test-all');
     const tj = t.body || t.json || t;
     const sent = W.pushes.slice(n1);
     ok('POST /alerts/test-all sends every kind once, each marked [Test], each its own notification', sent.length === A.TEST_KINDS.length && sent.every((p) => /^\[Test\] /.test(p.body.title)) && new Set(sent.map((p) => p.body.tag)).size === sent.length, sent.length);
@@ -530,7 +532,7 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('...and says what each would normally do now (pushed, quiet hours, outside market hours, kind off)', Array.isArray(tj.results) && tj.results.every((x) => typeof x.normally === 'string'), JSON.stringify(tj).slice(0, 200));
     ok('...only to Tony: it goes through the same /quant-push route as every alert', sent.every((p) => p.headers && p.headers['x-quant-secret'] === 's3cret'));
     // B10 step 2: quiet hours over "now": the test still sends every kind, and each says "quiet hours".
-    const eq = mkEnv();
+    const eq = { ...mkEnv(), TEST_GAP_MS: '0' };
     await call(eq, 'PUT', '/alerts/config', { config: { quiet: { on: true, from: '00:00', to: '23:59', tz: 'America/Denver' } } });
     const n2 = W.pushes.length;
     const tq = await call(eq, 'POST', '/alerts/test-all');
