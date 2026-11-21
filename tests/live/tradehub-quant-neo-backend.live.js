@@ -76,6 +76,7 @@ const ok = (name, cond, extra) => {
   for (const [w, hgt, name] of [[1280 + 224, 900, 'desktop'], [820 + 224, 1000, 'tablet'], [390, 844, 'phone']]) {
     await size(w, hgt); await sleep(700); await openDock();
     await openMenu();
+    if (name === 'desktop') console.log('   debug:', await js(`var e=${MENU}, out=[]; while(e){ var cs=getComputedStyle(e); out.push((e.className||e.tagName)+':'+cs.display+'/'+e.hidden); e=e.parentElement; } return out.slice(0,8).join(' > ') + ' | docks=' + document.querySelectorAll('[data-nq-dock]').length + ' chips=' + document.querySelectorAll('[data-nq-backend]').length;`));
     ok(`${name}: the menu inside the screen, no sideways scroll`, await js(`var r=${MENU}.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1 && r.top >= -1 && r.height > 120 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1;`), await js(`return JSON.stringify(${MENU}.getBoundingClientRect()) + ' / ' + innerWidth;`));
     ok(`${name}: the chip fits in the composer row`, await js(`var c=${CHIP}.getBoundingClientRect(), s=${D}.getBoundingClientRect(); return c.width > 40 && c.left >= s.left - 1 && c.right <= s.right + 1;`));
     await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(100);
