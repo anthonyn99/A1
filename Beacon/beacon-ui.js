@@ -518,9 +518,13 @@ function reloadSoon() { clearTimeout(reloadT); reloadT = setTimeout(function () 
 function load(quiet) {
   var p = P; if (!p) return;
   if (!quiet || !p.data) { p.root.querySelector('[data-body]').innerHTML = '<div class="state">Finding your devices…</div>'; thumbSync(p); }
-  B.list(p.ctx.profile, { pushLists: p.ctx.pushLists }).then(function (data) {
+  var al = p.ctx.alerts;
+  var alertsP = al && al.get ? Promise.resolve().then(function () { return al.get(p.ctx.profile); }).catch(function () { return null; }) : Promise.resolve(null);
+  Promise.all([B.list(p.ctx.profile, { pushLists: p.ctx.pushLists }), alertsP]).then(function (both) {
+    var data = both[0];
     if (P !== p) return;
     p.data = data;
+    p.alerts = both[1];
     if (p.form && p.form.id !== '*old' && !find(p.form.id)) p.form = null;
     // Never redraw under someone typing a name: catch up when the form closes.
     if (p.form && p.form.type === 'rename' && quiet) { p.dirty = true; return; }

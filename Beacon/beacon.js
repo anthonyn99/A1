@@ -688,7 +688,9 @@ function open(o) {
   return loadUI().then(function (U) {
     var pushLists = [];
     Object.keys(HOSTS).forEach(function (a) { if (HOSTS[a].pushList) pushLists.push(HOSTS[a].pushList); });
-    return U.open({ app: app, appLabel: h.label || APP_NAMES[app] || app, profile: profile, pushLists: pushLists, fcm: !!h.fcm });
+    // `alerts` (TradeHub 2026-11-21, RESERV's per-device switches): the program's own alert registrations, so the
+    // panel can register this device and switch each device's alerts on or off.
+    return U.open({ app: app, appLabel: h.label || APP_NAMES[app] || app, profile: profile, pushLists: pushLists, fcm: !!h.fcm, alerts: h.alerts || null });
   });
 }
 
