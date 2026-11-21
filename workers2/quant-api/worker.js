@@ -433,7 +433,7 @@ async function tradeRoute(req, env, url, p, m) {
     const n = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 200));
     let rows = [];
     try { rows = (await env.DB.prepare("SELECT * FROM paper_orders WHERE broker = 'webull' ORDER BY at DESC LIMIT ?").bind(n).all()).results || []; }
-    catch (e) { if (!/no such column/i.test(String(e.message))) throw e; }
+    catch (e) { if (!/no such column|has no column/i.test(String(e.message))) throw e; }
     return json({ ok: true, orders: rows.map((r) => ({ ...r, body: JSON.parse(r.body || 'null') })) });
   }
   if (rest === '/orders' && m === 'POST') return webull.place(env, req, url, { priceOf: paperPrice(env) });

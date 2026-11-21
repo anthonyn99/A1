@@ -201,7 +201,7 @@ async function logRow(env, row) {
       .bind(row.id, row.at, dayNY(row.at), null, row.who, row.reason || null, row.symbol, row.side, row.type, row.qty, JSON.stringify(row.body), row.status, 'webull').run();
   } catch (e) {
     // Fails closed: an order that cannot be logged is not sent.
-    if (/no such (table|column)/i.test(String(e && e.message))) throw fail(503, 'the order log has no broker column yet (D1 migration 0014_broker.sql): Webull orders wait for it');
+    if (/no such (table|column)|has no column named/i.test(String(e && e.message))) throw fail(503, 'the order log has no broker column yet (D1 migration 0014_broker.sql): Webull orders wait for it');
     throw e;
   }
 }
