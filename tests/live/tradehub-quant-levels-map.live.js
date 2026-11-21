@@ -62,7 +62,8 @@ const ok = (name, cond, extra) => {
     const g = JSON.parse(await js(`var b=${BOX}.getBoundingClientRect(), p=${BOX}.querySelector('[data-lvm-plot]').getBoundingClientRect(), l=${BOX}.querySelector('[data-lvm-list]').getBoundingClientRect(); return JSON.stringify({b:[b.left,b.top,b.right,b.bottom], p:[p.left,p.top,p.width,p.height], l:[l.left,l.top,l.width,l.height], W:innerWidth, H:innerHeight, sx: document.documentElement.scrollWidth - document.documentElement.clientWidth});`));
     ok(`${name}: the box inside the screen, no sideways scroll`, g.b[0] >= -1 && g.b[1] >= -1 && g.b[2] <= g.W + 1 && g.b[3] <= g.H + 1 && g.sx <= 1, JSON.stringify(g));
     ok(`${name}: a real chart (at least 250 px tall, most of the width${name === 'phone' ? '' : ' beside the list'})`, g.p[3] >= 250 && g.p[2] >= (name === 'phone' ? g.W - 40 : g.W * 0.45), JSON.stringify(g));
-    ok(`${name}: the list ${name === 'phone' || name === 'tablet' ? 'under' : 'beside'} the chart, with room to read`, name === 'desktop' ? g.l[0] >= g.p[0] + g.p[2] - 1 && g.l[3] > 200 : g.l[1] >= g.p[1] + g.p[3] - 1 && g.l[3] > 80, JSON.stringify(g));
+    const beside = g.W > 820;   // the list goes under the chart only on a narrow screen (levels-map.css)
+    ok(`${name}: the list ${beside ? 'beside' : 'under'} the chart, with room to read`, beside ? g.l[0] >= g.p[0] + g.p[2] - 1 && g.l[3] > 200 : g.l[1] >= g.p[1] + g.p[3] - 1 && g.l[3] > 80, JSON.stringify(g));
     await js(`document.querySelector('[data-lvm-close]').click(); 1`); await sleep(200);
   }
 
