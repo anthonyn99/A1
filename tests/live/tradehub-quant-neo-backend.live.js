@@ -41,7 +41,7 @@ const ok = (name, cond, extra) => {
   ok('...Auto is ticked', await js(`return ${MENU}.querySelector('[data-nq-be="auto"]').getAttribute('aria-selected') === 'true';`));
   ok('...it sits inside the screen, above the composer', await js(`var r=${MENU}.getBoundingClientRect(), s=${D}.querySelector('[data-nq-send]').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= s.top + 1;`), await js(`return JSON.stringify(${MENU}.getBoundingClientRect());`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(150);
-  ok('Escape closes it', await js(`return ${MENU}.hidden;`));
+  ok('Escape closes it, and only it (the dock stays open)', await js(`return ${MENU}.hidden && !${D}.hidden;`));
   await openMenu();
   await js(`document.querySelector('.tb-page, main, body').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); 1`); await sleep(150);
   ok('a click outside closes it', await js(`return ${MENU}.hidden;`));
@@ -69,14 +69,15 @@ const ok = (name, cond, extra) => {
   const n1 = (api.posted.ai || []).length;
   await askTyped('What changed?');
   for (let i = 0; i < 40 && (api.posted.ai || []).length === n1; i++) await sleep(200);
-  ok('back on Auto: no provider sent, and nothing kept on the device', lastChat() && !lastChat().body.provider && localStorage_none(await js(`return localStorage.getItem('tradehub.neoBackend');`)), JSON.stringify(lastChat() && lastChat().body.provider));
+  // The question's own request (a follow-up check of the answer names the provider that answered, by design).
+  const firstAuto = (api.posted.ai || []).slice(n1).find((x) => x.p === '/ai/chat');
+  ok('back on Auto: no provider sent, and nothing kept on the device', firstAuto && !firstAuto.body.provider && localStorage_none(await js(`return localStorage.getItem('tradehub.neoBackend');`)), JSON.stringify(firstAuto && firstAuto.body.provider));
   await sleep(1200);
 
   console.log('\n3. Every width');
   for (const [w, hgt, name] of [[1280 + 224, 900, 'desktop'], [820 + 224, 1000, 'tablet'], [390, 844, 'phone']]) {
     await size(w, hgt); await sleep(700); await openDock();
     await openMenu();
-    if (name === 'desktop') console.log('   debug:', await js(`var e=${MENU}, out=[]; while(e){ var cs=getComputedStyle(e); out.push((e.className||e.tagName)+':'+cs.display+'/'+e.hidden); e=e.parentElement; } return out.slice(0,8).join(' > ') + ' | docks=' + document.querySelectorAll('[data-nq-dock]').length + ' chips=' + document.querySelectorAll('[data-nq-backend]').length;`));
     ok(`${name}: the menu inside the screen, no sideways scroll`, await js(`var r=${MENU}.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1 && r.top >= -1 && r.height > 120 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1;`), await js(`return JSON.stringify(${MENU}.getBoundingClientRect()) + ' / ' + innerWidth;`));
     ok(`${name}: the chip fits in the composer row`, await js(`var c=${CHIP}.getBoundingClientRect(), s=${D}.getBoundingClientRect(); return c.width > 40 && c.left >= s.left - 1 && c.right <= s.right + 1;`));
     await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(100);
