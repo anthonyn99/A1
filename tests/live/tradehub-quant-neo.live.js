@@ -172,7 +172,7 @@ const ok = (name, cond, extra) => {
     await js(`var d=document.querySelector('[data-nq-dock]'); if(d.hidden) document.querySelector('[data-nq-launch]').click(); 1`);
     await sleep(300);
     const geo = await js(`var d=document.querySelector('[data-nq-dock]'), r=d.getBoundingClientRect(); return JSON.stringify({ size: d.dataset.size, w: Math.round(r.width), right: Math.round(r.right), bottom: Math.round(r.bottom), scrim: !document.querySelector('[data-nq-scrim]').hidden, sx: document.scrollingElement.scrollWidth <= innerWidth + 1 });`).then(JSON.parse);
-    ok(`${w} px: the dock is a ${kind === 'desktop' ? 'panel beside the tab' : kind === 'tablet' ? 'slide-over' : 'bottom sheet'}${kind === 'desktop' ? '' : ' over a backdrop'}; no sideways scroll`, geo.size === kind && geo.scrim === (kind !== 'desktop') && geo.sx && geo.right <= w + 1 && (kind !== 'phone' || (geo.w >= w - 2 && geo.bottom >= hgt - 2)), JSON.stringify(geo));
+    ok(`${w} px: the dock is a ${kind === 'desktop' ? 'panel beside the tab' : kind === 'tablet' ? 'slide-over' : 'bottom sheet'}${kind === 'desktop' ? '' : ' over a backdrop'}; no sideways scroll`, geo.size === kind && geo.scrim === (kind !== 'desktop') && geo.sx && geo.right <= w + 1 && (kind !== 'phone' || (geo.w >= w - 20 && geo.bottom <= hgt - 60 && geo.bottom >= hgt - 90)), JSON.stringify(geo));   // B7 (ask 7): the sheet rests just above the launchers
     await shot('neo-dock-' + w);
     await js(`var i=document.querySelector('[data-nq-dock] [data-nq-input]'); i.focus(); i.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
     ok(`${w} px: Escape closes it`, await until(`document.querySelector('[data-nq-dock]').hidden && !document.querySelector('[data-nq-launch]').hidden`, 2000));
