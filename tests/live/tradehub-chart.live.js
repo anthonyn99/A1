@@ -79,7 +79,9 @@ const CH = `${TAB}.active()`;
     // Phase 14: the alert bell (every tab) reads the fires once a minute and sends the catalysts once a visit.
     '/alerts/fires', '/alerts/catalysts',
     // R7: Analysis and Key Stats read the open ticker's /summary (one call, kept 10 minutes on the page).
-    '/summary'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2 && visit.filter((p) => p === '/summary').length <= 1, visit.join());
+    '/summary',
+    // Tony 2026-11-21: with it, the ticker's /splits (once; memoised 6 h in the gateway) so per-share figures fetched before a split are adjusted.
+    '/splits'].includes(p)) && visit.filter((p) => p === '/quotes').length <= 2 && visit.filter((p) => p === '/summary').length <= 1 && visit.filter((p) => p === '/splits').length <= 1, visit.join());
 
   console.log('\nZoom and pan');
   let s = await stage();
