@@ -48,7 +48,7 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('Control has the switch, unticked', await until(`document.querySelector('.ctl-quant input[type=checkbox]') && !document.querySelector('.ctl-quant input[type=checkbox]').checked`, 8000));
   ok('...and no data status card', await js(`return !document.querySelector('.ctl-status');`));
   await sleep(1500);
-  ok('no TradeHub module was fetched', (await modules()) === 0, await modules());
+  ok('no TradeHub module was fetched', (await modules()) === 0, await js(`return performance.getEntriesByType('resource').map(function(r){return r.name;}).filter(function(n){return n.indexOf('/A1/TradeHub/') >= 0;}).join(' ');`));
   ok('no quant-api call was made', api.asked.length === 0, paths().join());
   ok('tabs change with no motion class on the app', await js(`return !document.querySelector('.tbq-on');`));
 
