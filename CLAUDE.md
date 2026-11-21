@@ -108,8 +108,8 @@
   and `quant/r1-10.md` list what is left with Tony). **Refinements Batch 2
   (2026-11-20, 41 asks, phases B0-B11): "continue Quant" = read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-2.md` and build the
-  phase it names** (its §0 also says how Tony's and Veda's Claude accounts hand
-  the plan artifact to each other). The plan stays
+  phase it names** (since 2026-11-21 the work stays on Tony's account; its §0
+  names the one plan artifact to keep current). The plan stays
   in private A1-Priv (A1 is public). Otherwise read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` (what is left
   with Tony, what to do with a new ask) and `quant-README.md` beside it (the
