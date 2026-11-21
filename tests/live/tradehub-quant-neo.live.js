@@ -77,7 +77,8 @@ const ok = (name, cond, extra) => {
   ok('one fast-lane call, with the system prompt and the packs the question needs', ai().length === 1 && ai()[0].p === '/ai/chat' && /You are Neo Quant/.test(req.system) && req.facts.some((f) => f.pack === 'ticker' && /NVDA/.test(f.text)) && req.facts.some((f) => f.pack === 'market') && req.facts.some((f) => f.pack === 'now'), JSON.stringify(req && req.facts.map((f) => f.pack)));
   ok('...the question is the last message', req.messages[req.messages.length - 1].content === 'Is NVDA a buy here?');
   const a1 = await js(`var a=${lastA()}; return JSON.stringify({ chip: (a.querySelector('[data-nq-verdict]')||{}).textContent, secs: [...a.querySelectorAll('.nq-sec')].map(function(s){return s.dataset.sec;}), cites: a.querySelectorAll('[data-nq-cite]').length, struck: !!a.querySelector('[data-nq-struck]') });`).then(JSON.parse);
-  ok('verdict chip WATCH, the four labelled sections, cited facts, nothing struck', a1.chip === 'WATCH' && a1.secs.join() === 'VERDICT,WHY,RISK,WATCH' && a1.cites >= 2 && !a1.struck, JSON.stringify(a1));
+  // B9: the VERDICT line is the headline beside the chip (data-nq-headline), so the sections below are WHY, RISK, WATCH.
+  ok('verdict chip WATCH with its headline, the labelled sections, cited facts, nothing struck', a1.chip === 'WATCH' && a1.secs.join() === 'WHY,RISK,WATCH' && a1.cites >= 2 && !a1.struck && await js(`return !!document.querySelector('[data-nq-dock] [data-nq-headline]');`), JSON.stringify(a1));
   await js(`${lastA()}.querySelector('[data-nq-cite]').click(); 1`);
   ok('a tap on a cited fact shows it, its source and how fresh it is', await until(`(function(){var f=${lastA()}.querySelector('[data-nq-fact]'); return f && /NVDA/.test(f.innerText) && f.querySelector('.nq-label');})()`, 3000));
   const turns = api.posted.turns || [];
