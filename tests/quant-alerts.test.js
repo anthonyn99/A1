@@ -474,6 +474,26 @@ globalThis.fetch = async (url, opts = {}) => {
     })(globalThis.fetch);
     await qp({ title: 'y' }, 'qs-123');
     ok('belt and braces: even if the query returned Veda\'s doc, it is not sent to', !F.sent.some((m) => m.token === 'tokV' || m.token === 'tokN'));
+    // 2026-11-21 (Tony: Beacon in TradeHub): devices registered for TradeHub alerts, each with its switch.
+    const regDev = (token, on) => ({ mapValue: { fields: { token: { stringValue: token }, ...(on === undefined ? {} : { on: { booleanValue: on } }), ua: { stringValue: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari' } } } });
+    F.docs.set('dashboards/tradehub_push_tony', { devices: { mapValue: { fields: { devA: regDev('thA', true), devP: regDev('thP'), devOff: regDev('thOff', false), devNoTok: { mapValue: { fields: { on: { booleanValue: true } } } } } } } });
+    F.sent = []; F.queries.length = 0;
+    x = await qp({ title: 'z' }, 'qs-123');
+    const rt = F.sent.map((m) => m.token).sort();
+    ok('registered devices: only those switched on (missing switch = on), never TaskHub\'s tokens', rt.join() === 'thA,thP', rt);
+    ok('...a switched-off device and an entry with no token get nothing; source says tradehub', !rt.includes('thOff') && x.body.source === 'tradehub' && x.body.sent === 2, x.body);
+    F.docs.get('dashboards/tradehub_push_tony').devices.mapValue.fields.devA = regDev('thA', false);
+    F.sent = [];
+    await qp({ title: 'z2' }, 'qs-123');
+    ok('a switch counts at the very next push (the document is read every time)', F.sent.map((m) => m.token).join() === 'thP');
+    F.docs.set('dashboards/tradehub_push_tony', { devices: { mapValue: { fields: { devOff: regDev('thOff', false) } } } });
+    F.sent = [];
+    x = await qp({ title: 'z3' }, 'qs-123');
+    ok('registered but every switch off: nothing is sent (no fallback to TaskHub)', F.sent.length === 0 && x.body.source === 'tradehub');
+    F.docs.delete('dashboards/tradehub_push_tony');
+    F.sent = [];
+    x = await qp({ title: 'z4' }, 'qs-123');
+    ok('nothing registered yet: TaskHub\'s devices, as before', F.sent.some((m) => m.token === 'tokA') && x.body.source === 'taskhub');
     globalThis.fetch = prev;
     // TaskHub's own reminders code is untouched by this route: the send path and the scoping function are the same text.
     const rs = fs.readFileSync(REM, 'utf8');
