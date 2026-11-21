@@ -141,6 +141,10 @@ globalThis.fetch = async (url, opts = {}) => {
   ok('quiet 22:00-07:00 Denver: 23:30 Denver is quiet', A.isQuiet(cfg, Date.UTC(2026, 10, 17, 6, 30)));
   ok('… 06:59 quiet, 07:00 not', A.isQuiet(cfg, Date.UTC(2026, 10, 17, 13, 59)) && !A.isQuiet(cfg, Date.UTC(2026, 10, 17, 14, 0)));
   ok('… noon not', !A.isQuiet(cfg, Date.UTC(2026, 10, 17, 19)));
+  // B10 step 2: the boundary minutes exactly, in winter (MST, UTC-7) and summer (MDT, UTC-6).
+  ok('B10 boundary: 21:59 Denver (MST) not quiet, 22:00 quiet', !A.isQuiet(cfg, Date.UTC(2026, 10, 18, 4, 59)) && A.isQuiet(cfg, Date.UTC(2026, 10, 18, 5, 0)));
+  ok('B10 boundary: 06:59 Denver (MST) quiet, 07:00 not', A.isQuiet(cfg, Date.UTC(2026, 10, 18, 13, 59)) && !A.isQuiet(cfg, Date.UTC(2026, 10, 18, 14, 0)));
+  ok('B10 boundary in summer (MDT): 21:59 not, 22:00 quiet, 06:59 quiet, 07:00 not', !A.isQuiet(cfg, Date.UTC(2026, 6, 15, 3, 59)) && A.isQuiet(cfg, Date.UTC(2026, 6, 15, 4, 0)) && A.isQuiet(cfg, Date.UTC(2026, 6, 15, 12, 59)) && !A.isQuiet(cfg, Date.UTC(2026, 6, 15, 13, 0)));
   ok('quiet off: never quiet', !A.isQuiet(A.configOf({}), Date.UTC(2026, 10, 17, 6, 30)));
   ok('a bad time zone falls back, bad times fall back', A.configOf({ quiet: { tz: 'Nowhere/Land', from: '25:00' } }).quiet.tz === 'America/Denver' && A.configOf({ quiet: { from: '25:00' } }).quiet.from === '22:00');
   const mc = A.configOf({ mute: { nvda: 0, AMD: MON_10 + 60000, 'bad sym!': 0 } });
@@ -255,6 +259,16 @@ globalThis.fetch = async (url, opts = {}) => {
     await call(e2, 'PUT', '/alerts/config', { config: { mute: { TSLA: 0 } } });
     W.prices = { TSLA: 399 }; await A.check(e2, MON_10); W.prices = { TSLA: 401 }; x = await A.check(e2, MON_10 + 60000);
     ok('a muted ticker: listed, not pushed', x.fired[0] && x.fired[0].why === 'muted');
+    // B10 step 2: a timed mute on a price alert, then the mute runs out.
+    const e2b = mkEnv();
+    await call(e2b, 'POST', '/alerts', { alert: { symbol: 'TSLA', price: 400, params: { dir: 'above' } } });
+    await call(e2b, 'PUT', '/alerts/config', { config: { mute: { TSLA: MON_10 + 90000 } } });
+    W.prices = { TSLA: 399 }; await A.check(e2b, MON_10);
+    const nm = W.pushes.length;
+    W.prices = { TSLA: 401 }; x = await A.check(e2b, MON_10 + 60000);
+    ok('B10: a price alert on a ticker muted for 90 s: listed as muted, nothing pushed', x.fired.length === 1 && x.fired[0].why === 'muted' && W.pushes.length === nm);
+    W.prices = { TSLA: 395 }; await A.check(e2b, MON_10 + 32 * 60000); W.prices = { TSLA: 401 }; x = await A.check(e2b, MON_10 + 33 * 60000);
+    ok('B10: ...the mute has run out, price moved back (re-armed) and past the cooldown: the next cross pushes', x.fired.length === 1 && !x.fired[0].why && W.pushes.length === nm + 1, JSON.stringify(x.fired));
     const e3 = mkEnv();
     await call(e3, 'POST', '/alerts', { alert: { symbol: 'TSLA', price: 400, params: { dir: 'above' }, quiet: true } });
     W.prices = { TSLA: 399 }; await A.check(e3, MON_10); W.prices = { TSLA: 401 }; x = await A.check(e3, MON_10 + 60000);
@@ -495,6 +509,14 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('...covering price, signal, graded, regime, catalyst and data', ['price', 'signal', 'graded', 'regime', 'catalyst', 'data'].every((k) => A.TEST_KINDS.some((x) => x.kind === k)));
     ok('...and says what each would normally do now (pushed, quiet hours, outside market hours, kind off)', Array.isArray(tj.results) && tj.results.every((x) => typeof x.normally === 'string'), JSON.stringify(tj).slice(0, 200));
     ok('...only to Tony: it goes through the same /quant-push route as every alert', sent.every((p) => p.headers && p.headers['x-quant-secret'] === 's3cret'));
+    // B10 step 2: quiet hours over "now": the test still sends every kind, and each says "quiet hours".
+    const eq = mkEnv();
+    await call(eq, 'PUT', '/alerts/config', { config: { quiet: { on: true, from: '00:00', to: '23:59', tz: 'America/Denver' } } });
+    const n2 = W.pushes.length;
+    const tq = await call(eq, 'POST', '/alerts/test-all');
+    const tqj = tq.body || tq.json || tq;
+    ok('B10: quiet hours on over now: Send every kind once still sends all of them...', W.pushes.length - n2 === A.TEST_KINDS.length);
+    ok('B10: ...and the table says "quiet hours" for every kind', tqj.results.length === A.TEST_KINDS.length && tqj.results.every((x) => x.normally === 'quiet hours'), JSON.stringify(tqj.results.map((x) => x.normally)));
   }
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

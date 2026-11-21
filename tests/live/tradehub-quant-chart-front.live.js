@@ -1,7 +1,7 @@
 // TradeHub Quant, Charts: the newest bar stays in view (Tony 2026-11-20: "4H time frame, the latest data is
 // all the way back in June. Should be up to date"). A chart showing its front (the newest bar) is still on
 // its front after every interval, range and symbol switch; and a wheel zoom at the front centres on the
-// cursor, never on the front (Tony: "it always zooms to front no matter where my cursor is").
+// cursor, never on the front (Tony: "it always zooms to front no matter where my cursor is"), in AND out (2026-11-21).
 //
 // Run: CDP_PORT=93xx node tests/live/tradehub-quant-chart-front.live.js
 'use strict';
@@ -68,6 +68,16 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
       await sleep(800);
       const L1 = await at(), I1 = await info();
       ok('a wheel zoom-in at the front keeps the bar under the cursor under it', Math.abs(L1 - L0) < 1.5 && (I1.view.to - I1.view.from) < (I0.view.to - I0.view.from), `bar ${L0.toFixed(1)} -> ${L1.toFixed(1)}; view ${fmt(I0)} -> ${fmt(I1)}`);
+      // Tony 2026-11-21: zoom OUT pins to the cursor too ("like how zooming in zooms into my cursor"), Webull's way.
+      // Three steps out from the zoomed-in front view, the cursor at 70% across (the newest bar on screen).
+      const x2 = st.l + st.w * 0.7;
+      const at2 = async () => Number(await js(`var ch=${CH}.chart(), b=document.querySelector('[data-ch-main] .ch-stage').getBoundingClientRect(); return ch.timeScale().coordinateToLogical(${x2} - b.left);`));
+      const L2 = await at2(), I2 = await info();
+      for (let i = 0; i < 3; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: x2, y, deltaX: 0, deltaY: 240 }); await sleep(250); }
+      await sleep(800);
+      const L3 = await at2(), I3 = await info();
+      ok('Tony 2026-11-21: a wheel zoom-OUT at the front keeps the bar under the cursor under it', Math.abs(L3 - L2) < 1.5 && (I3.view.to - I3.view.from) > (I2.view.to - I2.view.from), `bar ${L2.toFixed(1)} -> ${L3.toFixed(1)}; view ${fmt(I2)} -> ${fmt(I3)}`);
+      ok('...and the newest bar is still on screen, with no screen of blank after it', front(I3), fmt(I3));
     }
   }
   // SNDK's real 8-for-1 (ex 2026-11-20), served on the OLD basis as Alpaca did (A1-Priv fixture), moved by
