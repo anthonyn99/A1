@@ -2,7 +2,8 @@
 // (GraphQL analytics). Written 2026-11-19, when account 2 ran out of its
 // 100,000 free requests a day: this says which worker took them.
 // A change to this file runs the workflow (.github/workflows/cf-usage-2.yml): the last such run was TradeHub Quant
-// Batch 2's final test (B11, 2026-11-21), comparing against B0's incident-day numbers.
+// Batch 2's final test (B11, 2026-11-21), comparing against B0's incident-day numbers; then Batch 4 T0's
+// baseline (2026-11-21 evening), which T8, N3 and N8 compare against (A1-Priv docs/TradeHub/quant-trading.md).
 //
 // Run: CF_TOKEN=… CF_ACCOUNT=… node tools/cf-usage.mjs [days]
 //      (the "Cloudflare usage (account 2)" workflow runs it with the stored secrets)
