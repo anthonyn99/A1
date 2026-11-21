@@ -101,6 +101,12 @@ const ok = (name, cond, extra) => {
   ok('…each device carries its TradeHub alerts line', await js(`var r=${PANEL}; return r.querySelectorAll('[data-dev]').length === 0 || r.querySelectorAll('[data-alerts-dev]').length === r.querySelectorAll('[data-dev]').length;`));
   await shot('alerts-beacon-1280');
   await js(`${PANEL}.querySelector('[data-x]').click(); 1`); await sleep(300);
+  // 2026-11-21: a tap on an alert with TradeHub already open (on Portfolio) only focused the tab. The push worker now
+  // posts the alert's link; the page goes there itself.
+  await tab('portfolio'); await sleep(500);
+  await js(`navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'tb-alert-open', url: location.origin + location.pathname + '#alert=chart:AMD' } })); 1`);
+  ok('a tapped alert, TradeHub already open on Portfolio: the open tab goes to the alert\'s place (Charts, AMD)', await until(`window._tbOps && window._tbOps.app && window._tbOps.app.page() === 'charts' && window._tbOps.charts && window._tbOps.charts.get().symbol === 'AMD'`, 10000), await js(`return window._tbOps && window._tbOps.app ? window._tbOps.app.page() : 'no ops';`));
+  await js(`window.tbControlShow('alerts'); 1`); await tab('prompt'); await until(`document.querySelector('[data-tal-test]')`, 10000);
   await js(`document.querySelector('[data-tal-test]').click(); 1`);
   ok('Send test names the devices that received it', await until(`/Test sent to 2 devices: Tony PC, Pixel 9/.test((document.querySelector('[data-tal-msg]')||{}).textContent||'')`, 4000) && api.posted.tests === 1);
   // A new rule: price, PLTR above 30, holds.
