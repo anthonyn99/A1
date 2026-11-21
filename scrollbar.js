@@ -292,14 +292,14 @@
     }
     if (!isDoc) m.grip = gripStop(el, rect);
     // A floating button over the box's right edge (TradeHub's Neo Quant launchers) marks itself
-    // data-sb-bottom: the vertical bar ends 6px above the highest one showing, so it never runs under it.
+    // data-sb-bottom: the vertical bar (only: a sideways bar stays at the bottom) ends 6px above the highest one showing.
     var stop = Infinity, fl = doc.querySelectorAll('[data-sb-bottom]');
     for (var fi = 0; fi < fl.length; fi++) {
       var fr = fl[fi].getBoundingClientRect();
       if (fr.height > 0 && fr.right >= rect.right - 40 && fr.left <= rect.right && fr.top > rect.top && fr.top < rect.bottom) stop = Math.min(stop, fr.top - 6);
     }
     m.g = {
-      top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh(), stop),
+      top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh()), vstop: stop,
       left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
       border: isDoc ? { t: 0, r: 0, b: 0, l: 0 } : { t: el.clientTop, l: el.clientLeft, r: rect.width - el.clientWidth - el.clientLeft, b: rect.height - el.clientHeight - el.clientTop },
     };
@@ -317,7 +317,7 @@
       var r = b[axis], s = m[axis]; if (!r || !s) return;
       var vert = axis === 'v';
       var len = vert
-        ? g.bottom - g.top - g.border.t - g.border.b - (m.h ? 14 : 0)
+        ? Math.min(g.bottom, g.vstop) - g.top - g.border.t - g.border.b - (m.h ? 14 : 0)
         : g.right - g.left - g.border.l - g.border.r - (m.v ? 14 : 0);
       if (m.grip) len = Math.min(len, vert ? m.grip.top - g.top - g.border.t : m.grip.left - g.left - g.border.l);
       len = Math.max(0, len);
