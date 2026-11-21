@@ -8,8 +8,10 @@
 //   POST   /alerts { alert }        add or change one (same id); at most 200
 //   DELETE /alerts?id=              remove one
 //   POST   /alerts/order { ids }    Tony's order (Control ▸ Alerts, A1 drag)
-//   GET    /alerts/fires?limit=50   { fires, unseen }             newest first: the bell's list
-//   POST   /alerts/seen             every fire marked seen (the bell's count back to 0)
+//   GET    /alerts/fires?limit=50[&before=id][&kinds=a,b][&unread=1]   { fires, unseen, more }   newest first: the
+//                                    notification center (C3: pages back with before=, every alert AND every test send)
+//   POST   /alerts/seen { upTo? | ids? }   marked read: up to what the page showed, or just those (one, a group)
+//   POST   /alerts/clear { ids | all }     cleared from the center (kept as a tombstone, so it can never fire again)
 //   GET/PUT /alerts/config          kinds on/off, quiet hours, market hours only, per-ticker mute, TaskHub cards
 //   PUT    /alerts/catalysts { items }   the next high-impact releases for held or watched tickers (from the page)
 //   POST   /alerts/test             a test push → { sent, failed, devices }
@@ -279,23 +281,56 @@ export async function orderAlerts(env, req) {
   try { if (env.DB.batch) await env.DB.batch(stmts); else for (const s of stmts) await s.run(); } catch (e) { if (noTable(e)) throw notYet(); throw e; }
   return json({ ok: true, n: ids.length });
 }
-/** GET /alerts/fires?limit=50: newest first, and how many are unseen. */
+// C3 (Tony 2026-11-21, the notification center): `seen` 0 unread, 1 read, CLEARED a fire Tony cleared. A cleared row
+// stays (hidden) until the trim, because (rule_id, trigger_key) is what stops a trigger firing twice: deleting it
+// would let the same signal or catalyst push again. Test sends are kept too, under rule TEST_RULE.
+export const CLEARED = 2, TEST_RULE = 'test', KEEP_DAYS = 45, KEEP_MIN = 500, KEEP_MAX = 5000;
+const FIRE_KINDS = [...KINDS, 'test'];
+const fireOut = (r) => ({ ...r, devices: parse(r.devices, []), seen: !!r.seen, test: r.rule_id === TEST_RULE });
+/** GET /alerts/fires?limit=50[&before=<id>][&kinds=price,signal][&unread=1]: newest first, the unread count, and
+ *  `more` when an older page is there (the center asks for it with before = the last id it has). */
 export async function getFires(env, url) {
-  const n = Math.max(1, Math.min(FIRES_MAX, Number(url.searchParams.get('limit')) || 50));
+  const q = url.searchParams;
+  const n = Math.max(1, Math.min(FIRES_MAX, Number(q.get('limit')) || 50));
+  const before = Number(q.get('before'));
+  const kinds = String(q.get('kinds') || '').split(',').map((k) => k.trim()).filter((k) => FIRE_KINDS.includes(k));
+  const where = ['seen < ' + CLEARED], args = [];
+  if (Number.isFinite(before) && before > 0) { where.push('id < ?'); args.push(before); }
+  if (kinds.length) { where.push('kind IN (' + kinds.map(() => '?').join(',') + ')'); args.push(...kinds); }
+  if (q.get('unread') === '1') where.push('seen = 0');
   try {
-    const rows = (await env.DB.prepare('SELECT * FROM alert_fires ORDER BY at DESC, id DESC LIMIT ?').bind(n).all()).results || [];
+    // id order is arrival order (AUTOINCREMENT), so before= pages cleanly even when two fires share a millisecond.
+    const rows = (await env.DB.prepare('SELECT * FROM alert_fires WHERE ' + where.join(' AND ') + ' ORDER BY id DESC LIMIT ?').bind(...args, n + 1).all()).results || [];
     const u = await env.DB.prepare('SELECT COUNT(*) AS n FROM alert_fires WHERE seen = 0').first();
-    return json({ ok: true, fires: rows.map((r) => ({ ...r, devices: parse(r.devices, []), seen: !!r.seen })), unseen: (u && u.n) || 0 });
-  } catch (e) { if (noTable(e)) return json({ ok: true, fires: [], unseen: 0, missing: true }); throw e; }
+    return json({ ok: true, fires: rows.slice(0, n).map(fireOut), unseen: (u && u.n) || 0, more: rows.length > n });
+  } catch (e) { if (noTable(e)) return json({ ok: true, fires: [], unseen: 0, more: false, missing: true }); throw e; }
 }
-/** POST /alerts/seen: the bell's count back to 0 (one write; also trims the list to its newest 500). */
-export async function seenFires(env, req) {
-  // upTo: the newest fire the page showed; a fire that arrived after that stays unseen.
-  let upTo = null;
-  try { const b = req ? await req.json() : null; if (b && Number.isFinite(Number(b.upTo))) upTo = Number(b.upTo); } catch (e) {}
+const idsOf = (b) => (Array.isArray(b && b.ids) ? b.ids.map(Number).filter((x) => Number.isInteger(x) && x > 0).slice(0, 500) : null);
+/** The trim (runs with seen/clear): rows older than KEEP_DAYS go once more than KEEP_MIN are kept; never more than KEEP_MAX. */
+const trimStmts = (env, now) => [
+  env.DB.prepare('DELETE FROM alert_fires WHERE at < ? AND id NOT IN (SELECT id FROM alert_fires ORDER BY id DESC LIMIT ?)').bind(now - KEEP_DAYS * 86400_000, KEEP_MIN),
+  env.DB.prepare('DELETE FROM alert_fires WHERE id NOT IN (SELECT id FROM alert_fires ORDER BY id DESC LIMIT ?)').bind(KEEP_MAX),
+];
+/** POST /alerts/clear { ids } | { all: true }: cleared from the center (Tony confirms on the page first). */
+export async function clearFires(env, req, now = Date.now()) {
+  const b = await bodyOf(req, 20_000);
+  const ids = idsOf(b);
+  if (!(b && b.all === true) && !(ids && ids.length)) throw fail(400, 'ids or all is needed');
+  const stmts = [b.all === true ? env.DB.prepare('UPDATE alert_fires SET seen = ? WHERE seen < ?').bind(CLEARED, CLEARED)
+    : env.DB.prepare('UPDATE alert_fires SET seen = ? WHERE id IN (' + ids.map(() => '?').join(',') + ')').bind(CLEARED, ...ids), ...trimStmts(env, now)];
+  try { if (env.DB.batch) await env.DB.batch(stmts); else for (const x of stmts) await x.run(); } catch (e) { if (noTable(e)) throw notYet(); throw e; }
+  const u = await env.DB.prepare('SELECT COUNT(*) AS n FROM alert_fires WHERE seen = 0').first();
+  return json({ ok: true, cleared: b.all === true ? 'all' : ids.length, unseen: (u && u.n) || 0 });
+}
+/** POST /alerts/seen: marked read (one write; also the trim, C3: at least KEEP_DAYS days of history). */
+export async function seenFires(env, req, now = Date.now()) {
+  // upTo: the newest fire the page showed; a fire that arrived after that stays unseen. ids: just those (C3).
+  let upTo = null, ids = null;
+  try { const b = req ? await req.json() : null; if (b && Number.isFinite(Number(b.upTo))) upTo = Number(b.upTo); ids = idsOf(b); } catch (e) {}
   try {
-    const stmts = [upTo == null ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0') : env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id <= ?').bind(upTo),
-      env.DB.prepare('DELETE FROM alert_fires WHERE id NOT IN (SELECT id FROM alert_fires ORDER BY at DESC, id DESC LIMIT 500)')];
+    const mark = ids && ids.length ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids)
+      : upTo == null ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0') : env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id <= ?').bind(upTo);
+    const stmts = [mark, ...trimStmts(env, now)];
     if (env.DB.batch) await env.DB.batch(stmts); else for (const s of stmts) await s.run();
   } catch (e) { if (noTable(e)) throw notYet(); throw e; }
   return json({ ok: true });
@@ -341,9 +376,18 @@ export async function push(env, msg) {
     return { ok: (j.sent || 0) > 0, sent: j.sent || 0, failed: j.failed || 0, devices: Array.isArray(j.devices) ? j.devices : [], ...(j.ms ? { ms: j.ms } : {}), ...(j.sent ? {} : { error: 'no device received it' }) };
   } catch (e) { return { ok: false, error: e.message || String(e) }; }
 }
+/** A test send kept in the center (C3: Brave on the PC keeps nothing, so TradeHub is the record). Never fails the send. */
+export async function keepTest(env, t, now, key) {
+  try {
+    await env.DB.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, symbol, title, body, url, pushed, why, devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (rule_id, trigger_key) DO NOTHING')
+      .bind(TEST_RULE, key, now, t.kind, t.symbol || null, clip(t.title, 140), clip(t.body, 400), t.url || PAGE_URL, t.res.ok ? 1 : 0, t.res.ok ? null : clip(t.res.error, 200), JSON.stringify(t.res.devices || [])).run();
+  } catch (e) { /* the table not there yet: the send still counts */ }
+}
+const symOfTitle = (t) => { const m = /^(?:\[Test\] )?(?:New GO: )?([A-Z]{1,6})\b/.exec(t || ''); return m && !['CPI', 'Regime'].includes(m[1]) ? m[1] : null; };
 /** POST /alerts/test: "Send test" in Control ▸ Alerts. */
-export async function testPush(env) {
+export async function testPush(env, now = Date.now()) {
   const r = await push(env, { title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', tag: 'tbq-test-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
+  await keepTest(env, { kind: 'test', title: 'TradeHub test alert', body: 'If you can read this, alerts reach this device.', url: PAGE_URL + '#alert=alerts', res: r }, now, 'one-' + now.toString(36) + Math.random().toString(36).slice(2, 6));
   // Each test its own tag: one tag for every test made the second REPLACE the first, silently (Tony, 2026-11-16).
   return json({ ok: r.ok, sent: r.sent || 0, failed: r.failed || 0, devices: r.devices || [], ...(r.ms ? { ms: r.ms } : {}), ...(r.error ? { error: r.error } : {}) });
 }
@@ -378,6 +422,7 @@ export async function testAll(env, now = Date.now(), { send = push, gap = env.TE
     if (out.length && gap) await new Promise((r) => setTimeout(r, gap));
     const would = cfg.kinds[t.kind] === false ? 'kind is off' : isQuiet(cfg, now) ? 'quiet hours' : cfg.marketOnly[t.kind] && !inSession(now) ? 'outside market hours' : null;
     const r = await send(env, { title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), tag: 'tbq-tall-' + run + '-' + i, card: false, kind: t.kind });
+    await keepTest(env, { kind: t.kind, symbol: symOfTitle(t.title), title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), res: r }, Date.now(), 'all-' + run + '-' + i);
     out.push({ kind: t.kind, what: t.what, title: '[Test] ' + t.title, body: t.body, ok: !!r.ok, devices: r.devices || [], error: r.ok ? null : r.error || null, normally: would || 'pushed' });
   }
   return json({ ok: out.every((x) => x.ok), sent: out.filter((x) => x.ok).length, of: out.length, results: out, notPushed: ['paper fills', 'strategy pauses'] });

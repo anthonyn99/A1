@@ -243,6 +243,7 @@ function alertsRoute(req, env, url, p, m) {
   if (p === '/alerts/order' && m === 'POST') return alerts.orderAlerts(env, req);
   if (p === '/alerts/fires' && m === 'GET') return alerts.getFires(env, url);
   if (p === '/alerts/seen' && m === 'POST') return alerts.seenFires(env, req);
+  if (p === '/alerts/clear' && m === 'POST') return alerts.clearFires(env, req);   // C3: the center's Clear
   if (p === '/alerts/config' && m === 'GET') return alerts.getConfig(env);
   if (p === '/alerts/config' && m === 'PUT') return alerts.putConfig(env, req);
   if (p === '/alerts/catalysts' && m === 'PUT') return alerts.putCatalysts(env, req);
