@@ -545,6 +545,52 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('B10: ...and the table says "quiet hours" for every kind', tqj.results.length === A.TEST_KINDS.length && tqj.results.every((x) => x.normally === 'quiet hours'), JSON.stringify(tqj.results.map((x) => x.normally)));
   }
 
+  console.log('\nC3: the notification center (paging, filters, read, clear, test sends kept)');
+  {
+    const e = { ...mkEnv(), TEST_GAP_MS: '0' };
+    const ins = (rule, key, kind, at, title, sym = null) => e.DB.sql.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, symbol, title, pushed) VALUES (?, ?, ?, ?, ?, ?, 1)').run(rule, key, at, kind, sym, title);
+    const T0 = Date.now() - 3 * 86400_000;
+    for (let i = 0; i < 7; i++) ins('r' + (i % 2), 'k' + i, i % 3 === 0 ? 'signal' : 'price', T0 + i * 60000, 'Alert ' + i, 'NVDA');
+    let r = await call(e, 'GET', '/alerts/fires?limit=3');
+    ok('C3: newest first, a page of 3, and more is there', r.body.fires.map((f) => f.title).join() === 'Alert 6,Alert 5,Alert 4' && r.body.more === true, r.body);
+    const last = r.body.fires[2].id;
+    r = await call(e, 'GET', '/alerts/fires?limit=3&before=' + last);
+    ok('C3: before= pages back with no gap and no repeat', r.body.fires.map((f) => f.title).join() === 'Alert 3,Alert 2,Alert 1' && r.body.more === true);
+    r = await call(e, 'GET', '/alerts/fires?limit=10&kinds=signal');
+    ok('C3: kinds= filters (signals only)', r.body.fires.length === 3 && r.body.fires.every((f) => f.kind === 'signal') && r.body.more === false);
+    r = await call(e, 'GET', '/alerts/fires?kinds=bogus,price');
+    ok('C3: an unknown kind is ignored', r.body.fires.every((f) => f.kind === 'price') && r.body.fires.length === 4);
+    const ids = (await call(e, 'GET', '/alerts/fires')).body.fires.map((f) => f.id);
+    await call(e, 'POST', '/alerts/seen', { ids: [ids[0], ids[1]] });
+    r = await call(e, 'GET', '/alerts/fires?unread=1');
+    ok('C3: seen { ids } marks just those read; unread=1 lists the rest', r.body.unseen === 5 && r.body.fires.length === 5 && !r.body.fires.some((f) => f.id === ids[0]));
+    await call(e, 'POST', '/alerts/clear', { ids: [ids[2]] });
+    r = await call(e, 'GET', '/alerts/fires');
+    ok('C3: clear { ids } hides that one (and it no longer counts as unread)', r.body.fires.length === 6 && !r.body.fires.some((f) => f.id === ids[2]) && r.body.unseen === 4);
+    const key = e.DB.sql.prepare('SELECT rule_id, trigger_key FROM alert_fires WHERE id = ?').get(ids[2]);
+    const again = e.DB.sql.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, title) VALUES (?, ?, 1, ?, ?) ON CONFLICT (rule_id, trigger_key) DO NOTHING').run(key.rule_id, key.trigger_key, 'price', 'again');
+    ok('C3: a cleared alert is kept as a tombstone, so its trigger can never fire (push) again', again.changes === 0);
+    ok('C3: clear with neither ids nor all is refused', (await call(e, 'POST', '/alerts/clear', {})).status === 400);
+    const n0 = W.pushes.length;
+    await call(e, 'POST', '/alerts/test');
+    await call(e, 'POST', '/alerts/test-all', { only: [4] });
+    r = await call(e, 'GET', '/alerts/fires?limit=2');
+    const [ga, one] = r.body.fires;
+    ok('C3: test sends are kept, marked test, with the devices they reached', W.pushes.length === n0 + 2 && ga.test === true && one.test === true && ga.title === '[Test] New GO: AMD breakout' && ga.kind === 'signal' && ga.symbol === 'AMD' && ga.devices.join() === 'Tony PC,Pixel' && one.kind === 'test', JSON.stringify(r.body.fires));
+    ok('C3: a real alert is not marked test', (await call(e, 'GET', '/alerts/fires?kinds=price')).body.fires.every((f) => f.test === false));
+    await call(e, 'POST', '/alerts/clear', { all: true });
+    r = await call(e, 'GET', '/alerts/fires');
+    ok('C3: clear { all } empties the center and the count', r.body.fires.length === 0 && r.body.unseen === 0 && r.body.more === false);
+    // History: 45 days kept, older trimmed once more than 500 rows are there.
+    const e2 = mkEnv(), now = Date.now();
+    const st = e2.DB.sql.prepare('INSERT INTO alert_fires (rule_id, trigger_key, at, kind, title) VALUES (?, ?, ?, ?, ?)');
+    for (let i = 0; i < 520; i++) st.run('h', 'old' + i, now - 60 * 86400_000 + i, 'price', 'old');
+    for (let i = 0; i < 30; i++) st.run('h', 'new' + i, now - 20 * 86400_000 + i, 'price', 'recent');
+    await call(e2, 'POST', '/alerts/seen');
+    const left = e2.DB.sql.prepare("SELECT SUM(title = 'recent') AS r, COUNT(*) AS n FROM alert_fires").get();
+    ok('C3: the trim keeps every alert of the last 45 days and at least the newest 500', left.r === 30 && left.n === 500, JSON.stringify(left));
+  }
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
