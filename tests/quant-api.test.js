@@ -683,7 +683,23 @@ globalThis.fetch = async (url, init = {}) => {
   ok('no Alpaca LIVE trading host anywhere in the worker (api.alpaca.markets)', files.every((f) => !/(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))), files.filter((f) => /(^|[^-.\w])api\.alpaca\.markets/.test(read(f).replace(/paper-api\.alpaca\.markets|data\.alpaca\.markets/g, ''))).join());
   ok('the paper host and order paths only in lib/paper.js', others.every((f) => !/paper-api\.alpaca|\/v2\/orders|\/v2\/positions|placeOrder/.test(read(f))), others.filter((f) => /paper-api\.alpaca|\/v2\/orders|\/v2\/positions/.test(read(f))).join());
   ok('lib/paper.js pins its host in ONE constant and builds no host from input', (read('lib/paper.js').match(/https:\/\/[\w.-]+/g) || []).every((h) => h === 'https://paper-api.alpaca.markets') && /PAPER_HOST \+ path/.test(read('lib/paper.js')));
-  ok('no Webull write path anywhere in the worker', files.every((f) => !/webull[^\n]{0,80}(order|trade\/place|placeOrder|cancel)/i.test(read(f))));
+  // Batch 4 T1 (rule 2 amended): Webull order code exists ONLY in lib/brokers/webull.js, pinned to the SANDBOX host.
+  const wbOthers = files.filter((f) => f !== 'lib/brokers/webull.js');
+  ok('Webull order paths only in lib/brokers/webull.js', wbOthers.every((f) => !/\/trading\/orders\/(place|replace|cancel)|webull[^\n]{0,80}(trade\/place|placeOrder)/i.test(read(f))), wbOthers.filter((f) => /\/trading\/orders\/(place|replace|cancel)/i.test(read(f))).join());
+  ok('lib/brokers/webull.js pins ONE host, the sandbox, and builds no host from input', (() => { const t = read('lib/brokers/webull.js'); const hosts = t.match(/https:\/\/[\w.-]+/g) || []; return hosts.length === 1 && hosts[0] === 'https://api.sandbox.webull.com' && /WEBULL_HOST \+ path/.test(t) && !/api\.webull\.com/.test(t.replace(/api\.sandbox\.webull\.com/g, '')); })());
+
+  console.log('\nBroker routes (Batch 4 T1)');
+  {
+    const mkEnv = () => { const e = fullEnv(); e.WEBULL_PAPER_KEY = 'K'; e.WEBULL_PAPER_SECRET = 'S'; return e; };
+    let rr = await call(mkEnv(), '/trade/brokers', { key: GOOD });
+    ok('GET /trade/brokers: paper mode, both brokers ready', rr.status === 200 && rr.body.mode === 'paper' && rr.body.brokers.map((b) => b.id + ':' + b.ready).join() === 'alpaca:true,webull:true', JSON.stringify(rr.body));
+    rr = await call(mkEnv(), '/trade/alpaca/account?mode=live', { key: GOOD });
+    ok('live mode is refused before any broker code runs', rr.status === 400 && /live trading is not built/.test(rr.body.error));
+    rr = await call(mkEnv(), '/trade/robinhood/account', { key: GOOD });
+    ok('an unknown broker is a 404', rr.status === 404);
+    rr = await call(mkEnv(), '/trade/webull/runs', { key: GOOD });
+    ok('strategy runs stay Alpaca-only (404 on webull)', rr.status === 404);
+  }
   // Batch 4 T0: Webull PRODUCTION never appears; the sandbox probe is read-only and pinned to its hosts.
   ok('no Webull production host anywhere in the worker (api.webull.com)', files.every((f) => !/(^|[^.\w-])api\.webull\.com/.test(read(f))), files.filter((f) => /(^|[^.\w-])api\.webull\.com/.test(read(f))).join());
   ok('lib/webull-probe.js calls only its pinned sandbox hosts and sends no POST but the token create', (() => { const t = read('lib/webull-probe.js'); return !/https:\/\/(?!\$\{host\})/.test(t) && (t.match(/'POST'/g) || []).length === 1 && /auth\/token\/create/.test(t) && !/orders\/place|order\/place|\/cancel|\/replace/.test(t); })());
