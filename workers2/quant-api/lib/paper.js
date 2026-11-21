@@ -158,8 +158,11 @@ export async function activities(env, url, fetchFn) {
 }
 export async function log(env, url) {
   const limit = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 200)), run = url.searchParams.get('run');
-  const st = run && RUN_RE.test(run) ? env.DB.prepare('SELECT * FROM paper_orders WHERE run = ? ORDER BY at DESC LIMIT ?').bind(run, limit) : env.DB.prepare('SELECT * FROM paper_orders ORDER BY at DESC LIMIT ?').bind(limit);
-  const rows = (await db(st.all())).results || [];
+  // Alpaca's rows only (Batch 4: a Webull order never shows under Alpaca); before migration 0014 every row is Alpaca's.
+  const q = (w) => (run && RUN_RE.test(run) ? env.DB.prepare(`SELECT * FROM paper_orders WHERE run = ?${w} ORDER BY at DESC LIMIT ?`).bind(run, limit) : env.DB.prepare(`SELECT * FROM paper_orders${w ? ' WHERE' + w.replace(' AND', '') : ''} ORDER BY at DESC LIMIT ?`).bind(limit));
+  let rows;
+  try { rows = (await db(q(" AND broker = 'alpaca'").all())).results || []; }
+  catch (e) { if (!/no such column|has no column/i.test(String(e && e.message))) throw e; rows = (await db(q('').all())).results || []; }
   return json({ ok: true, orders: rows.map((r) => ({ ...r, body: JSON.parse(r.body || 'null') })) });
 }
 
