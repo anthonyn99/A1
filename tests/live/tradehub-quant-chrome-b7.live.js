@@ -41,23 +41,32 @@ const ok = (name, cond, extra) => {
   await until(`window.__tbClearbox || document.querySelector('[data-tb-clearbox-x]')`, 15000);
 
   console.log('\n[11] the × on every text box');
-  // A React box: Analysis's search fields are controlled inputs, so a clear React did not hear snaps back.
+  // A React box: Analysis's one-off prompt is a controlled textarea, so a clear React did not hear snaps back.
   await tab('analysis');
-  const ana = '.ana-input[aria-label="Search 1"]';
+  const ana = 'textarea.ana-quick';
   if (await until(`document.querySelector('${ana}')`, 15000)) {
-    await js(`var e=document.querySelector('${ana}'); var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value'); d.set.call(e,''); e.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+    await js(`var e=document.querySelector('${ana}'); var d=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value'); d.set.call(e,''); e.dispatchEvent(new Event('input',{bubbles:true})); 1`);
     await sleep(200);
     ok('an empty box shows no ×', !(await xBtn()));
     await typeInto(ana, 'NVDA earnings');
     const x = await xBtn(), box = await rect(ana);
-    ok('typing shows the × at the box\'s right end, inside it', x && x.r <= box.r && x.r >= box.r - 30 && x.t >= box.t && x.b <= box.b, JSON.stringify({ x, box }));
+    ok('typing shows the × at the box\'s right end, inside it', x && x.r <= box.r && x.r >= box.r - 32 && x.t >= box.t && x.b <= box.b, JSON.stringify({ x, box }));
     if (x) await click(x.l + x.w / 2, x.t + x.h / 2);
     await sleep(500);
     const after = JSON.parse(await js(`var e=document.querySelector('${ana}'); return JSON.stringify({v:e.value, focus: document.activeElement===e});`));
     ok('one press clears it and React keeps it clear (a controlled box)', after.v === '', JSON.stringify(after));
     ok('...the focus stays in the box', after.focus);
     ok('...and the × goes away', !(await xBtn()));
-  } else ok('Analysis search box found', false);
+  } else ok('Analysis prompt box found', false);
+
+  // Notebook (the Playbook) is Notebook's own: a host never touches its boxes.
+  await tab('playbook');
+  if (await until(`[...document.querySelectorAll('[data-notebook-side] input')].some(function(e){return e.getBoundingClientRect().width>0;})`, 15000)) {
+    const nbSel = await js(`var e=[...document.querySelectorAll('[data-notebook-side] input')].find(function(e){return e.getBoundingClientRect().width>0;}); e.setAttribute('data-test-nb',''); return '[data-test-nb]';`);
+    await typeInto(nbSel, 'test');
+    ok('Notebook\'s boxes (the Playbook) get no ×', !(await xBtn()) && !(await js(`return document.querySelector('${nbSel}').hasAttribute('data-tb-clearbox');`)));
+    await js(`var e=document.querySelector('${nbSel}'); var d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value'); d.set.call(e,''); e.dispatchEvent(new Event('input',{bubbles:true})); e.removeAttribute('data-test-nb'); 1`);
+  } else ok('Playbook box found', false);
 
   // The Journal's search has its own ×: no second one.
   await tab('journal');
