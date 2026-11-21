@@ -243,11 +243,13 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       send('Fetch.continueRequest', { requestId });
       return;
     }
-    if (!request.url.startsWith(PAGES)) {
+    // TradeHub loads Beacon from its own site's root (/a1/devices/core.js); here that root is Pages' origin.
+    const reqUrl = request.url.replace(/^(https:\/\/[^/]+)\/a1\/devices\//, (m, o) => (PAGES.startsWith(o) ? PAGES + 'a1/devices/' : m));
+    if (!reqUrl.startsWith(PAGES)) {
       send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
       return;
     }
-    let rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
+    let rel = decodeURIComponent(new global.URL(reqUrl).pathname.slice('/A1/'.length)) || 'index.html';
     // TradeHub, Insight, Vault (+ Vault/), RiftIQ (and Everwell, built there) are in ../A1-Priv since 2026-10-10;
     // A1 has no copy. Serve the real pages from that checkout, still
     // under this origin, so their tests exercise the code that ships.
