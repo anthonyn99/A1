@@ -8,11 +8,12 @@
 //   4. Yahoo down: the heat map says so; the cards fall back or say there is no coverage
 //   5. Neo Quant reads them and sets the heat map
 //   6. 1280, 820 and 390 px: no sideways scroll, the cards inside the grid
+//   7. A split (Tony 2026-11-21): targets read before an 8-for-1 are divided (3,000 → 375), at every width
 //
 // Run: node tests/live/tradehub-quant-cards-r7.live.js   (own CDP_PORT)
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, CLOCK } = require('./quant-mock.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -124,6 +125,25 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
       if (t === 'market') ok(`${name}: the heat map has tiles and a real size`, await until(`${H}.querySelector('[data-hm]').__hm.tiles().length > 400 && ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height >= 170`, 8000), await js(`return ${H}.querySelector('[data-hm-box]').getBoundingClientRect().height;`));
     }
   }
+
+  console.log('\n7. A split (Tony 2026-11-21: SNDK\'s 8-for-1; targets read before it are divided)');
+  // A ticker no step above opened (the page keeps /splits and /summary per symbol), its 8-for-1 ex an hour
+  // ago, after the summary was read (2 h ago): every target is on the old basis.
+  const SPL = 'NFLX', exT = CLOCK - 3600000;
+  api.state.splits = { [SPL]: [{ t: exT, ratio: 8, ex: new Date(exT - 5 * 3600000).toISOString().slice(0, 10) }] };
+  for (const [w, hgt, name] of [[DESK_W, 900, 'desktop'], [TAB_W, 1000, 'tablet'], [390, 844, 'phone']]) {
+    await size(w, hgt); await tab('charts'); await sleep(600);
+    if (name === 'desktop') await js(`window._tbOps.charts.open('${SPL}'); 1`);
+    ok(`${name}: Analysis reads High 375.00, Average 255.92, Low 108.75`, await until(`${A} && ${A}.querySelector('[data-sk-high]') && ${A}.querySelector('[data-sk-high]').innerText === '375.00' && ${A}.querySelector('[data-sk-mean]').innerText === '255.92' && ${A}.querySelector('[data-sk-low]').innerText === '108.75'`, 15000),
+      await js(`return ${A} ? ${A}.innerText.slice(0, 300) : 'no card';`));
+    ok(`${name}: the upside is in the tens of percent, not thousands`, await js(`var t=${A}.querySelector('[data-sk-upside]').innerText; var n=parseFloat(t.replace(/[^0-9.-]/g,'')); return /to the average/.test(t) && Math.abs(n) < 1000;`), await js(`return ${A}.querySelector('[data-sk-upside]').innerText;`));
+    ok(`${name}: the card's "?" note says split-adjusted (8-for-1, …)`, await js(`var n=${A}.querySelector('[data-sk-split]'); return !!n && /split-adjusted \\(8-for-1, [A-Z][a-z]{2} \\d+\\)/.test(n.textContent);`), await js(`var n=${A}.querySelector('[data-sk-split]'); return n ? n.textContent : 'none';`));
+    ok(`${name}: no sideways scroll, the card inside the page`, await js(`var W=document.documentElement.clientWidth, r=${A}.getBoundingClientRect(); return document.documentElement.scrollWidth <= W + 1 && r.width > 200 && r.right <= W + 1;`));
+  }
+  ok('"Latest changes": Rosenblatt\'s 2,400 from before the split reads 300.00', await js(`var u=${A}.querySelector('[data-sk-ups]').textContent; return /300\\.00/.test(u) && !/2,400/.test(u);`), await js(`var u=${A}.querySelector('[data-sk-ups]'); return u ? u.textContent : 'none';`));
+  ok('Key Stats on the same ticker: 52-week high 2,354.39 → 294.30, EPS 125.12 → 15.64, P/E 6.17 as is', await js(`var g=function(k){var e=${K}.querySelector('[data-sk-stat="'+k+'"] b'); return e ? e.textContent : '';}; return g('high52') === '294.30' && g('epsTtm') === '15.64' && g('peTtm') === '6.17';`),
+    await js(`return ${K} ? ${K}.innerText.slice(0, 400) : 'no card';`));
+  api.state.splits = {};
 
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
