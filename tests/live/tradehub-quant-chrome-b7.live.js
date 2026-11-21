@@ -116,6 +116,20 @@ const ok = (name, cond, extra) => {
     const rail = JSON.parse(await js(`var best=null; document.querySelectorAll('.vc-rail.v').forEach(function(r){ var b=r.getBoundingClientRect(); if(b.height>0 && b.right > innerWidth-40 && (!best || b.height>best.h)) best={t:b.top,b:b.bottom,h:b.height}; }); return JSON.stringify(best);`));
     ok(`${w} px: A1's page scrollbar ends above the launchers`, rail && rail.b <= L1.t - 4, JSON.stringify({ rail, launcherTop: L1.t }));
   }
+  // Tony 2026-11-21: with the sidebar collapsed, the sync dot works as the open pill does: shown on a sync, then
+  // faded out (it used to stay lit green for good: a rule forced the faded state back to full opacity).
+  console.log('\nThe collapsed sidebar\'s sync dot');
+  await size(1504, 900); await sleep(500);
+  const collapsed = await js(`var s=document.querySelector('.tb-sidebar'); if(!s) return 'no sidebar'; if(!s.classList.contains('is-collapsed')) { var t=document.querySelector('.tb-side-toggle'); if(t) t.click(); } return 'ok';`);
+  ok('the sidebar collapses', collapsed === 'ok' && await until(`document.querySelector('.tb-sidebar.is-collapsed [data-tb-sync-dot] .a1-sync')`, 5000), collapsed);
+  // A save (the collapse itself, or a layout change) shows the dot; then it must fade, as when the sidebar is open.
+  await js(`window.dispatchEvent(new Event('resize')); 1`);
+  const seen = [];
+  for (let i = 0; i < 28; i++) { seen.push(await js(`var p=document.querySelector('.tb-sidebar.is-collapsed [data-tb-sync-dot] .a1-sync'); return p ? p.className.replace('a1-sync ','') + '@' + getComputedStyle(p).opacity : 'none';`)); await sleep(250); }
+  const last = seen[seen.length - 1];
+  ok('...seven seconds on, the dot has faded out (idle, opacity 0), not lit for good', /idle@0$/.test(last), seen.filter((x, i) => i === 0 || x !== seen[i - 1]).join(' → '));
+  await js(`var t=document.querySelector('.tb-side-toggle'); if(document.querySelector('.tb-sidebar.is-collapsed') && t) t.click(); 1`); await sleep(300);
+
   ok('no page errors', !errs.length, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   c.ws.close();
