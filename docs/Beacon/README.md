@@ -18,11 +18,12 @@ Every A1 program that has profiles or sends notifications:
 | MAGI | `magi` | the devices icon beside Help (sidebar; the drawer on a phone) | `html[data-profile]` | none |
 | Shield | `shield` | Devices ▸ All A1 devices ▸ Manage | `body[data-profile]` | none |
 | Shruti | `shruti` | Settings ▸ Profile ▸ Devices | `body[data-profile]` | none |
+| TradeHub (A1-Priv) | `tradehub` | Control ▸ Alerts ▸ Devices | always `tony` | its own `dashboards/tradehub_push_tony` (`devices.<id> = { token, on, ua, at }`), registered from the panel (`alerts`); its push worker `TradeHub/push-sw.js` (2026-11-21) |
 | StudyOS (Veda) | `studyos` | none (no profiles; managed from TaskHub's Settings, 2026-11-17) | always `veda` | its own `studyos_fcm_tokens/<token>` |
 | ORCA (Veda's repo `DesktopORCA`, both UIs) | `orca` | the devices icon after the lock in the header | `body[data-profile]` (only rendered once a profile is open) | none; its lock is a server session, so `app/web/static/beacon-host.js` hands Beacon `lockState` (`/lock/status`) and `lockNow` (`/lock/lock`, then the gate) |
 
 Left out on purpose:
-- TradeHub, Insight, Vault, RiftIQ, Everwell and OneInbox have one profile and send no notifications.
+- Insight, Vault, RiftIQ, Everwell and OneInbox have one profile and send no notifications.
 - Wellness has a nightly reminder switch, but nothing sends it: no worker reads `remindersEnabled`. If that push is ever built, mount Wellness.
 
 ## Adding it to a program
@@ -55,6 +56,7 @@ button.onclick = () => Beacon.open({ app: 'example' });   // the panel
 | `onRemoved()` | the program's own clean-up when this device is removed |
 | `lockState(profile)` | for a lock that is not Guardian's markers: resolves `[{ id, label, owner, open, bio }]`, added to the Guardian locks Beacon reads itself (ORCA) |
 | `lockNow(reason)` | locks this device the program's own way when a Lock or Remove arrives (ORCA ends its session); runs last, since it may leave the page. A page with `lockNow` carries out commands even without Guardian |
+| `alerts` | a program's own alert registrations (TradeHub, 2026-11-21, after RESERV's per-device switches): `{ label, get(profile) → { <deviceId>: { token, on } }, set(profile, deviceId, on), register() → { ok, why? } }`. The panel then says at the top whether THIS device is registered (Register / Re-register) and gives every device a line with its on/off switch |
 | `delay` | ms before the first check-in (default 3000, after the program has booted) |
 
 ### API
