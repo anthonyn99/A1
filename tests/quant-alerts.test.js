@@ -466,6 +466,37 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('TaskHub\'s reminders path does not call the quant route (runReminders → sendFCM only)', /async function runReminders[\s\S]*?sendFCM\(projectId, token, title, id, accessToken, dash/.test(rs) && !/runReminders[\s\S]{0,8000}handleQuantPush/.test(rs.slice(rs.indexOf('async function runReminders'), rs.indexOf('async function maybeReschedule'))));
   }
 
+  console.log('\nB10: a kind that is On fires with no rule of Tony\'s (his screen: "No alerts yet"), and every kind sent once');
+  {
+    const e = mkEnv();
+    const n0 = W.pushes.length;
+    const g = await A.raise(e, 'signal', [{ id: 'sb10', symbol: 'AMD', setup: 'breakout', horizon: 'swing', dir: 'long', verdict: 'GO' }], MON_10);
+    ok('no rules at all: a new GO still pushes, through the standing signal rule', g.length === 1 && g[0].rule === 'std:signal' && W.pushes.length === n0 + 1 && /New GO: AMD breakout/.test(W.pushes[n0].body.title), JSON.stringify(g));
+    ok('...once (the same signal again: nothing)', (await A.raise(e, 'signal', [{ id: 'sb10', symbol: 'AMD', setup: 'breakout', horizon: 'swing', dir: 'long', verdict: 'GO' }], MON_10 + 60000)).length === 0);
+    ok('...and the standing rule is never written to the rules table', e.DB.sql.prepare("SELECT COUNT(*) AS n FROM alerts").get().n === 0);
+    const r1 = await A.raise(e, 'regime', [{ from: 'Constructive', to: 'Risk-off', day: '2026-11-16', slot: 'midday' }], MON_10);
+    ok('...a regime change too', r1.length === 1 && r1[0].rule === 'std:regime');
+    const now = Date.now();
+    await call(e, 'PUT', '/alerts/catalysts', { items: [{ id: 'cpi-b10', t: now + 10 * 60000, title: 'CPI', symbols: ['NVDA'], impact: 'high' }] });
+    const c = await A.check(e, now, { force: true });
+    ok('the minute check with no rules: a catalyst inside 15 min fires through the standing catalyst rule', c.fired.some((f) => f.rule === 'std:catalyst' && /CPI in \d+ min/.test(f.title)), JSON.stringify(c));
+    await call(e, 'PUT', '/alerts/config', { config: { kinds: { signal: false } } });
+    ok('a kind switched off: no standing rule, nothing', (await A.raise(e, 'signal', [{ id: 'sb11', symbol: 'MU', setup: 'orb', horizon: 'day', dir: 'long', verdict: 'GO' }], MON_10)).length === 0);
+    const e2 = mkEnv();
+    await call(e2, 'POST', '/alerts', { alert: { kind: 'signal', symbol: 'NVDA' } });
+    const g2 = await A.raise(e2, 'signal', [{ id: 'sb12', symbol: 'AMD', setup: 'orb', horizon: 'day', dir: 'long', verdict: 'GO' }], MON_10);
+    ok('Tony has his own signal rule (NVDA only): no standing rule beside it, so AMD does not push', g2.length === 0);
+    // Every kind once, through the real route.
+    const n1 = W.pushes.length;
+    const t = await call(mkEnv(), 'POST', '/alerts/test-all');
+    const tj = t.body || t.json || t;
+    const sent = W.pushes.slice(n1);
+    ok('POST /alerts/test-all sends every kind once, each marked [Test], each its own notification', sent.length === A.TEST_KINDS.length && sent.every((p) => /^\[Test\] /.test(p.body.title)) && new Set(sent.map((p) => p.body.tag)).size === sent.length, sent.length);
+    ok('...covering price, signal, graded, regime, catalyst and data', ['price', 'signal', 'graded', 'regime', 'catalyst', 'data'].every((k) => A.TEST_KINDS.some((x) => x.kind === k)));
+    ok('...and says what each would normally do now (pushed, quiet hours, outside market hours, kind off)', Array.isArray(tj.results) && tj.results.every((x) => typeof x.normally === 'string'), JSON.stringify(tj).slice(0, 200));
+    ok('...only to Tony: it goes through the same /quant-push route as every alert', sent.every((p) => p.headers && p.headers['x-quant-secret'] === 's3cret'));
+  }
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
