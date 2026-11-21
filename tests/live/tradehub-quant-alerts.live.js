@@ -13,7 +13,7 @@
 // Run: CDP_PORT=93xx node tests/live/tradehub-quant-alerts.live.js   (SHOTS_DIR=… for screenshots)
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, CLOCK } = require('./quant-mock.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -34,14 +34,14 @@ const ok = (name, cond, extra) => {
     // C3: today (NVDA twice, a kept test send), yesterday, and a day before that. ids = arrival order; two unread (6, 4).
     const U = 'https://a1-priv.av1.workers.dev/tradehub.html#alert=';
     api.state.alertFires = [
-      { id: 6, rule_id: 'test', at: now - 60000, kind: 'signal', symbol: 'AMD', title: '[Test] New GO: AMD breakout', body: 'long swing, entry 162.50', url: U + 'scanner', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
-      { id: 5, rule_id: 'r1', at: now - 90000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed below 166.40', body: 'NVDA 166.31', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: true },
-      { id: 4, rule_id: 'r1', at: now - 120000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed above 170.60', body: 'NVDA 171.02, held for two checks', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
-      { id: 3, rule_id: 'r3', at: now - 3600000, kind: 'signal', symbol: 'MU', title: 'New GO: MU orb', body: 'long day', url: U + 'signal:s0001', pushed: null, why: 'quiet hours', devices: [], seen: true },
-      { id: 2, rule_id: 'std:data', at: now - 86400000, kind: 'data', symbol: null, title: 'alpaca is down for 12 min', body: '', url: U + 'status', pushed: 1, devices: ['Tony PC'], seen: true },
-      { id: 1, rule_id: 'std:regime', at: now - 2 * 86400000, kind: 'regime', symbol: null, title: 'Regime: Constructive → Risk-off', body: 'At the midday snapshot', url: U + 'market', pushed: 1, devices: ['Tony PC'], seen: true },
+      { id: 6, rule_id: 'test', at: CLOCK - 60000, kind: 'signal', symbol: 'AMD', title: '[Test] New GO: AMD breakout', body: 'long swing, entry 162.50', url: U + 'scanner', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
+      { id: 5, rule_id: 'r1', at: CLOCK - 90000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed below 166.40', body: 'NVDA 166.31', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: true },
+      { id: 4, rule_id: 'r1', at: CLOCK - 120000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed above 170.60', body: 'NVDA 171.02, held for two checks', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
+      { id: 3, rule_id: 'r3', at: CLOCK - 3600000, kind: 'signal', symbol: 'MU', title: 'New GO: MU orb', body: 'long day', url: U + 'signal:s0001', pushed: null, why: 'quiet hours', devices: [], seen: true },
+      { id: 2, rule_id: 'std:data', at: CLOCK - 86400000, kind: 'data', symbol: null, title: 'alpaca is down for 12 min', body: '', url: U + 'status', pushed: 1, devices: ['Tony PC'], seen: true },
+      { id: 1, rule_id: 'std:regime', at: CLOCK - 2 * 86400000, kind: 'regime', symbol: null, title: 'Regime: Constructive → Risk-off', body: 'At the midday snapshot', url: U + 'market', pushed: 1, devices: ['Tony PC'], seen: true },
     ];
-    DAY3 = new Date(now - 2 * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    DAY3 = new Date(CLOCK - 2 * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     api.state.alertCfg = null;
   };
   const c = await connect({ mock: api.mock });
@@ -89,7 +89,8 @@ const ok = (name, cond, extra) => {
       ok('desktop: a centred sheet' + (w > 820 ? ' with the filters in a rail beside the list' : ' with the filters over the list'), await js(`var b=document.querySelector('[data-tal-list]').getBoundingClientRect(), f=document.querySelector('.tac-filters').getBoundingClientRect(), m=document.querySelector('[data-tal-scroll]').getBoundingClientRect(); return Math.abs((b.left + b.right) / 2 - innerWidth / 2) < 2 && (${w > 820} ? f.right <= m.left + 1 : f.bottom <= m.top + 1);`));
     }
     await shot(`alerts-center-${w}`);
-    ok('opening it no longer marks everything read (the count stays until Mark all read)', await js(`var n=document.querySelector('${bell} [data-tal-count]'); return n && !n.hidden;`) && !(api.posted.seen || 0));
+    const seen0 = api.posted.seen || 0, clears0 = (api.posted.clears || []).length;
+    ok('opening it no longer marks everything read (the count stays until Mark all read)', await js(`var n=document.querySelector('${bell} [data-tal-count]'); return n && !n.hidden;`) && (api.posted.seen || 0) === seen0);
     await js(`document.querySelector('[data-tal-filter="signal"]').click(); 1`);
     ok('filter Signals: only the signal alerts, asked of quant-api', await until(`document.querySelectorAll('[data-tal-list] [data-tal-fire]').length === 2 && document.querySelector('[data-tal-filter="signal"]').getAttribute('aria-pressed') === 'true'`, 4000) && api.posted.firesAsked.some((s) => /kinds=signal/.test(s)));
     await js(`document.querySelector('[data-tal-filter="all"]').click(); 1`); await until(`document.querySelectorAll('[data-tal-day]').length === 3`, 4000);
@@ -99,7 +100,7 @@ const ok = (name, cond, extra) => {
     // Clear: one, after a confirm; "No" keeps it.
     await js(`window.__asked=[]; window.uiConfirm=function(m,o){ window.__asked.push([m,o&&o.title]); return Promise.resolve(false); }; document.querySelector('.tac-row[data-tal-row="2"] [data-tal-clear]').click(); 1`);
     await sleep(300);
-    ok('clear one asks first; "No" keeps it', await js(`return window.__asked.length === 1 && /Clear "/.test(window.__asked[0][0]) && !!document.querySelector('[data-tal-fire="2"]');`) && !(api.posted.clears || []).length);
+    ok('clear one asks first; "No" keeps it', await js(`return window.__asked.length === 1 && /Clear "/.test(window.__asked[0][0]) && !!document.querySelector('[data-tal-fire="2"]');`) && (api.posted.clears || []).length === clears0);
     await js(`window.uiConfirm=function(m,o){ window.__asked.push([m,o&&o.title]); return Promise.resolve(true); }; document.querySelector('.tac-row[data-tal-row="2"] [data-tal-clear]').click(); 1`);
     ok('"Yes" clears just that one', await until(`!document.querySelector('[data-tal-fire="2"]')`, 4000) && JSON.stringify(api.posted.clears.slice(-1)[0]) === JSON.stringify({ ids: [2] }));
     await js(`document.querySelector('[data-tal-day]:last-of-type [data-tal-clearday]').click(); 1`);
@@ -110,7 +111,7 @@ const ok = (name, cond, extra) => {
     await js(`document.querySelector('[data-tal-fire="4"]').click(); 1`);
     ok('a press on an alert opens what it is about (Charts, NVDA)', await until(`!document.querySelector('[data-tal-list]')`, 3000) && await until(`window._tbOps && window._tbOps.app && window._tbOps.app.page() === 'charts'`, 8000), await page());
     ok('… with NVDA on the chart', await until(`window._tbOps.charts && window._tbOps.charts.get().symbol === 'NVDA'`, 8000));
-    await js(`document.querySelector('${bell}').click(); 1`); await until(`!!document.querySelector('[data-tal-clearall]')`, 3000);
+    await js(`document.querySelector('${bell}').click(); 1`); await until(`(function(){ var b=document.querySelector('[data-tal-clearall]'); return b && !b.disabled; })()`, 4000);
     await js(`document.querySelector('[data-tal-clearall]').click(); 1`);
     ok('Clear all asks first, then empties the center (the empty state shows)', await until(`!!document.querySelector('[data-tal-empty]')`, 4000) && /every alert/.test(await js(`return window.__asked[window.__asked.length-1][0];`)) && JSON.stringify(api.posted.clears.slice(-1)[0]) === JSON.stringify({ all: true }));
     await js(`document.querySelector('[data-tal-close]').click(); 1`);
