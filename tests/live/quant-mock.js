@@ -272,7 +272,10 @@ function quantApi() {
     ai: { plan: [], brief: null }, prevSnapshot: null,
     // Phase 9C: quant-api's /paper/… over Alpaca paper, played here.
     pp: { kill: false, account: { equity: 100000, last_equity: 99600, cash: 98000, buying_power: 392000, daytrade_count: 0 }, positions: [{ symbol: 'NVDA', qty: 10, side: 'long', avg: 160, price: 164, value: 1640, pnl: 40, pnlPct: 0.025, dayPnl: 12 }],
-      orders: [], closed: [], log: [], runs: [], fills: [], next: 1 }, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
+      orders: [], closed: [], log: [], runs: [], fills: [], next: 1 },
+    // Batch 4 T2: Webull's paper sandbox, its own account (Individual Margin, $1M), nothing shared with Alpaca's.
+    wb: { kill: false, account: { id: 'MRG1', label: 'Individual Margin', equity: 1000000, last_equity: null, cash: 1000000, buying_power: 4000000, day_pnl: 0 }, positions: [],
+      orders: [{ id: 'wbo1', symbol: 'AAPL', side: 'buy', type: 'limit', qty: 1, limit_price: 50, status: 'new', time_in_force: 'gtc', created_at: '2026-11-21T22:44:54.339Z' }], closed: [], log: [], runs: [], fills: [], next: 1 }, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*', 'https://orca.vedapatel05.workers.dev/*'],
     handle(req) {
@@ -360,6 +363,10 @@ function quantApi() {
       // Phase 6: calibration, paper trades, saved backtests.
       if (p === '/calibration' && req.method === 'GET') return { json: { ok: true, calibration: state.calibration } };
       if (p.startsWith('/paper/')) { const r = paperRoutes(state.pp, posted, req, u, p); if (r) return r; }
+      // Batch 4: /trade/alpaca/* is /paper/*; /trade/webull/* has its own account and records into posted.wb.
+      if (p === '/trade/brokers') return { json: { ok: true, mode: 'paper', brokers: [{ id: 'alpaca', ready: true }, { id: 'webull', ready: true }] } };
+      if (p.startsWith('/trade/alpaca/')) { const r = paperRoutes(state.pp, posted, req, u, '/paper/' + p.slice('/trade/alpaca/'.length)); if (r) return r; }
+      if (p.startsWith('/trade/webull/')) { posted.wb = posted.wb || {}; const r = paperRoutes(state.wb, posted.wb, req, u, '/paper/' + p.slice('/trade/webull/'.length)); if (r) return r; }
       if (p === '/paper' && req.method === 'GET') return { json: { ok: true, paper: state.paper } };
       if (p === '/paper' && req.method === 'POST') { const s = JSON.parse(req.postData).signal; (posted.paper = posted.paper || []).push(s); if (!state.paper.some((x) => x.id === s.id)) state.paper.unshift({ ...s, followed: CLOCK, paper: true }); return { json: { ok: true, id: s.id } }; }
       if (p === '/paper' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.paper = state.paper.filter((x) => x.id !== id); return { json: { ok: true } }; }
