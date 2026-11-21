@@ -23,14 +23,15 @@ const ok = (name, cond, extra) => {
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); });
   const { js, until, size, boot, tab } = driver(c);
-  const BTN = `document.querySelector('[data-ch-levels] [data-ch-lv-map]')`, BOX = `document.querySelector('[data-levels-map]')`;
+  const BTN = `document.querySelector('.lay-card[data-card="levels"] .lay-head [data-ch-lv-map]')`, BOX = `document.querySelector('[data-levels-map]')`;
   const nLevels = () => js(`return document.querySelectorAll('[data-ch-levels] [data-ch-level]').length;`);
   const openMap = async () => { await until(BTN, 15000); await js(`${BTN}.click(); 1`); return until(`${BOX} && ${BOX}.dataset.lvmReady === '1'`, 20000); };
 
   await size(1280 + 224, 900);
   await boot({ quant: true }); await tab('charts');
-  ok('the Levels card has "Full chart" at its top', await until(`${BTN} && document.querySelectorAll('[data-ch-levels] [data-ch-level]').length > 0`, 20000)
-    && await js(`var b=${BTN}.getBoundingClientRect(), f=document.querySelector('[data-ch-levels] [data-ch-level]').getBoundingClientRect(); return b.bottom <= f.top + 1 && /Full chart/.test(${BTN}.textContent);`));
+  ok('the full-chart button is in the Levels card\'s header, just left of ↑, the four corners alone (no words)', await until(`${BTN} && document.querySelectorAll('[data-ch-levels] [data-ch-level]').length > 0`, 20000)
+    && await js(`var b=${BTN}, up=b.parentElement.querySelector('[data-act="collapse"]'); return !!up && b.nextElementSibling === up && b.textContent.trim() === '' && !!b.querySelector('svg') && /Full chart/.test(b.getAttribute('aria-label'));`),
+    await js(`var b=${BTN}; return b ? b.parentElement.outerHTML.slice(0, 300) : 'no button';`));
   const want = await nLevels();
 
   console.log('\n1. The full chart');
