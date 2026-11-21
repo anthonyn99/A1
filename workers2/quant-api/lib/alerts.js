@@ -369,10 +369,13 @@ export const TEST_KINDS = [
 // Spaced out (Tony 2026-11-21: the phone showed 8 of 11): Android drops a burst of notifications from one app (its
 // enqueue limit is about 5 a second), so the 11 go 700 ms apart, about 8 s in all.
 export const TEST_GAP_MS = 700;
-export async function testAll(env, now = Date.now(), { send = push, gap = env.TEST_GAP_MS != null ? Number(env.TEST_GAP_MS) : TEST_GAP_MS } = {}) {
+// `only`: positions in TEST_KINDS (0-10) to send just those again (B10's tap check, 2026-11-21); absent = all 11.
+export async function testAll(env, now = Date.now(), { send = push, gap = env.TEST_GAP_MS != null ? Number(env.TEST_GAP_MS) : TEST_GAP_MS, only = null } = {}) {
   const cfg = await readCfg(env), run = now.toString(36), out = [];
+  const pick = Array.isArray(only) && only.length ? new Set(only.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < TEST_KINDS.length)) : null;
   for (const [i, t] of TEST_KINDS.entries()) {
-    if (i && gap) await new Promise((r) => setTimeout(r, gap));
+    if (pick && !pick.has(i)) continue;
+    if (out.length && gap) await new Promise((r) => setTimeout(r, gap));
     const would = cfg.kinds[t.kind] === false ? 'kind is off' : isQuiet(cfg, now) ? 'quiet hours' : cfg.marketOnly[t.kind] && !inSession(now) ? 'outside market hours' : null;
     const r = await send(env, { title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), tag: 'tbq-tall-' + run + '-' + i, card: false, kind: t.kind });
     out.push({ kind: t.kind, what: t.what, title: '[Test] ' + t.title, body: t.body, ok: !!r.ok, devices: r.devices || [], error: r.ok ? null : r.error || null, normally: would || 'pushed' });
