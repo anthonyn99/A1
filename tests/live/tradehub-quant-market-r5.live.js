@@ -71,7 +71,8 @@ const NDX = { id: 'ndx', name: 'Nasdaq 100', bench: 'QQQ', n: 101, have: 101,
   ok('picking it again costs no request (measured once per snapshot bar)', await until(`/^Semis/.test((document.querySelector('[data-mk-breadth-of]')||{}).innerText||'')`, 5000) && bars().length === n1, bars().length - n1);
 
   console.log('\nSynced');
-  ok('the pill says Syncing…, then Synced', await until(`document.querySelector('[data-mk-sync]').classList.contains('ok') || /Synced/.test(document.querySelector('[data-mk-sync]').innerText)`, 6000), await js(`return document.querySelector('[data-mk-sync]').className + ' ' + document.querySelector('[data-mk-sync]').innerText;`));
+  // B7 (ask 10): Market's pick reports to TradeHub's ONE sync pill under the title, not a pill of its own.
+  ok('the one sync pill says Synced', await until(`(function(){var p=[].slice.call(document.querySelectorAll('.a1-sync')).find(function(e){return e.offsetParent;}); return !!p && p.getAttribute('data-sync')==='ok' && /Synced/.test(p.textContent);})()`, 6000), await js(`var p=[].slice.call(document.querySelectorAll('.a1-sync')).find(function(e){return e.offsetParent;}); return p ? p.outerHTML.slice(0,200) : 'no pill';`));
   ok('...market_prefs in the ONE layout doc says semis', await until(`((window.__fakeFs.docs['dashboards/tradehub_layout']||{}).market_prefs||{}).universe === 'semis'`, 5000), await layoutDoc());
   await boot({ keep: true }); await tab('market');
   ok('after a reload the tab still measures Semis', await until(`document.querySelector('[data-mk-universe]') && document.querySelector('[data-mk-universe]').value === 'semis' && /^Semis/.test((document.querySelector('[data-mk-breadth-of]')||{}).innerText||'')`, 20000), await text('[data-mk-uni-line]'));
