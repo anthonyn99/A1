@@ -564,6 +564,8 @@ globalThis.fetch = async (url, opts = {}) => {
     await call(e, 'POST', '/alerts/seen', { ids: [ids[0], ids[1]] });
     r = await call(e, 'GET', '/alerts/fires?unread=1');
     ok('C3: seen { ids } marks just those read; unread=1 lists the rest', r.body.unseen === 5 && r.body.fires.length === 5 && !r.body.fires.some((f) => f.id === ids[0]));
+    await call(e, 'POST', '/alerts/seen', { ids: [] });
+    ok('C3: seen { ids: [] } marks nothing (never everything)', (await call(e, 'GET', '/alerts/fires')).body.unseen === 5);
     await call(e, 'POST', '/alerts/clear', { ids: [ids[2]] });
     r = await call(e, 'GET', '/alerts/fires');
     ok('C3: clear { ids } hides that one (and it no longer counts as unread)', r.body.fires.length === 6 && !r.body.fires.some((f) => f.id === ids[2]) && r.body.unseen === 4);
