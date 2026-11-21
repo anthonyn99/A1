@@ -89,6 +89,17 @@ const ok = (name, cond, extra) => {
   ok('quiet hours on: saved', await until(`true`, 100) && await (async () => { for (let i = 0; i < 30; i++) { if ((api.posted.alertCfg || []).some((x) => x.quiet && x.quiet.on)) return true; await sleep(100); } return false; })());
   await js(`document.querySelector('[data-tal-mutesym]').value='tsla'; document.querySelector('[data-tal-mute]').click(); 1`);
   ok('mute TSLA: saved and listed', await until(`document.querySelector('[data-tal-muted="TSLA"]')`, 3000) && (api.posted.alertCfg || []).some((x) => x.mute && 'TSLA' in x.mute));
+  // Tony 2026-11-21: Beacon in TradeHub. Devices opens Beacon's panel for TradeHub with the alerts strip:
+  // "This device is not registered" + Register, and each device's line.
+  ok('Control ▸ Alerts has a Devices button', await js(`return !!document.querySelector('[data-tal-devices]');`));
+  ok('Beacon is mounted as tradehub', await until(`window.Beacon && window.Beacon.deviceId && !!window.Beacon.deviceId()`, 15000));
+  await js(`document.querySelector('[data-tal-devices]').click(); 1`);
+  const PANEL = `(document.querySelector('beacon-panel') && document.querySelector('beacon-panel').shadowRoot)`;
+  ok('…it opens Beacon\'s panel with TradeHub\'s alerts at the top: this device not registered, a Register button', await until(`${PANEL} && ${PANEL}.querySelector('[data-alerts-head] [data-alerts-reg]')`, 15000)
+    && /not registered for TradeHub alerts/.test(await js(`return ${PANEL}.querySelector('[data-alerts-head]').textContent;`)), await js(`var r=${PANEL}; return r ? r.querySelector('[data-body]').innerText.slice(0,300) : 'no panel';`));
+  ok('…each device carries its TradeHub alerts line', await js(`var r=${PANEL}; return r.querySelectorAll('[data-dev]').length === 0 || r.querySelectorAll('[data-alerts-dev]').length === r.querySelectorAll('[data-dev]').length;`));
+  await shot('alerts-beacon-1280');
+  await js(`${PANEL}.querySelector('[data-x]').click(); 1`); await sleep(300);
   await js(`document.querySelector('[data-tal-test]').click(); 1`);
   ok('Send test names the devices that received it', await until(`/Test sent to 2 devices: Tony PC, Pixel 9/.test((document.querySelector('[data-tal-msg]')||{}).textContent||'')`, 4000) && api.posted.tests === 1);
   // A new rule: price, PLTR above 30, holds.
