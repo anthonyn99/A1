@@ -487,6 +487,12 @@
       ' transform:translate(-50%,24px) scale(.97);opacity:0;pointer-events:none;transition:opacity .28s ease,transform .38s cubic-bezier(.2,.9,.25,1.1);',
       " font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--vn-core);}",
       '#vd-neo-hud.show{opacity:1;transform:translate(-50%,0) scale(1);pointer-events:auto;}',
+      // Hidden (opacity 0) it still ran its sweep forever: a frame on every
+      // screen refresh, under a backdrop blur, over whatever program was open,
+      // which made typing in a long Notebook page lag (2026-11-21). Hidden, it
+      // no longer paints at all; it shows exactly as before.
+      '#vd-neo-hud:not(.show):not(.vn-dock){visibility:hidden;transition:opacity .28s ease,transform .38s cubic-bezier(.2,.9,.25,1.1),visibility 0s linear .38s;}',
+      '#vd-neo-hud:not(.show) .vn-sweep{animation-play-state:paused;}',
       '#vd-neo-hud .vn-glass{position:relative;overflow:hidden;border-radius:18px;padding:14px 16px 12px;',
       ' background:linear-gradient(160deg,rgba(30,22,38,.78),rgba(14,11,18,.82));border:1px solid rgba(201,179,217,.28);',
       ' box-shadow:0 0 0 1px rgba(141,118,154,.25),0 0 34px rgba(141,118,154,.32),inset 0 0 40px rgba(141,118,154,.10);',

@@ -432,6 +432,15 @@ lag (Tony, 2026-11-20). The rules, held by `tests/notebook-typing-cost.test.js`:
   history refers to when a page opens, and keeps at most 12M characters of steps.
 - Page-wide observers (popups.js, TaskHub's backdrop check) ignore changes inside
   editable text.
+- Nothing runs while nothing changes (2026-11-21, held by
+  `tests/notebook-idle.test.js`). `core/mobile.js` writes a class, style or
+  attribute only when its value changes: `classList.remove` of an absent class
+  still rewrites the attribute, and its unconditional `remove('nb-kb')` re-ran
+  its state pass on every frame, forever, on both sides and in every host. That
+  pass forced a whole-page layout and woke every page-wide observer each frame,
+  and on an illustrated page it held typed text back for seconds. Veda's
+  Neo HUD (index.html) is hidden and its sweep is paused while it's off screen.
+  Before, it redrew the screen on every refresh.
 
 ## Index.html (the native host)
 

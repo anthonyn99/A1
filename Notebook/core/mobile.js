@@ -185,7 +185,9 @@ function wire(K) {
     var kb = keyboard();
     root.classList.toggle('nb-kb', kb > 0);
     // A screen fitted to the visible area (fitRoot) already ends at the keyboard.
-    root.style.setProperty('--nb-kb-space', (root.classList.contains('nb-fit') ? 0 : kb) + 'px');
+    // Written only when it changes: the root's style is observed (sync).
+    var sp = (root.classList.contains('nb-fit') ? 0 : kb) + 'px';
+    if (root.style.getPropertyValue('--nb-kb-space') !== sp) root.style.setProperty('--nb-kb-space', sp);
   }
 
   // index.html, a page open on a phone: the screen follows the VISIBLE area.
@@ -236,6 +238,15 @@ function wire(K) {
   root.addEventListener('keydown', function (e) { if (e.target && e.target.id === K + '-page-editor' && /^(Enter|ArrowDown|ArrowUp)$/.test(e.key)) keepCaret(); }, true);
 
   // ── State: one pass sets every class the stylesheet reads ──
+  // Every write below happens only when the value changes. The root's class and
+  // style are observed (the MutationObserver after sync), and classList.remove
+  // of a class the root does not have still rewrites the attribute: the
+  // unconditional remove('nb-kb') here re-queued sync on every frame, forever,
+  // on both sides at once. Each pass forced a layout of the whole page and woke
+  // every page-wide observer (popups.js, index's backdrop check), which on a
+  // long illustrated page is what held typed text back for seconds (Tony,
+  // 2026-11-21). An aria-label rewrite is a mutation too, for those observers.
+  function setAttr(el, name, v) { if (el.getAttribute(name) !== v) el.setAttribute(name, v); }
   var raf = 0;
   function schedule() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; sync(); }); }
   // The open entry changed while the list was up (a new page from +, a host's
@@ -276,13 +287,17 @@ function wire(K) {
     var full = !overlay && doc && ed && !noentry && !locked;
     var set = { 'nb-m': touch, 'nb-shell': shell, 'nb-mlist': listOpen, 'nb-mdoc': doc, 'nb-medit': ed, 'nb-mpage': page, 'nb-mdock': dock, 'nb-mfull': full };
     Object.keys(set).forEach(function (c) { if (root.classList.contains(c) !== !!set[c]) root.classList.toggle(c, !!set[c]); });
-    mode.setAttribute('aria-label', ed ? 'Reading mode' : 'Edit');
+    setAttr(mode, 'aria-label', ed ? 'Reading mode' : 'Edit');
     var fabNew = listOpen, fabEdit = doc && page && !ed && !locked;
     fab.classList.toggle('on', !!(fabNew || fabEdit));
     fab.classList.toggle('nb-fab-new', fabNew);
-    fab.setAttribute('aria-label', fabNew ? 'New entry' : 'Edit');
+    setAttr(fab, 'aria-label', fabNew ? 'New entry' : 'Edit');
     fitRoot(doc && shown(root), full);
-    if (dock) kbSpace(); else { root.classList.remove('nb-kb'); root.style.removeProperty('--nb-kb-space'); }
+    if (dock) kbSpace();
+    else {
+      if (root.classList.contains('nb-kb')) root.classList.remove('nb-kb');
+      if (root.style.getPropertyValue('--nb-kb-space')) root.style.removeProperty('--nb-kb-space');
+    }
     if (!doc && menu) closeMenus();
     // index.html: the open page covers the program nav (the list shows it).
     var de = document.documentElement, mine = de.getAttribute('data-nb-doc') === K;
