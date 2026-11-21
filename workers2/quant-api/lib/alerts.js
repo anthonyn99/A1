@@ -369,7 +369,7 @@ export const TEST_KINDS = [
 // Spaced out (Tony 2026-11-21: the phone showed 8 of 11): Android drops a burst of notifications from one app (its
 // enqueue limit is about 5 a second), so the 11 go 700 ms apart, about 8 s in all.
 export const TEST_GAP_MS = 700;
-export async function testAll(env, now = Date.now(), { send = push, gap = TEST_GAP_MS } = {}) {
+export async function testAll(env, now = Date.now(), { send = push, gap = env.TEST_GAP_MS != null ? Number(env.TEST_GAP_MS) : TEST_GAP_MS } = {}) {
   const cfg = await readCfg(env), run = now.toString(36), out = [];
   for (const [i, t] of TEST_KINDS.entries()) {
     if (i && gap) await new Promise((r) => setTimeout(r, gap));
