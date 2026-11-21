@@ -81,6 +81,9 @@ const mod = (f) => import(pathToFileURL(path.join(__dirname, '..', f)).href);
     calls.length = 0;
     const y = await S.getSplits(L, {}, 'SNDK', ex + D, { cache: null });
     ok('no Alpaca key: Yahoo\'s split events', calls.length === 1 && /finance\/chart\/SNDK/.test(calls[0]) && y.length === 1 && y[0].ratio === 8, JSON.stringify({ calls, y }));
+    const puts6 = [];
+    await S.getSplits(L, {}, 'SNDK', ex + D, { cache: { match: async () => null, put: async (k, r) => puts6.push(r.headers.get('cache-control')) } });
+    ok('no Alpaca key and Yahoo answered: kept the full 6 hours (review: not 15 minutes)', puts6[0] === 'max-age=' + S.SPLITS_TTL_S, JSON.stringify(puts6));
     ok('a symbol that is not a ticker asks nobody', (await S.getSplits(L, {}, '^VIX', ex, { cache: null })).length === 0);
   } finally { globalThis.fetch = realFetch; }
   const fs = require('fs');
