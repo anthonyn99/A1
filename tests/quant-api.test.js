@@ -684,6 +684,41 @@ globalThis.fetch = async (url, init = {}) => {
   ok('the paper host and order paths only in lib/paper.js', others.every((f) => !/paper-api\.alpaca|\/v2\/orders|\/v2\/positions|placeOrder/.test(read(f))), others.filter((f) => /paper-api\.alpaca|\/v2\/orders|\/v2\/positions/.test(read(f))).join());
   ok('lib/paper.js pins its host in ONE constant and builds no host from input', (read('lib/paper.js').match(/https:\/\/[\w.-]+/g) || []).every((h) => h === 'https://paper-api.alpaca.markets') && /PAPER_HOST \+ path/.test(read('lib/paper.js')));
   ok('no Webull write path anywhere in the worker', files.every((f) => !/webull[^\n]{0,80}(order|trade\/place|placeOrder|cancel)/i.test(read(f))));
+  // Batch 4 T0: Webull PRODUCTION never appears; the sandbox probe is read-only and pinned to its hosts.
+  ok('no Webull production host anywhere in the worker (api.webull.com)', files.every((f) => !/(^|[^.\w-])api\.webull\.com/.test(read(f))), files.filter((f) => /(^|[^.\w-])api\.webull\.com/.test(read(f))).join());
+  ok('lib/webull-probe.js calls only its pinned sandbox hosts and sends no POST but the token create', (() => { const t = read('lib/webull-probe.js'); return !/https:\/\/(?!\$\{host\})/.test(t) && (t.match(/'POST'/g) || []).length === 1 && /auth\/token\/create/.test(t) && !/orders\/place|order\/place|\/cancel|\/replace/.test(t); })());
+
+  console.log('\nWebull sandbox probe (Batch 4 T0)');
+  const WP = await import(pathToFileURL(path.join(WDIR, 'lib', 'webull-probe.js')).href);
+  {
+    const crypto = require('crypto');
+    const now = new Date('2026-11-21T20:00:00.123Z'), nonce = 'abc123';
+    const h = await WP.signedHeaders({ host: 'api.sandbox.webull.com', path: '/openapi/assets/balance', query: { account_id: 'A1' }, key: 'K', secret: 'S', now, nonce });
+    const s1 = 'account_id=A1&host=api.sandbox.webull.com&x-app-key=K&x-signature-algorithm=HMAC-SHA1&x-signature-nonce=abc123&x-signature-version=1.0&x-timestamp=2026-11-21T20:00:00Z';
+    const want = crypto.createHmac('sha1', 'S&').update(encodeURIComponent('/openapi/assets/balance&' + s1)).digest('base64');
+    ok('signing: HMAC-SHA1 over path & sorted query+headers, key "secret&" (the scheme tradeboard-api uses)', h['x-signature'] === want && h['x-timestamp'] === '2026-11-21T20:00:00Z' && h['x-app-key'] === 'K');
+    const hb = await WP.signedHeaders({ host: 'api.sandbox.webull.com', path: '/x', body: { a: 1 }, key: 'K', secret: 'S', now, nonce });
+    const md5 = crypto.createHash('md5').update('{"a":1}').digest('hex').toUpperCase();
+    const s1b = 'host=api.sandbox.webull.com&x-app-key=K&x-signature-algorithm=HMAC-SHA1&x-signature-nonce=abc123&x-signature-version=1.0&x-timestamp=2026-11-21T20:00:00Z';
+    ok('signing with a body adds the uppercase MD5 of the body', hb['x-signature'] === crypto.createHmac('sha1', 'S&').update(encodeURIComponent('/x&' + s1b + '&' + md5)).digest('base64') && hb['Content-Type'] === 'application/json');
+    let r0 = await WP.probe({});
+    ok('without the keys: says so, calls nothing', r0.ok === false && /WEBULL_PAPER_KEY/.test(r0.error));
+    const seen = [];
+    const fake = async (u, init) => { seen.push([init.method, u]); const url = new URL(u);
+      const body = url.pathname === '/openapi/account/list' ? [{ account_id: 'P1' }] : url.pathname === '/openapi/assets/balance' ? { total_asset: 1000000 } : url.pathname === '/openapi/assets/positions' ? [] : url.pathname === '/openapi/trade/order/open' ? [{ id: 'x' }] : {};
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'x-ratelimit-limit': '30' } }); };
+    r0 = await WP.probe({ WEBULL_PAPER_KEY: 'K', WEBULL_PAPER_SECRET: 'S' }, fake);
+    ok('a sandbox answering: host, accounts with balance/positions/open orders, rate-limit headers', r0.ok && r0.host === 'api.sandbox.webull.com' && r0.accounts.length === 1 && r0.accounts[0].balance.total_asset === 1000000 && r0.accounts[0].positions === 0 && r0.accounts[0].openOrders === 1 && r0.accounts[0].limits['x-ratelimit-limit'] === '30', JSON.stringify(r0).slice(0, 300));
+    ok('...an open order nobody placed is flagged as a shared-account sign', r0.shared.length === 1 && /1 open orders/.test(r0.shared[0]));
+    ok('...every call was a GET to a sandbox host', seen.every(([m, u]) => m === 'GET' && WP.SANDBOX_HOSTS.includes(new URL(u).host)));
+    const fake2 = async (u, init) => { const url = new URL(u);
+      if (url.host === 'api.sandbox.webull.com') return new Response('nope', { status: 404 });
+      if (url.pathname === '/openapi/auth/token/create') return new Response(JSON.stringify({ token: 'T', status: 'NORMAL' }), { status: 200 });
+      if (url.pathname === '/openapi/account/list') return init.headers['x-access-token'] === 'T' ? new Response('[]', { status: 200 }) : new Response('{"error":"token"}', { status: 401 });
+      return new Response('{}', { status: 200 }); };
+    r0 = await WP.probe({ WEBULL_PAPER_KEY: 'K', WEBULL_PAPER_SECRET: 'S' }, fake2);
+    ok('first host missing → the second; a 401 → creates a token and retries with it', r0.ok && r0.host === 'us-openapi-alb.uat.webullbroker.com' && r0.needsToken === true && r0.tokenStatus === 'NORMAL', JSON.stringify(r0).slice(0, 300));
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
