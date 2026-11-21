@@ -116,7 +116,7 @@ function realD1(skip = []) {
     const PA = await import(pathToFileURL(path.join(WDIR, 'lib', 'paper.js')).href);
     env.DB.sql.prepare("INSERT INTO paper_orders (id, at, day, who, symbol, side, type, qty, body, status) VALUES ('alp1', 1, '2026-11-21', 'tony', 'NVDA', 'buy', 'limit', 1, '{}', 'new')").run();
     const alog = await body(await PA.log(env, new URL('https://q/paper/log')));
-    ok('Alpaca's activity log shows only Alpaca's orders (no Webull row crosses over)', alog.orders.length >= 1 && alog.orders.every((o) => o.broker === 'alpaca') && alog.orders.some((o) => o.id === 'alp1'), JSON.stringify(alog.orders.map((o) => o.id + ':' + o.broker)));
+    ok("Alpaca's activity log shows only Alpaca's orders (no Webull row crosses over)", alog.orders.length >= 1 && alog.orders.every((o) => o.broker === 'alpaca') && alog.orders.some((o) => o.id === 'alp1'), JSON.stringify(alog.orders.map((o) => o.id + ':' + o.broker)));
     // Without migration 0014 the log has no broker column: nothing is sent (fails closed).
     const old = { DB: realD1(['0014_broker.sql']), WEBULL_PAPER_KEY: 'K', WEBULL_PAPER_SECRET: 'S' };
     WB.clearCache(); calls.length = 0;
