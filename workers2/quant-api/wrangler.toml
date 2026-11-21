@@ -26,7 +26,11 @@ crons = ["* * * * *"]
 #   FINNHUB_KEY    market data (the same service newshub-api uses on account 1)
 #   GROQ_KEY       Neo Quant's fast AI lane, and its hearing (Groq Whisper, lib/hear.js)
 # Read by the data gateway when set (each source is skipped without its key):
-#   ALPACA_KEY, ALPACA_SECRET   Alpaca PAPER key (market data only; it cannot trade money)
+#   ALPACA_KEY, ALPACA_SECRET   Alpaca PAPER key (the paper account TradeHub trades in, lib/paper.js; also the worker's
+#                               market data; never handed to the page)
+#   ALPACA_DATA_KEY, ALPACA_DATA_SECRET  a separate, EMPTY Alpaca paper account's key: the only Alpaca key
+#                               /stream-keys hands to the page (Batch 4 T0)
+#   WEBULL_PAPER_KEY, WEBULL_PAPER_SECRET  Webull OpenAPI paperTrade app (sandbox only; Batch 4 T0/T1)
 #   PUBLIC_KEY                  Public.com API secret (PUBLIC_ACCOUNT_ID optional)
 #   TIINGO_KEY                  the second source for daily history
 #   ALPHAVANTAGE_KEY            the dossier's second source for price targets (at most 20 calls a day)

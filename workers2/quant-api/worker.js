@@ -15,7 +15,7 @@
 //   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried, check? }
 //                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
 //   GET  /splits?symbol           { symbol, splits: [{ t, ratio, ex }] }  from Alpaca's corporate actions (Yahoo fallback), 6 h
-//   GET  /stream-keys              { alpaca: {key, secret}, finnhub: {key} }   the page's two live streams
+//   GET  /stream-keys              { alpaca: {key, secret, tradeKey}, finnhub: {key} }   the page's two live streams (Alpaca: the data-only account's key)
 //   GET  /corrections?limit=50     the data doctor's log, newest first
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
 //   GET  /snapshot?day[&slot]      { snapshot, watchlist }  the newest market snapshot up to that New York day
@@ -143,7 +143,12 @@ async function route(req, env, url, ctx) {
   if (m === 'GET' && p === '/stream-keys') {
     return json({
       ok: true,
-      alpaca: alpaca.has(env) ? { key: env.ALPACA_KEY, secret: env.ALPACA_SECRET } : null,
+      // The page's Alpaca stream gets a key from an EMPTY paper account used for data only (ALPACA_DATA_*),
+      // never the key of the paper account TradeHub trades in: Alpaca has no data-only keys, so a key handed
+      // to the page could place orders past every check in lib/paper.js. Until the data key is set the old key
+      // is still handed out (the stream keeps working) and `tradeKey: true` says so (Batch 4 T0).
+      alpaca: env.ALPACA_DATA_KEY && env.ALPACA_DATA_SECRET ? { key: env.ALPACA_DATA_KEY, secret: env.ALPACA_DATA_SECRET, tradeKey: false }
+        : alpaca.has(env) ? { key: env.ALPACA_KEY, secret: env.ALPACA_SECRET, tradeKey: true } : null,
       finnhub: finnhub.has(env) ? { key: env.FINNHUB_KEY } : null,
     });
   }

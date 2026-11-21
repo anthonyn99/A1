@@ -372,8 +372,12 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/stream-keys', { key: OTHER });
   ok('refused with another key', r.status === 403);
   r = await call(env, '/stream-keys', { key: GOOD });
-  ok('with the key: the Alpaca paper key and the Finnhub key, never cached', r.status === 200 && r.body.alpaca.key === 'ak' && r.body.alpaca.secret === 'as' && r.body.finnhub.key === 'fk'
+  ok('with the key and no data key yet: the paper key, flagged tradeKey, and the Finnhub key, never cached', r.status === 200 && r.body.alpaca.key === 'ak' && r.body.alpaca.secret === 'as' && r.body.alpaca.tradeKey === true && r.body.finnhub.key === 'fk'
     && r.headers.get('cache-control') === 'no-store');
+  env = { ...fullEnv(), ALPACA_DATA_KEY: 'dk', ALPACA_DATA_SECRET: 'ds' };
+  r = await call(env, '/stream-keys', { key: GOOD });
+  ok('with a data-only key set: the page gets it, and the trading key never leaves the worker (Batch 4 T0)', r.status === 200 && r.body.alpaca.key === 'dk' && r.body.alpaca.secret === 'ds' && r.body.alpaca.tradeKey === false
+    && !JSON.stringify(r.body).includes('"ak"') && !JSON.stringify(r.body).includes('"as"'));
   r = await call({ DB: fakeDb(), ALLOWED_KEYS: hash }, '/stream-keys', { key: GOOD });
   ok('a key not set comes back as null', r.body.alpaca === null && r.body.finnhub === null);
 
