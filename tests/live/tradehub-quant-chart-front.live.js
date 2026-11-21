@@ -81,7 +81,7 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
       // Tony 2026-11-21: "if I'm already max zoomed out, and continue to scroll out, don't do anything, don't keep
       // moving the chart to the left". Zoom out all the way (1D on 5 minute bars, as his screenshot), then five more.
       await set({ range: '1D', tf: '5m' }); await sleep(600);
-      const span = async () => JSON.parse(await js(`var ts=${CH}.chart().timeScale(), r=ts.getVisibleRange(), l=ts.getVisibleLogicalRange(); return JSON.stringify({from:r&&r.from, to:r&&r.to, lf:l&&l.from, lt:l&&l.to});`));
+      const span = async () => JSON.parse(await js(`var ts=${CH}.chart().timeScale(), r=ts.getVisibleRange(), l=ts.getVisibleLogicalRange(); var o=${CH}.chart().options().timeScale; return JSON.stringify({from:r&&r.from, to:r&&r.to, lf:l&&l.from, lt:l&&l.to, w:ts.width(), sp:o.barSpacing, min:o.minBarSpacing, ro:o.rightOffset, n:${CH}.chart().panes ? undefined : undefined});`));
       for (let i = 0; i < 40; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: x2, y, deltaX: 0, deltaY: 240 }); await sleep(60); }
       await sleep(1500);
       const M0 = await span();
