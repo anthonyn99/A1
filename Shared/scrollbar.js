@@ -194,7 +194,24 @@
     rail.style.left = '0px'; rail.style.top = '0px';
     return { rail: rail, thumb: thumb, axis: axis, drawn: {} };
   }
+  // A scroller taken out of the page (a tab switched, a modal closed) is dropped with its rails. Without
+  // this, a box removed while its bar was idle stayed in `bars` for good, and with it the whole page it
+  // sat in: TradeHub kept every old Market and Charts page alive (Tony 2026-11-21, 1.1 GB).
+  function drop(b) {
+    clearTimeout(b.timer);
+    ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.parentNode) b[a].rail.parentNode.removeChild(b[a].rail); });
+    bars.delete(b.el);
+  }
+  var swept = 0;
+  function sweep(force) {
+    var t = Date.now();
+    if (!force && t - swept < 2000) return;
+    swept = t;
+    bars.forEach(function (b) { if (!b.el.isConnected && !b.drag) drop(b); });
+  }
+  setInterval(function () { if (bars.size) sweep(true); }, 10000);
   function barFor(el) {
+    sweep(false);
     var b = bars.get(el);
     if (b) return b;
     b = { el: el, v: null, h: null, timer: 0, hover: false, drag: false, live: false };
@@ -463,7 +480,7 @@
         b.live = false;
         ['v', 'h'].forEach(function (a) { if (b[a]) hideRail(b[a]); });
         // Detached scroller (modal closed): drop its rails entirely.
-        if (!b.el.isConnected) { ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.parentNode) b[a].rail.parentNode.removeChild(b[a].rail); }); bars.delete(b.el); }
+        if (!b.el.isConnected) drop(b);
       }, 400);
     }, HIDE_MS);
   }
@@ -581,5 +598,8 @@
   window.A1Scrollbar = {
     show: function (el) { show(barFor(el)); },
     active: function () { return root.classList.contains('vc-on'); },
+    /** Tests: how many scrollers are held, and a sweep now (tests/scrollbar-leak.test.js). */
+    _held: function () { return bars.size; },
+    _sweep: function () { sweep(true); return bars.size; },
   };
 })();
