@@ -15,6 +15,7 @@
 //   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried, check? }
 //                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
 //   GET  /splits?symbol           { symbol, splits: [{ t, ratio, ex }] }  from Alpaca's corporate actions (Yahoo fallback), 6 h
+//   GET  /webull/probe             Batch 4 T0: the Webull sandbox, read-only (host, token, accounts, shared-account signs)
 //   GET  /stream-keys              { alpaca: {key, secret, tradeKey}, finnhub: {key} }   the page's two live streams (Alpaca: the data-only account's key)
 //   GET  /corrections?limit=50     the data doctor's log, newest first
 //   POST /corrections              { items: [{kind, symbol, field, old_v, new_v, source, note}] }  max 50
@@ -80,6 +81,7 @@ import * as ai from './lib/ai.js';
 import * as gem from './lib/gemini.js';
 import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
+import * as webullProbe from './lib/webull-probe.js';
 import { getBrief, postBrief } from './lib/brief.js';
 import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
@@ -176,6 +178,8 @@ async function route(req, env, url, ctx) {
   if (p === '/paper' && m === 'DELETE') return deletePaper(env, url);
   // Paper trading (Phase 9C, lib/paper.js): the only order code, Alpaca PAPER only.
   if (p.startsWith('/paper/')) return paperRoute(req, env, url, p, m);
+  // Webull SANDBOX probe (Batch 4 T0): read-only; no order is placed (lib/webull-probe.js).
+  if (m === 'GET' && p === '/webull/probe') return json(await webullProbe.probe(env));
   if (p === '/backtests' && m === 'GET') return listBacktests(env);
   if (p === '/backtests' && m === 'POST') return postBacktest(env, req);
   if (p === '/dossier' && m === 'GET') return getDossier(env, url, ctx, later);
