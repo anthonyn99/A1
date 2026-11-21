@@ -92,6 +92,7 @@ const ok = (name, cond, extra) => {
   // Tony 2026-11-21: Beacon in TradeHub. Devices opens Beacon's panel for TradeHub with the alerts strip:
   // "This device is not registered" + Register, and each device's line.
   ok('Control ▸ Alerts has a Devices button', await js(`return !!document.querySelector('[data-tal-devices]');`));
+  ok('Beacon loads from TradeHub\'s own site (/a1/dm/core.js): Brave Shields blocks a third-party beacon.js', await js(`return [...document.scripts].some(function(s){return s.getAttribute('src') === '/a1/dm/core.js';}) && ![...document.scripts].some(function(s){return /github\\.io\\/A1\\/Beacon\\/beacon\\.js/.test(s.src);});`));
   ok('Beacon is mounted as tradehub', await until(`window.Beacon && window.Beacon.deviceId && !!window.Beacon.deviceId()`, 15000));
   await js(`document.querySelector('[data-tal-devices]').click(); 1`);
   const PANEL = `(document.querySelector('beacon-panel') && document.querySelector('beacon-panel').shadowRoot)`;
