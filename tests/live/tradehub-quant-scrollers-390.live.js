@@ -37,6 +37,9 @@ const TABS = (process.env.TABS || 'market,charts,scanner,paper,portfolio,journal
       await js(`${sel}.scrollIntoView({block:'center'}); 1`); await sleep(250);
       const r = JSON.parse(await js(`var r=${sel}.getBoundingClientRect(); return JSON.stringify({l:r.left,t:r.top,w:r.width,h:r.height});`));
       if (r.t < 0 || r.t + r.h > 844 + r.h) continue;
+      // A1's rule (Shared/scrollbar.js canScroll): a short sideways strip (under 120 px tall, e.g. the watchlist
+      // strip) never gets a bar under a finger: a rail along its bottom would sit on its buttons. By design.
+      if (!b.v && r.h < 120) { console.log(`  --   ${t} · ${b.card || '?'}: a short sideways strip; no bar by A1's design (a finger swipes it)`); continue; }
       // A finger swipe inside it: up for a vertical scroller, left for a horizontal one.
       const x0 = r.l + r.w * 0.5, y0 = Math.max(r.t + 10, Math.min(r.t + r.h * 0.6, 800)), dx = b.v ? 0 : -60, dy = b.v ? -60 : 0;
       await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0, id: 1 }] });
