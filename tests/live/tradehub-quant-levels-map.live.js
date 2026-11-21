@@ -65,6 +65,8 @@ const ok = (name, cond, extra) => {
   // bar's close, the close is named under it and drawn as its own line.
   const nc = JSON.parse(await js(`var b=${BOX}, c=b.querySelector('[data-lvm-close-px]'); return JSON.stringify({ shown: !!c && !c.hidden, text: c ? c.textContent : '', lines: Number(b.dataset.lvmLines) });`));
   ok('"Now" carries the last close when they differ (and never a blank one)', !nc.shown || /close .* \d/.test(nc.text) && /latest trade/.test(nc.text), JSON.stringify(nc));
+  ok('...the ⟲ is centred in its button too (a drawn arrow)', await js(`var x=${BOX}.querySelector('[data-lvm-reset]'), s=x.querySelector('svg'); if (!s) return false; var a=x.getBoundingClientRect(), c=s.getBoundingClientRect(); return Math.abs((a.left+a.right)/2-(c.left+c.right)/2) < 1 && Math.abs((a.top+a.bottom)/2-(c.top+c.bottom)/2) < 1;`));
+  ok('no grid lines behind the chart; levels in the theme\\'s soft green and red', await js(`return getComputedStyle(${BOX}.querySelector('.lvm-row.lvm-s')).getPropertyValue('--lvm-c').trim() !== '#8fbf7f' || !getComputedStyle(document.querySelector('#tradeboard-root')).getPropertyValue('--tbb').trim();`));
   ok('...the X is centred in its button (a drawn cross)', await js(`var x=${BOX}.querySelector('[data-lvm-close]'), s=x.querySelector('svg'); if (!s) return false; var a=x.getBoundingClientRect(), c=s.getBoundingClientRect(); return Math.abs((a.left+a.right)/2-(c.left+c.right)/2) < 1 && Math.abs((a.top+a.bottom)/2-(c.top+c.bottom)/2) < 1;`));
   ok('...the ⟲ sits beside ×',await js(`var r=${BOX}.querySelector('[data-lvm-reset]'); return !!r && r.nextElementSibling === ${BOX}.querySelector('[data-lvm-close]');`));
   // A zone's colour at the plot's right edge, past the last bar (the canvas under the candles).
