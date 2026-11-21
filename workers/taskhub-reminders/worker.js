@@ -404,15 +404,20 @@ async function handleQuantPush(request, env, origin, ctx) {
   const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
   const authHdr = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
-  const cached = !!(_quantDev && Date.now() - _quantDev.at < QUANT_DEV_MS && _quantDev.docs.length);
-  if (!cached) {
-    // 2026-11-21 (Tony: Beacon in TradeHub): the devices registered for TradeHub alerts and switched on
-    // (dashboards/tradehub_push_tony, TradeHub/data/push.js). While none is registered, TaskHub's devices, as before.
-    const [reg, docs0, names0] = await Promise.all([quantRegistered(baseUrl, authHdr), quantTonyTokens(baseUrl, authHdr), quantDeviceNames(baseUrl, authHdr)]);
-    const useReg = reg && reg.registered > 0;
-    if (!useReg && docs0 === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
-    const docs = useReg ? reg.on : docs0.map((d) => ({ token: d.fields.token.stringValue, id: String(d.name || '').split('/').pop(), ua: d.fields.ua && d.fields.ua.stringValue, doc: d.name }));
-    _quantDev = { at: Date.now(), docs, names: names0, source: useReg ? 'tradehub' : 'taskhub' };
+  // 2026-11-21 (Tony: Beacon in TradeHub): the devices registered for TradeHub alerts and switched on
+  // (dashboards/tradehub_push_tony, TradeHub/data/push.js), read on EVERY push (one document) so a switch or a new
+  // registration counts at once. While none is registered, TaskHub's devices, as before (cached as before).
+  const reg = await quantRegistered(baseUrl, authHdr);
+  const useReg = !!(reg && reg.registered > 0);
+  const cached = !useReg && !!(_quantDev && _quantDev.source === 'taskhub' && Date.now() - _quantDev.at < QUANT_DEV_MS && _quantDev.docs.length);
+  if (useReg) {
+    const names0 = _quantDev && _quantDev.names && Date.now() - _quantDev.at < QUANT_DEV_MS ? _quantDev.names : await quantDeviceNames(baseUrl, authHdr);
+    _quantDev = { at: _quantDev && _quantDev.names === names0 ? _quantDev.at : Date.now(), docs: reg.on, names: names0, source: 'tradehub' };
+  } else if (!cached) {
+    const [docs0, names0] = await Promise.all([quantTonyTokens(baseUrl, authHdr), quantDeviceNames(baseUrl, authHdr)]);
+    if (docs0 === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
+    const docs = docs0.map((d) => ({ token: d.fields.token.stringValue, id: String(d.name || '').split('/').pop(), ua: d.fields.ua && d.fields.ua.stringValue, doc: d.name }));
+    _quantDev = { at: Date.now(), docs, names: names0, source: 'taskhub' };
   }
   const { docs, names } = _quantDev;
   const tLookup = Date.now();
@@ -426,7 +431,7 @@ async function handleQuantPush(request, env, origin, ctx) {
     _quantDev = null;   // look the devices up afresh next time
     if (r.dead && d.doc) {
       // Pruned: the token field only, so the device keeps its main and its record.
-      await fetch(`https://firestore.googleapis.com/v1/${d.name}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
+      await fetch(`https://firestore.googleapis.com/v1/${d.doc}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
         .then((res) => { if (res.ok) pruned++; }).catch(() => {});
     }
   }));
@@ -437,7 +442,35 @@ async function handleQuantPush(request, env, origin, ctx) {
   }
   const ms = { auth: tAuth - t0, lookup: tLookup - tAuth, fcm: tSend - tLookup, total: tSend - t0, cached };
   console.log(`[quant-push] "${title.slice(0, 40)}" sent ${sent}, failed ${failed}, pruned ${pruned}, ${ms.total} ms${cached ? ' (devices cached)' : ''}`);
-  return json({ ok: true, sent, failed, pruned, devices, ms }, origin);
+  return json({ ok: true, sent, failed, pruned, devices, ms, source: _quantDev ? _quantDev.source : (useReg ? 'tradehub' : 'taskhub') }, origin);
+}
+// TradeHub's own registrations (dashboards/tradehub_push_tony: devices.<id> = { token, on, ua, at }) →
+// { registered: n with a token, on: [{ token, id, ua }] switched on }, or null when the document cannot be read.
+export function quantRegisteredFrom(fields) {
+  const m = fields && fields.devices && fields.devices.mapValue && fields.devices.mapValue.fields;
+  if (!m) return { registered: 0, on: [] };
+  const seen = new Set(), on = [];
+  let registered = 0;
+  for (const [id, v] of Object.entries(m)) {
+    const f = (v && v.mapValue && v.mapValue.fields) || {};
+    const token = f.token && f.token.stringValue;
+    if (!token) continue;
+    registered++;
+    if (f.on && f.on.booleanValue === false) continue;
+    if (seen.has(token)) continue;
+    seen.add(token);
+    on.push({ token, id, ua: f.ua && f.ua.stringValue });
+  }
+  return { registered, on };
+}
+async function quantRegistered(baseUrl, authHdr) {
+  try {
+    const res = await fetch(`${baseUrl}/dashboards/tradehub_push_tony`, { headers: authHdr });
+    if (res.status === 404) return { registered: 0, on: [] };
+    if (!res.ok) return null;
+    const j = await res.json();
+    return quantRegisteredFrom(j.fields);
+  } catch (e) { return null; }
 }
 // Tony's device tokens: one query, filtered on mainDash == 'tony' at Firestore.
 async function quantTonyTokens(baseUrl, authHdr) {
