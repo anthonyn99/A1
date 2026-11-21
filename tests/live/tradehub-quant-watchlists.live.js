@@ -152,7 +152,8 @@ const WB = [
   await press('[data-wlm-add] .tb-btn-primary'); await sleep(300);
   ok('add two at once: MU, AMD', (await tiles()) === 'MU,AMD', await tiles());
   ok('...saved as a custom list in wl2.lists', await until(`(${DOC}.wl2||{}).lists && ${DOC}.wl2.lists.some(function(l){return l.name==='Semis' && l.tickers.join()==='MU,AMD';})`, 4000), await js(`return JSON.stringify((${DOC}.wl2||{}).lists);`));
-  ok('the sync pill says Synced', await until(`(function(){ var p=document.querySelector('[data-wlm-sync]'); return p && p.getAttribute('data-sync')==='ok'; })()`, 4000));
+  // B7 (ask 10): Watchlists report to TradeHub's ONE sync pill under the title.
+  ok('the one sync pill says Synced', await until(`(function(){var p=[].slice.call(document.querySelectorAll('.a1-sync')).find(function(e){return e.offsetParent;}); return !!p && p.getAttribute('data-sync')==='ok';})()`, 5000));
   await js(`document.querySelector('[data-wlm] [data-wlm-remove="MU"]').click(); 1`); await sleep(300);
   ok('remove on a custom list', (await tiles()) === 'AMD');
   await press('[data-wlm-act="rename"]'); await sleep(150);
