@@ -366,9 +366,13 @@ export const TEST_KINDS = [
 /** POST /alerts/test-all: B10's "Send every kind once" in Control ▸ Alerts. Each goes through the real push route to
  *  Tony's devices only (taskhub-reminders /quant-push), one notification each, with what quiet hours, "market hours
  *  only" and the kind switch WOULD do right now reported beside it (a test is always sent, so he sees every text). */
-export async function testAll(env, now = Date.now(), { send = push } = {}) {
+// Spaced out (Tony 2026-11-21: the phone showed 8 of 11): Android drops a burst of notifications from one app (its
+// enqueue limit is about 5 a second), so the 11 go 700 ms apart, about 8 s in all.
+export const TEST_GAP_MS = 700;
+export async function testAll(env, now = Date.now(), { send = push, gap = TEST_GAP_MS } = {}) {
   const cfg = await readCfg(env), run = now.toString(36), out = [];
   for (const [i, t] of TEST_KINDS.entries()) {
+    if (i && gap) await new Promise((r) => setTimeout(r, gap));
     const would = cfg.kinds[t.kind] === false ? 'kind is off' : isQuiet(cfg, now) ? 'quiet hours' : cfg.marketOnly[t.kind] && !inSession(now) ? 'outside market hours' : null;
     const r = await send(env, { title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), tag: 'tbq-tall-' + run + '-' + i, card: false, kind: t.kind });
     out.push({ kind: t.kind, what: t.what, title: '[Test] ' + t.title, body: t.body, ok: !!r.ok, devices: r.devices || [], error: r.ok ? null : r.error || null, normally: would || 'pushed' });
