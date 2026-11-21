@@ -81,7 +81,14 @@ export function buildPrompt(b, { stripPrivate = false } = {}) {
     temperature: Number.isFinite(Number(b.temperature)) ? Math.max(0, Math.min(1, Number(b.temperature))) : 0.2,
   };
 }
-const openaiBody = (p, model, stream) => JSON.stringify({ model, stream, max_tokens: p.maxTokens, temperature: p.temperature,
+/* A reasoning model (gpt-oss) spends max_tokens on its hidden reasoning first: at the 700 default it often had nothing
+   left for the answer, so Groq returned an EMPTY reply (10B, 2026-11-21: MU-3 empty ~9 times in 10, each one benching
+   Groq; 3 of 3 answered at 1500). It gets REASONING_MIN at least, and low effort; the answer itself is no longer. */
+export const REASONING_MIN = 2500;
+export const isReasoning = (model) => /gpt-oss/i.test(String(model || ''));
+export const openaiBody = (p, model, stream) => JSON.stringify({ model, stream, temperature: p.temperature,
+  max_tokens: isReasoning(model) ? Math.max(p.maxTokens, REASONING_MIN) : p.maxTokens,
+  ...(isReasoning(model) ? { reasoning_effort: 'low' } : {}),
   messages: [...(p.system ? [{ role: 'system', content: p.system }] : []), ...p.messages] });
 
 /* ── which model, which order ────────────────────────────────────────────── */
