@@ -105,11 +105,12 @@
   run 2026-11-17; the switch is on by default.** **Refinements Batch 1
   (2026-11-18, phases R0-R10 plus R7B, R8 removed by Tony 2026-11-19):** **COMPLETE
   2026-11-19** (§0 of `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-1.md`
-  and `quant/r1-10.md` list what is left with Tony). **Refinements Batch 2
-  (2026-11-20, 41 asks, phases B0-B11): "continue Quant" = read §0 of
-  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-2.md` and build the
-  phase it names** (since 2026-11-21 the work stays on Tony's account; its §0
-  names the one plan artifact to keep current). The plan stays
+  and `quant/r1-10.md` list what is left with Tony). Refinements Batch 2
+  (2026-11-20/21, B0-B11): **COMPLETE 2026-11-21** (quant-refine-2.md). **Batch 3
+  (2026-11-21): "Neo Quant Go" or "continue Quant" = read §0 of
+  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-3.md` and build its
+  phases C1-C4 in order** (the work stays on Tony's account; the one plan artifact
+  is named in quant-refine-2.md §0). The plan stays
   in private A1-Priv (A1 is public). Otherwise read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-plan.md` (what is left
   with Tony, what to do with a new ask) and `quant-README.md` beside it (the
