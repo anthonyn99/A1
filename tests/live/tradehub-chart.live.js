@@ -164,8 +164,11 @@ const CH = `${TAB}.active()`;
   await js(`document.querySelector('[data-ch-main]').scrollIntoView({block:'center'}); 1`);
   await sleep(300);
   s = await stage();
-  const mx = s.l + s.w * 0.45, my = s.t + s.h * 0.45;
-  t0 = await timeAt(mx, s);
+  const mx0 = s.l + s.w * 0.45, my = s.t + s.h * 0.45;
+  t0 = await timeAt(mx0, s);
+  // B11: the fingers centred on that bar's own centre. From anywhere inside a bar, a 4× pinch grows the finger's
+  // offset from the bar's centre 4× (up to half a bar, ~5 px), which this check used to count as drift.
+  const mx = await xOf(t0, s);
   const pageY0 = await js(`return window.scrollY + ',' + (document.scrollingElement||document.documentElement).scrollTop + ',' + (window.visualViewport ? visualViewport.scale : 1);`);
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: mx - 20, y: my, id: 1 }, { x: mx + 20, y: my, id: 2 }] });
   for (let i = 1; i <= 10; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: mx - 20 - i * 6, y: my, id: 1 }, { x: mx + 20 + i * 6, y: my, id: 2 }] }); await sleep(20); }
