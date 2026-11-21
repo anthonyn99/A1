@@ -47,6 +47,30 @@ const ok = (name, cond, extra) => {
   ok(`a press on ${first} picks it out (only its touches marked)`, await js(`var r=${BOX}.querySelector('[data-lvm-level="${first}"]'); return r.getAttribute('aria-pressed') === 'true';`) && Number(await js(`return ${BOX}.dataset.lvmMarks;`)) < Number(d.lvmMarks));
   await js(`${BOX}.querySelector('[data-lvm-level="${first}"]').click(); 1`); await sleep(200);
   ok('...a second press puts every level back', await js(`return ${BOX}.dataset.lvmMarks;`) === d.lvmMarks);
+  // Tony 2026-11-21: ⟲ back to the whole chart; zones across the whole plot (they stopped at the last bar); the
+  // shade faint (it read as a white block); the ranks coloured as on the card.
+  const view = () => js(`return ${BOX}.dataset.lvmView || '';`).then((v) => v.split('..').map(Number));
+  const v0 = await view();
+  const pr = JSON.parse(await js(`var r=${BOX}.querySelector('[data-lvm-plot]').getBoundingClientRect(); return JSON.stringify({x:r.left+r.width*0.6,y:r.top+r.height/2});`));
+  for (let i = 0; i < 8; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: pr.x, y: pr.y, deltaX: 0, deltaY: -400 }); await sleep(60); }
+  await sleep(300);
+  const v1 = await view();
+  ok('the wheel zooms in (fewer bars in view)', v1[1] - v1[0] < (v0[1] - v0[0]) * 0.7, JSON.stringify([v0, v1]));
+  await js(`${BOX}.querySelector('[data-lvm-reset]').click(); 1`); await sleep(300);
+  const v2 = await view();
+  ok('⟲ snaps back to the whole chart', v2[0] <= 0 && v2[1] >= Number(d.lvmBars) - 1, JSON.stringify([v1, v2, d.lvmBars]));
+  ok('...the ⟲ sits beside ×', await js(`var r=${BOX}.querySelector('[data-lvm-reset]'); return !!r && r.nextElementSibling === ${BOX}.querySelector('[data-lvm-close]');`));
+  // A zone's colour at the plot's right edge, past the last bar (the canvas under the candles).
+  const zoneEdge = await js(`var b=${BOX}; if (b.dataset.lvmZones === '0') return 'no zones';
+    var cs=[...b.querySelectorAll('[data-lvm-plot] canvas')], pl=b.querySelector('[data-lvm-plot]').getBoundingClientRect(), hit=0;
+    for (const cv of cs) { var r=cv.getBoundingClientRect(); if (r.width < pl.width*0.5) continue; var g=cv.getContext('2d'), sx=cv.width/r.width, x=Math.floor((r.width-6)*sx);
+      for (let y=0; y<cv.height; y+=2) { var p=g.getImageData(x,y,1,1).data; if (p[3] > 0 && p[0] !== p[2]) { hit++; } } }
+    return hit;`);
+  ok('a zone box reaches the plot\'s right edge, past the last bar', zoneEdge === 'no zones' || zoneEdge > 0, zoneEdge);
+  const chips = JSON.parse(await js(`var o={}; for (const c of ${BOX}.querySelectorAll('.lvm-rank')) o[c.dataset.rank]=getComputedStyle(c).color; return JSON.stringify(o);`));
+  const kinds = Object.keys(chips);
+  ok('the rank chips coloured as on the Levels card (one colour per rank)', kinds.length >= 1 && new Set(Object.values(chips)).size === kinds.length
+    && await js(`return [...${BOX}.querySelectorAll('.lvm-rank')].every((c) => /\\bmk-(good|warn|off)\\b/.test(c.className));`), JSON.stringify(chips));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`); await sleep(200);
   ok('Escape closes it, and its chart is gone from the page', await js(`return !${BOX} && !document.querySelector('[data-lvm-plot]');`));
   await openMap();
