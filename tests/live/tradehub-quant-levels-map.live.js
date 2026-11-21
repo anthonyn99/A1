@@ -56,6 +56,15 @@ const ok = (name, cond, extra) => {
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 5, y: 5, button: 'left', clickCount: 1 }); await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 5, y: 5, button: 'left', clickCount: 1 }); await sleep(200);
   ok('a press outside the box closes it', await js(`return !${BOX};`));
 
+  // Tony 2026-11-21 (memory): opening and closing it leaves nothing behind: no canvas, no growth of the heap.
+  const gc = async () => { await c.send('HeapProfiler.enable'); await c.send('HeapProfiler.collectGarbage'); await sleep(300); };
+  await gc();
+  const m0 = JSON.parse(await js(`return JSON.stringify({ canvases: document.querySelectorAll('canvas').length, heap: performance.memory ? performance.memory.usedJSHeapSize : 0, nodes: document.getElementsByTagName('*').length });`));
+  for (let i = 0; i < 6; i++) { await openMap(); await js(`document.querySelector('[data-lvm-close]').click(); 1`); await sleep(200); }
+  await gc();
+  const m1 = JSON.parse(await js(`return JSON.stringify({ canvases: document.querySelectorAll('canvas').length, heap: performance.memory ? performance.memory.usedJSHeapSize : 0, nodes: document.getElementsByTagName('*').length });`));
+  ok('six opens and closes leave no canvas or element behind, and the heap within 3 MB', m1.canvases === m0.canvases && m1.nodes <= m0.nodes + 20 && m1.heap - m0.heap < 3e6, JSON.stringify([m0, m1]));
+
   console.log('\n2. Every width');
   for (const [w, hgt, name] of [[1280 + 224, 900, 'desktop'], [820 + 224, 1000, 'tablet'], [390, 844, 'phone']]) {
     await size(w, hgt); await sleep(800); await tab('charts'); await sleep(500);
