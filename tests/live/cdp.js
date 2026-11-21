@@ -316,7 +316,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       body: all.toString('base64'),
     });
   });
-  await send('Fetch.enable', { patterns: [PAGES + '*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
+  await send('Fetch.enable', { patterns: [PAGES + '*', 'https://anthonyn99.github.io/a1/devices/*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
     .map((urlPattern) => ({ urlPattern, requestStage: 'Request' })) });
   // A public page reaching 127.0.0.1 needs Local Network Access -- a prompt
   // in a real browser (Tony allowed it once), refused outright when headless.
