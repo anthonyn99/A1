@@ -47,6 +47,25 @@ const ok = (ph, name, cond, extra) => {
       && await js(`var l=document.querySelector('[data-trade-mode="live"]'); return !!l && (l.disabled || l.getAttribute('aria-disabled')==='true') && document.querySelector('[data-trade-mode="paper"]').getAttribute('aria-pressed')==='true';`));
     ok('T2', 'the broker dropdown offers Alpaca and Webull', await js(`var b=document.querySelector('[data-trade-broker]'); return !!b && /Alpaca/.test(b.innerText||b.textContent) ;`));
     ok('T2', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    if (want('T2')) {
+      ok('T2', 'Alpaca by default: its account and its NVDA position; the header says Alpaca', await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000)
+        && await js(`return !!document.querySelector('[data-pp-pos="NVDA"]') && /Alpaca paper account/.test(document.querySelector('[data-pp-meta]').textContent);`));
+      ok('T2', 'pressing Live does nothing (still Paper)', await js(`document.querySelector('[data-trade-mode="live"]').click(); return document.querySelector('[data-trade-mode="paper"]').getAttribute('aria-pressed')==='true';`));
+      const alpacaBefore = (api.posted.pp || []).length;
+      await js(`var s=document.querySelector('[data-trade-broker]'); s.value='webull'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+      ok('T2', 'Webull: its own account ($1,000,000, Individual Margin) and its own working order; no Alpaca position shows', await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$1,000,000.00'`, 6000)
+        && await until(`!!document.querySelector('[data-pp-ord="wbo1"]')`, 4000)
+        && await js(`return !document.querySelector('[data-pp-pos="NVDA"]') && /Webull paper account/.test(document.querySelector('[data-pp-meta]').textContent) && /Individual Margin/.test(document.querySelector('[data-pp-account]').textContent);`),
+        await js(`return (document.querySelector('[data-pp-account]')||{}).textContent;`));
+      ok('T2', '...the strategies card says runs stay on Alpaca', await js(`return !!document.querySelector('[data-pp-noruns]');`));
+      ok('T2', '...and nothing was read from Alpaca after the switch', (api.posted.pp || []).length === alpacaBefore, JSON.stringify((api.posted.pp || []).slice(alpacaBefore)));
+      ok('T2', '...every read went to /trade/webull/', (api.posted.wb && api.posted.wb.pp || []).length > 0, JSON.stringify(api.asked.slice(-6)));
+      await boot({ quant: true, keep: true }); await tab('trading');
+      ok('T2', 'the broker is remembered on this device after a reload', await until(`(document.querySelector('[data-trade-broker]')||{}).value==='webull' && (document.querySelector('[data-pp-equity]')||{}).textContent==='$1,000,000.00'`, 8000));
+      await js(`var s=document.querySelector('[data-trade-broker]'); s.value='alpaca'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+      ok('T2', 'back to Alpaca: its account again', await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00' && !!document.querySelector('[data-pp-pos="NVDA"]')`, 6000));
+      ok('T2', 'an old link to Paper lands on Trading', await js(`window._tbOps.app.go('paper'); return true;`) && await until(`!!document.querySelector('[data-trading-tab]')`, 4000));
+    }
 
     // T3: the ticket, two ways
     ok('T3', '"New Order" opens the redesigned ticket with five type pills', await js(`var b=document.querySelector('[data-trade-new]'); if(!b) return false; b.click(); return true;`)
