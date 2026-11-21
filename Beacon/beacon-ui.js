@@ -434,8 +434,19 @@ function wire(p) {
       if (t.hasAttribute('data-cancel')) { p.form = null; render(); return; }
       if (t.hasAttribute('data-ok')) return clearOld(t);
     }
+    if (t.hasAttribute('data-alerts-reg') && p.ctx.alerts && p.ctx.alerts.register) {
+      t.disabled = true;
+      run(function () { return p.ctx.alerts.register(); }, function (r) { return r && r.ok === false ? (r.why || 'Not registered.') : 'This device is registered for ' + alertsLabel(p.ctx) + '.'; });
+      return;
+    }
     var card = t.closest('[data-dev]'), dev = card ? find(card.getAttribute('data-dev')) : null;
     if (!dev) return;
+    if (t.hasAttribute('data-alerts-tog') && p.ctx.alerts && p.ctx.alerts.set) {
+      var next = t.getAttribute('aria-pressed') !== 'true';
+      t.setAttribute('aria-pressed', String(next));   // at once; load() redraws from the store
+      run(function () { return p.ctx.alerts.set(p.ctx.profile, dev.id, next); }, alertsLabel(p.ctx) + (next ? ' on for ' : ' off for ') + devName(dev) + '.');
+      return;
+    }
     if (t.hasAttribute('data-toggle')) {
       p.open[dev.id] = !p.open[dev.id];
       if (!p.open[dev.id] && p.form && p.form.id === dev.id) p.form = null;
@@ -555,7 +566,7 @@ function render() {
     (nAct ? ' · <span class="dot"></span>' + nAct + ' active now' : '') +
     (nPush ? ' · ' + nPush + ' get notifications' : '');
   var where = ctx.scope === 'all' ? 'an A1 program' : ctx.appLabel;
-  var h = '<div class="sec"><div class="sh"><span class="st">Your devices</span></div>';
+  var h = alertsHead(p, self) + '<div class="sec"><div class="sh"><span class="st">Your devices</span></div>';
   h += mine.length ? '<div class="card">' + mine.map(row).join('') + '</div>'
     : '<div class="card"><div class="empty"><b>No devices yet</b>A device shows up here once it opens ' + esc(where) + ' as ' + esc(NAMES[ctx.profile]) + '.</div></div>';
   h += '</div>';
@@ -594,8 +605,36 @@ function row(d) {
       (me ? '<span class="tag">This device</span>' : '') + (stale && d.owner === 'neutral' ? '<span class="tag n">Neutral</span>' : '') + '</span>' +
     '<span class="dm" title="' + esc(d.seen ? 'Last active ' + fullTime(d.seen) : '') + '">' + when + (sub && when ? ' · ' : '') + esc(sub) + '</span></span>' +
     '<span class="gl">' + glyphs(rows) + '</span><span class="cv">' + I.chev + '</span></button>';
+  h += alertsStrip(p, d, me);
   if (open) h += details(d, rows, me);
   return h + '</div>';
+}
+/* ── A program's alerts (ctx.alerts = { label, get, set, register }) ─────────
+   TradeHub 2026-11-21 (Tony: "register my devices for the alert system ... enable/disable notifications per device",
+   like RESERV): the top says whether THIS device is registered (Register if not); each registered device carries
+   an on/off switch; an unregistered one says so. p.alerts = { <deviceId>: { on, token } } from get(). */
+function alertsLabel(ctx) { return (ctx.alerts && ctx.alerts.label) || (ctx.appLabel + ' alerts'); }
+function alertsHead(p, self) {
+  var al = p.ctx.alerts; if (!al) return '';
+  var map = p.alerts || {}, mine = map[self], lab = alertsLabel(p.ctx);
+  var ids = Object.keys(map).filter(function (k) { return map[k] && map[k].token; });
+  var on = ids.filter(function (k) { return map[k].on !== false; }).length;
+  var count = ids.length ? ' · ' + ids.length + ' registered, ' + on + ' on' : '';
+  if (mine && mine.token) {
+    return '<div class="alh" data-alerts-head><span class="an"><b>This device is registered for ' + esc(lab) + '.</b> ' +
+      (mine.on !== false ? 'It gets them.' : 'Its switch is off, so it gets none.') + esc(count) + '</span>' +
+      '<button class="b" data-alerts-reg title="Ask the browser again and refresh this device’s push token">' + I.refresh + 'Re-register</button></div>';
+  }
+  return '<div class="alh" data-alerts-head><span class="an"><b>This device is not registered for ' + esc(lab) + '.</b> Register it to get them here; switch any device on or off below.' + esc(count) + '</span>' +
+    '<button class="b solid" data-alerts-reg>' + I.bell + 'Register this device</button></div>';
+}
+function alertsStrip(p, d, me) {
+  var al = p.ctx.alerts; if (!al) return '';
+  var e = (p.alerts || {})[d.id], lab = alertsLabel(p.ctx);
+  if (!e || !e.token) return '<div class="alr" data-alerts-dev="' + esc(d.id) + '"><span class="an">' + esc(lab) + ': not registered' + (me ? ' (Register, above)' : ' (open ' + esc(p.ctx.appLabel) + ' there to register it)') + '</span></div>';
+  var on = e.on !== false;
+  return '<div class="alr" data-alerts-dev="' + esc(d.id) + '"><span class="an"><b>' + esc(lab) + '</b> ' + (on ? 'on' : 'off') + '</span>' +
+    '<button class="sw" data-alerts-tog aria-pressed="' + on + '" aria-label="' + esc(lab) + ' on ' + esc(devName(d)) + '" title="' + (on ? 'On: this device gets them. Press to turn off.' : 'Off: nothing is sent here. Press to turn on.') + '"></button></div>';
 }
 function details(d, rows, me) {
   var p = P, ctx = p.ctx, os = (d.meta || {}).os;
