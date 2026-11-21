@@ -65,6 +65,29 @@ const PRICES = { 'BTC-USD': 58243.61, 'ETH-USD': 1595.76, 'SOL-USD': 67.28, 'AVA
   ok('...Key Stats and Analysis are not offered on Market (ask 39)', add && !add.opts.includes('stats') && !add.opts.includes('analysis'), JSON.stringify(add));
   ok('...nothing to add hides the menu', add && (add.opts.length > 0 || add.hidden), JSON.stringify(add));
 
+  // §1 rule 1 (asks 15, 19): no card ends in explanatory text on its face (sources, method notes, "Updated …"):
+  // those live in the card's "?". A data line (Chart's one-line read) or an empty state ("No conversations yet")
+  // is not a footer. Every tab, three widths.
+  for (const [w, hh] of [[1280, 900], [820, 1100], [390, 844]]) {
+    await size(w, hh); await sleep(500);
+    const found = [];
+    for (const t of ['portfolio', 'journal', 'prompt', 'catalysts', 'news', 'analysis', 'market', 'charts', 'scanner', 'neo', 'paper']) {
+      try { await tab(t); } catch (e) { continue; }
+      await sleep(1800);
+      found.push(...JSON.parse(await js(`
+        var res=[];
+        document.querySelectorAll('.lay-card .lay-body').forEach(function(body){
+          body.querySelectorAll('.mk-note, .sk-src').forEach(function(n){
+            if(n.closest('[data-help-note],[data-empty]') || n.matches('.ch-oneline') || !n.getClientRects().length || !n.textContent.trim()) return;
+            var after=false, x=n; while(x && x!==body){ var s=x.nextElementSibling; while(s){ if(s.getClientRects().length && s.textContent.trim()){ after=true; break; } s=s.nextElementSibling; } if(after) break; x=x.parentElement; }
+            if(!after) res.push(${JSON.stringify(t)}+': '+n.textContent.trim().replace(/\\s+/g,' ').slice(0,70));
+          });
+        });
+        return JSON.stringify(res);`)));
+    }
+    ok(`${w} px: no card ends in a footer note on any tab (§1 rule 1)`, !found.length, found.join(' | '));
+  }
+
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   c.ws.close();
