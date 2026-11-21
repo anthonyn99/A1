@@ -140,7 +140,9 @@ const DESK_W = 1280 + 224, TAB_W = 820 + 224;
     ok(`${name}: the card's "?" note says split-adjusted (8-for-1, …)`, await js(`var n=${A}.querySelector('[data-sk-split]'); return !!n && /split-adjusted \\(8-for-1, [A-Z][a-z]{2} \\d+\\)/.test(n.textContent);`), await js(`var n=${A}.querySelector('[data-sk-split]'); return n ? n.textContent : 'none';`));
     ok(`${name}: no sideways scroll, the card inside the page`, await js(`var W=document.documentElement.clientWidth, r=${A}.getBoundingClientRect(); return document.documentElement.scrollWidth <= W + 1 && r.width > 200 && r.right <= W + 1;`));
   }
-  ok('"Latest changes": Rosenblatt\'s 2,400 from before the split reads 300.00', await js(`var u=${A}.querySelector('[data-sk-ups]').textContent; return /300\\.00/.test(u) && !/2,400/.test(u);`), await js(`var u=${A}.querySelector('[data-sk-ups]'); return u ? u.textContent : 'none';`));
+  // The mock's clock is 2026-11-12, so this split goes ex that day: Rosenblatt's change dated 11/12 is already on
+  // the new basis and stays 2,400.00 (the date rule's boundary; quant-split-adjust.test.js has one dated before).
+  ok('"Latest changes": a change dated the ex-date itself is left as served (2,400.00)', await js(`var u=${A}.querySelector('[data-sk-ups]').textContent; return /2,400\\.00/.test(u) && !/300\\.00/.test(u);`), await js(`var u=${A}.querySelector('[data-sk-ups]'); return u ? u.textContent : 'none';`));
   ok('Key Stats on the same ticker: 52-week high 2,354.39 → 294.30, EPS 125.12 → 15.64, P/E 6.17 as is', await js(`var g=function(k){var e=${K}.querySelector('[data-sk-stat="'+k+'"] b'); return e ? e.textContent : '';}; return g('high52') === '294.30' && g('epsTtm') === '15.64' && g('peTtm') === '6.17';`),
     await js(`return ${K} ? ${K}.innerText.slice(0, 400) : 'no card';`));
   api.state.splits = {};
