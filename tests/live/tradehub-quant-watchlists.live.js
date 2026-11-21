@@ -202,7 +202,8 @@ const WB = [
   await sleep(1500);
   ok('TradeHub Quant off: News and the workers use the TradeHub list (as before Phase 1), not the saved followed copy', await until(`tbGetWatchlist().indexOf('SNDK')<0 && tbGetWatchlist().length>0`, 6000) && /SNDK/.test(fBefore), await js(`return tbGetWatchlist().join();`));
   await tab('prompt');
-  ok('...and Control has the old single-list editor, no TradeHub/ module loaded', await until(`document.querySelector('.ctl-wl .ctl-tk')`, 8000) && await js(`return !document.querySelector('[data-wlm]') && !performance.getEntriesByType('resource').some(function(r){return /\\/TradeHub\\//.test(r.name);});`));
+  // Beacon's TradeHub/data/push.js loads on every open (alerts' devices, 2026-11-21); nothing else of TradeHub/.
+  ok('...and Control has the old single-list editor, no TradeHub/ module loaded (but Beacon\'s push.js)', await until(`document.querySelector('.ctl-wl .ctl-tk')`, 8000) && await js(`return !document.querySelector('[data-wlm]') && !performance.getEntriesByType('resource').some(function(r){return /\\/TradeHub\\//.test(r.name) && r.name.indexOf('/TradeHub/data/push.js') < 0;});`));
 
   for (const [w, hgt] of [[820, 1000], [390, 844]]) {
     console.log(`\n${w}: the rail and the manager`);
