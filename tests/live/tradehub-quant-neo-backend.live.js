@@ -67,7 +67,7 @@ const ok = (name, cond, extra) => {
   await openMenu();
   await js(`${MENU}.querySelector('[data-nq-be="auto"]').click(); 1`); await sleep(150);
   const n1 = (api.posted.ai || []).length;
-  await askTyped('What changed?');
+  await askTyped('Why is the VIX up today?');
   for (let i = 0; i < 40 && (api.posted.ai || []).length === n1; i++) await sleep(200);
   // The question's own request (a follow-up check of the answer names the provider that answered, by design).
   const firstAuto = (api.posted.ai || []).slice(n1).find((x) => x.p === '/ai/chat');
@@ -77,6 +77,7 @@ const ok = (name, cond, extra) => {
   console.log('\n3. Every width');
   for (const [w, hgt, name] of [[1280 + 224, 900, 'desktop'], [820 + 224, 1000, 'tablet'], [390, 844, 'phone']]) {
     await size(w, hgt); await sleep(700); await openDock();
+    if (name === 'desktop') console.log('   debug:', await js(`return JSON.stringify({dock: .hidden, launch: !!document.querySelector('[data-nq-launch]'), lv: document.querySelector('[data-nq-launch]') && getComputedStyle(document.querySelector('[data-nq-launch]')).display, tab: location.hash});`));
     await openMenu();
     ok(`${name}: the menu inside the screen, no sideways scroll`, await js(`var r=${MENU}.getBoundingClientRect(); return r.left >= -1 && r.right <= innerWidth + 1 && r.top >= -1 && r.height > 120 && document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1;`), await js(`return JSON.stringify(${MENU}.getBoundingClientRect()) + ' / ' + innerWidth;`));
     ok(`${name}: the chip fits in the composer row`, await js(`var c=${CHIP}.getBoundingClientRect(), s=${D}.getBoundingClientRect(); return c.width > 40 && c.left >= s.left - 1 && c.right <= s.right + 1;`));
