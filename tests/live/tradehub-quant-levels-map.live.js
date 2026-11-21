@@ -101,6 +101,20 @@ const ok = (name, cond, extra) => {
     await js(`document.querySelector('[data-lvm-close]').click(); 1`); await sleep(200);
   }
 
+  // Ask 60 (Tony 2026-11-21): an Indicators checkbox clicked twice (ticked, unticked) kept the text fields' purple
+  // focus ring. Real mouse clicks, then the mouse away: no accent border, no ring.
+  await size(1280 + 224, 900); await sleep(600); await tab('charts');
+  await until(`document.querySelector('[data-ch-ind]')`, 15000);
+  await js(`var m=document.querySelector('[data-ch-indmenu]'); if (!m || m.hidden) document.querySelector('[data-ch-ind]').click(); 1`); await sleep(400);
+  const rv = JSON.parse(await js(`var r=document.querySelector('[data-ch-kind="rvol"]').getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2,y:r.top+r.height/2});`));
+  for (let i = 0; i < 2; i++) { for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await c.send('Input.dispatchMouseEvent', { type, x: rv.x, y: rv.y, button: 'left', clickCount: 1 }); await sleep(400); }
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 900, y: 650 }); await sleep(400);
+  const cb = JSON.parse(await js(`var b=document.querySelector('[data-ch-kind="rvol"]'), s=getComputedStyle(b), o=getComputedStyle(document.querySelector('[data-ch-kind="atr"]')); return JSON.stringify({checked:b.checked, focus:document.activeElement===b, shadow:s.boxShadow, border:s.borderColor, other:o.borderColor});`));
+  ok('ask 60: Relative volume ticked then unticked, mouse away: no ring, its border like the others', !cb.checked && cb.shadow === 'none' && cb.border === cb.other, JSON.stringify(cb));
+  // A text field keeps its focus ring.
+  await js(`document.querySelector('[data-ch-len="ema"]').focus(); 1`); await sleep(100);
+  ok('...a text field still gets its focus ring', /3px/.test(await js(`return getComputedStyle(document.querySelector('[data-ch-len="ema"]')).boxShadow;`)));
+
   ok('no page errors', !errs.length, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   c.ws.close(); process.exit(fail ? 1 : 0);
