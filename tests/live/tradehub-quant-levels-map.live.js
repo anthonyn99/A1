@@ -59,7 +59,16 @@ const ok = (name, cond, extra) => {
   await js(`${BOX}.querySelector('[data-lvm-reset]').click(); 1`); await sleep(300);
   const v2 = await view();
   ok('⟲ snaps back to the whole chart', v2[0] <= 0 && v2[1] >= Number(d.lvmBars) - 1, JSON.stringify([v1, v2, d.lvmBars]));
-  ok('...the ⟲ sits beside ×', await js(`var r=${BOX}.querySelector('[data-lvm-reset]'); return !!r && r.nextElementSibling === ${BOX}.querySelector('[data-lvm-close]');`));
+  // The shade (Tony 2026-11-21): there, dim, and the same at any zoom. Read the bottom canvas's pixel near the left
+  // edge (pre-window years) against one right of the window's start, zoomed out and zoomed in.
+  const shadeAt = () => js(`var b=${BOX}, pl=b.querySelector('[data-lvm-plot]').getBoundingClientRect(), best=null;
+    for (const cv of b.querySelectorAll('[data-lvm-plot] canvas')) { var r=cv.getBoundingClientRect(); if (r.width < pl.width*0.5) continue; var g=cv.getContext('2d'), sx=cv.width/r.width;
+      var p=g.getImageData(Math.floor(8*sx), Math.floor(r.height*0.05*sx), 1, 1).data; if (p[3] > 0) best = p[3]; }
+    return best;`);
+  const sOut = await shadeAt();
+  ok('the years not used for levels are shaded, dimly (one band, alpha ~0.1)', sOut != null && sOut > 10 && sOut < 45, sOut);
+  ok('...the X is centred in its button (a drawn cross)', await js(`var x=${BOX}.querySelector('[data-lvm-close]'), s=x.querySelector('svg'); if (!s) return false; var a=x.getBoundingClientRect(), c=s.getBoundingClientRect(); return Math.abs((a.left+a.right)/2-(c.left+c.right)/2) < 1 && Math.abs((a.top+a.bottom)/2-(c.top+c.bottom)/2) < 1;`));
+  ok('...the ⟲ sits beside ×',await js(`var r=${BOX}.querySelector('[data-lvm-reset]'); return !!r && r.nextElementSibling === ${BOX}.querySelector('[data-lvm-close]');`));
   // A zone's colour at the plot's right edge, past the last bar (the canvas under the candles).
   const zoneEdge = await js(`var b=${BOX}; if (b.dataset.lvmZones === '0') return 'no zones';
     var cs=[...b.querySelectorAll('[data-lvm-plot] canvas')], pl=b.querySelector('[data-lvm-plot]').getBoundingClientRect(), hit=0;
