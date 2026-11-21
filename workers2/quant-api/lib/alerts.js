@@ -327,6 +327,7 @@ export async function seenFires(env, req, now = Date.now()) {
   // upTo: the newest fire the page showed; a fire that arrived after that stays unseen. ids: just those (C3).
   let upTo = null, ids = null;
   try { const b = req ? await req.json() : null; if (b && Number.isFinite(Number(b.upTo))) upTo = Number(b.upTo); ids = idsOf(b); } catch (e) {}
+  if (ids && !ids.length) return json({ ok: true });   // { ids: [] } marks nothing (never "everything")
   try {
     const mark = ids && ids.length ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids)
       : upTo == null ? env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0') : env.DB.prepare('UPDATE alert_fires SET seen = 1 WHERE seen = 0 AND id <= ?').bind(upTo);
