@@ -247,7 +247,9 @@ function alertsRoute(req, env, url, p, m) {
   if (p === '/alerts/config' && m === 'PUT') return alerts.putConfig(env, req);
   if (p === '/alerts/catalysts' && m === 'PUT') return alerts.putCatalysts(env, req);
   if (p === '/alerts/test' && m === 'POST') return alerts.testPush(env);
-  if (p === '/alerts/test-all' && m === 'POST') return alerts.testAll(env);   // B10: every kind once
+  if (p === '/alerts/test-all' && m === 'POST') {   // B10: every kind once; { only: [i, …] } sends just those again
+    return req.json().catch(() => ({})).then((b) => alerts.testAll(env, Date.now(), { only: b && Array.isArray(b.only) ? b.only.slice(0, 11) : null }));
+  }
   if (p === '/alerts/check' && m === 'POST') return alerts.checkRoute(env, url);
   throw fail(404, 'no such route');
 }

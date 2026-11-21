@@ -532,6 +532,10 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('...and says what each would normally do now (pushed, quiet hours, outside market hours, kind off)', Array.isArray(tj.results) && tj.results.every((x) => typeof x.normally === 'string'), JSON.stringify(tj).slice(0, 200));
     ok('...only to Tony: it goes through the same /quant-push route as every alert', sent.every((p) => p.headers && p.headers['x-quant-secret'] === 's3cret'));
     // B10 step 2: quiet hours over "now": the test still sends every kind, and each says "quiet hours".
+    const n3 = W.pushes.length;
+    const to = await call({ ...mkEnv(), TEST_GAP_MS: '0' }, 'POST', '/alerts/test-all', { only: [0, 9] });
+    const toj = to.body || to.json || to, sentOnly = W.pushes.slice(n3);
+    ok('{ only: [0, 9] } sends just those two again (the first price alert and "a data provider down")', sentOnly.length === 2 && toj.of === 2 && /NVDA crossed above/.test(sentOnly[0].body.title) && /is down/.test(sentOnly[1].body.title), JSON.stringify(sentOnly.map((p) => p.body.title)));
     const eq = { ...mkEnv(), TEST_GAP_MS: '0' };
     await call(eq, 'PUT', '/alerts/config', { config: { quiet: { on: true, from: '00:00', to: '23:59', tz: 'America/Denver' } } });
     const n2 = W.pushes.length;
