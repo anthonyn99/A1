@@ -191,6 +191,13 @@ globalThis.fetch = async (url, init = {}) => {
   const T = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'time.js')).href);
   const B = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'bars.js')).href);
   const PO = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'providers', 'others.js')).href);
+  // 10B (2026-11-21): a reasoning model (gpt-oss) spent the 700-token default on its reasoning and answered EMPTY.
+  const AI = await import(pathToFileURL(path.join(__dirname, '..', 'workers2', 'quant-api', 'lib', 'ai.js')).href);
+  const pb = { system: 's', messages: [{ role: 'user', content: 'q' }], maxTokens: 700, temperature: 0.2 };
+  const oss = JSON.parse(AI.openaiBody(pb, 'openai/gpt-oss-120b', false)), llama = JSON.parse(AI.openaiBody(pb, 'llama-3.3-70b-versatile', false));
+  ok('a reasoning model (gpt-oss) gets room for its reasoning and low effort; others keep the asked budget, no extra field',
+    oss.max_tokens >= 2000 && oss.reasoning_effort === 'low' && llama.max_tokens === 700 && !('reasoning_effort' in llama), JSON.stringify([oss.max_tokens, oss.reasoning_effort, llama.max_tokens]));
+  ok('...a bigger ask than the floor is kept', JSON.parse(AI.openaiBody({ ...pb, maxTokens: 4000 }, 'gpt-oss-120b', true)).max_tokens === 4000);
   const GOOD = 'orca_sk_test_good_key_0123456789', OTHER = 'orca_sk_test_other_key_987654321';
   const hash = crypto.createHash('sha256').update(GOOD).digest('hex');
   const call = async (env, p, { key, origin, method, body } = {}) => {
