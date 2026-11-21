@@ -59,7 +59,7 @@ export async function getSplits(L, env, sym, now = Date.now(), { cache = globalT
   ]);
   if (!a && !y) return [];
   const out = shape([...(y || []), ...(a || [])]);   // Alpaca's ratio wins on the same ex-date
-  const ttl = a && y ? SPLITS_TTL_S : SPLITS_PART_TTL_S;
+  const ttl = (a || !(env.ALPACA_KEY && env.ALPACA_SECRET)) && y ? SPLITS_TTL_S : SPLITS_PART_TTL_S;   // every source that is set up answered
   if (cache) { try { await cache.put(key, new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=' + ttl } })); } catch (e) { /* fine */ } }
   return out;
 }
