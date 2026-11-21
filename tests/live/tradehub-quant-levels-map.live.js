@@ -59,8 +59,11 @@ const ok = (name, cond, extra) => {
   await js(`${BOX}.querySelector('[data-lvm-reset]').click(); 1`); await sleep(300);
   const v2 = await view();
   ok('⟲ snaps back to the whole chart', v2[0] <= 0 && v2[1] >= Number(d.lvmBars) - 1, JSON.stringify([v1, v2, d.lvmBars]));
-  // The shade's look (one dim band, 0.1, a dashed edge) is proven in tests/quant-levels-map.test.js: the mock's
-  // history starts only days before the levels' window, so there is no band wide enough to read here.
+  // The shade (Tony 2026-11-21: "no soft gray area"): its edge was computed as 0, so nothing was drawn. On the whole
+  // chart the edge must sit well inside the plot (the mock's history starts about a year before the window).
+  await sleep(300);
+  const sx = Number(await js(`return ${BOX}.dataset.lvmShadeX || -1;`)), pw = await js(`return ${BOX}.querySelector('[data-lvm-plot]').getBoundingClientRect().width;`);
+  ok('the years not used for levels are shaded: the band\'s edge is inside the plot, not at 0', sx > 20 && sx < pw - 50, JSON.stringify({ sx, pw }));
   // Tony 2026-11-21: "Now" (the latest trade) read as wrong beside the last candle; when it differs from the newest
   // bar's close, the close is named under it and drawn as its own line.
   const nc = JSON.parse(await js(`var b=${BOX}, c=b.querySelector('[data-lvm-close-px]'); return JSON.stringify({ shown: !!c && !c.hidden, text: c ? c.textContent : '', lines: Number(b.dataset.lvmLines) });`));
