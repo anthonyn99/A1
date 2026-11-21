@@ -24,16 +24,24 @@ const ok = (name, cond, extra) => {
 (async () => {
   const api = quantApi();
   const now = Date.now();
+  let DAY3 = '';
   const seedState = () => {
     api.state.alerts = [
       { id: 'r1', symbol: 'NVDA', kind: 'price', price: 170.6, params: { dir: 'above', holds: true }, note: 'set by Neo Quant', created: now - 5000 },
       { id: 'r2', symbol: 'AMD', kind: 'level', price: 150.25, level: 'R1 Strong', created: now - 4000 },
       { id: 'r3', symbol: null, kind: 'signal', params: { setup: 'orb' }, created: now - 3000 },
     ];
+    // C3: today (NVDA twice, a kept test send), yesterday, and a day before that. ids = arrival order; two unread (6, 4).
+    const U = 'https://a1-priv.av1.workers.dev/tradehub.html#alert=';
     api.state.alertFires = [
-      { id: 2, rule_id: 'r1', at: now - 120000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed above 170.60', body: 'NVDA 171.02, held for two checks', url: 'https://a1-priv.av1.workers.dev/tradehub.html#alert=chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
-      { id: 1, rule_id: 'r3', at: now - 3600000, kind: 'signal', symbol: 'AMD', title: 'New GO: AMD orb', body: 'long day', url: 'https://a1-priv.av1.workers.dev/tradehub.html#alert=signal:s0001', pushed: null, why: 'quiet hours', devices: [], seen: false },
+      { id: 6, rule_id: 'test', at: now - 60000, kind: 'signal', symbol: 'AMD', title: '[Test] New GO: AMD breakout', body: 'long swing, entry 162.50', url: U + 'scanner', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
+      { id: 5, rule_id: 'r1', at: now - 90000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed below 166.40', body: 'NVDA 166.31', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: true },
+      { id: 4, rule_id: 'r1', at: now - 120000, kind: 'price', symbol: 'NVDA', title: 'NVDA crossed above 170.60', body: 'NVDA 171.02, held for two checks', url: U + 'chart:NVDA', pushed: 1, devices: ['Tony PC', 'Pixel 9'], seen: false },
+      { id: 3, rule_id: 'r3', at: now - 3600000, kind: 'signal', symbol: 'MU', title: 'New GO: MU orb', body: 'long day', url: U + 'signal:s0001', pushed: null, why: 'quiet hours', devices: [], seen: true },
+      { id: 2, rule_id: 'std:data', at: now - 86400000, kind: 'data', symbol: null, title: 'alpaca is down for 12 min', body: '', url: U + 'status', pushed: 1, devices: ['Tony PC'], seen: true },
+      { id: 1, rule_id: 'std:regime', at: now - 2 * 86400000, kind: 'regime', symbol: null, title: 'Regime: Constructive → Risk-off', body: 'At the midday snapshot', url: U + 'market', pushed: 1, devices: ['Tony PC'], seen: true },
     ];
+    DAY3 = new Date(now - 2 * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     api.state.alertCfg = null;
   };
   const c = await connect({ mock: api.mock });
@@ -62,15 +70,50 @@ const ok = (name, cond, extra) => {
     ok('no sideways scroll', await noSideScroll());
     await shot(`alerts-bell-${w}`);
     await js(`document.querySelector('${bell}').click(); 1`);
-    ok('the list opens with both alerts', await until(`document.querySelectorAll('[data-tal-list] [data-tal-fire]').length === 2`, 4000));
+    ok('the center opens from the bell with every alert, days grouped', await until(`document.querySelectorAll('[data-tal-list] [data-tal-fire]').length + document.querySelectorAll('[data-tal-list] [data-tal-stack]').length >= 5`, 5000)
+      && await js(`return [...document.querySelectorAll('[data-tal-day] .tac-dayname')].map(function(e){return e.textContent;}).join('|') === 'Today|Yesterday|' + ${JSON.stringify(DAY3)};`),
+      await js(`return [...document.querySelectorAll('[data-tal-day] .tac-dayname')].map(function(e){return e.textContent;}).join('|');`));
     const text = await js(`return document.querySelector('[data-tal-list]').innerText;`);
-    ok('each says who received it, or why not', /sent to Tony PC, Pixel 9/.test(text) && /not pushed: quiet hours/.test(text), text);
-    ok('the list fits the screen (no sideways scroll)', await noSideScroll() && await js(`var b=document.querySelector('[data-tal-list]').getBoundingClientRect(); return b.left >= 0 && b.right <= window.innerWidth;`));
-    await shot(`alerts-list-${w}`);
-    ok('opening it marks them seen: the count goes', await until(`(function(){var n=document.querySelector('${bell} [data-tal-count]'); return n && n.hidden; })()`, 4000) && (api.posted.seen || 0) >= 1);
-    await js(`document.querySelector('[data-tal-fire="2"]').click(); 1`);
+    ok('each says who received it, or why not', /Tony PC, Pixel 9/.test(text) && /Quiet hours · not pushed/.test(text), text);
+    ok('time of day on each row, and "ago" on today\'s', /\d{1,2}:\d{2} [AP]M/.test(text) && /\dm ago|\dh ago/.test(text));
+    ok('test sends are kept, marked Test', await js(`return !!document.querySelector('[data-tal-fire="6"] [data-tal-test]');`));
+    ok('repeats of NVDA today fold into one row with their count', await js(`var s=document.querySelector('[data-tal-stack]'); return !!s && /NVDA/.test(s.innerText) && s.querySelector('[data-tal-stack-n]').textContent === '2';`));
+    await js(`document.querySelector('[data-tal-stack]').click(); 1`);
+    ok('…a tap opens the stack: both NVDA alerts', await until(`document.querySelector('[data-tal-stack]').getAttribute('aria-expanded') === 'true' && !!document.querySelector('[data-tal-fire="4"]') && !!document.querySelector('[data-tal-fire="5"]')`, 3000));
+    ok('the center fits the screen (no sideways scroll)', await noSideScroll() && await js(`var b=document.querySelector('[data-tal-list]').getBoundingClientRect(); return b.left >= 0 && b.right <= window.innerWidth + 0.5;`));
+    if (w < 600) {
+      ok('phone: a full-height sheet', await js(`var b=document.querySelector('[data-tal-list]').getBoundingClientRect(); return b.top <= 1 && b.height >= innerHeight - 2;`));
+      ok('phone: rows and clear buttons are finger-sized (≥ 36 px), the clear always shown', await js(`return [...document.querySelectorAll('.tac-row > [data-tal-clear]')].every(function(b){var r=b.getBoundingClientRect(); return r.height >= 36 && getComputedStyle(b).visibility === 'visible';}) && [...document.querySelectorAll('.tac-open')].every(function(b){return b.getBoundingClientRect().height >= 44;});`));
+      ok('phone: the day heads stay on top while the list scrolls', await js(`return getComputedStyle(document.querySelector('.tac-dayhead')).position === 'sticky';`));
+    } else {
+      ok('desktop: a centred sheet' + (w > 820 ? ' with the filters in a rail beside the list' : ' with the filters over the list'), await js(`var b=document.querySelector('[data-tal-list]').getBoundingClientRect(), f=document.querySelector('.tac-filters').getBoundingClientRect(), m=document.querySelector('[data-tal-scroll]').getBoundingClientRect(); return Math.abs((b.left + b.right) / 2 - innerWidth / 2) < 2 && (${w > 820} ? f.right <= m.left + 1 : f.bottom <= m.top + 1);`));
+    }
+    await shot(`alerts-center-${w}`);
+    ok('opening it no longer marks everything read (the count stays until Mark all read)', await js(`var n=document.querySelector('${bell} [data-tal-count]'); return n && !n.hidden;`) && !(api.posted.seen || 0));
+    await js(`document.querySelector('[data-tal-filter="signal"]').click(); 1`);
+    ok('filter Signals: only the signal alerts, asked of quant-api', await until(`document.querySelectorAll('[data-tal-list] [data-tal-fire]').length === 2 && document.querySelector('[data-tal-filter="signal"]').getAttribute('aria-pressed') === 'true'`, 4000) && api.posted.firesAsked.some((s) => /kinds=signal/.test(s)));
+    await js(`document.querySelector('[data-tal-filter="all"]').click(); 1`); await until(`document.querySelectorAll('[data-tal-day]').length === 3`, 4000);
+    await js(`document.querySelector('[data-tal-unread]').click(); 1`);
+    ok('Unread: only what is unread', await until(`document.querySelector('[data-tal-unread]').getAttribute('aria-pressed') === 'true' && !document.querySelector('[data-tal-fire="2"]') && !!document.querySelector('[data-tal-fire="6"]')`, 4000));
+    await js(`document.querySelector('[data-tal-unread]').click(); 1`); await until(`!!document.querySelector('[data-tal-fire="2"]')`, 4000);
+    // Clear: one, after a confirm; "No" keeps it.
+    await js(`window.__asked=[]; window.uiConfirm=function(m,o){ window.__asked.push([m,o&&o.title]); return Promise.resolve(false); }; document.querySelector('.tac-row[data-tal-row="2"] [data-tal-clear]').click(); 1`);
+    await sleep(300);
+    ok('clear one asks first; "No" keeps it', await js(`return window.__asked.length === 1 && /Clear "/.test(window.__asked[0][0]) && !!document.querySelector('[data-tal-fire="2"]');`) && !(api.posted.clears || []).length);
+    await js(`window.uiConfirm=function(m,o){ window.__asked.push([m,o&&o.title]); return Promise.resolve(true); }; document.querySelector('.tac-row[data-tal-row="2"] [data-tal-clear]').click(); 1`);
+    ok('"Yes" clears just that one', await until(`!document.querySelector('[data-tal-fire="2"]')`, 4000) && JSON.stringify(api.posted.clears.slice(-1)[0]) === JSON.stringify({ ids: [2] }));
+    await js(`document.querySelector('[data-tal-day]:last-of-type [data-tal-clearday]').click(); 1`);
+    ok('Clear on a day head clears that day (after a confirm naming it)', await until(`document.querySelectorAll('[data-tal-day]').length === 1`, 4000) && /from /.test(await js(`return window.__asked[window.__asked.length-1][0];`)));
+    await js(`document.querySelector('[data-tal-readall]').click(); 1`);
+    ok('Mark all read: the bell\'s count goes, nothing unread is left', await until(`(function(){var n=document.querySelector('${bell} [data-tal-count]'); return n && n.hidden && !document.querySelector('.tac-row.is-unread'); })()`, 4000));
+    await js(`document.querySelector('[data-tal-fire="4"]') || document.querySelector('[data-tal-stack]').click(); 1`); await until(`!!document.querySelector('[data-tal-fire="4"]')`, 3000);
+    await js(`document.querySelector('[data-tal-fire="4"]').click(); 1`);
     ok('a press on an alert opens what it is about (Charts, NVDA)', await until(`!document.querySelector('[data-tal-list]')`, 3000) && await until(`window._tbOps && window._tbOps.app && window._tbOps.app.page() === 'charts'`, 8000), await page());
     ok('… with NVDA on the chart', await until(`window._tbOps.charts && window._tbOps.charts.get().symbol === 'NVDA'`, 8000));
+    await js(`document.querySelector('${bell}').click(); 1`); await until(`!!document.querySelector('[data-tal-clearall]')`, 3000);
+    await js(`document.querySelector('[data-tal-clearall]').click(); 1`);
+    ok('Clear all asks first, then empties the center (the empty state shows)', await until(`!!document.querySelector('[data-tal-empty]')`, 4000) && /every alert/.test(await js(`return window.__asked[window.__asked.length-1][0];`)) && JSON.stringify(api.posted.clears.slice(-1)[0]) === JSON.stringify({ all: true }));
+    await js(`document.querySelector('[data-tal-close]').click(); 1`);
   }
 
   console.log('\nControl ▸ Alerts (1280)');

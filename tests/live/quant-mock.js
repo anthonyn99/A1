@@ -329,8 +329,25 @@ function quantApi() {
         });
         return { json: { ok: true, alerts: out, config: state.alertCfg || ALERT_CFG() } };
       }
-      if (p === '/alerts/fires') return { json: { ok: true, fires: state.alertFires || [], unseen: (state.alertFires || []).filter((f) => !f.seen).length } };
-      if (p === '/alerts/seen') { (state.alertFires || []).forEach((f) => { f.seen = true; }); posted.seen = (posted.seen || 0) + 1; return { json: { ok: true } }; }
+      // C3: the notification center pages (before=), filters (kinds=, unread=1), marks read (ids / upTo) and clears.
+      if (p === '/alerts/fires') {
+        const q = u.searchParams, n = Number(q.get('limit')) || 50, before = Number(q.get('before')) || Infinity, ks = (q.get('kinds') || '').split(',').filter(Boolean);
+        const live = (state.alertFires || []).filter((f) => !f.cleared).sort((a, b) => b.id - a.id);
+        const rows = live.filter((f) => f.id < before && (!ks.length || ks.includes(f.kind)) && (q.get('unread') !== '1' || !f.seen));
+        (posted.firesAsked = posted.firesAsked || []).push(u.search);
+        return { json: { ok: true, fires: rows.slice(0, n).map((f) => ({ ...f, test: f.rule_id === 'test' })), more: rows.length > n, unseen: live.filter((f) => !f.seen).length } };
+      }
+      if (p === '/alerts/seen') {
+        const b = req.postData ? JSON.parse(req.postData) : {};
+        (state.alertFires || []).forEach((f) => { if (b.ids ? b.ids.includes(f.id) : b.upTo == null || f.id <= b.upTo) f.seen = true; });
+        posted.seen = (posted.seen || 0) + 1; (posted.seenBodies = posted.seenBodies || []).push(b); return { json: { ok: true } };
+      }
+      if (p === '/alerts/clear') {
+        const b = JSON.parse(req.postData);
+        (state.alertFires || []).forEach((f) => { if (b.all || b.ids.includes(f.id)) f.cleared = true; });
+        (posted.clears = posted.clears || []).push(b);
+        return { json: { ok: true, unseen: (state.alertFires || []).filter((f) => !f.cleared && !f.seen).length } };
+      }
       if (p === '/alerts/config' && req.method === 'PUT') { state.alertCfg = JSON.parse(req.postData).config; (posted.alertCfg = posted.alertCfg || []).push(state.alertCfg); return { json: { ok: true, config: state.alertCfg } }; }
       if (p === '/alerts/config') return { json: { ok: true, config: state.alertCfg || ALERT_CFG() } };
       if (p === '/alerts/catalysts') { (posted.catalysts = posted.catalysts || []).push(JSON.parse(req.postData).items); return { json: { ok: true } }; }
