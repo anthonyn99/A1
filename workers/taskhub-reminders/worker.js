@@ -406,21 +406,25 @@ async function handleQuantPush(request, env, origin, ctx) {
 
   const cached = !!(_quantDev && Date.now() - _quantDev.at < QUANT_DEV_MS && _quantDev.docs.length);
   if (!cached) {
-    const [docs0, names0] = await Promise.all([quantTonyTokens(baseUrl, authHdr), quantDeviceNames(baseUrl, authHdr)]);
-    if (docs0 === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
-    _quantDev = { at: Date.now(), docs: docs0, names: names0 };
+    // 2026-11-21 (Tony: Beacon in TradeHub): the devices registered for TradeHub alerts and switched on
+    // (dashboards/tradehub_push_tony, TradeHub/data/push.js). While none is registered, TaskHub's devices, as before.
+    const [reg, docs0, names0] = await Promise.all([quantRegistered(baseUrl, authHdr), quantTonyTokens(baseUrl, authHdr), quantDeviceNames(baseUrl, authHdr)]);
+    const useReg = reg && reg.registered > 0;
+    if (!useReg && docs0 === null) return json({ ok: false, error: 'fcm_tokens query failed' }, origin, 502);
+    const docs = useReg ? reg.on : docs0.map((d) => ({ token: d.fields.token.stringValue, id: String(d.name || '').split('/').pop(), ua: d.fields.ua && d.fields.ua.stringValue, doc: d.name }));
+    _quantDev = { at: Date.now(), docs, names: names0, source: useReg ? 'tradehub' : 'taskhub' };
   }
   const { docs, names } = _quantDev;
   const tLookup = Date.now();
   let sent = 0, failed = 0, pruned = 0;
   const devices = [];
   await Promise.allSettled(docs.map(async (d) => {
-    const token = d.fields.token.stringValue, id = String(d.name || '').split('/').pop();
+    const token = d.token, id = d.id;
     const r = await sendQuantFCM(projectId, token, { title, body, url, tag }, accessToken);
-    if (r.ok) { sent++; devices.push(names[id] || quantUaName(d.fields.ua && d.fields.ua.stringValue)); return; }
+    if (r.ok) { sent++; devices.push(names[id] || quantUaName(d.ua)); return; }
     failed++;
     _quantDev = null;   // look the devices up afresh next time
-    if (r.dead) {
+    if (r.dead && d.doc) {
       // Pruned: the token field only, so the device keeps its main and its record.
       await fetch(`https://firestore.googleapis.com/v1/${d.name}?updateMask.fieldPaths=token`, { method: 'PATCH', headers: authHdr, body: JSON.stringify({ fields: {} }) })
         .then((res) => { if (res.ok) pruned++; }).catch(() => {});
