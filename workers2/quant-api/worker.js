@@ -15,6 +15,7 @@
 //   GET  /bars?symbol&tf&from&to&adj=1   { symbol, tf, bars, provider, complete, known, tried, check? }
 //                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
 //   GET  /splits?symbol           { symbol, splits: [{ t, ratio, ex }] }  from Alpaca's corporate actions (Yahoo fallback), 6 h
+//   GET  /trade/brokers            Batch 4 T1: { brokers: [{id, ready}] }; /trade/alpaca/* = /paper/*, /trade/webull/* = lib/brokers/webull.js (sandbox)
 //   GET  /webull/probe             Batch 4 T0: the Webull sandbox, read-only (host, token, accounts, shared-account signs)
 //   GET  /stream-keys              { alpaca: {key, secret, tradeKey}, finnhub: {key} }   the page's two live streams (Alpaca: the data-only account's key)
 //   GET  /corrections?limit=50     the data doctor's log, newest first
@@ -82,6 +83,7 @@ import * as gem from './lib/gemini.js';
 import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
 import * as webullProbe from './lib/webull-probe.js';
+import * as webull from './lib/brokers/webull.js';
 import { getBrief, postBrief } from './lib/brief.js';
 import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
@@ -178,6 +180,8 @@ async function route(req, env, url, ctx) {
   if (p === '/paper' && m === 'DELETE') return deletePaper(env, url);
   // Paper trading (Phase 9C, lib/paper.js): the only order code, Alpaca PAPER only.
   if (p.startsWith('/paper/')) return paperRoute(req, env, url, p, m);
+  // One address per broker (Batch 4 T1): /trade/alpaca/* is /paper/*, /trade/webull/* the Webull sandbox.
+  if (p === '/trade/brokers' || p.startsWith('/trade/')) return tradeRoute(req, env, url, p, m);
   // Webull SANDBOX probe (Batch 4 T0): read-only; no order is placed (lib/webull-probe.js).
   if (m === 'GET' && p === '/webull/probe') return json(await webullProbe.probe(env));
   if (p === '/backtests' && m === 'GET') return listBacktests(env);
@@ -410,6 +414,36 @@ async function paperRoute(req, env, url, p, m) {
   const rn = /^\/paper\/runs\/(r[a-z0-9]{4,20})$/.exec(p);
   if (rn && m === 'PATCH') return paper.changeRun(env, req, rn[1]);
   throw fail(404, 'no such route');
+}
+
+export const BROKERS = ['alpaca', 'webull'];
+/** /trade/:broker/… (Batch 4 T1). Paper only: a request for live trading is refused here, before any broker code runs. */
+async function tradeRoute(req, env, url, p, m) {
+  if (url.searchParams.get('mode') === 'live' || req.headers.get('x-trade-mode') === 'live') throw fail(400, 'live trading is not built: TradeHub trades paper only (Batch 4 §1)');
+  if (p === '/trade/brokers' && m === 'GET') return json({ ok: true, mode: 'paper', brokers: BROKERS.map((b) => ({ id: b, ready: b === 'alpaca' ? alpaca.has(env) : !!(env.WEBULL_PAPER_KEY && env.WEBULL_PAPER_SECRET) })) });
+  const mm = /^\/trade\/(\w+)(\/.*)?$/.exec(p);
+  if (!mm || !BROKERS.includes(mm[1])) throw fail(404, 'no such broker (alpaca or webull)');
+  const rest = mm[2] || '/';
+  if (mm[1] === 'alpaca') return paperRoute(req, env, url, '/paper' + rest, m);
+  if (rest === '/account' && m === 'GET') return webull.account(env, url);
+  if (rest === '/positions' && m === 'GET') return webull.positions(env, url);
+  if (rest === '/orders' && m === 'GET') return webull.orders(env, url);
+  if (rest === '/activities' && m === 'GET') return webull.activities(env, url);
+  if (rest === '/log' && m === 'GET') {
+    const n = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 200));
+    let rows = [];
+    try { rows = (await env.DB.prepare("SELECT * FROM paper_orders WHERE broker = 'webull' ORDER BY at DESC LIMIT ?").bind(n).all()).results || []; }
+    catch (e) { if (!/no such column/i.test(String(e.message))) throw e; }
+    return json({ ok: true, orders: rows.map((r) => ({ ...r, body: JSON.parse(r.body || 'null') })) });
+  }
+  if (rest === '/orders' && m === 'POST') return webull.place(env, req, url, { priceOf: paperPrice(env) });
+  if (rest === '/kill' && m === 'POST') return webull.kill(env, req, url);
+  const o = /^\/orders\/([A-Za-z0-9]{1,32})$/.exec(rest);
+  if (o && m === 'PATCH') return webull.replace(env, req, url, o[1], { priceOf: paperPrice(env) });
+  if (o && m === 'DELETE') return webull.cancel(env, url, o[1]);
+  const ps = /^\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(rest);
+  if (ps && m === 'DELETE') return webull.closePosition(env, url, ps[1]);
+  throw fail(404, 'no such route for webull (strategy runs are Alpaca-only until N3)');
 }
 
 /* ── /quotes ────────────────────────────────────────────────────────────── */
