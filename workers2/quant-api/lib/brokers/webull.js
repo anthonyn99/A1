@@ -301,7 +301,7 @@ export async function kill(env, req, url, fetchFn = fetch) {
   for (const o of open) for (const x of [o, ...o.legs]) {
     if (!OPEN.has(x.status)) continue;
     const r = await wb(env, 'POST', '/trading/orders/cancel', { body: { account_id: a.account_id, client_order_id: x.id } }, fetchFn);
-    if (r.ok) canceled++; else failed.push(x.id);
+    if (r.ok || (r.status === 417 && /not present/i.test(JSON.stringify(r.body || '')))) canceled++; else failed.push(x.id);   // a combo's legs go with its master
   }
   clearCache();
   if (failed.length) throw fail(502, `the Webull kill switch is on, but ${failed.length} open order(s) were not cancelled: press it again`, { kill: true, failed });
