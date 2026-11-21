@@ -243,8 +243,8 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       send('Fetch.continueRequest', { requestId });
       return;
     }
-    // TradeHub loads Beacon from its own site's root (/a1/devices/core.js); here that root is Pages' origin.
-    const reqUrl = request.url.replace(/^(https:\/\/[^/]+)\/a1\/devices\//, (m, o) => (PAGES.startsWith(o) ? PAGES + 'a1/devices/' : m));
+    // TradeHub loads Beacon from its own site's root (/a1/dm/core.js); here that root is Pages' origin.
+    const reqUrl = request.url.replace(/^(https:\/\/[^/]+)\/a1\/dm\//, (m, o) => (PAGES.startsWith(o) ? PAGES + 'a1/dm/' : m));
     if (!reqUrl.startsWith(PAGES)) {
       send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
       return;
@@ -255,8 +255,8 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     // under this origin, so their tests exercise the code that ships.
     // Each A1-Priv program sits in its own folder there (host/pages.json maps
     // the served page to its source; RiftIQ's riftiq-live/ moved with it).
-    // A1-Priv's host passes A1's Beacon through at /a1/devices/ (host/worker.js: Brave blocks a third-party beacon.js).
-    const bd = /^a1\/devices\/(core\.js|beacon-ui\.js)$/.exec(rel);
+    // A1-Priv's host passes A1's Beacon through at /a1/dm/ (host/worker.js: Brave blocks a third-party beacon.js).
+    const bd = /^a1\/dm\/(core\.js|beacon-ui\.js)$/.exec(rel);
     if (bd) rel = 'Beacon/' + (bd[1] === 'core.js' ? 'beacon.js' : bd[1]);
     const priv = process.env.A1_PRIV ? path.resolve(process.env.A1_PRIV) : path.join(A1, '..', 'A1-Priv');
     let privRel = rel;
@@ -316,7 +316,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       body: all.toString('base64'),
     });
   });
-  await send('Fetch.enable', { patterns: [PAGES + '*', 'https://anthonyn99.github.io/a1/devices/*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
+  await send('Fetch.enable', { patterns: [PAGES + '*', 'https://anthonyn99.github.io/a1/dm/*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
     .map((urlPattern) => ({ urlPattern, requestStage: 'Request' })) });
   // A public page reaching 127.0.0.1 needs Local Network Access -- a prompt
   // in a real browser (Tony allowed it once), refused outright when headless.
