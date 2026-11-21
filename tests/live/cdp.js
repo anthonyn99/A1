@@ -253,6 +253,9 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     // under this origin, so their tests exercise the code that ships.
     // Each A1-Priv program sits in its own folder there (host/pages.json maps
     // the served page to its source; RiftIQ's riftiq-live/ moved with it).
+    // A1-Priv's host passes A1's Beacon through at /a1/devices/ (host/worker.js: Brave blocks a third-party beacon.js).
+    const bd = /^a1\/devices\/(core\.js|beacon-ui\.js)$/.exec(rel);
+    if (bd) rel = 'Beacon/' + (bd[1] === 'core.js' ? 'beacon.js' : bd[1]);
     const priv = process.env.A1_PRIV ? path.resolve(process.env.A1_PRIV) : path.join(A1, '..', 'A1-Priv');
     let privRel = rel;
     try { privRel = JSON.parse(fs.readFileSync(path.join(priv, 'host', 'pages.json'), 'utf8'))[rel] || rel; } catch (e) {}
