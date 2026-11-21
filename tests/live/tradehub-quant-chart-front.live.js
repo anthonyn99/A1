@@ -78,6 +78,17 @@ const TAB = `document.querySelector('[data-charts]').__charts`, CH = `${TAB}.act
       const L3 = await at2(), I3 = await info();
       ok('Tony 2026-11-21: a wheel zoom-OUT at the front keeps the bar under the cursor under it', Math.abs(L3 - L2) < 1.5 && (I3.view.to - I3.view.from) > (I2.view.to - I2.view.from), `bar ${L2.toFixed(1)} -> ${L3.toFixed(1)}; view ${fmt(I2)} -> ${fmt(I3)}`);
       ok('...and the newest bar is still on screen, with no screen of blank after it', front(I3), fmt(I3));
+      // Tony 2026-11-21: "if I'm already max zoomed out, and continue to scroll out, don't do anything, don't keep
+      // moving the chart to the left". Zoom out all the way (1D on 5 minute bars, as his screenshot), then five more.
+      await set({ range: '1D', tf: '5m' }); await sleep(600);
+      const span = async () => JSON.parse(await js(`var ts=${CH}.chart().timeScale(), r=ts.getVisibleRange(), l=ts.getVisibleLogicalRange(); return JSON.stringify({from:r&&r.from, to:r&&r.to, lf:l&&l.from, lt:l&&l.to});`));
+      for (let i = 0; i < 40; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: x2, y, deltaX: 0, deltaY: 240 }); await sleep(60); }
+      await sleep(1500);
+      const M0 = await span();
+      for (let i = 0; i < 5; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: x2, y, deltaX: 0, deltaY: 240 }); await sleep(250); }
+      await sleep(1500);
+      const M1 = await span();
+      ok('Tony 2026-11-21: fully zoomed out, five more zoom-outs move nothing (same bars in view, same place)', M0.from === M1.from && M0.to === M1.to && Math.abs(M0.lf - M1.lf) < 0.01 && Math.abs(M0.lt - M1.lt) < 0.01, JSON.stringify([M0, M1]));
     }
   }
   // SNDK's real 8-for-1 (ex 2026-11-20), served on the OLD basis as Alpaca did (A1-Priv fixture), moved by
