@@ -151,7 +151,67 @@ const ok = (ph, name, cond, extra) => {
     }
 
     // T5: capital per broker
-    ok('T5', 'starting capital shown for the chosen broker, with Reset', await js(`return !!document.querySelector('[data-trade-capital]') && !!document.querySelector('[data-trade-reset]');`));
+    const EQ = `(document.querySelector('[data-pp-equity]')||{}).textContent`;
+    const ACC = `(document.querySelector('[data-pp-account]')||{innerText:''}).innerText`;
+    const DLG = (m) => `document.querySelector('.ot-scrim [data-book-dialog="${m}"]')`;
+    const typeIn = (sel, v) => js(`var i=document.querySelector('${sel}'); i.value=${JSON.stringify(String(v))}; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+    const keep = JSON.parse(JSON.stringify({ positions: api.state.pp.positions, orders: api.state.pp.orders }));
+    if (want('T5')) {
+      await tab('trading'); await setBrokerTo('alpaca');
+      await js(`if (window._tbOps.trading) window._tbOps.trading.refresh(); 1`);
+      await until(`${EQ}==='$100,000.00'`, 6000);
+    }
+    ok('T5', 'the Account card shows the starting capital ($100,000, Alpaca\'s default) with Capital… and Reset…', await until(`(document.querySelector('[data-trade-capital]')||{}).getAttribute && document.querySelector('[data-trade-capital]').getAttribute('data-trade-capital')==='100000'`, 4000)
+      && await js(`return !!document.querySelector('[data-trade-reset]') && !!document.querySelector('[data-trade-capital-edit]') && !document.querySelector('[data-trade-broker-equity]');`));
+    if (want('T5')) {
+      await js(`document.querySelector('[data-trade-capital-edit]').click(); 1`);
+      ok('T5', 'Capital… opens its dialog (PAPER), the capital filled in' + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${DLG('edit')}`, 3000)
+        && await js(`var d=${DLG('edit')}, r=d.getBoundingClientRect(); return d.querySelector('[data-book-capital]').value==='100000' && /PAPER/.test(d.innerText) && r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`));
+      await typeIn('[data-book-capital]', '50');
+      await js(`document.querySelector('[data-book-go]').click(); 1`);
+      ok('T5', '...under $1,000 is refused there, in words, and nothing is sent', await until(`/between/.test(document.querySelector('[data-book-errors]').textContent)`, 2000) && !(api.posted.pp || []).some(([m, p]) => p === '/paper/book'));
+      await typeIn('[data-book-capital]', '25000');
+      await shot('t5-capital-' + w);
+      await js(`document.querySelector('[data-book-go]').click(); 1`);
+      ok('T5', 'Save: $25,000 shown as equity; the capital says $25,000; Alpaca\'s own $100,000 is said beside it', await until(`${EQ}==='$25,000.00' && !${DLG('edit')}`, 5000)
+        && await js(`return document.querySelector('[data-trade-capital]').getAttribute('data-trade-capital')==='25000' && /\\$100,000\\.00/.test(document.querySelector('[data-trade-broker-equity]').textContent);`), await js(`return ${EQ};`));
+      const put = (api.posted.pp || []).filter(([m, p]) => m === 'PUT' && p === '/paper/book').pop();
+      ok('T5', '...one PUT to the Alpaca book, as Tony\'s', !!put && put[2].capital === 25000 && put[2].who === 'tony', JSON.stringify(put));
+      ok('T5', '...buying power scaled to the capital (392,000 × ¼ = $98,000)', await js(`return /\\$98,000\\.00/.test(${ACC});`), await js(`return ${ACC};`));
+      // A buying-power cap the ticket enforces.
+      await js(`document.querySelector('[data-trade-capital-edit]').click(); 1`); await until(`!!${DLG('edit')}`, 3000);
+      await typeIn('[data-book-bpcap]', '5000'); await js(`document.querySelector('[data-book-go]').click(); 1`);
+      ok('T5', 'a $5,000 buying-power cap: shown on the card', await until(`!!document.querySelector('[data-trade-bpcap]') && /\\$5,000/.test(document.querySelector('[data-trade-bpcap]').textContent)`, 5000));
+      await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+      await otSet('symbol', 'AAPL'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '100'); await otSet('size', '60');
+      await otPress('[data-ot-go]');
+      ok('T5', 'the ticket refuses $6,000 over the $5,000 buying power, and sends nothing', await until(`/More than the buying power/.test(${OT}.querySelector('[data-ot-errors]').textContent)`, 3000)
+        && !(api.posted.pp || []).some(([m, p, b]) => m === 'POST' && /orders$/.test(p) && b && b.order && b.order.symbol === 'AAPL' && b.order.qty === 60), await js(`return ${OT}.querySelector('[data-ot-errors]').textContent;`));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      // Each broker its own book.
+      await setBrokerTo('webull');
+      ok('T5', 'Webull keeps its own book: $1,000,000 (its default), no cap, untouched by Alpaca\'s', await until(`${EQ}==='$1,000,000.00' && (document.querySelector('[data-trade-capital]')||{getAttribute:function(){}}).getAttribute('data-trade-capital')==='1000000'`, 6000)
+        && await js(`return !document.querySelector('[data-trade-bpcap]') && !document.querySelector('[data-trade-broker-equity]');`));
+      await js(`document.querySelector('[data-trade-reset]').click(); 1`); await until(`!!${DLG('reset')}`, 3000);
+      ok('T5', '...its Reset says Webull\'s own balance resets only on its website', await js(`return /My Account/.test(${DLG('reset')}.innerText) && /Webull/.test(${DLG('reset')}.innerText);`));
+      await js(`document.querySelector('[data-book-cancel]').click(); 1`);
+      await setBrokerTo('alpaca'); await until(`${EQ}==='$25,000.00'`, 6000);
+      // Reset.
+      await js(`document.querySelector('[data-trade-reset]').click(); 1`);
+      ok('T5', 'Reset… asks first: what it does, the capital ($25,000) and "Reset to $25,000"', await until(`!!${DLG('reset')}`, 3000)
+        && await js(`var d=${DLG('reset')}; return /Cancels every open Alpaca paper order, closes every position/.test(d.innerText) && d.querySelector('[data-book-capital]').value==='25000' && d.querySelector('[data-book-go]').textContent==='Reset to $25,000';`));
+      await typeIn('[data-book-capital]', '50000'); await typeIn('[data-book-bpcap]', '');
+      ok('T5', '...the button follows the capital typed ("Reset to $50,000")', await js(`return document.querySelector('[data-book-go]').textContent==='Reset to $50,000';`));
+      await shot('t5-reset-' + w);
+      await js(`document.querySelector('[data-book-go]').click(); 1`);
+      const rs = () => (api.posted.pp || []).filter(([m, p]) => m === 'POST' && p === '/paper/book/reset').pop();
+      ok('T5', 'Reset: one POST with confirm; $50,000 to start; NVDA closed; the card says what happened', await until(`${EQ}==='$50,000.00' && !document.querySelector('[data-pp-pos="NVDA"]')`, 6000)
+        && !!rs() && rs()[2].confirm === true && rs()[2].capital === 50000 && rs()[2].bpCap === null && await js(`return /Reset: \\$50,000 to start/.test(document.querySelector('[data-pp-msg]').textContent);`), await js(`return (document.querySelector('[data-pp-msg]')||{}).textContent;`));
+      ok('T5', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+      // Leave the paper accounts as they were for the next width.
+      Object.assign(api.state.pp, JSON.parse(JSON.stringify(keep)), { book: null });
+      await js(`window._tbOps.trading.refresh(); 1`); await until(`${EQ}==='$100,000.00'`, 6000);
+    }
 
     // T6: trading from the chart
     await tab('charts');
