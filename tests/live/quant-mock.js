@@ -96,11 +96,33 @@ function autoReply(body) {
   const g = facts.find((x) => x.pack === 'market' && x !== f);
   return `VERDICT: WATCH. The engine has no GO here yet [${f ? f.id : 'F1'}].\nWHY: ${f ? f.text + ' [' + f.id + ']' : 'No facts.'}${g ? '\n' + g.text + ' [' + g.id + ']' : ''}\nRISK: The setup can fail at the open.\nWATCH: A close back above the first resistance.`;
 }
+/** T5: an account as its book shows it (quant-api lib/books.js applyBook). */
+function booked(book, a) {
+  if (!book || !a) return a;
+  const off = book.capital - book.baseline, equity = a.equity + off, scale = a.equity > 0 ? Math.max(0, equity) / a.equity : 1;
+  let bp = a.buying_power * scale;
+  if (Number.isFinite(book.bp_cap)) bp = Math.max(0, Math.min(bp, book.bp_cap - (Math.abs(a.long_value || 0) + Math.abs(a.short_value || 0))));
+  return { ...a, equity, cash: a.cash + off, last_equity: a.last_equity != null ? a.last_equity + off : null, buying_power: Math.round(bp * 100) / 100, booked: true, broker_equity: a.equity, broker_buying_power: a.buying_power };
+}
 /* ── Phase 9C: quant-api's paper routes (lib/paper.js), Alpaca paper played here ── */
 function paperRoutes(pp, posted, req, u, p) {
   const m = req.method, body = () => { try { return JSON.parse(req.postData || 'null'); } catch (e) { return null; } };
   (posted.pp = posted.pp || []).push([m, p, m === 'GET' ? null : body()]);
-  if (p === '/paper/account' && m === 'GET') return { json: { ok: true, paper: true, kill: pp.kill, account: pp.account, clock: { is_open: true, next_open: '2026-11-16T09:30:00-05:00' } } };
+  if (p === '/paper/account' && m === 'GET') return { json: { ok: true, paper: true, kill: pp.kill, account: booked(pp.book, pp.account), book: pp.book || null, clock: { is_open: true, next_open: '2026-11-16T09:30:00-05:00' } } };
+  // Batch 4 T5: the book (quant-api lib/books.js, the same arithmetic): only Tony writes; a reset needs confirm.
+  if ((p === '/paper/book' || p === '/paper/book/reset') && m !== 'GET') {
+    const b = body() || {};
+    if (b.who !== 'tony') return { status: 403, json: { ok: false, error: 'only you can change the book (who: tony)' } };
+    const eq = pp.account.equity, was = pp.book;
+    if (p === '/paper/book') { pp.book = { capital: b.capital != null ? b.capital : was ? was.capital : eq, baseline: was ? was.baseline : eq, bp_cap: 'bpCap' in b ? b.bpCap : was ? was.bp_cap : null, at: CLOCK, resets: was ? was.resets : [] }; return { json: { ok: true, book: pp.book } }; }
+    if (b.confirm !== true) return { status: 400, json: { ok: false, error: 'send confirm: true' } };
+    const canceled = pp.orders.length, closing = pp.positions.map((x) => x.symbol);
+    pp.closed.unshift(...pp.orders.map((x) => ({ ...x, status: 'canceled' }))); pp.orders = []; pp.positions = [];
+    const capital = b.capital != null ? b.capital : was ? was.capital : pp.defaultCapital;
+    pp.book = { capital, baseline: eq, bp_cap: 'bpCap' in b ? b.bpCap : was ? was.bp_cap : null, at: CLOCK, resets: [{ at: CLOCK, capital, canceled, closing }, ...(was ? was.resets : [])] };
+    return { json: { ok: true, book: pp.book, canceled, closing, failed: [] } };
+  }
+  if (p === '/paper/book' && m === 'GET') return { json: { ok: true, book: pp.book || null, defaults: { capital: pp.defaultCapital } } };
   if (p === '/paper/positions' && m === 'GET') return { json: { ok: true, paper: true, positions: pp.positions } };
   if (p === '/paper/orders' && m === 'GET') return { json: { ok: true, paper: true, orders: u.searchParams.get('status') === 'closed' ? pp.closed : pp.orders } };
   if (p === '/paper/activities' && m === 'GET') return { json: { ok: true, fills: pp.fills } };
