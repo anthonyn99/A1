@@ -22,7 +22,7 @@
 import { fail, json } from '../http.js';
 import { bodyOf } from '../charts.js';
 import { checkOrder } from '../paper.js';
-import { applyBook, overBook } from '../books.js';
+import { applyBook, overBook, orderValue } from '../books.js';
 import { signedHeaders } from './webull-sign.js';
 
 export const WEBULL_HOST = 'https://api.sandbox.webull.com';
@@ -264,10 +264,14 @@ export async function replace(env, req, url, id, { fetchFn = fetch, priceOf = nu
   if (!OPEN.has(was.status)) throw fail(409, `the order is ${was.status}: only an open order can change`);
   const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: patch.qty || was.qty, limit_price: patch.limit_price || was.limit_price, stop_price: patch.stop_price || was.stop_price,
     ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: patch.trail || was.trail_percent } : { trail_price: patch.trail || was.trail_price }) : {}) };
-  const equity = acct ? (book ? applyBook(book, acctOut(a, acct)).equity : num(acct.total_net_liquidation_value)) : null, price = priceOf ? await priceOf(was.symbol) : null;
+  const shown = acct && book ? applyBook(book, acctOut(a, acct)) : null;
+  const equity = shown ? shown.equity : acct ? num(acct.total_net_liquidation_value) : null, price = priceOf ? await priceOf(was.symbol) : null;
   if (!pos(equity)) throw fail(503, 'the Webull paper account could not be read, so the change cannot be checked: try again');
   const chk = checkOrder(next, { price, equity, kill });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  // T5: a change may not raise the order past the book's buying power (only the increase counts).
+  const over = overBook(shown, next, price, false, orderValue(was, price));
+  if (over) throw fail(422, over, { errors: [over] });
   // Webull refuses a replace that changes the time in force (found on the sandbox): it is always sent unchanged.
   const m = { client_order_id: id, quantity: String(next.qty), time_in_force: String(was.time_in_force).toUpperCase(), order_type: TYPE_OUT[was.type] };
   if (next.limit_price != null) m.limit_price = String(next.limit_price);
@@ -319,7 +323,7 @@ async function cancelAll(env, a, fetchFn) {
 export async function flatten(env, url, { fetchFn = fetch, now = Date.now() } = {}) {
   const a = await pick(env, url, fetchFn);
   const { canceled, failed: notCanceled } = await cancelAll(env, a, fetchFn);
-  if (notCanceled.length) throw fail(502, `${notCanceled.length} open Webull order(s) were not cancelled: nothing was reset; press Reset again`, { failed: notCanceled });
+  if (notCanceled.length) throw fail(502, `${canceled} open Webull order(s) were cancelled but ${notCanceled.length} were not: the book was not reset; press Reset again`, { canceled, failed: notCanceled });
   const closing = [], failed = [];
   for (const p of (await rawPositions(env, a, fetchFn)).map(positionOut)) {
     if (!pos(p.qty)) continue;
@@ -327,7 +331,8 @@ export async function flatten(env, url, { fetchFn = fetch, now = Date.now() } = 
     const cid = 'r' + now.toString(36) + Math.random().toString(36).slice(2, 6), body = webullBody(o, a.account_id, cid);
     await logRow(env, { id: cid, at: now, who: 'tony', reason: 'book reset', symbol: p.symbol, side: o.side, type: 'market', qty: p.qty, body, status: 'sent' });
     const r = await wb(env, 'POST', '/trading/orders/place', { body, category: true }, fetchFn);
-    if (r.ok) closing.push(p.symbol); else failed.push(p.symbol);
+    if (r.ok) closing.push(p.symbol);
+    else { failed.push(p.symbol); await env.DB.prepare('UPDATE paper_orders SET status = ?, error = ? WHERE id = ?').bind('refused', String((r.body && r.body.message) || r.status).slice(0, 300), cid).run().catch(() => {}); }
   }
   clearCache();
   return { canceled, closing, failed };

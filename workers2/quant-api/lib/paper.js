@@ -24,7 +24,7 @@
 //   POST   /paper/equity                { rows: [{ run, day, equity }] }   one row a run a day
 import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
-import { applyBook, overBook } from './books.js';
+import { applyBook, overBook, orderValue } from './books.js';
 
 export const PAPER_HOST = 'https://paper-api.alpaca.markets';
 export const TYPES = ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop'], SIDES = ['buy', 'sell'], TIFS = ['day', 'gtc'], CLASSES = ['simple', 'bracket', 'oco', 'oto'];
@@ -147,9 +147,9 @@ export async function rawAccount(env, fetchFn = fetch) { return acctOut(must(awa
 /** A book reset (T5): cancel every open order, then close every position at market (Alpaca queues the closes outside market hours). */
 export async function flatten(env, fetchFn = fetch) {
   const c = await alpaca(env, '/v2/orders', { method: 'DELETE' }, fetchFn);
-  if (!c.ok) throw fail(502, 'Alpaca did not cancel the open orders (HTTP ' + c.status + '): nothing was reset');
+  if (!c.ok) throw fail(502, 'Alpaca did not cancel the open orders (HTTP ' + c.status + '): the book was not reset; press Reset again');
   const p = await alpaca(env, '/v2/positions?cancel_orders=true', { method: 'DELETE' }, fetchFn);
-  if (!p.ok) throw fail(502, 'the open orders were cancelled, but Alpaca did not close the positions (HTTP ' + p.status + '): nothing was reset; press Reset again');
+  if (!p.ok) throw fail(502, `${Array.isArray(c.body) ? c.body.length : 0} open order(s) were cancelled (stops included), but Alpaca did not close the positions (HTTP ${p.status}): the book was not reset; press Reset again`);
   const list = Array.isArray(p.body) ? p.body : [];
   return { canceled: Array.isArray(c.body) ? c.body.length : 0, closing: list.filter((x) => !x.status || x.status < 300).map((x) => x.symbol), failed: list.filter((x) => x.status >= 300).map((x) => x.symbol) };
 }
@@ -232,10 +232,14 @@ export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, n
   const was = must(cur, 'the order');
   const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: num(patch.qty || was.qty), limit_price: num(patch.limit_price || was.limit_price), stop_price: num(patch.stop_price || was.stop_price),
     ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: num(patch.trail || was.trail_percent) } : { trail_price: num(patch.trail || was.trail_price) }) : {}), extended_hours: !!was.extended_hours };
-  const equity = acct.ok ? (book ? applyBook(book, acctOut(acct.body)).equity : num(acct.body.equity)) : null, price = priceOf ? await priceOf(was.symbol) : null;
+  const shown = acct.ok && book ? applyBook(book, acctOut(acct.body)) : null;
+  const equity = shown ? shown.equity : acct.ok ? num(acct.body.equity) : null, price = priceOf ? await priceOf(was.symbol) : null;
   if (!pos(equity)) throw fail(503, 'the paper account could not be read, so the change cannot be checked: try again');
   const chk = checkOrder(next, { price, equity, kill });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  // T5: a change may not raise the order past the book's buying power (only the increase counts: the old value is held already).
+  const over = overBook(shown, next, price, false, orderValue({ qty: num(was.qty), limit_price: num(was.limit_price), stop_price: num(was.stop_price), notional: num(was.notional) }, price));
+  if (over) throw fail(422, over, { errors: [over] });
   const orig = await db(env.DB.prepare('SELECT run FROM paper_orders WHERE alpaca_id = ? ORDER BY at LIMIT 1').bind(id).first());
   const runId = orig && orig.run;
   if (runId) {

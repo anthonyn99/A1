@@ -61,9 +61,7 @@ export async function readBook(env, broker) {
   let row = null;
   try { row = await env.DB.prepare('SELECT * FROM trade_books WHERE broker = ?').bind(broker).first(); }
   catch (e) { if (!/no such table/i.test(String(e && e.message))) throw e; }
-  const book = out(row);
-  cache.set(broker, { at: now, book });
-  return book;
+  return out(row);
 }
 function capitalOf(v) {
   const c = num(v);
@@ -81,7 +79,6 @@ async function save(env, broker, b) {
     await env.DB.prepare('INSERT INTO trade_books (broker, capital, baseline, bp_cap, at, resets) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (broker) DO UPDATE SET capital = excluded.capital, baseline = excluded.baseline, bp_cap = excluded.bp_cap, at = excluded.at, resets = excluded.resets')
       .bind(broker, b.capital, b.baseline, b.bp_cap, b.at, JSON.stringify(b.resets || [])).run();
   } catch (e) { if (/no such table/i.test(String(e && e.message))) throw fail(503, 'the book table is not there yet (D1 migration 0015_books.sql)'); throw e; }
-  cache.delete(broker);
 }
 
 /**
@@ -89,13 +86,12 @@ async function save(env, broker, b) {
  * `flatten()` = cancel every open order and close every position → { canceled, closing: [symbols], failed: [..] }.
  */
 export async function bookRoute(env, req, broker, rest, m, { rawAccount, flatten, now = Date.now() }) {
-  if (rest === '/book' && m === 'GET') return json({ ok: true, broker, book: await readBook(env, broker, now), defaults: { capital: DEFAULT_CAPITAL[broker] } });
+  if (rest === '/book' && m === 'GET') return json({ ok: true, broker, book: await readBook(env, broker), defaults: { capital: DEFAULT_CAPITAL[broker] } });
   if (m !== 'PUT' && m !== 'POST') throw fail(405, 'GET, PUT or POST');
   const b = (await bodyOf(req, 1000)) || {};
   // Only Tony sets the book: Neo Quant never changes capital or buying power (§1 rule 6).
   if (b.who !== 'tony') throw fail(403, 'only you can change the book (who: tony)');
-  cache.delete(broker);   // a write decides on the stored row, never a cached one
-  const was = await readBook(env, broker, now);
+  const was = await readBook(env, broker);
   if (rest === '/book' && m === 'PUT') {
     if (b.capital == null && !('bpCap' in b)) throw fail(400, 'nothing to change (capital or bpCap)');
     const a = was ? null : await rawAccount();
@@ -110,9 +106,12 @@ export async function bookRoute(env, req, broker, rest, m, { rawAccount, flatten
     const capital = b.capital != null ? capitalOf(b.capital) : (was ? was.capital : DEFAULT_CAPITAL[broker]);
     const bp_cap = 'bpCap' in b ? capOf(b.bpCap) : (was ? was.bp_cap : null);
     const done = await flatten();
+    // A position the broker would not close (Webull outside market hours) leaves the book as it was: a "fresh"
+    // book with old positions in it would mislead. The cancels stand; Tony resets again in market hours.
+    if (done.failed && done.failed.length) throw fail(409, `${done.canceled || 0} open order(s) were cancelled, but ${done.failed.join(', ')} could not be closed now (Webull takes market orders only in market hours): the book was not reset; press Reset again in market hours`, { canceled: done.canceled || 0, failed: done.failed });
     const a = await rawAccount();
     if (!(a && fin(num(a.equity)) && num(a.equity) > 0)) throw fail(502, 'the orders were cancelled and the positions sent to close, but the account could not be read for the new baseline: press Reset again');
-    const shownBefore = was ? applyBook(was, a).equity : num(a.equity);
+    const shownBefore = was ? applyBook(was, a, now).equity : num(a.equity);
     const resets = [{ at: now, capital, from: fin(shownBefore) ? Math.round(shownBefore * 100) / 100 : null, canceled: done.canceled || 0, closing: done.closing || [] }, ...(was ? was.resets : [])].slice(0, MAX_RESETS);
     const next = { capital, baseline: num(a.equity), bp_cap, at: now, resets };
     await save(env, broker, next);
