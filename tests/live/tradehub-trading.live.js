@@ -232,6 +232,8 @@ const ok = (ph, name, cond, extra) => {
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       await tab('charts');
       await js(`window._tbOps.charts.open('NVDA'); 1`);
+      await until(`!!${CH} && ${CH}.dataset.ch==='NVDA' && !!${CH}.__orders && !!${CH}.querySelector('canvas')`, 8000);
+      await until(`!!${LINE('pos')}`, 6000);
     } else await tab('charts');
     ok('T6', 'a right-click on the chart opens the order menu', await js(`var cv=document.querySelector('[data-lay="charts"] canvas'); if(!cv) return false; var r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); return true;`)
       && await until(vis('[data-chart-order-menu]'), 2000));
@@ -326,6 +328,7 @@ const ok = (ph, name, cond, extra) => {
       await tab('charts');
       if (w < 600) {
         await js(`window._tbOps.charts.open('NVDA'); 1`);
+        await until(`!!${CH} && ${CH}.dataset.ch==='NVDA' && !!${CH}.__orders`, 8000);
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,button:0,buttons:1,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
         ok('T6', 'press and hold on a phone opens the same menu', await until(vis('[data-chart-order-menu]'), 2000));
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
