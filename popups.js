@@ -62,6 +62,10 @@
   // ── What a backdrop is ──────────────────────────────────────────────────
   function alpha(c) {
     if (!c || c === 'transparent') return 0;
+    // color-mix() and the newer syntaxes compute to color(srgb r g b / a), oklab(… / a)…: their alpha
+    // follows the slash (TradeHub's popups went undimmed for want of this, 2026-11-22).
+    var s = /^(color|oklab|oklch|lab|lch|hsla?|hwb)\(.*\/\s*([\d.]+%?)\s*\)$/.exec(c);
+    if (s) return /%$/.test(s[2]) ? parseFloat(s[2]) / 100 : parseFloat(s[2]);
     var m = /rgba?\(([^)]+)\)/.exec(c);
     if (!m) return 1;
     var p = m[1].split(/[\s,\/]+/).filter(Boolean);
