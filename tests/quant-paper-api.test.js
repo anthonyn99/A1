@@ -200,6 +200,11 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
   r = await read(await P.activities(env, new URL('https://x/paper/activities')));
   ok('Alpaca\'s fills, read', r.fills[0].price === 100.5 && r.fills[0].order === 'a1');
 
+  console.log('\nT6: an OCO exit (take profit + stop on a held position)');
+  const oco = P.alpacaBody({ symbol: 'NVDA', side: 'sell', type: 'limit', time_in_force: 'gtc', qty: 10, limit_price: 180, order_class: 'oco', take_profit: { limit_price: 180 }, stop_loss: { stop_price: 150 } });
+  ok('Alpaca gets the OCO with its prices in the legs only (no top-level limit)', oco.order_class === 'oco' && oco.limit_price === undefined && oco.take_profit.limit_price === '180' && oco.stop_loss.stop_price === '150' && oco.qty === '10', JSON.stringify(oco));
+  ok('a simple limit keeps its limit', P.alpacaBody({ ...order }).limit_price === String(order.limit_price));
+
   console.log('\nThe same rules on the page and here');
   const VN = await import(pathToFileURL(path.join(PRIV, 'TradeHub', 'core', 'venue.js')).href);
   const table = [order, { ...order, qty: 0 }, { ...order, type: 'market', limit_price: null }, { ...order, type: 'stop', stop_price: 99 }, { ...order, type: 'trailing_stop', trail_percent: 60 }, { ...order, extended_hours: true },
