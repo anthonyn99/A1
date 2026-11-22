@@ -354,6 +354,7 @@ const ok = (ph, name, cond, extra) => {
       const TR = `document.querySelector('[data-al-trading]')`;
       ok('T7', 'Trading\'s Alerts button lands there: the section on screen', await until(`(function(){var r=${TR}.getBoundingClientRect(); return r.top >= -2 && r.top < innerHeight - 40;})()`, 3000), await js(`return JSON.stringify(${TR}.getBoundingClientRect());`));
       ok('T7', '...When: Filled, Partly filled, Cancelled, Rejected; Broker: Alpaca, Webull', await js(`var t=${TR}.innerText; return /Filled/.test(t) && /Partly filled/.test(t) && /Cancelled/.test(t) && /Rejected/.test(t) && /Alpaca/.test(t) && /Webull/.test(t);`));
+      await shot('t7-trading-' + w);
       ok('T7', '...defaults: everything on except his own cancels', await js(`var g=function(k){return ${TR}.querySelector('[data-al-trading-on="'+k+'"]').checked;}; return g('filled') && g('partial') && !g('canceled') && g('rejected') && g('alpaca') && g('webull');`));
       ok('T7', 'Kinds lists "Your paper orders"', await js(`return /Your paper orders/.test((document.querySelector('[data-tal-kind="order"]')||{}).textContent||'');`));
       const n0 = (api.posted.alertCfg || []).length;
