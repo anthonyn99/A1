@@ -280,7 +280,8 @@ function memoryRoutes(state, posted, req, u, p) {
  */
 // quant-api's default alert config (workers2/quant-api/lib/alerts.js DEFAULT_CFG).
 const ALERT_CFG = () => ({
-  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true },
+  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true, order: true },
+  trading: { filled: true, partial: true, canceled: false, rejected: true, alpaca: true, webull: true },
   quiet: { on: false, from: '22:00', to: '07:00', tz: 'America/Denver' },
   marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true },
   mute: {}, cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false }, speak: true,

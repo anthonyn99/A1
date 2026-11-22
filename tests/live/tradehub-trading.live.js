@@ -10,7 +10,8 @@
 //   T5  the book: [data-trade-capital] and Reset ([data-trade-reset]) that asks first
 //   T6  the chart's right-click menu ([data-chart-order-menu]), order lines ([data-cho-line]) dragged or typed with a confirmation
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
-//   T7  Control ▸ Alerts has a Trading section ([data-al-trading]); Trading's header button goes there
+//   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
+//       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
 //
 // Run: CDP_PORT=93xx node tests/live/tradehub-trading.live.js    PHASES=T2,T3 runs only those tags.
 'use strict';
@@ -346,8 +347,33 @@ const ok = (ph, name, cond, extra) => {
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
     }
 
-    // T7: trade alerts
-    ok('T7', 'Control ▸ Alerts has a Trading section', await js(`return !!document.querySelector('[data-al-trading]');`));
+    // T7: trade alerts (quant-api lib/order-watch.js; A1-Priv ui/alerts.js Trading section)
+    if (want('T7')) { await tab('trading'); await until(`!!document.querySelector('[data-trade-alerts]')`, 4000); await js(`document.querySelector('[data-trade-alerts]').click(); 1`); }
+    ok('T7', 'Control ▸ Alerts has a Trading section', await until(`!!document.querySelector('[data-al-trading]')`, 6000));
+    if (want('T7')) {
+      const TR = `document.querySelector('[data-al-trading]')`;
+      ok('T7', 'Trading\'s Alerts button lands there: the section on screen', await until(`(function(){var r=${TR}.getBoundingClientRect(); return r.top >= -2 && r.top < innerHeight - 40;})()`, 3000), await js(`return JSON.stringify(${TR}.getBoundingClientRect());`));
+      ok('T7', '...When: Filled, Partly filled, Cancelled, Rejected; Broker: Alpaca, Webull', await js(`var t=${TR}.innerText; return /Filled/.test(t) && /Partly filled/.test(t) && /Cancelled/.test(t) && /Rejected/.test(t) && /Alpaca/.test(t) && /Webull/.test(t);`));
+      ok('T7', '...defaults: everything on except his own cancels', await js(`var g=function(k){return ${TR}.querySelector('[data-al-trading-on="'+k+'"]').checked;}; return g('filled') && g('partial') && !g('canceled') && g('rejected') && g('alpaca') && g('webull');`));
+      ok('T7', 'Kinds lists "Your paper orders"', await js(`return /Your paper orders/.test((document.querySelector('[data-tal-kind="order"]')||{}).textContent||'');`));
+      const n0 = (api.posted.alertCfg || []).length;
+      await js(`var c=${TR}.querySelector('[data-al-trading-on="canceled"]'); c.click(); 1`);
+      ok('T7', 'switching Cancelled on saves it (trading.canceled true, the rest kept)', await until(`${(api.posted.alertCfg || []).length} >= 0`, 100) && await new Promise((r) => setTimeout(r, 1200)).then(() => { const c = (api.posted.alertCfg || []).slice(n0).pop(); return !!c && c.trading && c.trading.canceled === true && c.kinds.price === true; }), JSON.stringify((api.posted.alertCfg || []).slice(-1)));
+      await js(`var c=document.querySelector('[data-al-trading] [data-al-trading-on="webull"]'); c.click(); 1`);
+      await new Promise((r) => setTimeout(r, 1200));
+      ok('T7', '...and Webull off', ((api.posted.alertCfg || []).slice(-1)[0] || {}).trading.webull === false);
+      await js(`document.querySelector('[data-tal-kind-on="order"]').click(); 1`);
+      ok('T7', 'the kind off: the Trading switches dim and say why', await until(`/Off: switch on/.test(document.querySelector('[data-al-trading]').innerText) && document.querySelector('[data-al-trading] [data-al-trading-on="filled"]').disabled`, 3000));
+      await js(`document.querySelector('[data-tal-kind-on="order"]').click(); 1`); await until(`!document.querySelector('[data-al-trading] [data-al-trading-on="filled"]').disabled`, 3000);
+      await js(`document.querySelector('[data-al-trading] [data-al-trading-on="webull"]').click(); 1`); await new Promise((r) => setTimeout(r, 800));
+      await js(`document.querySelector('[data-al-trading] [data-al-trading-on="canceled"]').click(); 1`); await new Promise((r) => setTimeout(r, 800));
+      // A fill's notification opens Trading on its broker.
+      await js(`location.hash = '#alert=trading:webull'; 1`);
+      ok('T7', 'an order alert\'s link opens Trading on that broker (Webull)', await until(`!!document.querySelector('[data-trading-tab]') && (document.querySelector('[data-trade-broker]')||{}).value==='webull'`, 8000));
+      await js(`history.replaceState(null, '', location.pathname + location.search); 1`);
+      await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      ok('T7', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
   }
 
   console.log('\nBy phase: ' + Object.entries(byPhase).map(([k, v]) => `${k} ${v.pass}/${v.pass + v.fail}`).join(', '));
