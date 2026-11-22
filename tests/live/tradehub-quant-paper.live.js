@@ -1,11 +1,12 @@
 // TradeHub Quant, Phase 9C: paper trading in the real page (A1-Priv tradehub.html
-// + TradeHub/ui/paper.js, paper-ticket.js, data/paper.js), quant-api's /paper/…
+// + TradeHub/ui/paper.js, order-ticket.js (Batch 4 T3), data/paper.js), quant-api's /paper/…
 // played here (quant-mock.js).
 //
 //   1. the Paper tab: the account with the PAPER badge, positions with P&L, working and
 //      filled orders, the activity log, strategies on paper; its cards tile
 //   2. the order ticket: a bad order says why and cannot be sent; every type changes the
-//      fields; a bracket; Review reads it back (PAPER) before it goes; it lands as Tony's
+//      fields; Take profit + Stop loss (a bracket, $ at each, reward to risk); Review reads
+//      it back (PAPER · Alpaca) before it goes; it lands as Tony's
 //   3. a working order: a new price, Cancel
 //   4. a Scanner signal's "Place on paper": the ticket with its bracket prefilled
 //   5. the Backtest view's "Start on paper" → a run on the Paper tab; pause; live vs backtest
@@ -76,7 +77,7 @@ const MIN = 60000;
   await setField('size', '10'); await setField('limit', '140');
   await press('[data-ot-tp]'); await press('[data-ot-sl]');
   await setField('tpPrice', '150'); await setField('slPrice', '135');
-  ok('Take profit and Stop loss: the $ at each and the reward to risk', await js(`return /+$100.00/.test(${T}.querySelector('[data-ot-tpgain]').textContent) && /$50.00/.test(${T}.querySelector('[data-ot-slloss]').textContent) && /2.00/.test(${T}.querySelector('[data-ot-rr]').textContent);`), await js(`return ${T}.querySelector('.ot-legs').innerText;`));
+  ok('Take profit and Stop loss: the $ at each and the reward to risk', await js(`return ${T}.querySelector('[data-ot-tpgain]').textContent === '+$100.00' && ${T}.querySelector('[data-ot-slloss]').textContent === '−$50.00' && ${T}.querySelector('[data-ot-rr]').textContent === 'Reward to risk 2.00';`), await js(`return ${T}.querySelector('.ot-legs').innerText;`));
   await press('[data-ot-go]');
   ok('Review: the read-back says the entry, the target and the stop, PAPER · Alpaca first', await until(`/^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00, for today\\.$/.test(${T}.querySelector('[data-ot-readback]').textContent)`, 2000), await js(`return ${T}.querySelector('[data-ot-readback]').textContent;`));
   ok('Review asks once more before anything goes out', await js(`return ${T}.querySelector('[data-ot-go]').textContent === 'Place on paper · Alpaca';`) && posts('/paper/orders').length === 0);
