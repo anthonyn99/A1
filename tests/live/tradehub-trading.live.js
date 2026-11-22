@@ -68,9 +68,55 @@ const ok = (ph, name, cond, extra) => {
     }
 
     // T3: the ticket, two ways
+    const OT = `document.querySelector('.ot-scrim [data-order-ticket]')`;
+    const otSet = (k, v, root = OT) => js(`var i=${root}.querySelector('[data-ot-${k}]'); i.value=${JSON.stringify(String(v))}; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+    const otPress = (sel, root = OT) => js(`var b=${root}.querySelector('${sel}'); b.click(); 1`);
+    const setBrokerTo = (b) => js(`var s=document.querySelector('[data-trade-broker]'); if (s.value!=='${b}') { s.value='${b}'; s.dispatchEvent(new Event('change',{bubbles:true})); } 1`);
+    if (want('T3')) { await tab('trading'); await setBrokerTo('alpaca'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000); }
     ok('T3', '"New Order" opens the redesigned ticket with five type pills', await js(`var b=document.querySelector('[data-trade-new]'); if(!b) return false; b.click(); return true;`)
       && await until(`document.querySelectorAll('[data-order-ticket] [data-ot-type]').length === 5`, 3000));
-    ok('T3', 'the Trade card can be added to Trading and is the same ticket', await js(`return !!document.querySelector('[data-lay-card="trade"] [data-order-ticket]');`));
+    if (want('T3')) {
+      ok('T3', 'Buy | Sell, the symbol with Bid / Ask / Last, PAPER · Alpaca', await js(`var t=${OT}; return !!t.querySelector('[data-ot-side="buy"]') && !!t.querySelector('[data-ot-side="sell"]') && /Bid/.test(t.querySelector('[data-ot-quote]').innerText) && /Last/.test(t.querySelector('[data-ot-quote]').innerText) && /PAPER · Alpaca/.test(t.querySelector('[data-ot-paper]').textContent);`));
+      ok('T3', 'the popup fits the screen' + (w < 600 ? ' as a bottom sheet' : ', centred'), await js(`var r=${OT}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && r.width >= innerWidth - 1' : 'r.left > 0 && r.bottom < innerHeight'};`), await js(`return JSON.stringify(${OT}.getBoundingClientRect());`));
+      await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '140'); await otSet('size', '10');
+      await otPress('[data-ot-tp]'); await otPress('[data-ot-sl]'); await otSet('tpPrice', '150'); await otSet('slPrice', '135');
+      ok('T3', 'price steppers move the limit a cent', await otPress('[data-ot-step="limit+"]') && await js(`return ${OT}.querySelector('[data-ot-limit]').value === '140.01';`) && await otPress('[data-ot-step="limit-"]') && await js(`return ${OT}.querySelector('[data-ot-limit]').value === '140.00';`));
+      ok('T3', 'Take profit / Stop loss show the $ at each and the reward to risk; cost and buying power after', await js(`var t=${OT}; return t.querySelector('[data-ot-tpgain]').textContent==='+$100.00' && t.querySelector('[data-ot-slloss]').textContent==='−$50.00' && t.querySelector('[data-ot-rr]').textContent==='Reward to risk 2.00' && t.querySelector('[data-ot-cost]').textContent==='$1,400.00' && /\\$/.test(t.querySelector('[data-ot-bp]').textContent);`), await js(`return ${OT}.innerText.slice(0, 500);`));
+      const before = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
+      await otPress('[data-ot-go]');
+      ok('T3', 'Review reads it back (PAPER · Alpaca) and sends nothing yet', await js(`return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(${OT}.querySelector('[data-ot-readback]').textContent) && ${OT}.querySelector('[data-ot-go]').textContent==='Place on paper · Alpaca';`)
+        && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === before, await js(`return ${OT}.querySelector('[data-ot-readback]').textContent;`));
+      await otPress('[data-ot-go]');
+      ok('T3', 'Confirm: one bracket order to Alpaca paper, as Tony\'s; the popup closes', await until(`!${OT}`, 5000) && (() => { const o = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)); const last = o[o.length - 1]; return o.length === before + 1 && last[2].who === 'tony' && last[2].order.order_class === 'bracket' && last[2].order.qty === 10; })(), JSON.stringify((api.posted.pp || []).slice(-2)));
+      // Webull: what it lacks is not offered.
+      await setBrokerTo('webull'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$1,000,000.00'`, 6000);
+      await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+      ok('T3', 'Webull: PAPER · Webull; no $ size on a market order', await js(`return /PAPER · Webull/.test(${OT}.querySelector('[data-ot-paper]').textContent) && !${OT}.querySelector('[data-ot-sizeKind="dollars"]') && !!${OT}.querySelector('[data-ot-sizeKind="shares"]');`));
+      await otPress('[data-ot-type="trailing_stop"]');
+      ok('T3', '...a trailing stop: GTC not pressable, Day chosen, no Take profit / Stop loss', await js(`var g=${OT}.querySelector('[data-ot-tif="gtc"]'); return g.disabled && ${OT}.querySelector('[data-ot-tif="day"]').getAttribute('aria-pressed')==='true' && !${OT}.querySelector('[data-ot-tp]');`));
+      await otPress('[data-ot-type="limit"]'); await otSet('symbol', 'AAPL'); await otSet('limit', '50'); await otSet('size', '1');
+      const wbBefore = ((api.posted.wb && api.posted.wb.pp) || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
+      await otPress('[data-ot-go]'); await otPress('[data-ot-go]');
+      ok('T3', '...an order placed under Webull goes to Webull only', await until(`!${OT}`, 5000) && ((api.posted.wb && api.posted.wb.pp) || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === wbBefore + 1);
+      await setBrokerTo('alpaca'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000);
+      // The Trade card: Add card ▸ Trade.
+      ok('T3', 'Add card offers Trade', await js(`var s=document.querySelector('[data-lay="paper"] [data-lay-add]'); return !!s && [].some.call(s.options, function(o){return o.value==='trade';});`));
+      await js(`var s=document.querySelector('[data-lay="paper"] [data-lay-add]'); s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+    }
+    const CARD = `document.querySelector('.lay-card[data-card="trade"] [data-order-ticket]')`;
+    ok('T3', 'the Trade card can be added to Trading and is the same ticket', await until(`!!${CARD} && ${CARD}.querySelectorAll('[data-ot-type]').length === 5`, 3000));
+    if (want('T3')) {
+      await otSet('symbol', 'MSFT', CARD); await otPress('[data-ot-type="limit"]', CARD); await otSet('limit', '400', CARD); await otSet('size', '2', CARD);
+      const n0 = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
+      await otPress('[data-ot-go]', CARD); await otPress('[data-ot-go]', CARD);
+      ok('T3', '...it places to Alpaca paper and stays open, saying so', await until(`/Sent to Alpaca paper/.test(${CARD}.querySelector('[data-ot-msg]').textContent)`, 5000) && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === n0 + 1);
+      await setBrokerTo('webull');
+      ok('T3', '...it follows the broker dropdown (PAPER · Webull)', await until(`/PAPER · Webull/.test(${CARD}.querySelector('[data-ot-paper]').textContent)`, 4000));
+      await setBrokerTo('alpaca');
+      ok('T3', 'no sideways scroll with the card', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+      // Leave the layout as it was for the next width.
+      await js(`var b=document.querySelector('.lay-card[data-card="trade"] [data-lay-hide], .lay-card[data-card="trade"] .lay-hide'); if (b) b.click(); 1`);
+    }
 
     // T4: Market cards on Trading
     ok('T4', 'Add card on Trading lists the Market cards (Regime, Breadth, Heat Map …)', await js(`var t=(document.querySelector('[data-lay="trading"] [data-lay-add-list]')||{}).innerText||''; return /Regime/.test(t) && /Breadth/.test(t) && /Heat Map/.test(t);`));
