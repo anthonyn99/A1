@@ -165,6 +165,10 @@ export async function orders(env, url, fetchFn) {
   const r = must(await alpaca(env, `/v2/orders?status=${status}&limit=${limit}&nested=true`, {}, fetchFn), 'the orders');
   return json({ ok: true, paper: true, orders: r || [] });
 }
+/** T7: the account's latest orders, every status, legs nested (one read; lib/order-watch.js turns changes into alerts). */
+export async function recentOrders(env, fetchFn = fetch) {
+  return must(await alpaca(env, '/v2/orders?status=all&limit=100&direction=desc&nested=true', {}, fetchFn), 'the orders') || [];
+}
 export async function activities(env, url, fetchFn) {
   const after = url.searchParams.get('after');
   const q = after && /^[\d\-T:.Z]+$/.test(after) ? '&after=' + encodeURIComponent(after) : '';

@@ -147,6 +147,11 @@ async function openGroups(env, a, fetchFn) {
 async function historyGroups(env, a, fetchFn) {
   return cached('hist:' + a.account_id, async () => listOf(must(await wb(env, 'GET', '/trading/orders/historical-orders/list', { query: { account_id: a.account_id } }, fetchFn), 'the order history')));
 }
+/** T7: the account's order history, Alpaca-shaped (lib/order-watch.js). */
+export async function recentOrders(env, fetchFn = fetch) {
+  const a = await pick(env, null, fetchFn);
+  return ordersOut(await historyGroups(env, a, fetchFn));
+}
 export async function orders(env, url, fetchFn = fetch) {
   const status = ['open', 'closed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'open';
   const a = await pick(env, url, fetchFn);
