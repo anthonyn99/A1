@@ -10,6 +10,7 @@
 //   T5  the book: [data-trade-capital] and Reset ([data-trade-reset]) that asks first
 //   T6  the chart's right-click menu ([data-chart-order-menu]), order lines ([data-cho-line]) dragged or typed with a confirmation
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
+//   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
 //       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
 //
@@ -374,6 +375,32 @@ const ok = (ph, name, cond, extra) => {
       await js(`history.replaceState(null, '', location.pathname + location.search); 1`);
       await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       ok('T7', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+
+    // T8: Neo Quant knows the trading app (A1-Priv TradeHub/neo/reg/trading.js), and places nothing.
+    const REG = (expr) => js(`var R=(await import('/A1/TradeHub/neo/registry.js')).Registry; return JSON.stringify(await (${expr}));`).then((s) => { try { return JSON.parse(s); } catch (e) { return { error: String(s) }; } });
+    if (want('T8')) {
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      const st = await REG(`R.get('trading').readers.status.read()`);
+      ok('T8', 'Neo reads the chosen broker: Alpaca, its account ($100,000) and its NVDA position', st.broker === 'alpaca' && st.account && st.account.equity === 100000 && st.positions.some((p) => p.symbol === 'NVDA' && p.qty === 10), JSON.stringify(st).slice(0, 300));
+      const wb = await REG(`R.get('trading').readers.broker.read({ broker: 'webull' })`);
+      ok('T8', '...and Webull by name: its own account and its AAPL order, no Alpaca position', wb.broker === 'webull' && wb.account.equity === 1000000 && wb.orders.some((o) => o.id === 'wbo1' && o.price === 50) && !wb.positions.some((p) => p.symbol === 'NVDA'), JSON.stringify(wb).slice(0, 300));
+      ok('T8', '...the broker shown did not change (reading is not switching)', await js(`return document.querySelector('[data-trade-broker]').value==='alpaca';`));
+      await tab('charts'); await js(`window._tbOps.charts.open('NVDA'); 1`);
+      await until(`!!document.querySelector('[data-lay="charts"] .ch [data-cho-line="pos"]')`, 8000);
+      const ln = await REG(`R.get('trading').readers.lines.read()`);
+      ok('T8', 'Neo reads the chart\'s order lines: NVDA, the long position at 160', ln.symbol === 'NVDA' && ln.lines.some((l) => l.role === 'pos' && l.price === 160 && l.qty === 10), JSON.stringify(ln));
+      const al = await REG(`R.get('trading').readers.alerts.read()`);
+      ok('T8', 'Neo reads the trade alerts\' switches (cancelled off by default)', al.on === true && al.switches.filled === true && al.switches.canceled === false, JSON.stringify(al));
+      const posts = (api.posted.pp || []).filter(([m]) => m !== 'GET').length;
+      const did = await REG(`R.get('alerts').actions.trading.run({ what: 'rejected', on: false })`);
+      ok('T8', 'Neo switches a trade alert off (rejected): saved; no order went anywhere', /rejected off/.test(did.shown) && ((api.posted.alertCfg || []).slice(-1)[0] || {}).trading.rejected === false && (api.posted.pp || []).filter(([m]) => m !== 'GET').length === posts, JSON.stringify(did));
+      await REG(`R.get('alerts').actions.trading.run({ what: 'rejected', on: true })`);
+      ok('T8', 'the trading entry has no order, cancel, book or kill action', await REG(`Object.keys(R.get('trading').actions)`).then((k) => k.join() === 'refresh,broker,alerts'));
+      await REG(`R.get('trading').actions.alerts.run({})`);
+      ok('T8', 'Neo opens Control ▸ Alerts ▸ Trading', await until(`(function(){var e=document.querySelector('[data-al-trading]'); if(!e) return false; var r=e.getBoundingClientRect(); return r.top >= -2 && r.top < innerHeight - 40;})()`, 5000));
+      ok('T8', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
     }
   }
 
