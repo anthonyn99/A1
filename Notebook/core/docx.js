@@ -4028,7 +4028,7 @@ function _docxHtmlToMd(root, opts) {
   }
   function kids(node) { var s = ''; Array.prototype.slice.call(node.childNodes).forEach(function (c) { s += ser(c); }); return s; }
   function listMd(listEl, ordered, depth) {
-    var lines = [], idx = 1;
+    var lines = [], idx = (ordered && parseInt(listEl.getAttribute('start'), 10)) || 1;
     Array.prototype.slice.call(listEl.children).forEach(function (li) {
       if (li.tagName.toLowerCase() !== 'li') return;
       var box = li.querySelector('input[type=checkbox], .docx-cl-box');
@@ -4741,6 +4741,22 @@ function wireEditor(ctx) {
     var range = sel.getRangeAt(0);
     var holder = document.createElement('div');
     holder.appendChild(range.cloneContents());
+    // A selection across list items clones the <li>s without their <ol>/<ul>, so
+    // they'd read as orphans ("- " dashes). Put the list shell back, numbered
+    // from the first selected item.
+    var listAnc = range.commonAncestorContainer;
+    while (listAnc && listAnc !== ed && !(listAnc.nodeType === 1 && /^(UL|OL)$/.test(listAnc.tagName))) listAnc = listAnc.parentNode;
+    if (listAnc && listAnc !== ed && holder.firstElementChild && holder.firstElementChild.tagName === 'LI') {
+      var shell = listAnc.cloneNode(false);
+      var items = Array.prototype.filter.call(listAnc.children, function (c) { return c.tagName === 'LI'; });
+      var first = range.startContainer;
+      if (first === listAnc) first = listAnc.childNodes[range.startOffset] || null;
+      while (first && first.parentNode !== listAnc) first = first.parentNode;
+      var at = Math.max(0, items.indexOf(first));
+      if (listAnc.tagName === 'OL') shell.setAttribute('start', (parseInt(listAnc.getAttribute('start'), 10) || 1) + at);
+      while (holder.firstChild) shell.appendChild(holder.firstChild);
+      holder.appendChild(shell);
+    }
     var md;
     try { md = _docxHtmlToMd(holder); } catch (err) { return; }   // fall back to the default copy
     if (!md) return;
