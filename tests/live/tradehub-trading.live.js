@@ -10,6 +10,7 @@
 //   T5  the book: [data-trade-capital] and Reset ([data-trade-reset]) that asks first
 //   T6  the chart's right-click menu ([data-chart-order-menu]), order lines ([data-cho-line]) dragged or typed with a confirmation
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
+//   T9  Add card opens a popup with every tab's cards ([data-card-picker]); another tab's card runs on the grid as x-<tab>-<card>
 //   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
 //       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
@@ -401,6 +402,50 @@ const ok = (ph, name, cond, extra) => {
       await REG(`R.get('trading').actions.alerts.run({})`);
       ok('T8', 'Neo opens Control ▸ Alerts ▸ Trading', await until(`(function(){var e=document.querySelector('[data-al-trading]'); if(!e) return false; var r=e.getBoundingClientRect(); return r.top >= -2 && r.top < innerHeight - 40;})()`, 5000));
       ok('T8', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+
+    // T9: Add card = every card of every tab (A1-Priv TradeHub/ui/card-picker.js, card-catalog.js, layout-foreign.js)
+    const PK = `document.querySelector('.cpk-scrim [data-card-picker]')`;
+    const openPk = (scope) => js(`var b=document.querySelector('${scope} [data-lay-add-open]'); if(!b) return false; b.click(); return true;`);
+    const pkTab = (t) => js(`${PK}.querySelector('[data-cpk-tab="${t}"]').click(); 1`);
+    const pkAdd = (k) => js(`var b=${PK}.querySelector('[data-cpk-add="${k}"]'); if(!b||b.disabled) return false; b.click(); return true;`);
+    if (want('T9')) {
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      ok('T9', 'Add card is a button that opens the popup', await openPk('[data-trading-tab]') && await until(`!!${PK}`, 3000));
+      ok('T9', '...a section per tab: Trading first ("This tab"), then Market, Charts, Scanner, Invest, Neo Quant, Risk, Edge, Memory', await js(`var t=[].map.call(${PK}.querySelectorAll('[data-cpk-tab]'),function(b){return b.dataset.cpkTab;}).join(); return t==='trading,market,charts,scanner,invest,neo,risk,edge,memory' && /This tab/.test(${PK}.querySelector('[data-cpk-tab="trading"]').textContent);`),
+        await js(`return [].map.call(${PK}.querySelectorAll('[data-cpk-tab]'),function(b){return b.dataset.cpkTab;}).join();`));
+      ok('T9', '...each card with one line on what it shows; the ones on the grid say so', await js(`var a=${PK}.querySelector('[data-cpk-item="trading:account"]'); return !!a && /On this tab/.test(a.textContent) && a.querySelector('.cpk-txt span').textContent.length > 20;`));
+      ok('T9', '...the popup fits the screen' + (w < 600 ? ' as a bottom sheet, tabs as chips' : ', centred'), await js(`var r=${PK}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && getComputedStyle(' + PK + '.querySelector(".cpk-nav")).flexDirection==="row"' : 'r.left > 0 && r.top > 0'};`), await js(`return JSON.stringify(${PK}.getBoundingClientRect());`));
+      await shot('t9-picker-' + w);
+      ok('T9', 'Trading\'s own hidden card (Trade) comes back', await pkAdd('trading:trade') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="trade"]')`, 3000));
+      await pkTab('risk');
+      ok('T9', 'Risk ▸ Exposure added to Trading: the Risk card itself, drawn inside', await pkAdd('risk:exposure') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-exposure"] [data-rk-exposure]')`, 8000));
+      await pkTab('charts');
+      ok('T9', 'Charts ▸ Chart added: a live chart on Trading', await pkAdd('charts:chart') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"] canvas')`, 10000));
+      await pkTab('market');
+      ok('T9', 'a Market card Trading already has (Regime) is shown in place, not added twice', await pkAdd('market:regime') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="regime"]') && !document.querySelector('[data-card="x-market-regime"]')`, 4000));
+      ok('T9', '...and the popup now says each is on this tab', await js(`return ['market:regime'].every(function(k){return /Added|On this tab/.test(${PK}.querySelector('[data-cpk-add="'+k+'"]').textContent);});`));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      ok('T9', 'Escape closes it', await until(`!${PK}`, 1500));
+      ok('T9', 'a card from another tab never takes over Neo Quant\'s hook for its tab (no _tbOps.risk while Risk is not open)', await js(`return !(window._tbOps && window._tbOps.risk);`));
+      ok('T9', '...each added card shows its home tab\'s title', await js(`var c=document.querySelector('[data-card="x-risk-exposure"]'); return /Exposure/.test(c.querySelector('.lay-title').textContent);`));
+      await shot('t9-cards-' + w);
+      await boot({ quant: true, keep: true }); await tab('trading');
+      ok('T9', 'after a reload the cards from other tabs are still there (saved with the layout)', await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-exposure"] [data-rk-exposure]') && !!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"]')`, 10000));
+      await js(`var b=document.querySelector('[data-card="x-risk-exposure"] [data-act="hide"]'); b.click(); 1`);
+      ok('T9', '× takes a card from another tab off this tab (gone, not parked)', await until(`!document.querySelector('[data-card="x-risk-exposure"]')`, 3000));
+      await openPk('[data-trading-tab]'); await until(`!!${PK}`, 3000); await pkTab('risk');
+      ok('T9', '...and the popup offers it again', await js(`var b=${PK}.querySelector('[data-cpk-add="risk:exposure"]'); return !!b && !b.disabled && b.textContent==='Add';`));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      await js(`var b=document.querySelector('[data-card="x-charts-chart"] [data-act="hide"]'); if(b) b.click(); var t=document.querySelector('[data-trading-tab] .lay-card[data-card="trade"] [data-act="hide"]'); if(t) t.click(); var g=document.querySelector('[data-trading-tab] .lay-card[data-card="regime"] [data-act="hide"]'); if(g) g.click(); 1`);
+      // Another tab: Trading's Account on Market.
+      await tab('market');
+      ok('T9', 'on Market: Trading ▸ Account adds the paper account ($100,000)', await openPk('[data-lay="market"]') && await until(`!!${PK}`, 3000) && await pkTab('trading').then(() => pkAdd('trading:account'))
+        && await until(`/\\$100,000\\.00/.test((document.querySelector('[data-lay="market"] .lay-card[data-card="x-trading-account"]')||{}).textContent||'')`, 8000));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      await js(`var b=document.querySelector('[data-card="x-trading-account"] [data-act="hide"]'); if(b) b.click(); 1`);
+      ok('T9', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
     }
   }
 
