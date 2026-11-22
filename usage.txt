@@ -1,0 +1,64 @@
+Requests per day (UTC), per worker:
+  2026-11-19  total 246356  quant-api 246084, trade-dashboard 100, taskhub-weather-api 99, magi-link 45, index-backups 28
+  2026-11-20  total 8645  quant-api 8254, index-backups 178, trade-dashboard 86, proview-api 80, taskhub-weather-api 32, magi-link 15
+  2026-11-21  total 8209  quant-api 7774, trade-dashboard 253, index-backups 121, taskhub-weather-api 46, magi-link 15
+  2026-11-22  total 2258  quant-api 2176, index-backups 37, trade-dashboard 35, magi-link 6, taskhub-weather-api 4
+
+By location and outcome (last 2 days):
+  trade-dashboard: MCI/success 245, DEN/success 129
+  quant-api: MCI/success 11734, DEN/success 2326, IAD/success 1079, SJC/success 307, DFW/success 246, LHR/success 232, ATL/success 220, AMS/success 200, EWR/success 195, ORD/success 176
+  proview-api: DEN/success 80
+  index-backups: MCI/success 256, DEN/success 76, DFW/success 3, DEN/clientDisconnected 1
+  taskhub-weather-api: MCI/success 41, DEN/success 40, DFW/success 1
+  magi-link: MCI/success 22, DEN/success 14
+
+quant-api by hour and location:
+  11-21T20:00  CDG 3, WAW 2, MAD 4, AMS 2, LHR 17, IAD 850, NRT 1, ORD 3, MRS 2, KIX 1, DFW 3, FRA 1, EWR 3, ATL 5, HKG 2, LIS 2, PRG 1, SEA 1, MIA 2, SIN 3, LAX 3, SJC 1
+  11-21T21:00  SJC 5, PRG 1, SEA 5, NRT 2, EWR 5, MCI 161, MIA 3, ICN 1, FRA 4, LAX 2, ORD 4, SIN 6, MAD 1, DEN 32, IAD 4, AMS 1, ATL 3, DFW 5, MXP 1, KIX 1, LHR 5
+  11-21T22:00  EWR 4, CDG 4, LHR 2, AMS 5, ARN 1, ATL 5, OTP 1, MIA 1, ICN 1, IAD 4, MRS 1, MAD 4, SEA 4, SJC 14, LAX 1, WAW 2, ORD 3, HKG 2, DFW 5, SIN 2, DEN 5, VIE 3, MCI 138
+  11-21T23:00  NRT 2, KIX 1, SIN 3, ATL 5, LAX 2, SJC 5, PRG 1, EWR 1, MAD 5, LIS 1, AMS 6, DEN 1, MIA 2, CDG 2, MCI 10, DFW 5, SEA 2, VIE 1, LHR 8, MXP 1, WAW 1, IAD 3, ORD 3
+  11-22T00:00  KIX 2, ATL 5, EWR 5, NRT 1, LIS 3, MAD 2, AMS 6, LHR 3, SJC 5, SEA 1, MCI 740, ICN 2, IAD 1, ORD 4, PRG 3, OTP 1, WAW 1, DEN 141, LAX 1, CDG 4, MIA 2, DFW 4, SIN 4
+  11-22T01:00  MAD 2, ORD 4, LIS 1, CDG 4, AMS 5, IAD 3, FRA 3, ATL 4, SIN 2, DFW 5, SEA 2, LAX 5, MCI 353, ARN 4, DEN 325, HKG 1, MXP 2, VIE 1, KIX 1, LHR 2, NRT 1, SJC 6, EWR 2
+  11-22T02:00  SJC 4, FRA 1, SIN 2, EWR 4, SEA 5, LHR 5, ORD 4, WAW 1, ICN 2, KIX 1, AMS 8, MAD 1, MXP 2, DFW 9, PRG 2, ATL 6, OTP 1, MIA 2, IAD 2, NRT 1, LAX 2
+  11-22T03:00  VIE 2, ORD 3, EWR 7, SEA 10, SJC 4, MCI 14, MXP 1, KIX 5, ATL 5, DEN 336, LAX 2, HKG 4, CDG 1, MAD 4, ARN 1, MRS 1, FRA 3, LIS 1, NRT 1, IAD 2, LHR 6, DFW 3
+  11-22T04:00  FRA 1, EWR 2, AMS 1, OTP 1, KIX 1, SEA 2, MCI 2, MIA 1, SIN 1, DFW 2, ATL 1, WAW 1
+
+quant-api ledger (outside calls per provider per day):
+  refused: [{"code":7403,"message":"The given account is not valid or is not authorized to access this service"}]
+
+quant-api provider health (last answers):
+  refused: [{"code":7403,"message":"The given account is not valid or is not authorized to access this service"}]
+
+Per hour, 2026-11-21 (UTC):
+  00:00  quant-api 68, trade-dashboard 22, magi-link 2, taskhub-weather-api 1
+  01:00  quant-api 83, trade-dashboard 24, magi-link 3
+  02:00  quant-api 1354, trade-dashboard 12, index-backups 11, taskhub-weather-api 1
+  03:00  quant-api 545, index-backups 8, taskhub-weather-api 2
+  04:00  quant-api 485, index-backups 19, trade-dashboard 10, taskhub-weather-api 3
+  05:00  quant-api 178, trade-dashboard 30, taskhub-weather-api 24
+  06:00  quant-api 60
+  07:00  quant-api 60, magi-link 1
+  08:00  quant-api 60
+  09:00  quant-api 60
+  10:00  quant-api 295, trade-dashboard 8
+  11:00  quant-api 60
+  12:00  quant-api 59
+  13:00  quant-api 59
+  14:00  quant-api 398, trade-dashboard 17, index-backups 13, magi-link 4, taskhub-weather-api 2
+  15:00  quant-api 147, index-backups 2, taskhub-weather-api 1, trade-dashboard 1
+  16:00  quant-api 944, index-backups 18, trade-dashboard 12, taskhub-weather-api 3
+  17:00  quant-api 883, trade-dashboard 35, index-backups 13, taskhub-weather-api 3
+  18:00  quant-api 461, trade-dashboard 27, index-backups 20, taskhub-weather-api 1
+  19:00  quant-api 68, trade-dashboard 8, magi-link 3, taskhub-weather-api 1
+  20:00  quant-api 912
+  21:00  quant-api 252, trade-dashboard 31, index-backups 7, taskhub-weather-api 3, magi-link 2
+  22:00  quant-api 212, trade-dashboard 16, index-backups 10, taskhub-weather-api 1
+  23:00  quant-api 71
+
+Per hour, 2026-11-22 (UTC):
+  00:00  quant-api 941, index-backups 21, trade-dashboard 14, magi-link 4, taskhub-weather-api 1
+  01:00  quant-api 738, index-backups 16, trade-dashboard 2, taskhub-weather-api 2, magi-link 1
+  02:00  quant-api 65
+  03:00  quant-api 416, trade-dashboard 19, magi-link 1
+  04:00  quant-api 16, taskhub-weather-api 1
+Sun Nov 22 04:14:19 UTC 2026
