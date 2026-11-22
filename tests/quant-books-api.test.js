@@ -88,18 +88,22 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
     j = await body(await call(null, '/book', 'GET', 9e9));
     ok('the history keeps the last 20 resets', j.book.resets.length === 20 && j.book.resets[0].at === 4024);
     const env2 = { DB: realD1() };
-    BK.clearBooks();
-    j = await body(await BK.bookRoute(env2, req({ who: 'tony', confirm: true }), 'webull', '/book/reset', 'POST', { rawAccount: async () => ({ equity: 999000 }), flatten: async () => ({ canceled: 0, closing: [], failed: ['AAPL'] }), now: 5 }));
-    ok('a first reset with no capital starts at the broker\'s default ($1,000,000 Webull); a refused close is reported', j.book.capital === 1000000 && j.book.baseline === 999000 && j.failed[0] === 'AAPL');
-    BK.clearBooks();
+    j = await body(await BK.bookRoute(env2, req({ who: 'tony', confirm: true }), 'webull', '/book/reset', 'POST', { rawAccount: async () => ({ equity: 999000 }), flatten: async () => ({ canceled: 0, closing: ['MSFT'], failed: [] }), now: 5 }));
+    ok('a first reset with no capital starts at the broker\'s default ($1,000,000 Webull)', j.book.capital === 1000000 && j.book.baseline === 999000);
+    e = await throwsOf(() => BK.bookRoute(env2, req({ who: 'tony', confirm: true, capital: 5000 }), 'webull', '/book/reset', 'POST', { rawAccount: async () => ({ equity: 980000 }), flatten: async () => ({ canceled: 3, closing: [], failed: ['AAPL'] }), now: 6 }));
+    const after = await BK.readBook(env2, 'webull');
+    ok('a position the broker would not close refuses the reset (409, in words: the cancels stand) and the book does not move', e && e.status === 409 && /3 open order\(s\) were cancelled, but AAPL could not be closed/.test(e.message) && after.capital === 1000000 && after.baseline === 999000 && after.resets.length === 1, e && e.message);
     const env3 = { DB: realD1(['0015_books.sql']) };
     ok('before migration 0015: no book (reads), and a write says which migration', (await BK.readBook(env3, 'alpaca')) === null
       && /0015_books/.test(((await throwsOf(() => BK.bookRoute(env3, req({ capital: 5000, who: 'tony' }, 'PUT'), 'alpaca', '/book', 'PUT', deps()))) || {}).message || ''));
-    BK.clearBooks();
-    const t0 = 10_000;
-    await BK.readBook(env, 'alpaca', t0);
     env.DB.sql.exec("UPDATE trade_books SET capital = 1 WHERE broker = 'alpaca'");
-    ok('reads are cached 30 s (one D1 read per poll window, not per request)', (await BK.readBook(env, 'alpaca', t0 + 1000)).capital !== 1 && (await BK.readBook(env, 'alpaca', t0 + 31_000)).capital === 1);
+    ok('never cached: a change reaches the very next read (every worker copy sees a reset at once)', (await BK.readBook(env, 'alpaca')).capital === 1);
+    const NOW = Date.parse('2026-11-23T17:00:00Z');
+    const sameDay = BK.applyBook({ capital: 50000, baseline: 103000, bp_cap: null, resets: [{ at: Date.parse('2026-11-23T16:00:00Z') }] }, { equity: 103400, last_equity: 100000, cash: 0, buying_power: 1, day_pnl: 3400 }, NOW);
+    ok('a reset today: Today counts from the reset ($50,000 → $50,400 = +$400), not from yesterday\'s close', sameDay.last_equity === 50000 && sameDay.equity === 50400 && sameDay.day_pnl === 400, JSON.stringify(sameDay));
+    const dayAfter = BK.applyBook({ capital: 50000, baseline: 103000, bp_cap: null, resets: [{ at: Date.parse('2026-11-22T16:00:00Z') }] }, { equity: 103400, last_equity: 103100 }, NOW);
+    ok('...a reset on an earlier day: yesterday\'s close + the offset, as before', dayAfter.last_equity === 50100);
+    ok('a changed order counts only its increase against the buying power', BK.overBook({ booked: true, buying_power: 500 }, { qty: 20, limit_price: 50 }, null, false, 600) === '' && /more than the book's buying power/.test(BK.overBook({ booked: true, buying_power: 300 }, { qty: 20, limit_price: 50 }, null, false, 600)));
   }
 
   console.log('\nAlpaca: the account and the order checks follow the book');
