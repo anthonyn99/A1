@@ -336,6 +336,21 @@ t('markdown renders', l1.strong, l1);
 await wait(300);
 t('an onerror payload in a lesson never runs', (await evalJs('window.__pwned === undefined')) && l1.img === 0 && l1.script === 0, l1);
 
+// Full screen: the button hides the shell; F toggles it back.
+const fullState = `(function(){ var s = document.getElementById('study-root');
+  return { on: s.classList.contains('sl-full'), sidebar: getComputedStyle(s.querySelector('.sidebar')).display,
+           topbar: getComputedStyle(s.querySelector('.topbar')).display,
+           title: (document.querySelector('#sos-lesson-root [data-full]')||{}).title }; })()`;
+await evalJs(`document.querySelector('#sos-lesson-root [data-full]').click(); true;`);
+await wait(150);
+let fs1 = await evalJs(fullState);
+t('full screen hides the sidebar and topbar', fs1.on && fs1.sidebar === 'none' && fs1.topbar === 'none' && /Exit/.test(fs1.title), fs1);
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70 });
+await wait(150);
+fs1 = await evalJs(fullState);
+t('...and F brings them back', !fs1.on && fs1.sidebar !== 'none' && /^Full/.test(fs1.title), fs1);
+
 await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
 await wait(200);
 let steps = await evalJs(`document.querySelectorAll('#sos-lesson-root .sl-step').length`);

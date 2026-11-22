@@ -55,6 +55,12 @@ const CSS = `
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .sl-back:hover { color: var(--accent2); }
 .sl-crumb { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: .3px; }
+.sl-top-r { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.sl-full-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; font-size: 15px; line-height: 0; border-radius: 4px; }
+.sl-full-btn:hover { color: var(--accent2); }
+/* Full screen: just the lesson; the shell steps away (lesson-ui setFull). */
+#study-root.sl-full .sidebar, #study-root.sl-full .topbar, #study-root.sl-full #sos-pomo-banner { display: none !important; }
+#study-root.sl-full #view-lesson { padding-top: 40px; }
 .sl-title { font-family: var(--font-accent); font-size: 28px; line-height: 1.2; color: var(--text); margin: 0 0 6px; font-weight: 600; }
 .sl-sub { font-size: 13px; color: var(--text3); margin-bottom: 16px; line-height: 1.5; }
 .sl-bar { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }

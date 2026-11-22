@@ -184,7 +184,30 @@ export async function open(fileId, topicId, opts = {}) {
 }
 
 /** Called by switchView when leaving the lesson view: persist where she is. */
-export function leave() { if (S && S.v) v2ui.stopPlay(S.v); flush(); }
+export function leave() { if (S && S.v) v2ui.stopPlay(S.v); flush(); setFull(false); }
+
+// ── Full screen: the shell steps away, and the browser's too when it allows ──
+/* The class hides StudyOS's sidebar and topbar (works everywhere); the
+ * Fullscreen API is on the whole document, so dialogs and the selection bar
+ * (appended to <body>) still show. Refused (iOS, no gesture) = class only. */
+let _full = false;
+const fullBtn = () => `<button class="sl-full-btn" data-full title="${_full ? 'Exit full screen (F)' : 'Full screen (F)'}" aria-label="${_full ? 'Exit full screen' : 'Full screen'}">${ic(_full ? 'shrink' : 'expand')}</button>`;
+
+function setFull(on) {
+  const shell = document.getElementById('study-root');
+  if (!shell || _full === !!on) return;
+  _full = !!on;
+  shell.classList.toggle('sl-full', _full);
+  try {
+    const el = document.documentElement;
+    if (_full && !document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    if (!_full && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  } catch (e) {}
+  document.querySelectorAll('#sos-lesson-root [data-full]').forEach((b) => { b.outerHTML = fullBtn(); });
+  document.querySelectorAll('#sos-lesson-root [data-full]').forEach((b) => b.addEventListener('click', () => setFull(!_full)));
+}
+// The browser left full screen (Esc, F11): the shell comes back with it.
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && _full) setFull(false); });
 
 function cur() {
   const doc = S && bd.peek(S.fileId);
@@ -220,7 +243,7 @@ function render() {
   root.innerHTML = `
     <div class="sl-top">
       <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
-      <div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>
+      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${fullBtn()}</div>
     </div>
     <h1 class="sl-title">${esc(topic.title)}</h1>
     ${topic.summary ? `<div class="sl-sub">${esc(topic.summary)}</div>` : ''}
@@ -294,7 +317,7 @@ function renderV2(root, c) {
   root.innerHTML = `
     <div class="sl-top">
       <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
-      <div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>
+      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${fullBtn()}</div>
     </div>
     <h1 class="sl-title">${esc(L.title || topic.title)}</h1>
     ${L.summary || topic.summary ? `<div class="sl-sub">${esc(L.summary || topic.summary)}</div>` : ''}
@@ -520,6 +543,7 @@ function wire(root, c, screen, total) {
   on('[data-prev]', () => go(screen - 1));
   on('[data-next]', () => go(screen + 1));
   on('[data-back]', () => backToDocument(c.doc));
+  on('[data-full]', () => setFull(!_full));
   on('[data-topic]', (e) => { const id = e.currentTarget.dataset.topic; if (id) { flush(); open(c.doc.fileId, id); } });
   on('[data-step]', () => { S.shown[screen] = (S.shown[screen] || 1) + 1; render(); });
   on('[data-allsteps]', () => { S.shown[screen] = 999; render(); });
@@ -682,6 +706,8 @@ document.addEventListener('keydown', (e) => {
       rerender: () => render(), record: (i, ok) => recordV2(c, i, ok),
     }, root)) return;
   }
+  if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setFull(!_full); return; }
+  if (e.key === 'Escape' && _full && !document.fullscreenElement) { setFull(false); return; }
   const next = document.querySelector('#sos-lesson-root [data-next]');
   const prev = document.querySelector('#sos-lesson-root [data-prev]');
   if (e.key === 'ArrowRight' && next) { e.preventDefault(); next.click(); }
