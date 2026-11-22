@@ -167,9 +167,10 @@ const ok = (ph, name, cond, extra) => {
       await js(`document.querySelector('[data-trade-capital-edit]').click(); 1`);
       ok('T5', 'Capital… opens its dialog (PAPER), the capital filled in' + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${DLG('edit')}`, 3000)
         && await js(`var d=${DLG('edit')}, r=d.getBoundingClientRect(); return d.querySelector('[data-book-capital]').value==='100000' && /PAPER/.test(d.innerText) && r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`));
+      const puts = () => (api.posted.pp || []).filter(([m, p]) => p === '/paper/book').length, puts0 = puts();
       await typeIn('[data-book-capital]', '50');
       await js(`document.querySelector('[data-book-go]').click(); 1`);
-      ok('T5', '...under $1,000 is refused there, in words, and nothing is sent', await until(`/between/.test(document.querySelector('[data-book-errors]').textContent)`, 2000) && !(api.posted.pp || []).some(([m, p]) => p === '/paper/book'));
+      ok('T5', '...under $1,000 is refused there, in words, and nothing is sent', await until(`/between/.test(document.querySelector('[data-book-errors]').textContent)`, 2000) && puts() === puts0);
       await typeIn('[data-book-capital]', '25000');
       await shot('t5-capital-' + w);
       await js(`document.querySelector('[data-book-go]').click(); 1`);
