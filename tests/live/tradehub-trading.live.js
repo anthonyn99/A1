@@ -123,7 +123,32 @@ const ok = (ph, name, cond, extra) => {
     }
 
     // T4: Market cards on Trading
-    ok('T4', 'Add card on Trading lists the Market cards (Regime, Breadth, Heat Map …)', await js(`var t=(document.querySelector('[data-lay="trading"] [data-lay-add-list]')||{}).innerText||''; return /Regime/.test(t) && /Breadth/.test(t) && /Heat Map/.test(t);`));
+    // (T3's note: the layout id stays `paper`; Add card is the header's select.)
+    const ADD = `document.querySelector('[data-trading-tab] [data-lay-add]')`;
+    const MARKET_IDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength', 'volume', 'analogs', 'macro', 'heatmap'];
+    if (want('T4')) {
+      await tab('market'); await until(`!!document.querySelector('.lay-card[data-card="regime"]') && !/Reading the market/.test(document.querySelector('.lay-card[data-card="regime"]').innerText)`, 8000);
+      await tab('trading'); await until(`!!document.querySelector('[data-trading-tab]')`, 4000);
+    }
+    const snapReads = () => api.asked.filter((a) => a.p === '/snapshot' && a.method === 'GET').length;
+    const reads0 = snapReads();
+    ok('T4', 'Add card on Trading lists every Market card (Regime … Macro, Heat Map)', await js(`var s=${ADD}; if(!s) return false; var v=[].map.call(s.options, function(o){return o.value;}); return ${JSON.stringify(MARKET_IDS)}.every(function(id){return v.indexOf(id)>=0;});`),
+      await js(`var s=${ADD}; return s ? [].map.call(s.options, function(o){return o.value;}).join() : 'no select';`));
+    ok('T4', '...none of them shows until added (no clutter; nothing read for them)', await js(`return !document.querySelector('[data-trading-tab] .lay-card[data-card="regime"]') && !document.querySelector('[data-trading-tab] .lay-card[data-card="macro"]');`) && snapReads() === reads0);
+    if (want('T4')) {
+      await js(`var s=${ADD}; s.value='regime'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+      const RG = `document.querySelector('[data-trading-tab] .lay-card[data-card="regime"]')`;
+      ok('T4', 'Regime added to Trading draws the market snapshot', await until(`!!${RG} && ${RG}.innerText.length > 40 && !/Reading the market|could not be drawn/.test(${RG}.innerText)`, 6000), await js(`return ${RG} ? ${RG}.innerText.slice(0, 200) : 'none';`));
+      ok('T4', '...from the snapshot Market already read (no second /snapshot)', snapReads() === reads0, snapReads() - reads0);
+      ok('T4', '...its "?" says the universe is picked on Market', await js(`var b=${RG}.querySelector('[data-lay-help]'); return !!b && /picked on Market/.test(b.title);`));
+      await js(`var s=${ADD}; s.value='sectors'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+      const SC = `document.querySelector('[data-trading-tab] .lay-card[data-card="sectors"]')`;
+      ok('T4', 'Sectors added too: its tiles, live prices on the shared feed', await until(`!!${SC} && ${SC}.querySelectorAll('[data-sym]').length >= 11`, 5000));
+      ok('T4', 'no sideways scroll with Market cards on Trading', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+      await js(`${RG}.scrollIntoView({block:'center'}); 1`); await shot('t4-market-cards-' + w);
+      // Leave the layout as it was for the next width.
+      await js(`['regime','sectors'].forEach(function(id){var b=document.querySelector('[data-trading-tab] .lay-card[data-card="'+id+'"] [data-act="hide"]'); if (b) b.click();}); 1`);
+    }
 
     // T5: capital per broker
     ok('T5', 'starting capital shown for the chosen broker, with Reset', await js(`return !!document.querySelector('[data-trade-capital]') && !!document.querySelector('[data-trade-reset]');`));
