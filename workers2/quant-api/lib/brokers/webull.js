@@ -219,7 +219,7 @@ async function logRow(env, row) {
   }
 }
 async function closes(env, a, o, fetchFn) {
-  if (!o || (o.order_class && o.order_class !== 'simple')) return false;
+  if (!o || (o.order_class && o.order_class !== 'simple' && o.order_class !== 'oco')) return false;   // T6: an OCO exit only closes too
   const p = (await rawPositions(env, a, fetchFn)).map(positionOut).find((x) => x.symbol === o.symbol);
   return !!p && pos(num(o.qty)) && num(o.qty) <= p.qty && (p.side === 'long' ? o.side === 'sell' : o.side === 'buy');
 }

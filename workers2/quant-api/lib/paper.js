@@ -289,7 +289,8 @@ export async function kill(env, req, fetchFn) {
 function whoOf(b) { if (!b || !WHO.includes(b.who)) throw fail(400, 'who is tony, run or neo'); return b.who; }
 /** Does `o` only close (part of) the account's position in its symbol? Checked against Alpaca, never taken from the caller. */
 async function closesPosition(env, o, fetchFn) {
-  if (!o || (o.order_class && o.order_class !== 'simple') || o.notional != null) return false;
+  // T6 review: an OCO (a held position's take profit + stop, both for its shares) only closes too.
+  if (!o || (o.order_class && o.order_class !== 'simple' && o.order_class !== 'oco') || o.notional != null) return false;
   const r = await alpaca(env, '/v2/positions/' + o.symbol, {}, fetchFn);
   if (!r.ok) return false;
   const held = Math.abs(num(r.body.qty)), long = r.body.side === 'long', q = num(o.qty);

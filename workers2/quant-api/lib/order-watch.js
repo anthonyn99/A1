@@ -47,36 +47,50 @@ export async function watch(env, now = Date.now(), { send = push, fetchFn = fetc
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'alert_cfg'").first().catch(() => null);
   let raw = {}; try { raw = row && row.v ? JSON.parse(row.v) : {}; } catch (e) {}
   const cfg = configOf(raw);
-  if (cfg.kinds.order === false) return { skipped: 'order alerts are off' };
-  const on = Object.keys(BROKERS).filter((b) => cfg.trading[b] !== false && BROKERS[b].ready(env));
-  if (!on.length) return { skipped: 'no broker to watch' };
-  const keys = on.map((b) => 'orderwatch:' + b);
+  const all = Object.keys(BROKERS).filter((b) => BROKERS[b].ready(env));
+  if (!all.length) return { skipped: 'no broker to watch' };
+  const on = cfg.kinds.order === false ? [] : all.filter((b) => cfg.trading[b] !== false);
+  const keys = all.map((b) => 'orderwatch:' + b);
   const seenRows = (await env.DB.prepare(`SELECT k, v FROM meta WHERE k IN (${keys.map(() => '?').join(',')})`).bind(...keys).all()).results || [];
-  const seenOf = new Map(seenRows.map((r) => { let v = null; try { v = JSON.parse(r.v); } catch (e) {} return [r.k, Array.isArray(v) ? v : null]; }));
+  // A row: { keys, paused } (an array before the review = keys, not paused).
+  const seenOf = new Map(seenRows.map((r) => { let v = null; try { v = JSON.parse(r.v); } catch (e) {} return [r.k, Array.isArray(v) ? { keys: v, paused: false } : v && Array.isArray(v.keys) ? v : null]; }));
+  const save = (b, v) => env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('orderwatch:' + b, JSON.stringify(v), now).run();
+  // Review: a broker (or the kind) switched off is marked paused, once; switched on again it re-learns quietly, so the orders
+  // placed meanwhile never arrive as one burst of old alerts. Nothing is read from a broker while it is off.
+  for (const b of all) { const s = seenOf.get('orderwatch:' + b); if (!on.includes(b) && s && !s.paused) await save(b, { keys: s.keys, paused: true }); }
+  if (cfg.kinds.order === false) return { skipped: 'order alerts are off' };
+  if (!on.length) return { skipped: 'no broker to watch' };
   let rules = null;
   const out = { brokers: {} };
   for (const b of on) {
     let orders;
     try { orders = await BROKERS[b].read(env, fetchFn); } catch (e) { out.brokers[b] = { error: e.message || String(e) }; continue; }
-    const evs = eventsOf(orders), had = seenOf.get('orderwatch:' + b);
+    const evs = eventsOf(orders), s = seenOf.get('orderwatch:' + b), had = s && !s.paused ? s.keys : null;
     const fresh = had ? evs.filter((e) => !had.includes(e.key)) : [];
     out.brokers[b] = { events: fresh.length, learned: !had };
     if (had && !fresh.length) continue;   // nothing new: no write
-    const keep = [...new Set([...evs.map((e) => e.key), ...(had || [])])].slice(0, SEEN_MAX);
-    await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('orderwatch:' + b, JSON.stringify(keep), now).run();
+    // Every key the broker shows now is kept (else a long history re-alerts each minute); older ones fill up to SEEN_MAX.
+    const now_ = evs.map((e) => e.key), cur = new Set(now_);
+    const keep = [...new Set(now_), ...(had || []).filter((k) => !cur.has(k))].slice(0, Math.max(SEEN_MAX, cur.size));
     const wanted = fresh.filter((e) => cfg.trading[e.event] !== false);
-    if (!wanted.length) continue;
-    if (!rules) {
-      const rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind = 'order'").all().catch(() => ({ results: [] }))).results || [];
-      rules = rows.map(ruleOf); rules.push(...standingRules(cfg, rules, ['order']));
+    if (wanted.length) {
+      if (!rules) {
+        const rows = (await env.DB.prepare("SELECT * FROM alerts WHERE active = 1 AND kind = 'order'").all().catch(() => ({ results: [] }))).results || [];
+        // Review: a rule for one ticker never silences the others: the standing all-tickers rule stays unless an all-tickers rule exists.
+        rules = rows.map(ruleOf);
+        if (!rules.some((r) => !r.symbol || r.symbol === '*')) rules.push(...standingRules(cfg, [], ['order']));
+      }
+      const items = [];
+      for (const e of wanted) {   // one alert per event: the first rule that covers its ticker (his own before the standing one)
+        const r = rules.find((x) => !x.symbol || x.symbol === '*' || x.symbol === e.o.symbol);
+        if (!r) continue;
+        const w = wordsOf(b, e.event, e.o);
+        items.push({ rule: r, key: `${b}:${e.key}`, kind: 'order', symbol: e.o.symbol, title: w.title, body: w.body, url: PAGE_URL + '#alert=trading:' + b });
+      }
+      out.brokers[b].fired = await fire(env, items, cfg, now, { send });
     }
-    const items = [];
-    for (const r of rules) for (const e of wanted) {
-      if (r.symbol && r.symbol !== e.o.symbol) continue;
-      const w = wordsOf(b, e.event, e.o);
-      items.push({ rule: r, key: `${b}:${e.key}`, kind: 'order', symbol: e.o.symbol, title: w.title, body: w.body, url: PAGE_URL + '#alert=trading:' + b });
-    }
-    out.brokers[b].fired = await fire(env, items, cfg, now, { send });
+    // Saved only after the alerts went out: a run that fails half-way tries again next minute (fire() never sends one twice).
+    await save(b, { keys: keep, paused: false });
   }
   return out;
 }
