@@ -89,6 +89,8 @@ export function alpacaBody(o) {
   const cls = o.order_class || 'simple';
   if (cls !== 'simple') {
     out.order_class = cls;
+    // T6: an OCO (a held position's take profit + stop) carries its prices only in its legs, as Alpaca's docs send it.
+    if (cls === 'oco') delete out.limit_price;
     if (o.take_profit) out.take_profit = { limit_price: String(num(o.take_profit.limit_price)) };
     if (o.stop_loss) out.stop_loss = { stop_price: String(num(o.stop_loss.stop_price)), ...(o.stop_loss.limit_price ? { limit_price: String(num(o.stop_loss.limit_price)) } : {}) };
   }
