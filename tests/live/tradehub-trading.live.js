@@ -236,7 +236,7 @@ const ok = (ph, name, cond, extra) => {
       await until(`!!${LINE('pos')}`, 6000);
     } else await tab('charts');
     ok('T6', 'a right-click on the chart opens the order menu', await js(`var cv=document.querySelector('[data-lay="charts"] canvas'); if(!cv) return false; var r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); return true;`)
-      && await until(vis('[data-chart-order-menu]'), 2000));
+      && await until(`(function(){var e=document.querySelector('[data-chart-order-menu]'); return !!e && e.getBoundingClientRect().width>0;})()`, 2000));
     if (want('T6')) {
       const M = `document.querySelector('[data-chart-order-menu]')`;
       ok('T6', '...Buy and Sell at this price (a limit on the passive side, a stop past the price), Bracket, Open ticket, Alert; PAPER · Alpaca', await js(`var m=${M}; var c=[].map.call(m.querySelectorAll('[data-com]'),function(b){return b.dataset.com;}).join(); return /^buy-(limit|stop),sell-(limit|stop),bracket,ticket,alert$/.test(c) && /PAPER · Alpaca/.test(m.innerText);`), await js(`return ${M}.innerText;`));
@@ -250,7 +250,7 @@ const ok = (ph, name, cond, extra) => {
         && await js(`var t=${LINE('pos')}.innerText; return /Long 10/.test(t) && /160\\.00/.test(t) && !!${LINE('pos')}.querySelector('[data-cho-protect]');`), await js(`return (${LINE('pos')}||{}).innerText;`));
       // A quick order from the menu.
       await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
-      await until(vis('[data-chart-order-menu]'), 2000);
+      await until(`(function(){var e=document.querySelector('[data-chart-order-menu]'); return !!e && e.getBoundingClientRect().width>0;})()`, 2000);
       await js(`document.querySelector('[data-chart-order-menu] [data-com^="buy"]').click(); 1`);
       ok('T6', `${buyKind}: a confirmation first (PAPER · Alpaca, the read-back), nothing sent yet` + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${CDLG('quick')}`, 2000)
         && await js(`var d=${CDLG('quick')}, r=d.getBoundingClientRect(); return /PAPER · Alpaca/.test(d.querySelector('[data-cho-paper]').textContent) && /^PAPER · Alpaca: Buy 1 share of NVDA/.test(d.querySelector('[data-cho-readback]').textContent) && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`), await js(`return ${CDLG('quick')} && ${CDLG('quick')}.innerText;`));
@@ -330,7 +330,7 @@ const ok = (ph, name, cond, extra) => {
         await js(`window._tbOps.charts.open('NVDA'); 1`);
         await until(`!!${CH} && ${CH}.dataset.ch==='NVDA' && !!${CH}.__orders`, 8000);
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,button:0,buttons:1,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
-        ok('T6', 'press and hold on a phone opens the same menu', await until(vis('[data-chart-order-menu]'), 2000));
+        ok('T6', 'press and hold on a phone opens the same menu', await until(`(function(){var e=document.querySelector('[data-chart-order-menu]'); return !!e && e.getBoundingClientRect().width>0;})()`, 2000));
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       }
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
