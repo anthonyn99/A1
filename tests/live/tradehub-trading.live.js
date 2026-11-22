@@ -441,7 +441,7 @@ const ok = (ph, name, cond, extra) => {
       await js(`var b=document.querySelector('[data-card="x-charts-chart"] [data-act="hide"]'); if(b) b.click(); var t=document.querySelector('[data-trading-tab] .lay-card[data-card="trade"] [data-act="hide"]'); if(t) t.click(); var g=document.querySelector('[data-trading-tab] .lay-card[data-card="regime"] [data-act="hide"]'); if(g) g.click(); 1`);
       // Another tab: Trading's Account on Market.
       await tab('market');
-      ok('T9', 'on Market: Trading ▸ Account adds the paper account ($100,000)', await openPk('[data-lay="market"]') && await until(`!!${PK}`, 3000) && await pkTab('trading').then(() => pkAdd('trading:account'))
+      ok('T9', 'on Market: Trading ▸ Account adds the paper account ($100,000)', await openPk('.mk-page') && await until(`!!${PK}`, 3000) && await pkTab('trading').then(() => pkAdd('trading:account'))
         && await until(`/\\$100,000\\.00/.test((document.querySelector('[data-lay="market"] .lay-card[data-card="x-trading-account"]')||{}).textContent||'')`, 8000));
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       await js(`var b=document.querySelector('[data-card="x-trading-account"] [data-act="hide"]'); if(b) b.click(); 1`);
