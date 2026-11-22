@@ -11,7 +11,9 @@
 //   PUT  /trade/:broker/book          { capital?, bpCap?, who: 'tony' }   change the capital or the cap (no reset)
 //   POST /trade/:broker/book/reset    { capital?, bpCap?, who: 'tony', confirm: true }
 //        cancel every open order, close every position at market, a new baseline; capital = the one given,
-//        else the book's, else the broker's default ($100,000 Alpaca, $1,000,000 Webull)
+//        else the book's, else the broker's default ($100,000 Alpaca, $1,000,000 Webull). A position the broker will
+//        not close now (Webull outside market hours) refuses the reset (409): the cancels stand, the book does not move.
+// Read from D1 on every request (never cached), so a change reaches every worker copy at once.
 import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 
