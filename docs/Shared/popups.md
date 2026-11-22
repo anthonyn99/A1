@@ -26,7 +26,9 @@ per popup:
 1. **Finding a backdrop.** It finds backdrops by what they are, not by their
    class name. A backdrop is an element that is `position:fixed`, covers the
    viewport, and has a see-through background (alpha between 0.04 and 0.97) or
-   already blurs. It is tagged `data-a1-scrim`, and the shared rule overrides
+   already blurs. The alpha is read from any colour syntax the browser
+   reports (`rgba()`, and `color(srgb … / a)` from `color-mix()`, oklab, …; the
+   latter were missed until 2026-11-22, so TradeHub's popups went undimmed). It is tagged `data-a1-scrim`, and the shared rule overrides
    the program's own colour and blur. Elements are checked when they are added,
    when their `class`, `style` or `hidden` changes, and in full-page scans at
    load, 1.5 s and 5 s. A hidden popup is judged by its `inset`, so it is tagged
