@@ -90,7 +90,8 @@ export async function bookRoute(env, req, broker, rest, m, { rawAccount, flatten
   const b = (await bodyOf(req, 1000)) || {};
   // Only Tony sets the book: Neo Quant never changes capital or buying power (§1 rule 6).
   if (b.who !== 'tony') throw fail(403, 'only you can change the book (who: tony)');
-  const was = cache.delete(broker) && null || await readBook(env, broker, now);
+  cache.delete(broker);   // a write decides on the stored row, never a cached one
+  const was = await readBook(env, broker, now);
   if (rest === '/book' && m === 'PUT') {
     if (b.capital == null && !('bpCap' in b)) throw fail(400, 'nothing to change (capital or bpCap)');
     const a = was ? null : await rawAccount();

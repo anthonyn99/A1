@@ -24,6 +24,7 @@
 //   POST   /paper/equity                { rows: [{ run, day, equity }] }   one row a run a day
 import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
+import { applyBook, overBook } from './books.js';
 
 export const PAPER_HOST = 'https://paper-api.alpaca.markets';
 export const TYPES = ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop'], SIDES = ['buy', 'sell'], TIFS = ['day', 'gtc'], CLASSES = ['simple', 'bracket', 'oco', 'oto'];
@@ -134,11 +135,23 @@ export async function probe(env, fetchFn) {
     clock: clock.ok ? clock.body : { error: clock.status }, orders: orders.ok ? { open: (orders.body || []).length } : { error: orders.status },
     rateLimit: { limit: num(acct.limit), remaining: num(acct.remaining) } });
 }
-export async function account(env, fetchFn) {
+const acctOut = (x) => ({ equity: num(x.equity), last_equity: num(x.last_equity), cash: num(x.cash), buying_power: num(x.buying_power), long_value: num(x.long_market_value), short_value: num(x.short_market_value), pattern_day_trader: !!x.pattern_day_trader, daytrade_count: x.daytrade_count, status: x.status });
+/** The account; with a T5 `book` (lib/books.js) its numbers are the book's, and `book` rides along. */
+export async function account(env, fetchFn, book = null) {
   const [a, c, kill] = await Promise.all([alpaca(env, '/v2/account', {}, fetchFn), alpaca(env, '/v2/clock', {}, fetchFn), killOn(env).catch(() => false)]);
   const x = must(a, 'the account');
-  return json({ ok: true, paper: true, kill, clock: c.ok ? c.body : null,
-    account: { equity: num(x.equity), last_equity: num(x.last_equity), cash: num(x.cash), buying_power: num(x.buying_power), long_value: num(x.long_market_value), short_value: num(x.short_market_value), pattern_day_trader: !!x.pattern_day_trader, daytrade_count: x.daytrade_count, status: x.status } });
+  return json({ ok: true, paper: true, kill, clock: c.ok ? c.body : null, account: applyBook(book, acctOut(x)), book });
+}
+/** The broker's own account numbers (no book), fresh: the book's baseline (T5). */
+export async function rawAccount(env, fetchFn = fetch) { return acctOut(must(await alpaca(env, '/v2/account', {}, fetchFn), 'the account')); }
+/** A book reset (T5): cancel every open order, then close every position at market (Alpaca queues the closes outside market hours). */
+export async function flatten(env, fetchFn = fetch) {
+  const c = await alpaca(env, '/v2/orders', { method: 'DELETE' }, fetchFn);
+  if (!c.ok) throw fail(502, 'Alpaca did not cancel the open orders (HTTP ' + c.status + '): nothing was reset');
+  const p = await alpaca(env, '/v2/positions?cancel_orders=true', { method: 'DELETE' }, fetchFn);
+  if (!p.ok) throw fail(502, 'the open orders were cancelled, but Alpaca did not close the positions (HTTP ' + p.status + '): nothing was reset; press Reset again');
+  const list = Array.isArray(p.body) ? p.body : [];
+  return { canceled: Array.isArray(c.body) ? c.body.length : 0, closing: list.filter((x) => !x.status || x.status < 300).map((x) => x.symbol), failed: list.filter((x) => x.status >= 300).map((x) => x.symbol) };
 }
 export async function positions(env, fetchFn) {
   const r = must(await alpaca(env, '/v2/positions', {}, fetchFn), 'the positions');
@@ -167,7 +180,7 @@ export async function log(env, url) {
 }
 
 /** POST /paper/orders: checked (kill switch, the order's own rules, 25% of equity, the run's limits), logged, sent. */
-export async function place(env, req, { fetchFn = fetch, now = Date.now(), priceOf = null } = {}) {
+export async function place(env, req, { fetchFn = fetch, now = Date.now(), priceOf = null, book = null } = {}) {
   const b = await bodyOf(req, 8000), o = b && b.order, who = whoOf(b);
   const reason = String((b && b.reason) || '').trim().slice(0, 400);
   if (who !== 'tony' && !reason) throw fail(400, 'an order from a strategy or Neo Quant carries its reason');
@@ -177,10 +190,14 @@ export async function place(env, req, { fetchFn = fetch, now = Date.now(), price
   const closing = !!(b && b.closing) && o && SYM_RE.test(String(o.symbol || '')) && await closesPosition(env, o, fetchFn);
   if (b && b.closing && !closing) throw fail(422, 'that order does not only close a position (the side, the size or the position is not there)');
   const [kill, acct] = await Promise.all([killOn(env), alpaca(env, '/v2/account', {}, fetchFn)]);
-  const equity = acct.ok ? num(acct.body.equity) : null;
+  // T5: with a book, its equity sizes the order and its buying power caps it.
+  const shown = acct.ok && book ? applyBook(book, acctOut(acct.body)) : null;
+  const equity = shown ? shown.equity : acct.ok ? num(acct.body.equity) : null;
   const price = priceOf ? await priceOf(o && o.symbol) : null;
   const chk = checkOrder(o, { price, equity, kill, closing, stale: !!(b && b.stale) });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  const over = overBook(shown, o, price, closing);
+  if (over) throw fail(422, over, { errors: [over] });
   // The size checks fail closed: without the account's equity, or a price to size a share order, nothing new goes out.
   if (!closing && !pos(equity)) throw fail(503, 'the paper account could not be read, so the order cannot be sized against it: try again');
   if (!closing && o.notional == null && !pos(num(o.limit_price) || num(o.stop_price) || price)) throw fail(503, 'no current price to size this order against the limits: try again, or give a limit price');
@@ -206,7 +223,7 @@ export async function place(env, req, { fetchFn = fetch, now = Date.now(), price
   return json({ ok: true, paper: true, order: must(r, 'the order') });
 }
 /** PATCH an order: the order AS CHANGED passes every check again (its rules, the kill switch, 25% of equity, its run's limits). */
-export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, now = Date.now() } = {}) {
+export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, now = Date.now(), book = null } = {}) {
   if (!/^[\w-]{1,64}$/.test(id)) throw fail(400, 'not an order id');
   const b = await bodyOf(req, 2000), who = whoOf(b), patch = {};
   for (const k of ['qty', 'limit_price', 'stop_price', 'trail']) if (b && b[k] != null) { const v = num(b[k]); if (!pos(v)) throw fail(400, k + ' must be above zero'); patch[k] = String(v); }
@@ -215,7 +232,7 @@ export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, n
   const was = must(cur, 'the order');
   const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: num(patch.qty || was.qty), limit_price: num(patch.limit_price || was.limit_price), stop_price: num(patch.stop_price || was.stop_price),
     ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: num(patch.trail || was.trail_percent) } : { trail_price: num(patch.trail || was.trail_price) }) : {}), extended_hours: !!was.extended_hours };
-  const equity = acct.ok ? num(acct.body.equity) : null, price = priceOf ? await priceOf(was.symbol) : null;
+  const equity = acct.ok ? (book ? applyBook(book, acctOut(acct.body)).equity : num(acct.body.equity)) : null, price = priceOf ? await priceOf(was.symbol) : null;
   if (!pos(equity)) throw fail(503, 'the paper account could not be read, so the change cannot be checked: try again');
   const chk = checkOrder(next, { price, equity, kill });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
