@@ -5,7 +5,7 @@
 //       Paper | Live switch ([data-trade-mode="paper"] on, [data-trade-mode="live"] dimmed and disabled),
 //       the broker dropdown ([data-trade-broker], Alpaca and Webull), cards reading only that broker
 //   T3  "New Order" ([data-trade-new]) opens the ticket ([data-order-ticket]) with type pills
-//       ([data-ot-type] x5) and Review → Confirm; the Trade card ([data-lay-card="trade"]) is the same ticket
+//       ([data-ot-type] x5) and Review → Confirm; the Trade card (.lay-card[data-card="trade"], Add card ▸ Trade) is the same ticket
 //   T4  Trading's Add card lists every Market card
 //   T5  the book: [data-trade-capital] and Reset ([data-trade-reset]) that asks first
 //   T6  the chart's right-click menu ([data-chart-order-menu]) with Buy limit / Sell limit here
@@ -115,7 +115,7 @@ const ok = (ph, name, cond, extra) => {
       await setBrokerTo('alpaca');
       ok('T3', 'no sideways scroll with the card', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
       // Leave the layout as it was for the next width.
-      await js(`var b=document.querySelector('.lay-card[data-card="trade"] [data-lay-hide], .lay-card[data-card="trade"] .lay-hide'); if (b) b.click(); 1`);
+      await js(`var b=document.querySelector('.lay-card[data-card="trade"] [data-act="hide"]'); if (b) b.click(); 1`);
     }
 
     // T4: Market cards on Trading
