@@ -13,6 +13,7 @@
 //   DELETE /trade/webull/orders/:id            cancel one (id = the client order id)
 //   DELETE /trade/webull/positions/:symbol     close one at market
 //   POST   /trade/webull/kill                  { on } true: cancel every open order; only closing orders until off
+//   (T5) the account and the order checks follow the book (lib/books.js); rawAccount + flatten serve its reset
 //
 // Found on the sandbox (2026-11-21, quant/t4-01.md): place/replace/cancel answer only in market hours for
 // DAY orders and for combos (brackets); a GTC single order can be placed, changed and cancelled any time;
@@ -21,6 +22,7 @@
 import { fail, json } from '../http.js';
 import { bodyOf } from '../charts.js';
 import { checkOrder } from '../paper.js';
+import { applyBook, overBook } from '../books.js';
 import { signedHeaders } from './webull-sign.js';
 
 export const WEBULL_HOST = 'https://api.sandbox.webull.com';
@@ -84,17 +86,23 @@ async function pick(env, url, fetchFn) {
 }
 async function killOn(env) { try { const r = await env.DB.prepare("SELECT v FROM meta WHERE k = 'webull_kill'").first(); return !!(r && r.v === '1'); } catch (e) { return false; } }
 
-export async function account(env, url, fetchFn = fetch) {
-  const a = await pick(env, url, fetchFn);
-  const [bal, kill] = await Promise.all([cached('bal:' + a.account_id, async () => must(await wb(env, 'GET', '/openapi/assets/balance', { query: { account_id: a.account_id }, version: 'v2' }, fetchFn), 'the balance')), killOn(env)]);
+const balance = (env, a, fetchFn) => cached('bal:' + a.account_id, async () => must(await wb(env, 'GET', '/openapi/assets/balance', { query: { account_id: a.account_id }, version: 'v2' }, fetchFn), 'the balance'));
+function acctOut(a, bal) {
   const c = (bal.account_currency_assets || [])[0] || {};
+  return { id: a.account_id, label: a.account_label, class: a.account_class, equity: num(bal.total_net_liquidation_value), last_equity: null, cash: num(bal.total_cash_balance),
+    buying_power: num(c.buying_power != null ? c.buying_power : c.day_buying_power), day_buying_power: num(c.day_buying_power), overnight_buying_power: num(c.overnight_buying_power),
+    long_value: num(bal.total_market_value), short_value: null, day_pnl: num(bal.total_day_profit_loss), pattern_day_trader: false, daytrade_count: null, status: 'ACTIVE' };
+}
+/** The account; with a T5 `book` (lib/books.js) its numbers are the book's, and `book` rides along. */
+export async function account(env, url, fetchFn = fetch, book = null) {
+  const a = await pick(env, url, fetchFn);
+  const [bal, kill] = await Promise.all([balance(env, a, fetchFn), killOn(env)]);
   const list = await accounts(env, fetchFn);
-  return json({ ok: true, paper: true, broker: 'webull', kill, clock: null,
-    account: { id: a.account_id, label: a.account_label, class: a.account_class, equity: num(bal.total_net_liquidation_value), last_equity: null, cash: num(bal.total_cash_balance),
-      buying_power: num(c.buying_power != null ? c.buying_power : c.day_buying_power), day_buying_power: num(c.day_buying_power), overnight_buying_power: num(c.overnight_buying_power),
-      long_value: num(bal.total_market_value), short_value: null, day_pnl: num(bal.total_day_profit_loss), pattern_day_trader: false, daytrade_count: null, status: 'ACTIVE' },
+  return json({ ok: true, paper: true, broker: 'webull', kill, clock: null, account: applyBook(book, acctOut(a, bal)), book,
     accounts: list.map((x) => ({ id: x.account_id, label: x.account_label, class: x.account_class })) });
 }
+/** The broker's own account numbers (no book), fresh: the book's baseline (T5). */
+export async function rawAccount(env, url, fetchFn = fetch) { clearCache(); const a = await pick(env, url, fetchFn); return acctOut(a, await balance(env, a, fetchFn)); }
 
 /* ── positions and orders, in lib/paper.js's shapes ───────────────────────── */
 export function positionOut(p) {
@@ -211,7 +219,7 @@ async function closes(env, a, o, fetchFn) {
   return !!p && pos(num(o.qty)) && num(o.qty) <= p.qty && (p.side === 'long' ? o.side === 'sell' : o.side === 'buy');
 }
 
-export async function place(env, req, url, { fetchFn = fetch, now = Date.now(), priceOf = null } = {}) {
+export async function place(env, req, url, { fetchFn = fetch, now = Date.now(), priceOf = null, book = null } = {}) {
   const b = await bodyOf(req, 8000), o = b && b.order, who = whoOf(b);
   const reason = String((b && b.reason) || '').trim().slice(0, 400);
   if (who !== 'tony' && !reason) throw fail(400, 'an order from a strategy or Neo Quant carries its reason');
@@ -220,9 +228,13 @@ export async function place(env, req, url, { fetchFn = fetch, now = Date.now(), 
   const closing = !!(b && b.closing) && o && SYM_RE.test(String(o.symbol || '')) && await closes(env, a, o, fetchFn);
   if (b && b.closing && !closing) throw fail(422, 'that order does not only close a position (the side, the size or the position is not there)');
   const [kill, acct] = await Promise.all([killOn(env), cached('bal:' + a.account_id, async () => must(await wb(env, 'GET', '/openapi/assets/balance', { query: { account_id: a.account_id }, version: 'v2' }, fetchFn), 'the balance')).catch(() => null)]);
-  const equity = acct ? num(acct.total_net_liquidation_value) : null, price = priceOf ? await priceOf(o && o.symbol) : null;
+  // T5: with a book, its equity sizes the order and its buying power caps it.
+  const shown = acct && book ? applyBook(book, acctOut(a, acct)) : null;
+  const equity = shown ? shown.equity : acct ? num(acct.total_net_liquidation_value) : null, price = priceOf ? await priceOf(o && o.symbol) : null;
   const chk = checkOrder(o, { price, equity, kill, closing, stale: !!(b && b.stale) });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
+  const over = overBook(shown, o, price, closing);
+  if (over) throw fail(422, over, { errors: [over] });
   if (!closing && !pos(equity)) throw fail(503, 'the Webull paper account could not be read, so the order cannot be sized against it: try again');
   if (!closing && !pos(num(o.limit_price) || num(o.stop_price) || price)) throw fail(503, 'no current price to size this order against the limits: try again, or give a limit price');
   if (o.type === 'trailing_stop' && String(o.time_in_force || 'day') !== 'day') throw fail(422, 'Webull takes trailing stops as day orders only');
@@ -242,7 +254,7 @@ async function detail(env, a, cid, fetchFn) {
   if (!o) throw fail(404, 'no such order');
   return [o, ...o.legs].find((x) => x.id === cid) || o;
 }
-export async function replace(env, req, url, id, { fetchFn = fetch, priceOf = null, now = Date.now() } = {}) {
+export async function replace(env, req, url, id, { fetchFn = fetch, priceOf = null, now = Date.now(), book = null } = {}) {
   if (!CID_RE.test(id)) throw fail(400, 'not an order id');
   const b = await bodyOf(req, 2000), who = whoOf(b), patch = {};
   for (const k of ['qty', 'limit_price', 'stop_price', 'trail']) if (b && b[k] != null) { const v = num(b[k]); if (!pos(v)) throw fail(400, k + ' must be above zero'); patch[k] = v; }
@@ -252,7 +264,7 @@ export async function replace(env, req, url, id, { fetchFn = fetch, priceOf = nu
   if (!OPEN.has(was.status)) throw fail(409, `the order is ${was.status}: only an open order can change`);
   const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: patch.qty || was.qty, limit_price: patch.limit_price || was.limit_price, stop_price: patch.stop_price || was.stop_price,
     ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: patch.trail || was.trail_percent } : { trail_price: patch.trail || was.trail_price }) : {}) };
-  const equity = acct ? num(acct.total_net_liquidation_value) : null, price = priceOf ? await priceOf(was.symbol) : null;
+  const equity = acct ? (book ? applyBook(book, acctOut(a, acct)).equity : num(acct.total_net_liquidation_value)) : null, price = priceOf ? await priceOf(was.symbol) : null;
   if (!pos(equity)) throw fail(503, 'the Webull paper account could not be read, so the change cannot be checked: try again');
   const chk = checkOrder(next, { price, equity, kill });
   if (!chk.ok) throw fail(422, chk.errors.join('; '), { errors: chk.errors });
@@ -289,12 +301,8 @@ export async function closePosition(env, url, sym, { fetchFn = fetch, now = Date
   const ok = must(r, 'closing ' + sym);
   return json({ ok: true, paper: true, broker: 'webull', order: { id: cid, broker_id: ok.order_id || null, symbol: sym, side: o.side, type: 'market', qty: p.qty } });
 }
-/** This broker's kill switch: on cancels every open order (each one: Webull has no cancel-all); only closing orders go out until it is off. */
-export async function kill(env, req, url, fetchFn = fetch) {
-  const b = await bodyOf(req, 500), on = !(b && b.on === false), now = Date.now();
-  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('webull_kill', on ? '1' : '0', now).run();
-  if (!on) return json({ ok: true, broker: 'webull', kill: false });
-  const a = await pick(env, url, fetchFn);
+/** Cancel every open order, one by one (Webull has no cancel-all) → { canceled, failed: [ids] }. */
+async function cancelAll(env, a, fetchFn) {
   clearCache();
   const open = ordersOut(await openGroups(env, a, fetchFn));
   let canceled = 0; const failed = [];
@@ -304,6 +312,34 @@ export async function kill(env, req, url, fetchFn = fetch) {
     if (r.ok || (r.status === 417 && /not present/i.test(JSON.stringify(r.body || '')))) canceled++; else failed.push(x.id);   // a combo's legs go with its master
   }
   clearCache();
+  return { canceled, failed };
+}
+/** A book reset (T5): cancel every open order, then close every position at market (logged as Tony's "book reset").
+ *  The sandbox takes market orders only in market hours: a close it refuses is in `failed`, never hidden. */
+export async function flatten(env, url, { fetchFn = fetch, now = Date.now() } = {}) {
+  const a = await pick(env, url, fetchFn);
+  const { canceled, failed: notCanceled } = await cancelAll(env, a, fetchFn);
+  if (notCanceled.length) throw fail(502, `${notCanceled.length} open Webull order(s) were not cancelled: nothing was reset; press Reset again`, { failed: notCanceled });
+  const closing = [], failed = [];
+  for (const p of (await rawPositions(env, a, fetchFn)).map(positionOut)) {
+    if (!pos(p.qty)) continue;
+    const o = { symbol: p.symbol, side: p.side === 'long' ? 'sell' : 'buy', type: 'market', qty: p.qty, time_in_force: 'day' };
+    const cid = 'r' + now.toString(36) + Math.random().toString(36).slice(2, 6), body = webullBody(o, a.account_id, cid);
+    await logRow(env, { id: cid, at: now, who: 'tony', reason: 'book reset', symbol: p.symbol, side: o.side, type: 'market', qty: p.qty, body, status: 'sent' });
+    const r = await wb(env, 'POST', '/trading/orders/place', { body, category: true }, fetchFn);
+    if (r.ok) closing.push(p.symbol); else failed.push(p.symbol);
+  }
+  clearCache();
+  return { canceled, closing, failed };
+}
+
+/** This broker's kill switch: on cancels every open order (each one: Webull has no cancel-all); only closing orders go out until it is off. */
+export async function kill(env, req, url, fetchFn = fetch) {
+  const b = await bodyOf(req, 500), on = !(b && b.on === false), now = Date.now();
+  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind('webull_kill', on ? '1' : '0', now).run();
+  if (!on) return json({ ok: true, broker: 'webull', kill: false });
+  const a = await pick(env, url, fetchFn);
+  const { canceled, failed } = await cancelAll(env, a, fetchFn);
   if (failed.length) throw fail(502, `the Webull kill switch is on, but ${failed.length} open order(s) were not cancelled: press it again`, { kill: true, failed });
   const held = (await rawPositions(env, a, fetchFn)).length;
   return json({ ok: true, broker: 'webull', kill: true, canceled, unprotected: held });
