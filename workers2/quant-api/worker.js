@@ -16,6 +16,7 @@
 //                                  check: daily history before 2016 from Yahoo, compared with Tiingo (lib/data.js compareReturns)
 //   GET  /splits?symbol           { symbol, splits: [{ t, ratio, ex }] }  from Alpaca's corporate actions (Yahoo fallback), 6 h
 //   GET  /trade/brokers            Batch 4 T1: { brokers: [{id, ready}] }; /trade/alpaca/* = /paper/*, /trade/webull/* = lib/brokers/webull.js (sandbox)
+//   GET/PUT /trade/:broker/book, POST /trade/:broker/book/reset   Batch 4 T5: TradeHub's capital per broker (lib/books.js)
 //   GET  /webull/probe             Batch 4 T0: the Webull sandbox, read-only (host, token, accounts, shared-account signs)
 //   GET  /stream-keys              { alpaca: {key, secret, tradeKey}, finnhub: {key} }   the page's two live streams (Alpaca: the data-only account's key)
 //   GET  /corrections?limit=50     the data doctor's log, newest first
@@ -82,6 +83,7 @@ import * as ai from './lib/ai.js';
 import * as gem from './lib/gemini.js';
 import { hear } from './lib/hear.js';
 import * as paper from './lib/paper.js';
+import { readBook, bookRoute } from './lib/books.js';
 import * as webullProbe from './lib/webull-probe.js';
 import * as webull from './lib/brokers/webull.js';
 import { getBrief, postBrief } from './lib/brief.js';
@@ -395,19 +397,19 @@ const paperPrice = (env) => async (sym) => {
 };
 async function paperRoute(req, env, url, p, m) {
   if (p === '/paper/probe' && m === 'GET') return paper.probe(env);
-  if (p === '/paper/account' && m === 'GET') return paper.account(env);
+  if (p === '/paper/account' && m === 'GET') return paper.account(env, undefined, await readBook(env, 'alpaca'));
   if (p === '/paper/positions' && m === 'GET') return paper.positions(env);
   if (p === '/paper/orders' && m === 'GET') return paper.orders(env, url);
   if (p === '/paper/activities' && m === 'GET') return paper.activities(env, url);
   if (p === '/paper/log' && m === 'GET') return paper.log(env, url);
-  if (p === '/paper/orders' && m === 'POST') return paper.place(env, req, { priceOf: paperPrice(env) });
+  if (p === '/paper/orders' && m === 'POST') return paper.place(env, req, { priceOf: paperPrice(env), book: await readBook(env, 'alpaca') });
   if (p === '/paper/kill' && m === 'POST') return paper.kill(env, req);
   if (p === '/paper/runs' && m === 'GET') return paper.runs(env);
   if (p === '/paper/runs' && m === 'POST') return paper.startRun(env, req);
   if (p === '/paper/fills' && m === 'POST') return paper.postFills(env, req);
   if (p === '/paper/equity' && m === 'POST') return paper.postEquity(env, req);
   const o = /^\/paper\/orders\/([\w-]{1,64})$/.exec(p);
-  if (o && m === 'PATCH') return paper.replace(env, req, o[1], { priceOf: paperPrice(env) });
+  if (o && m === 'PATCH') return paper.replace(env, req, o[1], { priceOf: paperPrice(env), book: await readBook(env, 'alpaca') });
   if (o && m === 'DELETE') return paper.cancel(env, o[1]);
   const ps = /^\/paper\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(p);
   if (ps && m === 'DELETE') return paper.closePosition(env, ps[1]);
@@ -424,8 +426,12 @@ async function tradeRoute(req, env, url, p, m) {
   const mm = /^\/trade\/(\w+)(\/.*)?$/.exec(p);
   if (!mm || !BROKERS.includes(mm[1])) throw fail(404, 'no such broker (alpaca or webull)');
   const rest = mm[2] || '/';
+  // T5: the book (TradeHub's capital over the broker's balance); its reset flattens that broker only.
+  if (rest === '/book' || rest === '/book/reset') return bookRoute(env, req, mm[1], rest, m, mm[1] === 'alpaca'
+    ? { rawAccount: () => paper.rawAccount(env), flatten: () => paper.flatten(env) }
+    : { rawAccount: () => webull.rawAccount(env, url), flatten: () => webull.flatten(env, url) });
   if (mm[1] === 'alpaca') return paperRoute(req, env, url, '/paper' + rest, m);
-  if (rest === '/account' && m === 'GET') return webull.account(env, url);
+  if (rest === '/account' && m === 'GET') return webull.account(env, url, undefined, await readBook(env, 'webull'));
   if (rest === '/positions' && m === 'GET') return webull.positions(env, url);
   if (rest === '/orders' && m === 'GET') return webull.orders(env, url);
   if (rest === '/activities' && m === 'GET') return webull.activities(env, url);
@@ -436,10 +442,10 @@ async function tradeRoute(req, env, url, p, m) {
     catch (e) { if (!/no such column|has no column/i.test(String(e.message))) throw e; }
     return json({ ok: true, orders: rows.map((r) => ({ ...r, body: JSON.parse(r.body || 'null') })) });
   }
-  if (rest === '/orders' && m === 'POST') return webull.place(env, req, url, { priceOf: paperPrice(env) });
+  if (rest === '/orders' && m === 'POST') return webull.place(env, req, url, { priceOf: paperPrice(env), book: await readBook(env, 'webull') });
   if (rest === '/kill' && m === 'POST') return webull.kill(env, req, url);
   const o = /^\/orders\/([A-Za-z0-9]{1,32})$/.exec(rest);
-  if (o && m === 'PATCH') return webull.replace(env, req, url, o[1], { priceOf: paperPrice(env) });
+  if (o && m === 'PATCH') return webull.replace(env, req, url, o[1], { priceOf: paperPrice(env), book: await readBook(env, 'webull') });
   if (o && m === 'DELETE') return webull.cancel(env, url, o[1]);
   const ps = /^\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(rest);
   if (ps && m === 'DELETE') return webull.closePosition(env, url, ps[1]);
