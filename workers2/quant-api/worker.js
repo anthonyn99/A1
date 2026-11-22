@@ -90,6 +90,7 @@ import { getBrief, postBrief } from './lib/brief.js';
 import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } from './lib/context.js';
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
 import * as alerts from './lib/alerts.js';
+import * as orderWatch from './lib/order-watch.js';
 import { getSummary, getHeatmap } from './lib/stock.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -124,6 +125,8 @@ export default {
     const t = (event && event.scheduledTime) || Date.now();
     if (!alerts.inSession(t)) return;
     ctx.waitUntil(alerts.check(env, t).catch((e) => console.warn('alert check:', e.message || e)));
+    // T7: a paper order filled, partly filled, cancelled or rejected → an alert (one read per broker; nothing when off).
+    ctx.waitUntil(orderWatch.watch(env, t).catch((e) => console.warn('order watch:', e.message || e)));
   },
 };
 
@@ -267,6 +270,7 @@ function alertsRoute(req, env, url, p, m) {
     return req.json().catch(() => ({})).then((b) => alerts.testAll(env, Date.now(), { only: b && Array.isArray(b.only) ? b.only.slice(0, 11) : null }));
   }
   if (p === '/alerts/check' && m === 'POST') return alerts.checkRoute(env, url);
+  if (p === '/alerts/orders-check' && m === 'POST') return json({ ok: true, ...(await orderWatch.watch(env, Date.now())) });   // T7: the cron's order watch, on demand
   throw fail(404, 'no such route');
 }
 

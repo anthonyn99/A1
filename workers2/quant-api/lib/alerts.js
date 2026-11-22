@@ -416,7 +416,7 @@ export const TEST_KINDS = [
  *  Tony's devices only (taskhub-reminders /quant-push), one notification each, with what quiet hours, "market hours
  *  only" and the kind switch WOULD do right now reported beside it (a test is always sent, so he sees every text). */
 // Spaced out (Tony 2026-11-21: the phone showed 8 of 11): Android drops a burst of notifications from one app (its
-// enqueue limit is about 5 a second), so the 11 go 700 ms apart, about 8 s in all.
+// enqueue limit is about 5 a second), so the 12 go 700 ms apart, about 8 s in all.
 export const TEST_GAP_MS = 700;
 // `only`: positions in TEST_KINDS (0-11) to send just those again (B10's tap check, 2026-11-21); absent = all 12.
 export async function testAll(env, now = Date.now(), { send = push, gap = env.TEST_GAP_MS != null ? Number(env.TEST_GAP_MS) : TEST_GAP_MS, only = null } = {}) {
