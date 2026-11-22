@@ -58,7 +58,6 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
 
   console.log('\nThe routes');
   {
-    BK.clearBooks();
     const env = { DB: realD1() };
     let raw = { equity: 100000, cash: 100000, buying_power: 200000, long_value: 0, short_value: 0 }, flat = 0;
     const deps = () => ({ rawAccount: async () => raw, flatten: async () => { flat++; return { canceled: 2, closing: ['NVDA'], failed: [] }; } });
@@ -108,7 +107,6 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
 
   console.log('\nAlpaca: the account and the order checks follow the book');
   {
-    BK.clearBooks();
     const env = { DB: realD1(), ALPACA_KEY: 'k', ALPACA_SECRET: 's' };
     const calls = [];
     const fake = async (u, init = {}) => {
@@ -142,7 +140,7 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
 
   console.log('\nWebull: the same, and its flatten (one cancel per order, a logged market close per position)');
   {
-    BK.clearBooks(); WB.clearCache();
+    WB.clearCache();
     const env = { DB: realD1(), WEBULL_PAPER_KEY: 'K', WEBULL_PAPER_SECRET: 'S' };
     const ACCTS = [{ account_id: 'MRG1', account_label: 'Individual Margin', account_class: 'INDIVIDUAL_MARGIN' }];
     const BAL = { total_net_liquidation_value: '1000000.00', total_market_value: '5000.00', total_cash_balance: '995000.00', total_day_profit_loss: '0', account_currency_assets: [{ buying_power: '2000000', day_buying_power: '4000000' }] };
