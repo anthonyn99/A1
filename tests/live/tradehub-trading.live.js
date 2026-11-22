@@ -112,7 +112,7 @@ const ok = (ph, name, cond, extra) => {
       await otSet('symbol', 'MSFT', CARD); await otPress('[data-ot-type="limit"]', CARD); await otSet('limit', '400', CARD); await otSet('size', '2', CARD);
       const n0 = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]', CARD); await otPress('[data-ot-go]', CARD);
-      await shot('t3-card-' + w);
+      await js(`${CARD}.scrollIntoView({block:'center'}); 1`); await shot('t3-card-' + w);
       ok('T3', '...it places to Alpaca paper and stays open, saying so', await until(`/Sent to Alpaca paper/.test(${CARD}.querySelector('[data-ot-msg]').textContent)`, 5000) && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === n0 + 1);
       await setBrokerTo('webull');
       ok('T3', '...it follows the broker dropdown (PAPER · Webull)', await until(`/PAPER · Webull/.test(${CARD}.querySelector('[data-ot-paper]').textContent)`, 4000));
