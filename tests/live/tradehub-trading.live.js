@@ -8,7 +8,8 @@
 //       ([data-ot-type] x5) and Review → Confirm; the Trade card (.lay-card[data-card="trade"], Add card ▸ Trade) is the same ticket
 //   T4  Trading's Add card lists every Market card
 //   T5  the book: [data-trade-capital] and Reset ([data-trade-reset]) that asks first
-//   T6  the chart's right-click menu ([data-chart-order-menu]) with Buy limit / Sell limit here
+//   T6  the chart's right-click menu ([data-chart-order-menu]), order lines ([data-cho-line]) dragged or typed with a confirmation
+//       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]); Trading's header button goes there
 //
 // Run: CDP_PORT=93xx node tests/live/tradehub-trading.live.js    PHASES=T2,T3 runs only those tags.
@@ -216,10 +217,121 @@ const ok = (ph, name, cond, extra) => {
       await js(`window._tbOps.trading.refresh(); 1`); await until(`${EQ}==='$100,000.00'`, 6000);
     }
 
-    // T6: trading from the chart
-    await tab('charts');
-    ok('T6', 'a right-click on the chart opens the order menu', await js(`var cv=document.querySelector('[data-lay="charts"] canvas'); if(!cv) return false; var r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); return true;`)
+    // T6: trading from the chart (A1-Priv TradeHub/ui/chart-orders.js, chart-order-menu.js)
+    const CH = `document.querySelector('[data-lay="charts"] .ch')`;
+    const LINE = (k) => `${CH}.querySelector('[data-cho-line="${k}"]')`;
+    const CDLG = (k) => `document.querySelector('.ot-scrim [data-chart-order-dialog="${k}"]')`;
+    const ppPosts = () => (api.posted.pp || []).filter(([m, p]) => m === 'POST' && p === '/paper/orders');
+    const ppCalls = (m, re) => (api.posted.pp || []).filter(([mm, p]) => mm === m && re.test(p));
+    const keepT6 = JSON.parse(JSON.stringify({ positions: api.state.pp.positions, orders: api.state.pp.orders }));
+    // Drag a line by its tag from its height by dy px (pointer events, as a mouse or a finger sends them).
+    const dragLine = (k, dy, type = 'mouse') => js(`var l=${LINE(k)}, t=l.querySelector('.cho-name'), r=t.getBoundingClientRect(), x=r.left+4, y=r.top+r.height/2;
+      function ev(n, yy){ return new PointerEvent(n,{bubbles:true,cancelable:true,composed:true,pointerId:7,pointerType:'${type}',isPrimary:true,button:0,buttons:n==='pointerup'?0:1,clientX:x,clientY:yy}); }
+      t.dispatchEvent(ev('pointerdown', y)); l.dispatchEvent(ev('pointermove', y + ${dy} / 2)); l.dispatchEvent(ev('pointermove', y + ${dy})); l.dispatchEvent(ev('pointerup', y + ${dy})); return true;`);
+    if (want('T6')) {
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      await tab('charts');
+      await js(`window._tbOps.charts.open('NVDA'); 1`);
+    } else await tab('charts');
+    ok('T6', 'a right-click on the chart opens the order menu', await js(`var cv=document.querySelector('[data-lay="charts"] canvas'); if(!cv) return false; var r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); return true;`)
       && await until(vis('[data-chart-order-menu]'), 2000));
+    if (want('T6')) {
+      const M = `document.querySelector('[data-chart-order-menu]')`;
+      ok('T6', '...Buy and Sell at this price (a limit on the passive side, a stop past the price), Bracket, Open ticket, Alert; PAPER · Alpaca', await js(`var m=${M}; var c=[].map.call(m.querySelectorAll('[data-com]'),function(b){return b.dataset.com;}).join(); return /^buy-(limit|stop),sell-(limit|stop),bracket,ticket,alert$/.test(c) && /PAPER · Alpaca/.test(m.innerText);`), await js(`return ${M}.innerText;`));
+      ok('T6', '...the menu stays on the screen', await js(`var r=${M}.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;`));
+      await shot('t6-menu-' + w);
+      const menuPx = await js(`return Number(${M}.querySelector('.cho-menu-head span').textContent);`);
+      const buyKind = await js(`return ${M}.querySelector('[data-com^="buy"]').dataset.com;`);
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      ok('T6', 'Escape closes the menu', await until(`!document.querySelector('[data-chart-order-menu]')`, 1500));
+      ok('T6', 'the NVDA position shows as a line: Long 10, its P&L, + TP/SL', await until(`!!${LINE('pos')} && !${LINE('pos')}.hidden`, 6000)
+        && await js(`var t=${LINE('pos')}.innerText; return /Long 10/.test(t) && /160\\.00/.test(t) && !!${LINE('pos')}.querySelector('[data-cho-protect]');`), await js(`return (${LINE('pos')}||{}).innerText;`));
+      // A quick order from the menu.
+      await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
+      await until(vis('[data-chart-order-menu]'), 2000);
+      await js(`document.querySelector('[data-chart-order-menu] [data-com^="buy"]').click(); 1`);
+      ok('T6', `${buyKind}: a confirmation first (PAPER · Alpaca, the read-back), nothing sent yet` + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${CDLG('quick')}`, 2000)
+        && await js(`var d=${CDLG('quick')}, r=d.getBoundingClientRect(); return /PAPER · Alpaca/.test(d.querySelector('[data-cho-paper]').textContent) && /^PAPER · Alpaca: Buy 1 share of NVDA/.test(d.querySelector('[data-cho-readback]').textContent) && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`), await js(`return ${CDLG('quick')} && ${CDLG('quick')}.innerText;`));
+      const posts0 = ppPosts().length;
+      await js(`var i=${CDLG('quick')}.querySelector('[data-cho-qty]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); ${CDLG('quick')}.querySelector('[data-cho-go]').click(); 1`);
+      await until(`!${CDLG('quick')}`, 4000);
+      const sent = ppPosts().slice(posts0).pop();
+      const field = buyKind === 'buy-limit' ? 'limit_price' : 'stop_price';
+      ok('T6', '...Place: one order to Alpaca paper at the menu\'s price, 2 shares, good till cancelled, as Tony', !!sent && sent[2].order.side === 'buy' && sent[2].order.qty === 2 && sent[2].order[field] === menuPx && sent[2].order.time_in_force === 'gtc' && sent[2].who === 'tony', JSON.stringify(sent));
+      const oid = api.state.pp.orders[0] && api.state.pp.orders[0].id;
+      ok('T6', '...and it shows on the chart as a line: "Buy ' + (field === 'limit_price' ? 'LMT' : 'STP') + ' 2"', await until(`!!${LINE(oid)} && !${LINE(oid)}.hidden`, 5000) && await js(`return /Buy (LMT|STP) 2/.test(${LINE(oid)}.innerText);`), await js(`return [].map.call(${CH}.querySelectorAll('[data-cho-line]'),function(e){return e.dataset.choLine+':'+e.innerText;}).join(' | ');`));
+      // Drag it: a confirmation (was → new, the P&L) before anything changes.
+      const y0 = await js(`return ${CH}.__orders.yOf('${oid}');`);
+      await dragLine(oid, -30, w < 600 ? 'touch' : 'mouse');
+      ok('T6', 'dragging the order\'s line asks first: Change …, Was ' + menuPx.toFixed(2) + ', the new price above it', await until(`!!${CDLG('edit')}`, 2000)
+        && await js(`var d=${CDLG('edit')}; return d.querySelector('[data-cho-was]').textContent==='${menuPx.toFixed(2)}' && Number(d.querySelector('[data-cho-price]').value) > ${menuPx} && /^Change buy/.test(d.querySelector('.ot-head b').textContent);`), await js(`return ${CDLG('edit')} && ${CDLG('edit')}.innerText;`));
+      await shot('t6-edit-' + w);
+      const patches0 = ppCalls('PATCH', /^\/paper\/orders\//).length;
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      ok('T6', '...Escape: nothing sent, the line snaps back', await until(`!${CDLG('edit')}`, 1500) && ppCalls('PATCH', /^\/paper\/orders\//).length === patches0
+        && await js(`var l=${LINE(oid)}; return Math.abs(new DOMMatrix(getComputedStyle(l).transform).m42 - ${Math.round(y0)}) <= 1;`), await js(`return getComputedStyle(${LINE(oid)}).transform + ' vs ${y0}';`));
+      await dragLine(oid, -30, w < 600 ? 'touch' : 'mouse');
+      await until(`!!${CDLG('edit')}`, 2000);
+      const newPx = await js(`return Number(${CDLG('edit')}.querySelector('[data-cho-price]').value);`);
+      await js(`${CDLG('edit')}.querySelector('[data-cho-go]').click(); 1`);
+      await until(`!${CDLG('edit')}`, 4000);
+      const pt = ppCalls('PATCH', /^\/paper\/orders\//).pop();
+      ok('T6', '...Confirm change: one change to that order, the new price, as Tony; the line stays there', !!pt && pt[1] === '/paper/orders/' + oid && pt[2][field] === newPx && pt[2].who === 'tony'
+        && await until(`${CH}.__orders.lines().some(function(l){return l.key==='${oid}' && l.price===${newPx};})`, 3000), JSON.stringify(pt));
+      // Typed from the tag.
+      await js(`${LINE(oid)}.querySelector('[data-cho-px]').click(); 1`);
+      await until(`!!${CDLG('edit')}`, 2000);
+      const typed = +(menuPx - 1).toFixed(2);
+      await js(`var i=${CDLG('edit')}.querySelector('[data-cho-price]'); i.value='${typed}'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+      ok('T6', 'a price typed from the line\'s tag: the same confirmation', await js(`return !${CDLG('edit')}.querySelector('[data-cho-go]').disabled;`));
+      await js(`${CDLG('edit')}.querySelector('[data-cho-go]').click(); 1`);
+      await until(`!${CDLG('edit')}`, 4000);
+      ok('T6', '...sent as typed', (ppCalls('PATCH', /^\/paper\/orders\//).pop() || [])[2][field] === typed);
+      // Cancel from the line.
+      await js(`${LINE(oid)}.querySelector('[data-cho-cancel]').click(); 1`);
+      ok('T6', '× asks before it cancels', await until(`!!${CDLG('cancel')}`, 2000) && !ppCalls('DELETE', new RegExp('/paper/orders/' + oid)).length);
+      await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
+      ok('T6', '...Cancel order: that order cancelled, its line gone', await until(`!${LINE(oid)}`, 5000) && ppCalls('DELETE', new RegExp('/paper/orders/' + oid)).length === 1);
+      // Exits on the position, then dragging the stop after the fill (trail it).
+      await js(`${LINE('pos')}.querySelector('[data-cho-protect]').click(); 1`);
+      ok('T6', '+ TP/SL on the position: take profit and stop loss with the P&L at each', await until(`!!${CDLG('protect')}`, 2000) && await js(`var d=${CDLG('protect')}; return Number(d.querySelector('[data-cho-tp]').value) > 160 && Number(d.querySelector('[data-cho-sl]').value) > 0 && /\\+\\$/.test(d.querySelector('[data-cho-tpgain]').textContent);`), await js(`return ${CDLG('protect')} && ${CDLG('protect')}.innerText;`));
+      const posts1 = ppPosts().length;
+      await js(`${CDLG('protect')}.querySelector('[data-cho-go]').click(); 1`);
+      await until(`!${CDLG('protect')}`, 4000);
+      const oco = ppPosts().slice(posts1).pop();
+      ok('T6', '...both go as one OCO to sell the 10 shares', !!oco && oco[2].order.order_class === 'oco' && oco[2].order.side === 'sell' && oco[2].order.qty === 10 && oco[2].order.take_profit.limit_price > 160, JSON.stringify(oco));
+      // The broker's OCO comes back as the limit with its stop as a leg (Alpaca's nested shape).
+      const o1 = api.state.pp.orders[0];
+      if (o1) { o1.legs = [{ id: o1.id + 'sl', symbol: 'NVDA', side: 'sell', type: 'stop', qty: 10, stop_price: o1.stop_loss.stop_price, status: 'new' }]; }
+      await js(`window._tbOps.trading ? window._tbOps.trading.refresh() : 0; 1`);
+      await js(`(function(){ var c=document.querySelector('[data-lay="charts"] .ch'); return c && c.__orders; })(); 1`);
+      await tab('trading'); await tab('charts');
+      ok('T6', '...on the chart: TP 10 and SL 10 lines, the + TP/SL gone', await until(`!!${CH}.querySelector('[data-cho-line][data-role="tp"]') && !!${CH}.querySelector('[data-cho-line][data-role="sl"]') && !${LINE('pos')}.querySelector('[data-cho-protect]')`, 6000),
+        await js(`return [].map.call(${CH}.querySelectorAll('[data-cho-line]'),function(e){return e.dataset.role+':'+e.innerText;}).join(' | ');`));
+      const slKey = await js(`return ${CH}.querySelector('[data-cho-line][data-role="sl"]').dataset.choLine;`);
+      const slWas = await js(`return ${CH}.__orders.lines().find(function(l){return l.key==='${slKey}';}).price;`);
+      await dragLine(slKey, -20, w < 600 ? 'touch' : 'mouse');
+      ok('T6', 'the stop dragged up after the fill (trailing it): the confirmation shows the P&L at the new level', await until(`!!${CDLG('edit')}`, 2000) && await js(`var d=${CDLG('edit')}; return /^Change stop loss/.test(d.querySelector('.ot-head b').textContent) && Number(d.querySelector('[data-cho-price]').value) > ${slWas} && /\\$/.test(d.querySelector('[data-cho-newpnl]').textContent);`), await js(`return ${CDLG('edit')} && ${CDLG('edit')}.innerText;`));
+      await js(`${CDLG('edit')}.querySelector('[data-cho-cancel-dlg]').click(); 1`);
+      ok('T6', '...Cancel: the stop back where it was, nothing sent', await until(`!${CDLG('edit')}`, 1500) && await js(`return ${CH}.__orders.lines().find(function(l){return l.key==='${slKey}';}).price === ${slWas};`));
+      // Each broker its own lines.
+      await tab('trading'); await setBrokerTo('webull'); await until(`${EQ}==='$1,000,000.00'`, 6000);
+      await tab('charts'); await js(`window._tbOps.charts.open('AAPL'); 1`);
+      ok('T6', 'Webull: its own AAPL order shows on AAPL\'s chart; no Alpaca line', await until(`!!${LINE('wbo1')}`, 6000) && await js(`return !${CH}.querySelector('[data-cho-line="pos"]');`));
+      await js(`window._tbOps.charts.open('NVDA'); 1`);
+      ok('T6', '...NVDA on Webull: no position, no Alpaca orders', await until(`${CH}.dataset.ch==='NVDA'`, 4000) && await js(`return new Promise(function(r){setTimeout(function(){r(!${CH}.querySelector('[data-cho-line]'));},800);});`));
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      Object.assign(api.state.pp, JSON.parse(JSON.stringify(keepT6)));
+      await js(`window._tbOps.trading.refresh(); 1`);
+      await tab('charts');
+      if (w < 600) {
+        await js(`window._tbOps.charts.open('NVDA'); 1`);
+        await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,button:0,buttons:1,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
+        ok('T6', 'press and hold on a phone opens the same menu', await until(vis('[data-chart-order-menu]'), 2000));
+        await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      }
+      ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
 
     // T7: trade alerts
     ok('T7', 'Control ▸ Alerts has a Trading section', await js(`return !!document.querySelector('[data-al-trading]');`));
