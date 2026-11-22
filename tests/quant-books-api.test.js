@@ -137,8 +137,9 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
     const change = (qty, b) => PA.replace(env, req({ qty, who: 'tony' }, 'PATCH'), 'A9', { fetchFn: fake, priceOf: async () => 100, book: b });
     e = await throwsOf(() => change(15, { capital: 200000, baseline: 100000, bp_cap: 1200 }));
     ok('a change counts only its increase: 10 → 15 shares at $100 adds $500, inside a $1,200 cap', !e, e && e.message);
+    const patches = () => calls.filter(([m, p]) => m === 'PATCH' && p === '/v2/orders/A9').length, p0 = patches();
     e = await throwsOf(() => change(40, { capital: 200000, baseline: 100000, bp_cap: 1200 }));
-    ok('...10 → 40 adds $3,000 over the cap: refused before the PATCH, in words', e && e.status === 422 && /book's buying power/.test(e.message) && !calls.some(([m, p]) => m === 'PATCH' && /A9/.test(p) && false), e && e.message);
+    ok('...10 → 40 adds $3,000 over the cap: refused before the PATCH, in words', e && e.status === 422 && /book's buying power/.test(e.message) && patches() === p0 && p0 === 1, e && e.message);
     const f = await PA.flatten(env, fake);
     ok('flatten: cancel all, then close all with their orders; a close Alpaca refused is named', f.canceled === 2 && f.closing.join() === 'NVDA' && f.failed.join() === 'AMD' && calls.some(([m, p]) => m === 'DELETE' && p === '/v2/positions?cancel_orders=true'));
     const r = await PA.rawAccount(env, fake);
