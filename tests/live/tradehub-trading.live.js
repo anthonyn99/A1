@@ -430,6 +430,7 @@ const ok = (ph, name, cond, extra) => {
       ok('T9', 'Escape closes it', await until(`!${PK}`, 1500));
       ok('T9', 'a card from another tab never takes over Neo Quant\'s hook for its tab (no _tbOps.risk while Risk is not open)', await js(`return !(window._tbOps && window._tbOps.risk);`));
       ok('T9', '...each added card shows its home tab\'s title', await js(`var c=document.querySelector('[data-card="x-risk-exposure"]'); return /Exposure/.test(c.querySelector('.lay-title').textContent);`));
+      await js(`document.querySelectorAll('.ot-scrim').forEach(function(s){s.remove();}); document.querySelector('[data-card="x-risk-exposure"]').scrollIntoView({block:'start'}); 1`); await new Promise((r) => setTimeout(r, 1500));
       await shot('t9-cards-' + w);
       await boot({ quant: true, keep: true }); await tab('trading');
       ok('T9', 'after a reload the cards from other tabs are still there (saved with the layout)', await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-exposure"] [data-rk-exposure]') && !!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"]')`, 10000));
