@@ -32,18 +32,20 @@ import { isTradingDay } from './holidays.js';
 import { Ledger, CAPS, day as utcDay } from './ledger.js';
 import { getQuotes } from './data.js';
 
-export const KINDS = ['price', 'signal', 'graded', 'regime', 'catalyst', 'data'];
+export const KINDS = ['price', 'signal', 'graded', 'regime', 'catalyst', 'data', 'order'];   // T7: order = a paper order filled, partly filled, cancelled or rejected (lib/order-watch.js)
 export const DIRS = ['above', 'below', 'cross', 'enter'];
 export const ALERTS_MAX = 200, COOLDOWN_MIN = 30, HYST_ATR = 0.3, ATR_GUESS = 0.01, FIRES_MAX = 200;
 export const PUSH_URL = 'https://taskhub-reminders.av1.workers.dev';
 export const PAGE_URL = 'https://a1-priv.av1.workers.dev/tradehub.html';
 export const DEFAULT_CFG = Object.freeze({
-  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true },
+  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true, order: true },
   quiet: { on: false, from: '22:00', to: '07:00', tz: 'America/Denver' },
   // "Market hours only": outside a New York session the alert is listed in the bell, not pushed.
-  marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true },
+  marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true, order: false },
   mute: {},                              // { SYM: until ms (0 = until unmuted) }
-  cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false },
+  cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false, order: false },
+  // T7: which order events and which brokers alert (Control ▸ Alerts ▸ Trading). His own cancels stay quiet by default.
+  trading: { filled: true, partial: true, canceled: false, rejected: true, alpaca: true, webull: true },
   speak: true,                           // the page speaks a new alert when voice allows it
 });
 const ID_RE = /^[\w-]{1,64}$/, HHMM = /^([01]\d|2[0-3]):[0-5]\d$/, SETUP_RE = /^[a-z][a-z-]{1,23}$/;
@@ -100,6 +102,7 @@ export function configOf(raw) {
     marketOnly: bools(c.marketOnly, DEFAULT_CFG.marketOnly),
     mute,
     cards: bools(c.cards, DEFAULT_CFG.cards),
+    trading: bools(c.trading, DEFAULT_CFG.trading),
     speak: typeof c.speak === 'boolean' ? c.speak : DEFAULT_CFG.speak,
   };
 }
@@ -407,6 +410,7 @@ export const TEST_KINDS = [
   { kind: 'catalyst', what: 'catalyst coming up', title: 'CPI in 15 min', body: 'For NVDA, AMD, MU', url: 'catalysts' },
   { kind: 'data', what: 'a data provider down', title: 'alpaca is down for 12 min', body: 'TradeHub Quant falls through to the next source.', url: 'status' },
   { kind: 'data', what: 'a budget past 70%', title: 'groq at 72% of today\'s budget', body: '72 of 100 calls', url: 'status' },
+  { kind: 'order', what: 'a paper order filled (T7)', title: 'Filled: Buy 10 NVDA at 164.20', body: 'Alpaca paper · limit order', url: 'trading:alpaca' },
 ];
 /** POST /alerts/test-all: B10's "Send every kind once" in Control ▸ Alerts. Each goes through the real push route to
  *  Tony's devices only (taskhub-reminders /quant-push), one notification each, with what quiet hours, "market hours
@@ -414,7 +418,7 @@ export const TEST_KINDS = [
 // Spaced out (Tony 2026-11-21: the phone showed 8 of 11): Android drops a burst of notifications from one app (its
 // enqueue limit is about 5 a second), so the 11 go 700 ms apart, about 8 s in all.
 export const TEST_GAP_MS = 700;
-// `only`: positions in TEST_KINDS (0-10) to send just those again (B10's tap check, 2026-11-21); absent = all 11.
+// `only`: positions in TEST_KINDS (0-11) to send just those again (B10's tap check, 2026-11-21); absent = all 12.
 export async function testAll(env, now = Date.now(), { send = push, gap = env.TEST_GAP_MS != null ? Number(env.TEST_GAP_MS) : TEST_GAP_MS, only = null } = {}) {
   const cfg = await readCfg(env), run = now.toString(36), out = [];
   const pick = Array.isArray(only) && only.length ? new Set(only.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < TEST_KINDS.length)) : null;
@@ -426,7 +430,7 @@ export async function testAll(env, now = Date.now(), { send = push, gap = env.TE
     await keepTest(env, { kind: t.kind, symbol: symOfTitle(t.title), title: '[Test] ' + t.title, body: t.body, url: pageUrl(t.url), res: r }, Date.now(), 'all-' + run + '-' + i);
     out.push({ kind: t.kind, what: t.what, title: '[Test] ' + t.title, body: t.body, ok: !!r.ok, devices: r.devices || [], error: r.ok ? null : r.error || null, normally: would || 'pushed' });
   }
-  return json({ ok: out.every((x) => x.ok), sent: out.filter((x) => x.ok).length, of: out.length, results: out, notPushed: ['paper fills', 'strategy pauses'] });
+  return json({ ok: out.every((x) => x.ok), sent: out.filter((x) => x.ok).length, of: out.length, results: out, notPushed: ['strategy pauses'] });
 }
 /** A short, stable notification tag for a rule's trigger. */
 export function tagOf(str) { let a = 5381, b = 52711; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); a = (a * 33) ^ c; b = (b * 33) ^ c; } return (a >>> 0).toString(36) + (b >>> 0).toString(36); }
@@ -503,7 +507,7 @@ async function retry(env, rules, now, send) {
 // "On" and no rules (Tony's screen) no signal, graded, regime, catalyst or data alert could ever reach him. Now a kind
 // that is On and has no rule of Tony's gets a standing one, for every ticker, with the defaults. It lives only in the
 // run (never written to the table); its fires are kept under its own id (`std:<kind>`), so each event still pushes once.
-export const STANDING = { signal: null, graded: null, regime: null, catalyst: { minutes: 15 }, data: { downMin: 10, budgetPct: 70 } };
+export const STANDING = { signal: null, graded: null, regime: null, catalyst: { minutes: 15 }, data: { downMin: 10, budgetPct: 70 }, order: null };
 export function standingRules(cfg, rules, kinds = Object.keys(STANDING)) {
   const have = new Set(rules.map((r) => r.kind));
   return kinds.filter((k) => k in STANDING && cfg.kinds[k] !== false && !have.has(k))
