@@ -63,7 +63,8 @@ const PRICES = { 'BTC-USD': 58243.61, 'ETH-USD': 1595.76, 'SOL-USD': 67.28, 'AVA
   const add = JSON.parse(await js(`var s=document.querySelector('[data-lay-add]'); return JSON.stringify(s ? { label: s.options[0].textContent, opts: [].slice.call(s.options).slice(1).map(function(o){return o.value;}), hidden: s.hidden } : null);`));
   ok('Add card says "Add card", no count (ask 35)', add && add.label === 'Add card', JSON.stringify(add));
   ok('...Key Stats and Analysis are not offered on Market (ask 39)', add && !add.opts.includes('stats') && !add.opts.includes('analysis'), JSON.stringify(add));
-  ok('...nothing to add hides the menu', add && (add.opts.length > 0 || add.hidden), JSON.stringify(add));
+  // Batch 4 T9 (Tony 2026-11-22: any card from any tab): there is always something to add, so the button always shows; the select stays out of sight.
+  ok('...Add card is always there (T9: every tab's cards), the old menu out of sight', add && await js(`var b=document.querySelector('[data-lay-add-open]'), s=document.querySelector('[data-lay-add]'); return !!b && !!b.offsetParent && b.textContent==='Add card' && getComputedStyle(s).opacity==='0';`), JSON.stringify(add));
 
   // §1 rule 1 (asks 15, 19): no card ends in explanatory text on its face (sources, method notes, "Updated …"):
   // those live in the card's "?". A data line (Chart's one-line read) or an empty state ("No conversations yet")
