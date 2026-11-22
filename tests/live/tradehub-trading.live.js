@@ -421,6 +421,8 @@ const ok = (ph, name, cond, extra) => {
       ok('T9', 'Trading\'s own hidden card (Trade) comes back', await pkAdd('trading:trade') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="trade"]')`, 3000));
       await pkTab('risk');
       ok('T9', 'Risk ▸ Exposure added to Trading: the Risk card itself, drawn inside', await pkAdd('risk:exposure') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-exposure"] [data-rk-exposure]')`, 8000));
+      ok('T9', 'a second Risk card (Drawdown) is drawn by the same Risk module: one holder, two cards', await pkAdd('risk:drawdown') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-drawdown"] [data-rk-drawdown]')`, 8000)
+        && await js(`return document.querySelectorAll('.lay-portal-holder[data-portal-tab="risk"]').length === 1;`), await js(`return document.querySelectorAll('.lay-portal-holder').length;`));
       await pkTab('charts');
       ok('T9', 'Charts ▸ Chart added: a live chart on Trading', await pkAdd('charts:chart') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"] canvas')`, 10000));
       await pkTab('market');
@@ -434,8 +436,10 @@ const ok = (ph, name, cond, extra) => {
       await shot('t9-cards-' + w);
       await boot({ quant: true, keep: true }); await tab('trading');
       ok('T9', 'after a reload the cards from other tabs are still there (saved with the layout)', await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-risk-exposure"] [data-rk-exposure]') && !!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"]')`, 10000));
+      await js(`var d=document.querySelector('[data-card="x-risk-drawdown"] [data-act="hide"]'); if(d) d.click(); 1`);
       await js(`var b=document.querySelector('[data-card="x-risk-exposure"] [data-act="hide"]'); b.click(); 1`);
       ok('T9', '× takes a card from another tab off this tab (gone, not parked)', await until(`!document.querySelector('[data-card="x-risk-exposure"]')`, 3000));
+      ok('T9', '...the last Risk card gone: the Risk module goes too', await until(`!document.querySelector('.lay-portal-holder[data-portal-tab="risk"]')`, 3000));
       await openPk('[data-trading-tab]'); await until(`!!${PK}`, 3000); await pkTab('risk');
       ok('T9', '...and the popup offers it again', await js(`var b=${PK}.querySelector('[data-cpk-add="risk:exposure"]'); return !!b && !b.disabled && b.textContent==='Add';`));
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
