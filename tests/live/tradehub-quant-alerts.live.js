@@ -3,7 +3,7 @@
 //   1. the bell: in the sidebar's foot (1280, 820) and the phone bar (390), with the unseen
 //      count; it opens the list of recent alerts (who received each, or why not); opening it
 //      marks them seen; a press on one opens what it is about (#alert=chart:NVDA → Charts)
-//   2. Control ▸ Alerts: the six kinds with "market hours only" and "TaskHub card", quiet
+//   2. Control ▸ Alerts: the seven kinds (Batch 4 T7 added "Your paper orders") with "market hours only" and "TaskHub card", quiet
 //      hours, mute a ticker, the rules list, a new rule, delete asks first, Send test names
 //      the devices
 //   3. a notification's link (#alert=market) opens the Market tab and leaves the address clean
@@ -124,7 +124,7 @@ const ok = (name, cond, extra) => {
   await js(`window.tbControlShow('alerts'); 1`);   // R9: Control ▸ Alerts is its own section
   await tab('prompt');
   ok('the card is there', await until(`document.querySelector('[data-tal-control] [data-tal-kinds]')`, 15000));
-  ok('six kinds, each with "market hours only" and "TaskHub card"', await js(`return document.querySelectorAll('[data-tal-kind]').length === 6 && document.querySelectorAll('[data-tal-market]').length === 6 && document.querySelectorAll('[data-tal-card]').length === 6;`));
+  ok('seven kinds (T7: your paper orders), each with "market hours only" and "TaskHub card"', await js(`return document.querySelectorAll('[data-tal-kind]').length === 7 && document.querySelectorAll('[data-tal-market]').length === 7 && document.querySelectorAll('[data-tal-card]').length === 7;`));
   ok('the defaults: TaskHub cards on for "took hit target or stop" and catalysts', await js(`return document.querySelector('[data-tal-card="graded"]').checked && document.querySelector('[data-tal-card="catalyst"]').checked && !document.querySelector('[data-tal-card="price"]').checked;`));
   const rules = await js(`return [...document.querySelectorAll('[data-tal-rule]')].map(function(r){return r.innerText.split('\\n')[0];}).join(' | ');`);
   ok('the rules in plain words, in order', /^NVDA crosses above 170\.60, holds two checks \| AMD crosses R1 150\.25 \| A new GO \(orb\)/.test(rules), rules);

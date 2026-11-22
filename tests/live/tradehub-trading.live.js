@@ -265,19 +265,19 @@ const ok = (ph, name, cond, extra) => {
       await js(`document.querySelector('[data-chart-order-menu] [data-com^="buy"]').click(); 1`);
       ok('T6', `${buyKind}: a confirmation first (PAPER · Alpaca, the read-back), nothing sent yet` + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${CDLG('quick')}`, 2000)
         && await js(`var d=${CDLG('quick')}, r=d.getBoundingClientRect(); return /PAPER · Alpaca/.test(d.querySelector('[data-cho-paper]').textContent) && /^PAPER · Alpaca: Buy 1 share of NVDA/.test(d.querySelector('[data-cho-readback]').textContent) && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`), await js(`return ${CDLG('quick')} && ${CDLG('quick')}.innerText;`));
-      const posts0 = ppPosts().length;
+      const posts0 = ppPosts().length, placedPx = await js(`return Number(${CDLG('quick')}.querySelector('[data-cho-price]').value);`);   // this menu's price (the scale may have moved a cent)
       await js(`var i=${CDLG('quick')}.querySelector('[data-cho-qty]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); ${CDLG('quick')}.querySelector('[data-cho-go]').click(); 1`);
       await until(`!${CDLG('quick')}`, 4000);
       const sent = ppPosts().slice(posts0).pop();
       const field = buyKind === 'buy-limit' ? 'limit_price' : 'stop_price';
-      ok('T6', '...Place: one order to Alpaca paper at the menu\'s price, 2 shares, good till cancelled, as Tony', !!sent && sent[2].order.side === 'buy' && sent[2].order.qty === 2 && sent[2].order[field] === menuPx && sent[2].order.time_in_force === 'gtc' && sent[2].who === 'tony', JSON.stringify(sent));
+      ok('T6', '...Place: one order to Alpaca paper at the menu\'s price, 2 shares, good till cancelled, as Tony', !!sent && sent[2].order.side === 'buy' && sent[2].order.qty === 2 && sent[2].order[field] === placedPx && sent[2].order.time_in_force === 'gtc' && sent[2].who === 'tony', JSON.stringify(sent));
       const oid = api.state.pp.orders[0] && api.state.pp.orders[0].id;
       ok('T6', '...and it shows on the chart as a line: "Buy ' + (field === 'limit_price' ? 'LMT' : 'STP') + ' 2"', await until(`!!${LINE(oid)} && !${LINE(oid)}.hidden`, 5000) && await js(`return /Buy (LMT|STP) 2/.test(${LINE(oid)}.innerText);`), await js(`return [].map.call(${CH}.querySelectorAll('[data-cho-line]'),function(e){return e.dataset.choLine+':'+e.innerText;}).join(' | ');`));
       // Drag it: a confirmation (was → new, the P&L) before anything changes.
       const y0 = await js(`return ${CH}.__orders.yOf('${oid}');`);
       await dragLine(oid, -30, w < 600 ? 'touch' : 'mouse');
-      ok('T6', 'dragging the order\'s line asks first: Change …, Was ' + menuPx.toFixed(2) + ', the new price above it', await until(`!!${CDLG('edit')}`, 2000)
-        && await js(`var d=${CDLG('edit')}; return d.querySelector('[data-cho-was]').textContent==='${menuPx.toFixed(2)}' && Number(d.querySelector('[data-cho-price]').value) > ${menuPx} && /^Change buy/.test(d.querySelector('.ot-head b').textContent);`), await js(`return ${CDLG('edit')} && ${CDLG('edit')}.innerText;`));
+      ok('T6', 'dragging the order\'s line asks first: Change …, Was ' + placedPx.toFixed(2) + ', the new price above it', await until(`!!${CDLG('edit')}`, 2000)
+        && await js(`var d=${CDLG('edit')}; return d.querySelector('[data-cho-was]').textContent==='${placedPx.toFixed(2)}' && Number(d.querySelector('[data-cho-price]').value) > ${placedPx} && /^Change buy/.test(d.querySelector('.ot-head b').textContent);`), await js(`return ${CDLG('edit')} && ${CDLG('edit')}.innerText;`));
       await shot('t6-edit-' + w);
       const patches0 = ppCalls('PATCH', /^\/paper\/orders\//).length;
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
@@ -294,7 +294,7 @@ const ok = (ph, name, cond, extra) => {
       // Typed from the tag.
       await js(`${LINE(oid)}.querySelector('[data-cho-px]').click(); 1`);
       await until(`!!${CDLG('edit')}`, 2000);
-      const typed = +(menuPx - 1).toFixed(2);
+      const typed = +(placedPx - 1).toFixed(2);
       await js(`var i=${CDLG('edit')}.querySelector('[data-cho-price]'); i.value='${typed}'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
       ok('T6', 'a price typed from the line\'s tag: the same confirmation', await js(`return !${CDLG('edit')}.querySelector('[data-cho-go]').disabled;`));
       await js(`${CDLG('edit')}.querySelector('[data-cho-go]').click(); 1`);
