@@ -80,7 +80,9 @@ const ok = (ph, name, cond, extra) => {
       ok('T3', 'the popup fits the screen' + (w < 600 ? ' as a bottom sheet' : ', centred'), await js(`var r=${OT}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && r.width >= innerWidth - 1' : 'r.left > 0 && r.bottom < innerHeight'};`), await js(`return JSON.stringify(${OT}.getBoundingClientRect());`));
       await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '140'); await otSet('size', '10');
       await otPress('[data-ot-tp]'); await otPress('[data-ot-sl]'); await otSet('tpPrice', '150'); await otSet('slPrice', '135');
-      ok('T3', 'price steppers move the limit a cent', await otPress('[data-ot-step="limit+"]') && await js(`return ${OT}.querySelector('[data-ot-limit]').value === '140.01';`) && await otPress('[data-ot-step="limit-"]') && await js(`return ${OT}.querySelector('[data-ot-limit]').value === '140.00';`));
+      await otPress('[data-ot-step="limit+"]'); const up1 = await js(`return ${OT}.querySelector('[data-ot-limit]').value;`);
+      await otPress('[data-ot-step="limit-"]'); const dn1 = await js(`return ${OT}.querySelector('[data-ot-limit]').value;`);
+      ok('T3', 'price steppers move the limit a cent', up1 === '140.01' && dn1 === '140.00', up1 + ' / ' + dn1);
       ok('T3', 'Take profit / Stop loss show the $ at each and the reward to risk; cost and buying power after', await js(`var t=${OT}; return t.querySelector('[data-ot-tpgain]').textContent==='+$100.00' && t.querySelector('[data-ot-slloss]').textContent==='−$50.00' && t.querySelector('[data-ot-rr]').textContent==='Reward to risk 2.00' && t.querySelector('[data-ot-cost]').textContent==='$1,400.00' && /\\$/.test(t.querySelector('[data-ot-bp]').textContent);`), await js(`return ${OT}.innerText.slice(0, 500);`));
       const before = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]');
@@ -100,8 +102,8 @@ const ok = (ph, name, cond, extra) => {
       ok('T3', '...an order placed under Webull goes to Webull only', await until(`!${OT}`, 5000) && ((api.posted.wb && api.posted.wb.pp) || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === wbBefore + 1);
       await setBrokerTo('alpaca'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000);
       // The Trade card: Add card ▸ Trade.
-      ok('T3', 'Add card offers Trade', await js(`var s=document.querySelector('[data-lay="paper"] [data-lay-add]'); return !!s && [].some.call(s.options, function(o){return o.value==='trade';});`));
-      await js(`var s=document.querySelector('[data-lay="paper"] [data-lay-add]'); s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
+      ok('T3', 'Add card offers Trade', await js(`var s=document.querySelector('[data-trading-tab] [data-lay-add]'); return !!s && [].some.call(s.options, function(o){return o.value==='trade';});`));
+      await js(`var s=document.querySelector('[data-trading-tab] [data-lay-add]'); s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
     }
     const CARD = `document.querySelector('.lay-card[data-card="trade"] [data-order-ticket]')`;
     ok('T3', 'the Trade card can be added to Trading and is the same ticket', await until(`!!${CARD} && ${CARD}.querySelectorAll('[data-ot-type]').length === 5`, 3000));
