@@ -116,6 +116,8 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
       if (url.pathname === '/v2/account') return R({ equity: '100000', last_equity: '100000', cash: '100000', buying_power: '200000', long_market_value: '0', short_market_value: '0' });
       if (url.pathname === '/v2/clock') return R({ is_open: true });
       if (url.pathname === '/v2/orders' && init.method === 'POST') return R({ id: 'A1', status: 'accepted' });
+      if (url.pathname === '/v2/orders/A9' && init.method === 'PATCH') return R({ id: 'A9', symbol: 'AAPL', side: 'buy', type: 'limit', qty: '15', status: 'accepted' });
+      if (url.pathname === '/v2/orders/A9') return R({ id: 'A9', symbol: 'AAPL', side: 'buy', type: 'limit', time_in_force: 'day', qty: '10', limit_price: '100', status: 'accepted' });
       if (url.pathname === '/v2/orders' && init.method === 'DELETE') return R([{ id: 'o1' }, { id: 'o2' }], 207);
       if (url.pathname === '/v2/positions' && init.method === 'DELETE') return R([{ symbol: 'NVDA', status: 200 }, { symbol: 'AMD', status: 403 }], 207);
       return R({ message: 'no route' }, 404);
@@ -132,6 +134,11 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
     ok('the book\'s buying-power cap refuses an order over it ($2,000 over a $2,500 cap is fine; …)', !e, e && e.message);
     e = await throwsOf(() => place({ symbol: 'AAPL', side: 'buy', type: 'limit', limit_price: 100, qty: 24, time_in_force: 'day' }, { ...book, bp_cap: 2000 }));
     ok('...$2,400 over a $2,000 cap is refused, in words', e && e.status === 422 && /book's buying power/.test(e.message), e && e.message);
+    const change = (qty, b) => PA.replace(env, req({ qty, who: 'tony' }, 'PATCH'), 'A9', { fetchFn: fake, priceOf: async () => 100, book: b });
+    e = await throwsOf(() => change(15, { capital: 200000, baseline: 100000, bp_cap: 1200 }));
+    ok('a change counts only its increase: 10 → 15 shares at $100 adds $500, inside a $1,200 cap', !e, e && e.message);
+    e = await throwsOf(() => change(40, { capital: 200000, baseline: 100000, bp_cap: 1200 }));
+    ok('...10 → 40 adds $3,000 over the cap: refused before the PATCH, in words', e && e.status === 422 && /book's buying power/.test(e.message) && !calls.some(([m, p]) => m === 'PATCH' && /A9/.test(p) && false), e && e.message);
     const f = await PA.flatten(env, fake);
     ok('flatten: cancel all, then close all with their orders; a close Alpaca refused is named', f.canceled === 2 && f.closing.join() === 'NVDA' && f.failed.join() === 'AMD' && calls.some(([m, p]) => m === 'DELETE' && p === '/v2/positions?cancel_orders=true'));
     const r = await PA.rawAccount(env, fake);
@@ -172,6 +179,8 @@ const throwsOf = async (fn) => { try { await fn(); return null; } catch (e) { re
     WB.clearCache(); placeOk = false;
     const f2 = await WB.flatten(env, U, { fetchFn: fake, now: 8 });
     ok('...a close the sandbox refuses (market closed) is reported, not hidden', f2.failed.join() === 'MSFT,TSLA' && f2.closing.length === 0);
+    const refused = env.DB.sql.prepare("SELECT status, error FROM paper_orders WHERE reason = 'book reset' AND at = 8").all();
+    ok('...and its log rows say refused, with Webull\'s words (never left as sent)', refused.length === 2 && refused.every((r) => r.status === 'refused' && /market closed/.test(r.error)), JSON.stringify(refused));
     const r = await WB.rawAccount(env, U, fake);
     ok('rawAccount: the broker\'s own $1,000,000', r.equity === 1000000);
   }
