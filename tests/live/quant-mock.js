@@ -293,10 +293,10 @@ function quantApi() {
     // Phase 9: Neo Quant's planned answers, the stored brief, the snapshot before (What changed?), the browser units.
     ai: { plan: [], brief: null }, prevSnapshot: null,
     // Phase 9C: quant-api's /paper/… over Alpaca paper, played here.
-    pp: { kill: false, account: { equity: 100000, last_equity: 99600, cash: 98000, buying_power: 392000, daytrade_count: 0 }, positions: [{ symbol: 'NVDA', qty: 10, side: 'long', avg: 160, price: 164, value: 1640, pnl: 40, pnlPct: 0.025, dayPnl: 12 }],
+    pp: { kill: false, defaultCapital: 100000, book: null, account: { equity: 100000, last_equity: 99600, cash: 98000, buying_power: 392000, daytrade_count: 0 }, positions: [{ symbol: 'NVDA', qty: 10, side: 'long', avg: 160, price: 164, value: 1640, pnl: 40, pnlPct: 0.025, dayPnl: 12 }],
       orders: [], closed: [], log: [], runs: [], fills: [], next: 1 },
     // Batch 4 T2: Webull's paper sandbox, its own account (Individual Margin, $1M), nothing shared with Alpaca's.
-    wb: { kill: false, account: { id: 'MRG1', label: 'Individual Margin', equity: 1000000, last_equity: null, cash: 1000000, buying_power: 4000000, day_pnl: 0 }, positions: [],
+    wb: { kill: false, defaultCapital: 1000000, book: null, account: { id: 'MRG1', label: 'Individual Margin', equity: 1000000, last_equity: null, cash: 1000000, buying_power: 4000000, day_pnl: 0 }, positions: [],
       orders: [{ id: 'wbo1', symbol: 'AAPL', side: 'buy', type: 'limit', qty: 1, limit_price: 50, status: 'new', time_in_force: 'gtc', created_at: '2026-11-21T22:44:54.339Z' }], closed: [], log: [], runs: [], fills: [], next: 1 }, orca: { models: [{ id: 'deepseek/free', routable: true }, { id: 'perplexity/free', routable: true }, { id: 'chatgpt/free', routable: false }] } };
   const worker = {
     patterns: [LWC, 'https://trade-dashboard.av1-2.workers.dev/*', 'https://tradeboard-api.av1.workers.dev/*', 'https://newshub-api.av1.workers.dev/*', 'https://quant-api.av1-2.workers.dev/*', 'https://orca.vedapatel05.workers.dev/*'],
