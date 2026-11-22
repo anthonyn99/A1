@@ -99,14 +99,24 @@ const NOW = Date.UTC(2026, 10, 23, 15, 0);   // Monday 10:00 New York
   orders.webull.push({ id: 'w2', symbol: 'AAPL', side: 'sell', type: 'limit', qty: 1, filled_qty: 1, filled_avg_price: 51, status: 'filled', legs: [] });
   await W.watch(env, NOW + 480000, { send, fetchFn: fakeFetch });
   ok('Webull switched off: not even read; nothing sent', wbReads.length === 0 && pushes.length === 5);
+  ok('...its seen keys marked paused (once)', JSON.parse(env.DB.sql.prepare("SELECT v FROM meta WHERE k = 'orderwatch:webull'").get().v).paused === true);
+  // Review: switched on again, the orders placed meanwhile are learned quietly (no burst of old alerts).
+  orders.webull.push({ id: 'w3', symbol: 'AAPL', side: 'buy', type: 'limit', qty: 1, filled_qty: 1, filled_avg_price: 52, status: 'filled', legs: [] });
+  await env.DB.prepare("UPDATE meta SET v = ? WHERE k = 'alert_cfg'").bind(JSON.stringify({})).run();
+  r = await W.watch(env, NOW + 500000, { send, fetchFn: fakeFetch });
+  ok('Webull on again: w2 and w3 (filled while off) are learned, not pushed', r.brokers.webull.learned === true && pushes.length === 5, JSON.stringify(r.brokers.webull));
+  orders.webull.push({ id: 'w4', symbol: 'AAPL', side: 'buy', type: 'limit', qty: 1, filled_qty: 1, filled_avg_price: 53, status: 'filled', legs: [] });
+  await W.watch(env, NOW + 520000, { send, fetchFn: fakeFetch });
+  ok('...and the next new fill alerts as usual', pushes.length === 6 && /Buy 1 AAPL at 53/.test(pushes[5].title));
+  await env.DB.prepare("UPDATE meta SET v = ? WHERE k = 'alert_cfg'").bind(JSON.stringify({ trading: { webull: false } })).run();
   await env.DB.prepare("UPDATE meta SET v = ? WHERE k = 'alert_cfg'").bind(JSON.stringify({ trading: { filled: false } })).run();
   orders.alpaca.push({ id: 'o4', symbol: 'MU', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 650, status: 'filled' });
   await W.watch(env, NOW + 540000, { send, fetchFn: fakeFetch });
-  ok('"Filled" switched off: a fill makes no alert (still learned, never sent later)', pushes.length === 5);
+  ok('"Filled" switched off: a fill makes no alert (still learned, never sent later)', pushes.length === 6);
   await env.DB.prepare("UPDATE meta SET v = ? WHERE k = 'alert_cfg'").bind(JSON.stringify({ kinds: { order: false } })).run();
   calls = []; wbReads.length = 0; env.DB.reads = 0;
   r = await W.watch(env, NOW + 600000, { send, fetchFn: fakeFetch });
-  ok('the kind off: one D1 read (the config), no broker read', r.skipped && env.DB.reads === 1 && !calls.length && !wbReads.length);
+  ok('the kind off: two D1 reads (the config, the seen keys), no broker read', r.skipped && env.DB.reads === 2 && !calls.length && !wbReads.length, env.DB.reads);
   // A failing broker does not stop the other.
   await env.DB.prepare("UPDATE meta SET v = '{}' WHERE k = 'alert_cfg'").run();
   orders.webullFail = true;
@@ -114,6 +124,34 @@ const NOW = Date.UTC(2026, 10, 23, 15, 0);   // Monday 10:00 New York
   r = await W.watch(env, NOW + 660000, { send, fetchFn: fakeFetch });
   ok('Webull refusing: said for Webull, Alpaca\'s fill still alerts', /Webull refused/.test(r.brokers.webull.error) && /Filled: Buy 2 TSLA/.test(pushes[pushes.length - 1].title));
   ok('the seen keys are capped (400)', W.SEEN_MAX === 400);
+  // Review: more than 400 current keys: every one kept, so nothing re-alerts each minute.
+  const big = { DB: realD1(), ALPACA_KEY: 'k', ALPACA_SECRET: 's' };
+  const many = Array.from({ length: 450 }, (_, i) => ({ id: 'm' + i, symbol: 'SPY', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 500, status: 'filled' }));
+  const bigFetch = async () => new Response(JSON.stringify(many), { status: 200 });
+  await W.watch(big, NOW, { send, fetchFn: bigFetch });
+  const p0 = pushes.length; big.DB.writes = 0;
+  await W.watch(big, NOW + 60000, { send, fetchFn: bigFetch });
+  ok('450 current orders: a second minute finds nothing new, writes nothing', pushes.length === p0 && big.DB.writes === 0, big.DB.writes);
+  // Review: a failure while firing leaves the keys unseen, so the next minute alerts them.
+  const flaky = { DB: realD1(), ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, list = [];
+  const flakyFetch = async () => new Response(JSON.stringify(list), { status: 200 });
+  await W.watch(flaky, NOW, { send, fetchFn: flakyFetch });
+  list.push({ id: 'f1', symbol: 'META', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 600, status: 'filled' });
+  let threw = false;
+  try { await W.watch(flaky, NOW + 60000, { send: async () => { throw new Error('push down'); }, fetchFn: flakyFetch }); } catch (e) { threw = true; }
+  const p1 = pushes.length;
+  await W.watch(flaky, NOW + 120000, { send, fetchFn: flakyFetch });
+  ok('a run that fails while firing: the fill alerts on the next minute', threw && pushes.length === p1 + 1 && /META/.test(pushes[pushes.length - 1].title));
+  // Review: a rule for one ticker never silences the others; one alert per event.
+  const tick = { DB: realD1(), ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, tl = [];
+  const tickFetch = async () => new Response(JSON.stringify(tl), { status: 200 });
+  await tick.DB.prepare("INSERT INTO alerts (id, kind, symbol, active, created, at) VALUES ('r1', 'order', 'NVDA', 1, 0, 0)").run();
+  await W.watch(tick, NOW, { send, fetchFn: tickFetch });
+  tl.push({ id: 't1', symbol: 'AMD', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 160, status: 'filled' }, { id: 't2', symbol: 'NVDA', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 164, status: 'filled' });
+  const p2 = pushes.length;
+  await W.watch(tick, NOW + 60000, { send, fetchFn: tickFetch });
+  const two = pushes.slice(p2).map((p) => p.title);
+  ok('with an NVDA order rule: AMD still alerts (standing rule), NVDA alerts once', two.length === 2 && two.some((t) => /AMD/.test(t)) && two.filter((t) => /NVDA/.test(t)).length === 1, two.join(' | '));
   const noKeys = await W.watch({ DB: realD1() }, NOW, { send, fetchFn: fakeFetch });
   ok('no broker keys: nothing to watch', noKeys.skipped === 'no broker to watch');
 
