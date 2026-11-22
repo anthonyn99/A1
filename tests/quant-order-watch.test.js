@@ -119,6 +119,7 @@ const NOW = Date.UTC(2026, 10, 23, 15, 0);   // Monday 10:00 New York
   ok('the kind off: two D1 reads (the config, the seen keys), no broker read', r.skipped && env.DB.reads === 2 && !calls.length && !wbReads.length, env.DB.reads);
   // A failing broker does not stop the other.
   await env.DB.prepare("UPDATE meta SET v = '{}' WHERE k = 'alert_cfg'").run();
+  await W.watch(env, NOW + 630000, { send, fetchFn: fakeFetch });   // back on: one quiet learning minute first
   orders.webullFail = true;
   orders.alpaca.push({ id: 'o5', symbol: 'TSLA', side: 'buy', type: 'market', qty: 2, filled_qty: 2, filled_avg_price: 390, status: 'filled' });
   r = await W.watch(env, NOW + 660000, { send, fetchFn: fakeFetch });
@@ -138,10 +139,13 @@ const NOW = Date.UTC(2026, 10, 23, 15, 0);   // Monday 10:00 New York
   await W.watch(flaky, NOW, { send, fetchFn: flakyFetch });
   list.push({ id: 'f1', symbol: 'META', side: 'buy', type: 'market', qty: 1, filled_qty: 1, filled_avg_price: 600, status: 'filled' });
   let threw = false;
-  try { await W.watch(flaky, NOW + 60000, { send: async () => { throw new Error('push down'); }, fetchFn: flakyFetch }); } catch (e) { threw = true; }
+  const prep = flaky.DB.prepare, failOnce = { on: true };
+  flaky.DB.prepare = (q) => { if (failOnce.on && /INSERT INTO alert_fires/.test(q)) { failOnce.on = false; throw new Error('D1 hiccup'); } return prep(q); };
+  try { await W.watch(flaky, NOW + 60000, { send, fetchFn: flakyFetch }); } catch (e) { threw = true; }
+  flaky.DB.prepare = prep;
   const p1 = pushes.length;
   await W.watch(flaky, NOW + 120000, { send, fetchFn: flakyFetch });
-  ok('a run that fails while firing: the fill alerts on the next minute', threw && pushes.length === p1 + 1 && /META/.test(pushes[pushes.length - 1].title));
+  ok('a D1 hiccup while firing: the fill alerts on the next minute', threw && pushes.length === p1 + 1 && /META/.test(pushes[pushes.length - 1].title));
   // Review: a rule for one ticker never silences the others; one alert per event.
   const tick = { DB: realD1(), ALPACA_KEY: 'k', ALPACA_SECRET: 's' }, tl = [];
   const tickFetch = async () => new Response(JSON.stringify(tl), { status: 200 });
