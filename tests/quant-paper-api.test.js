@@ -168,6 +168,13 @@ const tryCall = async (fn) => { try { return { ok: true, body: await read(await 
   ok('...as is selling more than is held (it would open a short)', !r.ok && /does not only close/.test(r.error));
   r = await tryCall(() => P.place(env, req({ order: { ...order, symbol: 'AMD', side: 'sell' }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
   ok('...and "closing" a position that is not there', !r.ok && /does not only close/.test(r.error));
+  // T6 review: the chart's + TP/SL on a held position is one OCO for its shares: it only closes, so it goes out under the kill switch.
+  r = await tryCall(() => P.place(env, req({ order: { symbol: 'NVDA', side: 'sell', type: 'limit', time_in_force: 'gtc', qty: 10, limit_price: 110, order_class: 'oco', take_profit: { limit_price: 110 }, stop_loss: { stop_price: 95 } }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
+  ok('...an OCO exit (take profit + stop for the 10 held) still goes out', r.ok, JSON.stringify(r));
+  r = await tryCall(() => P.place(env, req({ order: { symbol: 'NVDA', side: 'sell', type: 'limit', time_in_force: 'gtc', qty: 11, limit_price: 110, order_class: 'oco', take_profit: { limit_price: 110 }, stop_loss: { stop_price: 95 } }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
+  ok('...an OCO for more than is held does not (it would open a short)', !r.ok && /does not only close/.test(r.error));
+  r = await tryCall(() => P.place(env, req({ order: { ...bracket, side: 'sell' }, who: 'tony', closing: true }), { priceOf: async () => 101 }));
+  ok('...a bracket is never a closing order', !r.ok && /does not only close/.test(r.error));
   ok('...no run can be resumed or started', !(await tryCall(() => P.changeRun(env, req({ state: 'running', who: 'tony' }, 'PATCH'), run))).ok && !(await tryCall(() => P.startRun(env, req({ name: 'x', spec: { a: 1 }, capital: 5000, who: 'tony' })))).ok);
   r = await tryCall(() => P.kill(env, req({ on: false })));
   ok('off again', r.ok && r.body.kill === false && (await read(await P.account(env))).kill === false);
