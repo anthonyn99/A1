@@ -16,12 +16,14 @@ import { fail, json } from './http.js';
 import { bodyOf } from './charts.js';
 
 export const DEFAULT_CAPITAL = { alpaca: 100000, webull: 1000000 };
-export const MIN_CAPITAL = 1000, MAX_CAPITAL = 10_000_000, MAX_RESETS = 20, BOOK_TTL = 30_000;
+export const MIN_CAPITAL = 1000, MAX_CAPITAL = 10_000_000, MAX_RESETS = 20;
 const num = (x) => (x == null || x === '' ? null : Number(x));
 const fin = (x) => Number.isFinite(x);
+const NY_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+const dayNY = (t) => NY_DAY.format(new Date(t));
 
 /** The broker's account `a` ({ equity, cash, buying_power, long_value, short_value, last_equity }) as the book shows it. */
-export function applyBook(book, a) {
+export function applyBook(book, a, now = Date.now()) {
   if (!a) return a;
   if (!book) return { ...a, booked: false };
   const off = book.capital - book.baseline, eq = num(a.equity);
@@ -30,7 +32,11 @@ export function applyBook(book, a) {
   let bp = fin(num(a.buying_power)) ? num(a.buying_power) * scale : null;
   if (fin(book.bp_cap) && fin(bp)) bp = Math.max(0, Math.min(bp, book.bp_cap - (Math.abs(num(a.long_value) || 0) + Math.abs(num(a.short_value) || 0))));
   const r = (x) => (fin(x) ? Math.round(x * 100) / 100 : x);
-  return { ...a, equity: r(equity), cash: fin(num(a.cash)) ? r(num(a.cash) + off) : a.cash, last_equity: fin(num(a.last_equity)) ? r(num(a.last_equity) + off) : a.last_equity,
+  // Reset today: the day starts at the reset (the capital), not at the broker's close yesterday.
+  const resetToday = book.resets && book.resets[0] && fin(book.resets[0].at) && dayNY(book.resets[0].at) === dayNY(now);
+  const last = resetToday ? book.capital : fin(num(a.last_equity)) ? num(a.last_equity) + off : a.last_equity;
+  return { ...a, equity: r(equity), cash: fin(num(a.cash)) ? r(num(a.cash) + off) : a.cash, last_equity: r(last),
+    ...(a.day_pnl !== undefined && resetToday && fin(equity) ? { day_pnl: r(equity - book.capital) } : {}),
     buying_power: r(bp), booked: true, broker_equity: eq, broker_cash: num(a.cash), broker_buying_power: num(a.buying_power) };
 }
 /** An order's dollar value at `price` (its notional, else qty × its limit, stop or the price). */
@@ -40,20 +46,18 @@ export function orderValue(o, price) {
   const ref = num(o.limit_price) || num(o.stop_price) || num(price), q = num(o.qty);
   return fin(ref) && fin(q) ? ref * q : null;
 }
-/** The book's refusal for a new order, or '' (a closing order is never refused here). */
-export function overBook(shown, o, price, closing = false) {
+/** The book's refusal for an order, or '' (a closing order is never refused here). `already` = the value the
+ *  broker's buying power already holds back for it (a changed order: its old value), so only the increase counts. */
+export function overBook(shown, o, price, closing = false, already = 0) {
   if (closing || !shown || !shown.booked) return '';
-  const v = orderValue(o, price);
-  return fin(v) && fin(shown.buying_power) && v > shown.buying_power + 0.005 ? `that order ($${v.toFixed(2)}) is more than the book's buying power ($${shown.buying_power.toFixed(2)})` : '';
+  const v = orderValue(o, price), more = fin(v) ? v - (fin(already) ? already : 0) : null;
+  return fin(more) && more > 0 && fin(shown.buying_power) && more > shown.buying_power + 0.005 ? `that order ($${v.toFixed(2)}) is more than the book's buying power ($${shown.buying_power.toFixed(2)})` : '';
 }
 
-const cache = new Map();
-export function clearBooks() { cache.clear(); }
 const out = (row) => (row ? { capital: row.capital, baseline: row.baseline, bp_cap: row.bp_cap == null ? null : row.bp_cap, at: row.at, resets: JSON.parse(row.resets || '[]') } : null);
-/** The broker's book (null: none, or the table is not there yet). Cached BOOK_TTL per isolate; writes clear it. */
-export async function readBook(env, broker, now = Date.now()) {
-  const hit = cache.get(broker);
-  if (hit && now - hit.at < BOOK_TTL) return hit.book;
+/** The broker's book (null: none, or the table is not there yet). Read from D1 every time, never cached: a
+ *  change or a reset must reach every worker copy at once (one D1 read per account poll is nothing). */
+export async function readBook(env, broker) {
   let row = null;
   try { row = await env.DB.prepare('SELECT * FROM trade_books WHERE broker = ?').bind(broker).first(); }
   catch (e) { if (!/no such table/i.test(String(e && e.message))) throw e; }
