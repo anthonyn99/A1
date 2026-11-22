@@ -270,7 +270,7 @@ function alertsRoute(req, env, url, p, m) {
     return req.json().catch(() => ({})).then((b) => alerts.testAll(env, Date.now(), { only: b && Array.isArray(b.only) ? b.only.slice(0, 11) : null }));
   }
   if (p === '/alerts/check' && m === 'POST') return alerts.checkRoute(env, url);
-  if (p === '/alerts/orders-check' && m === 'POST') return json({ ok: true, ...(await orderWatch.watch(env, Date.now())) });   // T7: the cron's order watch, on demand
+  if (p === '/alerts/orders-check' && m === 'POST') return orderWatch.watch(env, Date.now()).then((r) => json({ ok: true, ...r }));   // T7: the cron's order watch, on demand
   throw fail(404, 'no such route');
 }
 
