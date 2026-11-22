@@ -348,7 +348,7 @@ const ok = (ph, name, cond, extra) => {
     }
 
     // T7: trade alerts (quant-api lib/order-watch.js; A1-Priv ui/alerts.js Trading section)
-    if (want('T7')) { await tab('trading'); await until(`!!document.querySelector('[data-trade-alerts]')`, 4000); await js(`document.querySelector('[data-trade-alerts]').click(); 1`); }
+    if (want('T7')) { await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`); await tab('trading'); await until(`!!document.querySelector('[data-trade-alerts]')`, 4000); await js(`document.querySelector('[data-trade-alerts]').click(); 1`); }
     ok('T7', 'Control ▸ Alerts has a Trading section', await until(`!!document.querySelector('[data-al-trading]')`, 6000));
     if (want('T7')) {
       const TR = `document.querySelector('[data-al-trading]')`;
