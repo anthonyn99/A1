@@ -78,6 +78,15 @@ const ok = (ph, name, cond, extra) => {
       && await until(`document.querySelectorAll('[data-order-ticket] [data-ot-type]').length === 5`, 3000));
     if (want('T3')) {
       ok('T3', 'Buy | Sell, the symbol with Bid / Ask / Last, PAPER · Alpaca', await js(`var t=${OT}; return !!t.querySelector('[data-ot-side="buy"]') && !!t.querySelector('[data-ot-side="sell"]') && /Bid/.test(t.querySelector('[data-ot-quote]').innerText) && /Last/.test(t.querySelector('[data-ot-quote]').innerText) && /PAPER · Alpaca/.test(t.querySelector('[data-ot-paper]').textContent);`));
+      // Tony 2026-11-22 "I can't short": the symbol box's hint is not a ticker, and Sell says what it does.
+      ok('T3', 'the symbol\'s hint is "Ticker" (never a real symbol that looks typed in)', await js(`return ${OT}.querySelector('[data-ot-symbol]').placeholder==='Ticker';`));
+      await otSet('symbol', 'TSLA');
+      ok('T3', 'nothing held in TSLA: the button says Sell short', await until(`${OT}.querySelector('[data-ot-side="sell"]').textContent==='Sell short'`, 2000));
+      await otSet('symbol', 'NVDA');
+      ok('T3', '10 NVDA held: the button says Sell (an exit)', await until(`${OT}.querySelector('[data-ot-side="sell"]').textContent==='Sell'`, 2000));
+      await otSet('symbol', 'TSLA'); await otPress('[data-ot-side="sell"]'); await otPress('[data-ot-go]');
+      ok('T3', 'Sell short on TSLA reads back "PAPER · Alpaca: Sell short 1 share of TSLA"', await until(`/Sell short 1 share of TSLA/.test(${OT}.querySelector('[data-ot-readback]').textContent)`, 3000), await js(`return ${OT}.querySelector('[data-ot-readback]').textContent + ' | ' + ${OT}.querySelector('[data-ot-errors]').textContent;`));
+      await otSet('symbol', ''); await otPress('[data-ot-side="buy"]');
       ok('T3', 'the popup fits the screen' + (w < 600 ? ' as a bottom sheet' : ', centred'), await js(`var r=${OT}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && r.width >= innerWidth - 1' : 'r.left > 0 && r.bottom < innerHeight'};`), await js(`return JSON.stringify(${OT}.getBoundingClientRect());`));
       await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '140'); await otSet('size', '10');
       await otPress('[data-ot-tp]'); await otPress('[data-ot-sl]'); await otSet('tpPrice', '150'); await otSet('slPrice', '135');
@@ -229,6 +238,7 @@ const ok = (ph, name, cond, extra) => {
       function ev(n, yy){ return new PointerEvent(n,{bubbles:true,cancelable:true,composed:true,pointerId:7,pointerType:'${type}',isPrimary:true,button:0,buttons:n==='pointerup'?0:1,clientX:x,clientY:yy}); }
       t.dispatchEvent(ev('pointerdown', y)); l.dispatchEvent(ev('pointermove', y + ${dy} / 2)); l.dispatchEvent(ev('pointermove', y + ${dy})); l.dispatchEvent(ev('pointerup', y + ${dy})); return true;`);
     if (want('T6')) {
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);   // an older phase's ticket left open
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       await tab('charts');
       await js(`window._tbOps.charts.open('NVDA'); 1`);
