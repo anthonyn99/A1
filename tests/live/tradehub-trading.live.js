@@ -32,7 +32,7 @@ const ok = (ph, name, cond, extra) => {
   const c = await connect({ mock: api.mock });
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
-  const { js, until, size, boot, tab } = driver(c);
+  const { js, until, size, boot, tab, shot } = driver(c);
   const vis = (sel) => `(function(){var e=document.querySelector('${sel}'); return !!(e && e.offsetParent);})()`;
 
   for (const w of [1280, 820, 390]) {
@@ -84,6 +84,7 @@ const ok = (ph, name, cond, extra) => {
       await otPress('[data-ot-step="limit-"]'); const dn1 = await js(`return ${OT}.querySelector('[data-ot-limit]').value;`);
       ok('T3', 'price steppers move the limit a cent', up1 === '140.01' && dn1 === '140.00', up1 + ' / ' + dn1);
       ok('T3', 'Take profit / Stop loss show the $ at each and the reward to risk; cost and buying power after', await js(`var t=${OT}; return t.querySelector('[data-ot-tpgain]').textContent==='+$100.00' && t.querySelector('[data-ot-slloss]').textContent==='−$50.00' && t.querySelector('[data-ot-rr]').textContent==='Reward to risk 2.00' && t.querySelector('[data-ot-cost]').textContent==='$1,400.00' && /\\$/.test(t.querySelector('[data-ot-bp]').textContent);`), await js(`return ${OT}.innerText.slice(0, 500);`));
+      await shot('t3-ticket-' + w);
       const before = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]');
       ok('T3', 'Review reads it back (PAPER · Alpaca) and sends nothing yet', await js(`return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(${OT}.querySelector('[data-ot-readback]').textContent) && ${OT}.querySelector('[data-ot-go]').textContent==='Place on paper · Alpaca';`)
@@ -111,6 +112,7 @@ const ok = (ph, name, cond, extra) => {
       await otSet('symbol', 'MSFT', CARD); await otPress('[data-ot-type="limit"]', CARD); await otSet('limit', '400', CARD); await otSet('size', '2', CARD);
       const n0 = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]', CARD); await otPress('[data-ot-go]', CARD);
+      await shot('t3-card-' + w);
       ok('T3', '...it places to Alpaca paper and stays open, saying so', await until(`/Sent to Alpaca paper/.test(${CARD}.querySelector('[data-ot-msg]').textContent)`, 5000) && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === n0 + 1);
       await setBrokerTo('webull');
       ok('T3', '...it follows the broker dropdown (PAPER · Webull)', await until(`/PAPER · Webull/.test(${CARD}.querySelector('[data-ot-paper]').textContent)`, 4000));
