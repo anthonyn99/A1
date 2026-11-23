@@ -365,8 +365,8 @@ const ok = (ph, name, cond, extra) => {
       ok('TR1', '...Remove: one drop call for that leg of that order (no cancel of the bracket)', await until(`!${CDLG('cancel')}`, 3000) && ppCalls('POST', /\/paper\/orders\/trbtp\/drop$/).length === 1 && !ppCalls('DELETE', /\/paper\/orders\/trb$/).length, JSON.stringify(api.posted.pp && api.posted.pp.slice(-3)));
       ok('TR1', '...its line is gone at once; the entry and the stop stay', await until(`!${LINE('trbtp')}`, 1500) && await js(`return !!${LINE('trb')} && !!${LINE('trbsl')};`), Date.now() - t0);
       api.state.pp.orders = api.state.pp.orders.filter((x) => x.id !== 'trb');
+      await tab('trading'); await until(`!!(window._tbOps && window._tbOps.trading)`, 4000);
       await js(`window._tbOps.trading.refresh(); 1`);
-      await tab('trading');
     }
 
     // T7: trade alerts (quant-api lib/order-watch.js; A1-Priv ui/alerts.js Trading section)
