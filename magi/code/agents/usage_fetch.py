@@ -180,13 +180,18 @@ def fetch_codex(slot: str) -> tuple[dict[str, dict], bool | None]:
     return w, acct.get("allowed")
 
 
-def fetch_codex_full(slot: str) -> tuple[dict[str, dict], dict]:
+def codex_tokens(slot: str) -> dict:
     d = slots.slot_dir("codex", slot)
     try:
         auth = json.loads((d / "auth.json").read_text(encoding="utf-8")) if d else {}
     except (OSError, ValueError):
-        return {}, {}
-    tok = (auth.get("tokens") or {})
+        return {}
+    tok = auth.get("tokens") if isinstance(auth, dict) else None
+    return tok if isinstance(tok, dict) else {}
+
+
+def fetch_codex_full(slot: str) -> tuple[dict[str, dict], dict]:
+    tok = codex_tokens(slot)
     if not tok.get("access_token"):
         return {}, {}
     body = _get(CODEX_URL, {
