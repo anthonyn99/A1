@@ -42,6 +42,11 @@ const ok = (ph, name, cond, extra) => {
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   const { js, until, size, boot, tab, shot } = driver(c);
   const vis = (sel) => `(function(){var e=document.querySelector('${sel}'); return !!(e && e.offsetParent);})()`;
+  const errors = [];
+  c.ws.addEventListener('message', (event) => {
+    const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text);
+  });
 
   for (const w of [1280, 820, 390]) {
     console.log(`\n${w} px`);
@@ -83,6 +88,7 @@ const ok = (ph, name, cond, extra) => {
     }
 
     if (want('TR6')) {
+      const errorStart = errors.length;
       const bell = "[...document.querySelectorAll('[data-tal-bell]')].find(b=>b.offsetParent)";
       await until(bell, 8000);
       ok('TR6', 'Alerts has its dark background at insertion', await js(bell + ".click(); const sheet=document.querySelector('[data-tal-list]'); return !!sheet && getComputedStyle(sheet).backgroundColor==='rgb(35, 35, 39)';"));
@@ -148,6 +154,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR6', 'Journal opens with static statistic cells', await until("document.querySelector('.tbf-j .v')", 8000) && await js("return [...document.querySelectorAll('.tbf-j .v')].every(e=>e.getAnimations().length===0);"));
       await tab('portfolio');
       ok('TR6', 'The Portfolio tab has no entrance animation', await js("const active=document.querySelector('.tb-scroll-visible .tb-fade-in'); return !active || getComputedStyle(active).animationName==='none';"));
+      ok('TR6', 'No uncaught error while using Display or Alerts', errors.length === errorStart, errors.slice(errorStart).join('\n'));
     }
 
     // T2: the Trading tab
