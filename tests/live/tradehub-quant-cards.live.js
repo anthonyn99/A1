@@ -1,10 +1,9 @@
 // TradeHub Quant refinements, R1 (A1-Priv docs/TradeHub/quant/r1-01.md): the
 // card system v2 in the real page, at 1280, 820 and 390 px.
 //
-//   1. desktop / tablet: no card displaces another (Tony, 2026-11-19): over a
-//      card the outline is red, nothing moves, the drop is refused; into a free
-//      hole the card lands exactly on its outline. Phone: the stack's preview
-//      is the landing (A1Drag)
+//   1. desktop / tablet (TR4, 2026-11-23): drop anywhere, the others make way during the drag and land where the
+//      preview showed, the card lands on its outline, no holes; onto a title bar = one card with tabs; × asks.
+//      Phone: the stack's preview is the landing (A1Drag)
 //   2. every edge and corner resizes (A1Resize.edges): whole units, a left or
 //      top drag grows the card without moving it in the order
 //   3. Layout ▸ Save as my default / Reset to my default / Reset to original,
@@ -92,36 +91,45 @@ const ok = (name, cond, extra) => {
         ok(`${id} over ${target}: it moved, and every other card sat in the preview exactly where it landed`, r.moved && r.off.length === 0, (r.moved ? '' : 'not moved; ') + r.off.join(' | '));
       }
     } else {
-      // Desktop and tablet (Tony, 2026-11-19): no card ever displaces another. Over a card the outline is red,
-      // nothing else moves during the drag, and the drop is refused.
-      const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks', 40], ['analogs', 'sectors']] : [['regime', 'sectors'], ['volume', 'regime']];
-      for (const [id, target, dx, dy] of moves) {
+      // TR4 (Tony 2026-11-23, #7): drop anywhere; the others glide out of the way during the drag and sit exactly where
+      // the preview showed them, the card lands on its outline, nothing overlaps, nothing floats over a hole.
+      const moves = w === 1280 ? [['volume', 'regime'], ['regime', 'streaks'], ['analogs', 'sectors']] : [['regime', 'sectors'], ['volume', 'regime']];
+      for (const [id, target] of moves) {
         const before = await rects();
         await scrollTo(target);
-        const t = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
         await scrollTo(id);
-        const a = await centre(`[data-mk] .lay-card[data-card="${id}"] .lay-title`), t2 = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-title`);
+        const a = await centre(`[data-mk] .lay-card[data-card="${id}"] .lay-title`), t2 = await centre(`[data-mk] .lay-card[data-card="${target}"] .lay-body`);
         await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
-        await press(a.x, a.y); await moveTo(a, { x: t2.x + (dx || 0), y: t2.y + (dy || 0) }); await sleep(300);
-        const red = await js(`var g=${G}.querySelector('.lay-ghost'); return !!g && g.classList.contains('is-blocked');`);
+        await press(a.x, a.y); await moveTo(a, { x: t2.x, y: t2.y }); await sleep(450);
+        const ghost = await js(`var g=${G}.querySelector('.lay-ghost'); if(!g || g.hidden) return 'null'; var b=g.getBoundingClientRect(), gr=${G}.getBoundingClientRect(); return JSON.stringify([Math.round(b.left-gr.left), Math.round(b.top-gr.top), Math.round(b.width), Math.round(b.height)]);`).then(JSON.parse);
         const mid = await rects();
-        await release(t2.x + (dx || 0), t2.y + (dy || 0)); await sleep(700);
+        await release(t2.x, t2.y); await sleep(700);
         const after = await rects();
-        const still = (x) => Object.keys(before).every((k) => (k === id && x === mid) || before[k].every((v, i) => Math.abs(v - x[k][i]) <= 1.5));
-        ok(`${id} over ${target}: a red outline, no other card moves, and the drop is refused`, red && still(mid) && still(after), JSON.stringify({ red, t: !!t }));
+        const othersMoved = Object.keys(before).some((k) => k !== id && before[k].some((v, i) => Math.abs(v - mid[k][i]) > 1.5));
+        const asPreviewed = Object.keys(after).every((k) => k === id || after[k].every((v, i) => Math.abs(v - mid[k][i]) <= 2));
+        const onGhost = !!ghost && after[id].every((v, i) => Math.abs(v - ghost[i]) <= 2);
+        ok(`${id} onto ${target}: the others make way while it is dragged, sit where the preview put them, it lands on its outline`, othersMoved && asPreviewed && onGhost, JSON.stringify({ othersMoved, asPreviewed, ghost, landed: after[id] }));
       }
-      // A free spot takes the card, exactly on its outline: hide Regime, then drag Breadth into its hole.
-      await js(`document.querySelector('[data-mk] .lay-card[data-card="regime"] [data-act="hide"]').click(); 1`); await sleep(500);
-      const unitX = await js(`var g=${G}; var cols=${w === 1280 ? 12 : 8}; return (g.clientWidth-14*(cols-1))/cols+14;`);
+      ok('no card floats over a hole (each card touches the top or a card above it)', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), top=Math.min.apply(null,a.map(function(r){return r.top;}));
+        return a.every(function(p){ return Math.abs(p.top-top)<2 || a.some(function(q){ return q!==p && Math.abs(q.bottom + 14 - p.top) < 3 && q.left < p.right-1 && p.left < q.right-1; }); });`));
+      // TR4 (#10): onto a title bar: it lights up ("Group"), and the drop makes one card with two tabs.
+      await menu('orig'); await sleep(500);
       await scrollTo('breadth');
-      const bt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-title'), b0 = await rects();
-      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: bt.x, y: bt.y });
-      await press(bt.x, bt.y); await moveTo(bt, { x: bt.x - 4 * unitX, y: bt.y }); await sleep(300);
-      const ghost = await js(`var g=${G}.querySelector('.lay-ghost'); if(!g) return 'null'; var b=g.getBoundingClientRect(), gr=${G}.getBoundingClientRect(); return JSON.stringify({ red: g.classList.contains('is-blocked'), r: [Math.round(b.left-gr.left), Math.round(b.top-gr.top), Math.round(b.width), Math.round(b.height)] });`).then(JSON.parse);
-      await release(bt.x - 4 * unitX, bt.y); await sleep(700);
-      const b1 = await rects();
-      ok('into a free hole: the outline is not red, the card lands exactly on it, the others stay', ghost && !ghost.red && b1.breadth.every((v, i) => Math.abs(v - ghost.r[i]) <= 2) && b1.breadth[0] < b0.breadth[0] - 50
-        && Object.keys(b0).every((k) => k === 'breadth' || b0[k].every((v, i) => Math.abs(v - b1[k][i]) <= 1.5)), JSON.stringify({ ghost, was: b0.breadth, now: b1.breadth }));
+      const ga = await centre('[data-mk] .lay-card[data-card="volume"] .lay-title'), gt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-head');
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ga.x, y: ga.y });
+      await press(ga.x, ga.y); await moveTo(ga, { x: gt.x - 20, y: gt.y }); await sleep(300);
+      const lit = await js(`return document.querySelector('[data-mk] .lay-card[data-card="breadth"]').classList.contains('is-group-target');`);
+      await release(gt.x - 20, gt.y); await sleep(600);
+      ok('a card dropped on another\'s title bar: it lit up, then one card with two tabs (Volume open)', lit && await js(`var s=document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-lay-tabs]'); return !!s && s.querySelectorAll('[data-lay-tab]').length===2 && s.querySelector('.is-on').dataset.layTab==='volume' && !document.querySelector('[data-mk] .lay-card[data-card="volume"]').parentNode.classList.contains('lay-grid');`), JSON.stringify({ lit }));
+      await js(`document.querySelector('[data-mk] [data-lay-tab="breadth"]').click(); 1`); await sleep(250);
+      ok('...a tab click opens it (Breadth\'s own body shows, Volume\'s hides; neither redrawn)', await js(`var c=document.querySelector('[data-mk] .lay-card[data-card="breadth"]'); return c.querySelector('[data-lay-tab-body="breadth"]').hidden===false && c.querySelector('[data-lay-tab-body="volume"]').hidden===true;`));
+      await js(`document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-act="group"]').click(); 1`); await sleep(200);
+      await js(`var b=document.querySelector('[data-lay-gmenu] [data-lay-gout]'); if(b) b.click(); 1`); await sleep(500);
+      ok('...the group button ▸ Take out: Breadth is its own card again; no group left', await js(`return !document.querySelector('[data-mk] [data-lay-tabs]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="volume"]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="breadth"]');`));
+      // #15: × asks first.
+      await js(`window.__layAskForReal = true; document.querySelector('[data-mk] .lay-card[data-card="volume"] [data-act="hide"]').click(); 1`); await sleep(300);
+      ok('× asks first ("Remove Unusual volume from this tab?"); Cancel keeps the card', await js(`return !!document.getElementById('uim-ok') && /from this tab/.test(document.body.innerText);`) && await js(`document.getElementById('uim-cancel').click(); return true;`) && await js(`return new Promise(function(r){ setTimeout(function(){ r(!!document.querySelector('[data-mk] .lay-card[data-card="volume"]') && !document.querySelector('[data-mk] .lay-card[data-card="volume"]').hidden); }, 300); });`));
+      await js(`window.__layAskForReal = false; 1`);
       await menu('orig'); await sleep(500);
     }
     ok('no card overlaps another after the moves', await js(`var a=[...${G}.querySelectorAll(':scope > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0;
@@ -141,8 +149,9 @@ const ok = (name, cond, extra) => {
       const red = await js(`var g=${G}.querySelector('.lay-ghost'); return !!g && g.classList.contains('is-blocked');`);
       await release(m.x, 8); await sleep(800);
       const top1 = (await rects()).macro[1];
-      // Up there every spot is another card's: the outline climbs (red) and the drop is refused (2026-11-19).
-      ok(w + ' px: a card held at the top edge scrolls the page up and its outline climbs; over the cards there it is red and stays put', s1 < s0 - 100 && g1 != null && g1 < top0 && red && Math.abs(top1 - top0) <= 2, JSON.stringify({ s0, s1, top0, g1, top1, red }));
+      // TR4: up there the others make way, and the card lands near the top.
+      void red;
+      ok(w + ' px: a card held at the top edge scrolls the page up, its outline climbs, and it lands up there', s1 < s0 - 100 && g1 != null && g1 < top0 && top1 < top0 - 100, JSON.stringify({ s0, s1, top0, g1, top1, red }));
     }
 
     console.log(`${w} px: "?" on every card`);
