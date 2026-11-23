@@ -554,6 +554,34 @@ const ok = (ph, name, cond, extra) => {
         } else ok('TR4', 'the 3 px horizontal scrollbar stays clear of tabs and scrolls on click', false);
         await js(`var s=${strip}; s.style.maxWidth=''; s.scrollLeft=0; 1`);
       }
+      if (w >= 600) {
+        const groupMove = await js(`const {liveLayouts}=await import('/A1/TradeHub/ui/layout.js');
+          const layout=liveLayouts.get('paper'), saved=layout.state(), grid=layout.el.querySelector('.lay-grid');
+          const card=grid.querySelector('[data-card="positions"]'), grip=card.querySelector('.lay-group-grip');
+          if (!grip) return null;
+          grip.scrollIntoView({block:'center'});
+          const r=grip.getBoundingClientRect(), x=r.left+r.width/2, y=r.top+r.height/2, to=grid.getBoundingClientRect().bottom+160;
+          const fire=(el,type,cy)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerType:'mouse',pointerId:58,button:0,buttons:type==='pointerup'?0:1,clientX:x,clientY:cy}));
+          fire(grip,'pointerdown',y); fire(window,'pointermove',to);
+          const lifted=card.classList.contains('is-dragging');
+          fire(window,'pointerup',to);
+          const moved=layout.state(), stays=moved.tabs.find(g=>g.ids.includes('positions'));
+          layout.restore(saved);
+          return {lifted, moved:moved.pos.positions.r>saved.pos.positions.r, tabs:stays.ids.join(','), on:stays.on};`);
+        ok('TR4', 'dragging the grip moves the whole card while preserving its tabs and selection',
+          groupMove?.lifted && groupMove.moved && groupMove.tabs==='working,positions,filled' && groupMove.on==='working', groupMove);
+        await sleep(200);
+      } else {
+        const grip = await js(`const g=${TT}.querySelector('[data-card="positions"] .lay-group-grip');
+          if (!g) return null; g.scrollIntoView({block:'center'}); const r=g.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2};`);
+        if (grip) {
+          await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [grip] });
+          await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: grip.x, y: grip.y + 30 }] });
+          ok('TR4', 'on a phone the grip immediately lifts the whole grouped card', await until(`!!${TT}.querySelector('[data-card="positions"].dsort-drag')`, 1500));
+          await c.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+          await until('!window.A1Drag.active', 1500);
+        } else ok('TR4', 'on a phone the grip immediately lifts the whole grouped card', false);
+      }
       await shot('tr4-tabs-' + w);
       if (w >= 600) {
         // Detach by dragging a tab off the strip onto the grid.
