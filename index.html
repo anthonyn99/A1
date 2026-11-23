@@ -8748,12 +8748,11 @@ function TgScrollBox(props){
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   Claude reset times → both TaskHubs
+   Claude and Codex reset times → both TaskHubs
    ══════════════════════════════════════════════════════════════════════════
-   Each person's MAGI engine reads their Claude account's next reset and posts
-   it (through workers/taskhub-reminders /claude-resets) to its own small doc:
-   dashboards/claude_resets_tony or dashboards/claude_resets_veda. The Firebase
-   module listens to both and fires 'cr-resets-update'; everything here is
+   Each person's MAGI engine posts their Code Mode resets through the reminders
+   worker to dashboards/<agent>_resets_<profile>. The Firebase module listens
+   and fires 'cr-resets-update'; everything here is
    pure RENDER, never written into dashboards/main or vedasdash, for the same
    reason as OneInbox and the external cards.
 
@@ -8761,15 +8760,15 @@ function TgScrollBox(props){
    its own local day at its own local time: open a TaskHub in another time
    zone and the event moves with you. The notification is a separate reminder
    doc the worker writes, so it fires with this page closed. Turning the
-   feature off in MAGI (Units → Claude) empties the doc and deletes the
+   feature off in MAGI's Units sheet empties the doc and deletes its
    reminder. In edit mode each reset has a × (window._crDismiss): it adds the
    id to the doc's `dismissed` map and deletes that reminder, and the worker
    then never re-arms it; the next reset has a new id and arrives as usual.
    Names are CR_-prefixed: both babel blocks share one scope.
    ══════════════════════════════════════════════════════════════════════════ */
 const CR_COLOR="#d97757";
-const CR_TITLE={five_hour:"Claude resets",seven_day:"Claude weekly reset"};
-const CR_SUB={five_hour:"Fresh 5-hour window",seven_day:"Weekly limit resets"};
+const CR_AGENT={claude:"Claude",codex:"Codex"};
+const CR_SUB={five_hour:"Fresh 5-hour window",seven_day:"Weekly limit resets",thirty_day:"Fresh 30-day window"};
 
 function CR_dayKey(ms){
   const d=new Date(ms);
@@ -8778,19 +8777,22 @@ function CR_dayKey(ms){
 
 // The profile's upcoming resets, grouped by THIS device's local day.
 function CR_useResets(profile){
-  const[doc,setCrDoc]=useState(()=>(window._crResets||{})[profile]||null);
   const[,setCrTick]=useState(0);
   useEffect(()=>{
-    const h=e=>{if(e.detail&&e.detail.profile===profile)setCrDoc(e.detail.data||null);};
+    const h=e=>{if(e.detail?.profile===profile)setCrTick(x=>x+1);};
     window.addEventListener("cr-resets-update",h);
     // The listener may have fired before this component mounted.
-    if(window._crResets&&profile in window._crResets)setCrDoc(window._crResets[profile]);
+    setCrTick(x=>x+1);
     return()=>window.removeEventListener("cr-resets-update",h);
   },[profile]);
   const now=Date.now();
-  const list=(doc&&doc.enabled!==false&&Array.isArray(doc.resets)?doc.resets:[])
-    .map(r=>({...r,at:Number(r.at)}))
-    .filter(r=>r&&r.id&&CR_TITLE[r.kind]&&r.at>now&&!(doc.dismissed&&doc.dismissed[r.id]));
+  const list=Object.keys(CR_AGENT).flatMap(agent=>{
+    const doc=window._crResets?.[agent]?.[profile];
+    if(!doc||doc.enabled===false||!Array.isArray(doc.resets))return [];
+    return doc.resets
+      .filter(r=>r?.id&&Object.hasOwn(CR_SUB,r.kind)&&Number(r.at)>now&&!doc.dismissed?.[r.id])
+      .map(r=>({...r,agent,at:Number(r.at),notify:doc.notify!==false}));
+  });
   // A passed reset leaves the week on its own, even with no new push yet.
   const soonest=list.reduce((m,r)=>Math.min(m,r.at),Infinity);
   useEffect(()=>{
@@ -8798,9 +8800,8 @@ function CR_useResets(profile){
     const t=setTimeout(()=>setCrTick(x=>x+1),Math.min(soonest-Date.now()+1000,2147000000));
     return()=>clearTimeout(t);
   },[soonest]);
-  const notify=!!(doc&&doc.notify!==false);
   const out={};
-  list.sort((a,b)=>a.at-b.at).forEach(r=>{(out[CR_dayKey(r.at)]=out[CR_dayKey(r.at)]||[]).push({...r,notify});});
+  list.sort((a,b)=>a.at-b.at).forEach(r=>{(out[CR_dayKey(r.at)]=out[CR_dayKey(r.at)]||[]).push(r);});
   return out;
 }
 
@@ -8808,15 +8809,16 @@ function CR_useResets(profile){
 // style so it sits in either TaskHub's week like one of its events.
 // Remove one reset (edit-mode ✕), undoably: the undo takes it off the
 // `dismissed` map and puts its push reminder back (_crRestore).
-async function CR_remove(p,id,noHist){
+async function CR_remove(p,agent,id,noHist){
   if(!window._crDismiss)return;
-  const saved=await window._crDismiss(p,id);
+  const saved=await window._crDismiss(p,agent,id);
   if(!saved||noHist)return;
-  window.thUndoable(p,{undo:()=>window._crRestore&&window._crRestore(p,id,saved.rem),redo:()=>CR_remove(p,id,true)});
+  window.thUndoable(p,{undo:()=>window._crRestore&&window._crRestore(p,agent,id,saved.rem),redo:()=>CR_remove(p,agent,id,true)});
 }
 function CR_rows(list,o){
   return (list||[]).map(r=>{
     const d=new Date(r.at);
+    const title=CR_AGENT[r.agent]+(r.kind==="seven_day"?" weekly reset":" resets");
     let time=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
     try{const z=typeof thTzAbbr==="function"?thTzAbbr(d):"";if(z)time+=" "+z;}catch(e){}
     return React.createElement("div",{key:r.id,title:CR_SUB[r.kind]+" · from MAGI"+(r.notify?" · notifies at "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):""),
@@ -8827,11 +8829,11 @@ function CR_rows(list,o){
         // the same as a task's pills: the title keeps its lines.
         React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1,position:"relative",minHeight:20,visibility:o.edit?"hidden":"visible"}},
           o.box&&React.createElement(ThPop,{show:!!o.edit},React.createElement("span",{style:{position:"absolute",top:0,right:0,visibility:"visible",zIndex:1}},
-            thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>CR_remove(o.profile,r.id),TH_X))),
+            thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>CR_remove(o.profile,r.agent,r.id),TH_X))),
           React.createElement("span",{style:{fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
           r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
             React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
-        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])));
+        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},title)));
       // The ✕ (above) hides this one reset and cancels its push; the next reset
       // arrives as usual (see _crDismiss).
   });
@@ -8892,7 +8894,7 @@ function App(){
   const oiCoupons=(oiCards||[]).filter(c=>c.kind==="coupon");
   const oiByDay=OI_byDay(oiCards,true);
   const ecByDay=EC_byDay(EC_useCards());
-  // Claude reset times from MAGI — read-only, see CR_* above.
+  // Reset times from MAGI join the calendar through CR_useResets.
   const crByDay=CR_useResets("tony");
   // TradeHub alerts that asked for a TaskHub card — read-only, see QA_* above.
   const qaByDay=QA_useCards();
@@ -10703,7 +10705,7 @@ function App(){
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,false),
-              /* Claude resets sit below the ProView cards (Tony, 2026-10-30). */
+              /* MAGI resets sit below the ProView cards. */
               CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,box:{del:T.ERR,bd:T.BDL,bdHi:T.TXM,radius:5},tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               QA_rows(qaByDay[k],{card:wkEventCard(null,false),edit:edit,tx:T.TXD,dim:dimA,fit:wkTitleFit}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
@@ -11494,7 +11496,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _ewWorkUnsub    = null;   // Everwell workout done (two-way, its own doc)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
-  let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
+  let _crUnsubs       = [];     // MAGI reset subscriptions for both profiles
   let _qaUnsub        = null;   // TradeHub alerts' TaskHub cards, Tony's (read-only)
   let _neoTonyUnsub   = null;   // Tony's Neo AI settings (dashboards/neo_tony)
   let _alUnsubscribe  = null;
@@ -12936,16 +12938,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window.dispatchEvent(new CustomEvent('ec-cards-update', { detail: cards }));
     }, (err) => { console.warn('[Cards] onSnapshot error:', err); });
 
-    // ── Claude reset times (read-only) ────────────────────────────────────
-    // Written by workers/taskhub-reminders /claude-resets for each person's
-    // MAGI engine. TaskHub only listens and renders; see CR_useResets.
+    // ── MAGI reset times ─────────────────────────────────────────────────
     _crUnsubs.forEach(u => { try { u(); } catch (e) {} });
     window._crResets = window._crResets || {};
-    _crUnsubs = ['tony', 'veda'].map(p => onSnapshot(doc(db, 'dashboards/claude_resets_' + p), (snap) => {
-      const data = snap.exists() ? snap.data() : null;
-      window._crResets[p] = data;
-      window.dispatchEvent(new CustomEvent('cr-resets-update', { detail: { profile: p, data } }));
-    }, (err) => { console.warn('[ClaudeResets] onSnapshot error:', err); }));
+    _crUnsubs = ['claude', 'codex'].flatMap(agent => {
+      const docs = window._crResets[agent] ||= {};
+      return ['tony', 'veda'].map(p => onSnapshot(doc(db, `dashboards/${agent}_resets_${p}`), (snap) => {
+        docs[p] = snap.exists() ? snap.data() : null;
+        window.dispatchEvent(new CustomEvent('cr-resets-update', { detail: { profile: p } }));
+      }, (err) => { console.warn('[MagiResets] onSnapshot error:', agent, p, err); }));
+    });
 
     // ── TradeHub alerts' TaskHub cards (read-only) ────────────────────────
     // Written by workers/taskhub-reminders /quant-push (A1-Priv quant Phase 14).
@@ -12956,29 +12958,32 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window.dispatchEvent(new CustomEvent('qa-alerts-update', { detail: window._qaAlerts }));
     }, (err) => { console.warn('[TradeHubAlerts] onSnapshot error:', err); });
 
-    // Remove one Claude reset (edit-mode ×). The id goes in the doc's
+    // Remove one MAGI reset (edit-mode ×). The id goes in the doc's
     // `dismissed` map, which the worker reads on its next post so the reset is
     // never re-armed, and its push reminder is deleted now. The next reset has
     // a new id, so it comes through as usual.
-    window._crDismiss = async (p, id) => {
-      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return null;
-      const cur = (window._crResets || {})[p];
-      const at = ((cur && cur.resets) || []).find(r => r && r.id === id);
+    const validReset = (p, agent, id) => ['tony', 'veda'].includes(p) &&
+      ['claude', 'codex'].includes(agent) && /^\w+$/.test(id || '') && id.startsWith(`${agent}_${p}_`);
+    window._crDismiss = async (p, agent, id) => {
+      if (!validReset(p, agent, id)) return null;
+      const cur = window._crResets?.[agent]?.[p];
+      const reset = cur?.resets?.find(r => r?.id === id);
+      if (!reset) return null;
       // Its push reminder is read first, so an undo can put it back.
       let rem = null;
       try { const rs = await getDoc(doc(db, 'reminders', id)); if (rs.exists()) rem = rs.data(); } catch (e) {}
       try {
-        await setDoc(doc(db, 'dashboards/claude_resets_' + p),
-          { dismissed: { [id]: at ? Number(at.at) : Date.now() + 86400000 } }, { merge: true });
-      } catch (e) { console.warn('[ClaudeResets] dismiss failed:', e); return null; }
+        await setDoc(doc(db, `dashboards/${agent}_resets_${p}`),
+          { dismissed: { [id]: Number(reset.at) } }, { merge: true });
+      } catch (e) { console.warn('[MagiResets] dismiss failed:', e); return null; }
       try { await deleteDoc(doc(db, 'reminders', id)); } catch (e) {}
       return { rem };
     };
     // Undo of a dismiss: off the `dismissed` map, and its reminder written back.
-    window._crRestore = async (p, id, rem) => {
-      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return;
-      try { await setDoc(doc(db, 'dashboards/claude_resets_' + p), { dismissed: { [id]: deleteField() } }, { merge: true }); }
-      catch (e) { console.warn('[ClaudeResets] restore failed:', e); return; }
+    window._crRestore = async (p, agent, id, rem) => {
+      if (!validReset(p, agent, id)) return;
+      try { await setDoc(doc(db, `dashboards/${agent}_resets_${p}`), { dismissed: { [id]: deleteField() } }, { merge: true }); }
+      catch (e) { console.warn('[MagiResets] restore failed:', e); return; }
       if (rem) { try { await setDoc(doc(db, 'reminders', id), rem); } catch (e) {} }
     };
 
@@ -17010,7 +17015,7 @@ function App(){
   useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const bump=()=>setMcDueTick(x=>x+1);const id=setTimeout(bump,Math.min(Math.max(nd-Date.now(),0)+500,2147000000));const wake=()=>{if(document.visibilityState==="visible"&&Date.now()>=nd)bump();};document.addEventListener("visibilitychange",wake);window.addEventListener("focus",wake);return()=>{clearTimeout(id);document.removeEventListener("visibilitychange",wake);window.removeEventListener("focus",wake);};},[marketCal,mcDueTick]);
   // TradeHub's grouping window lives in the same settings doc: redraw when it changes.
   useEffect(()=>{const f=()=>setMcDueTick(x=>x+1);window.addEventListener("a1debrief:config",f);return()=>window.removeEventListener("a1debrief:config",f);},[]);
-  // Claude reset times from MAGI — read-only, see CR_* in the first block.
+  // Reset times from MAGI join the calendar through CR_useResets.
   const crByDay=CR_useResets("veda");
   // Macro catalyst cards get a bordered card with a category-colored left stripe,
   // matching Tony's TaskHub (wkCatalystCard). Veda is dark-only, so dark values inline.
