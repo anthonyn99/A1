@@ -88,9 +88,15 @@ const MIN = 60000;
   ok('...it shows as a working order', await until(`document.querySelector('[data-pp-ord="ord1"]')`, 8000));
 
   console.log('\nA working order');
-  await js(`window.__promptAnswer='139.5'; document.querySelector('[data-pp-ord="ord1"] [data-pp-reprice]').click(); 1`);
+  // TR3: Price opens the chart's change dialog (the P&L at the new price, Confirm change); Cancel asks first.
+  const DLG = (k) => `document.querySelector('[data-chart-order-dialog="${k}"]')`;
+  await js(`document.querySelector('[data-pp-ord="ord1"] [data-pp-reprice]').click(); 1`);
+  await until(`!!${DLG('edit')}`, 3000);
+  await js(`var i=${DLG('edit')}.querySelector('[data-cho-price]'); i.value='139.5'; i.dispatchEvent(new Event('input',{bubbles:true})); ${DLG('edit')}.querySelector('[data-cho-go]').click(); 1`);
   ok('a new price goes to quant-api', await until(`${JSON.stringify(1)} && true`, 100) && await (async () => { for (let k = 0; k < 30; k++) { if (pp().some(([m, p, b]) => m === 'PATCH' && p === '/paper/orders/ord1' && b.limit_price === 139.5)) return true; await sleep(100); } return false; })());
-  await js(`window.__promptAnswer=null; document.querySelector('[data-pp-ord="ord1"] [data-pp-cancel]').click(); 1`);
+  await js(`document.querySelector('[data-pp-ord="ord1"] [data-pp-cancel]').click(); 1`);
+  ok('Cancel asks first (one clean confirmation), nothing sent yet', await until(`!!${DLG('cancel')}`, 3000) && !pp().some(([m, p]) => m === 'DELETE' && p === '/paper/orders/ord1'));
+  await js(`${DLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
   ok('Cancel moves it to the cancelled orders', await until(`!document.querySelector('[data-pp-working] [data-pp-ord="ord1"]') && document.querySelector('[data-pp-filled] [data-pp-ord="ord1"]')`, 8000));
 
   console.log('\nPlace on paper from a signal');
