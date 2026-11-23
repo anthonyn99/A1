@@ -106,9 +106,10 @@ const ok = (ph, name, cond, extra) => {
       await shot('t3-ticket-' + w);
       const before = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]');
-      ok('T3', 'TR2: "Buy AMD" opens the confirmation (Webull\'s rows, the read-back, Don\'t remind me) and sends nothing yet', await until(`!!${OC}`, 2000) && await js(`var d=${OC}; return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(d.querySelector('[data-oc-readback]').textContent) && /Quantity/.test(d.innerText) && /Take profit/.test(d.innerText) && !!d.querySelector('[data-oc-noremind]') && d.querySelector('[data-oc-go]').textContent==='Buy' && 'Place on paper · Alpaca';`)
-        && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === before, await js(`return ${OT}.querySelector('[data-ot-readback]').textContent;`));
-      await otPress('[data-ot-go]');
+      ok('T3', 'TR2: "Buy AMD" opens the confirmation (Webull\'s rows, the read-back, Don\'t remind me) and sends nothing yet', await until(`!!${OC}`, 2000) && await js(`var d=${OC}; return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(d.querySelector('[data-oc-readback]').textContent) && /Quantity/.test(d.innerText) && /Take profit/.test(d.innerText) && !!d.querySelector('[data-oc-noremind]') && d.querySelector('[data-oc-go]').textContent==='Buy';`)
+        && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === before, await js(`return (${OC}||{}).innerText;`));
+      await shot('tr2-confirm-' + w);
+      await ocGo();
       ok('T3', 'Confirm: one bracket order to Alpaca paper, as Tony\'s; the popup closes', await until(`!${OT}`, 5000) && (() => { const o = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)); const last = o[o.length - 1]; return o.length === before + 1 && last[2].who === 'tony' && last[2].order.order_class === 'bracket' && last[2].order.qty === 10; })(), JSON.stringify((api.posted.pp || []).slice(-2)));
       // Webull: what it lacks is not offered.
       await setBrokerTo('webull'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$1,000,000.00'`, 6000);
@@ -118,7 +119,7 @@ const ok = (ph, name, cond, extra) => {
       ok('T3', '...a trailing stop: GTC not pressable, Day chosen, no Take profit / Stop loss', await js(`var g=${OT}.querySelector('[data-ot-tif="gtc"]'); return g.disabled && ${OT}.querySelector('[data-ot-tif="day"]').getAttribute('aria-pressed')==='true' && !${OT}.querySelector('[data-ot-tp]');`));
       await otPress('[data-ot-type="limit"]'); await otSet('symbol', 'AAPL'); await otSet('limit', '50'); await otSet('size', '1');
       const wbBefore = ((api.posted.wb && api.posted.wb.pp) || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
-      await otPress('[data-ot-go]'); await otPress('[data-ot-go]');
+      await otPress('[data-ot-go]'); await ocGo();
       ok('T3', '...an order placed under Webull goes to Webull only', await until(`!${OT}`, 5000) && ((api.posted.wb && api.posted.wb.pp) || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === wbBefore + 1);
       await setBrokerTo('alpaca'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000);
       // The Trade card: Add card ▸ Trade.
@@ -130,7 +131,7 @@ const ok = (ph, name, cond, extra) => {
     if (want('T3')) {
       await otSet('symbol', 'MSFT', CARD); await otPress('[data-ot-type="limit"]', CARD); await otSet('limit', '400', CARD); await otSet('size', '2', CARD);
       const n0 = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
-      await otPress('[data-ot-go]', CARD); await otPress('[data-ot-go]', CARD);
+      await otPress('[data-ot-go]', CARD); await ocGo();
       await js(`${CARD}.scrollIntoView({block:'center'}); 1`); await shot('t3-card-' + w);
       ok('T3', '...it places to Alpaca paper and stays open, saying so', await until(`/Sent to Alpaca paper/.test(${CARD}.querySelector('[data-ot-msg]').textContent)`, 5000) && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === n0 + 1);
       await setBrokerTo('webull');
@@ -258,11 +259,11 @@ const ok = (ph, name, cond, extra) => {
       && await until(`(function(){var e=document.querySelector('[data-chart-order-menu]'); return !!e && e.getBoundingClientRect().width>0;})()`, 2000));
     if (want('T6')) {
       const M = `document.querySelector('[data-chart-order-menu]')`;
-      ok('T6', '...Buy and Sell at this price (a limit on the passive side, a stop past the price), Bracket, Open ticket, Alert; PAPER · Alpaca', await js(`var m=${M}; var c=[].map.call(m.querySelectorAll('[data-com]'),function(b){return b.dataset.com;}).join(); return /^buy-(limit|stop),sell-(limit|stop),bracket,ticket,alert$/.test(c) && /PAPER · Alpaca/.test(m.innerText);`), await js(`return ${M}.innerText;`));
+      ok('T6', '...Buy and Sell at this price (a limit on the passive side, a stop past the price), Bracket, Open ticket, Alert; PAPER · Alpaca', await js(`var m=${M}; var c=[].map.call(m.querySelectorAll('[data-com]'),function(b){return b.dataset.com;}).join(); return /^buy-market,buy-(limit|stop),sell-market,sell-(limit|stop),bracket,ticket,alert$/.test(c) && /PAPER · Alpaca/.test(m.innerText);`), await js(`return ${M}.innerText;`));
       ok('T6', '...the menu stays on the screen', await js(`var r=${M}.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;`));
       await shot('t6-menu-' + w);
       const menuPx = await js(`return Number(${M}.querySelector('.cho-menu-head span').textContent);`);
-      const buyKind = await js(`return ${M}.querySelector('[data-com^="buy"]').dataset.com;`);
+      const buyKind = await js(`return ${M}.querySelector('[data-com="buy-limit"],[data-com="buy-stop"]').dataset.com;`);
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       ok('T6', 'Escape closes the menu', await until(`!document.querySelector('[data-chart-order-menu]')`, 1500));
       ok('T6', 'the NVDA position shows as a line: Long 10, its P&L, + TP/SL', await until(`!!${LINE('pos')} && !${LINE('pos')}.hidden`, 6000)
@@ -270,12 +271,13 @@ const ok = (ph, name, cond, extra) => {
       // A quick order from the menu.
       await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
       await until(`(function(){var e=document.querySelector('[data-chart-order-menu]'); return !!e && e.getBoundingClientRect().width>0;})()`, 2000);
-      await js(`document.querySelector('[data-chart-order-menu] [data-com^="buy"]').click(); 1`);
-      ok('T6', `${buyKind}: a confirmation first (PAPER · Alpaca, the read-back), nothing sent yet` + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${CDLG('quick')}`, 2000)
-        && await js(`var d=${CDLG('quick')}, r=d.getBoundingClientRect(); return /PAPER · Alpaca/.test(d.querySelector('[data-cho-paper]').textContent) && /^PAPER · Alpaca: Buy 1 share of NVDA/.test(d.querySelector('[data-cho-readback]').textContent) && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`), await js(`return ${CDLG('quick')} && ${CDLG('quick')}.innerText;`));
-      const posts0 = ppPosts().length, placedPx = await js(`return Number(${CDLG('quick')}.querySelector('[data-cho-price]').value);`);   // this menu's price (the scale may have moved a cent)
-      await js(`var i=${CDLG('quick')}.querySelector('[data-cho-qty]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); ${CDLG('quick')}.querySelector('[data-cho-go]').click(); 1`);
-      await until(`!${CDLG('quick')}`, 4000);
+      await js(`document.querySelector('[data-chart-order-menu] [data-com="${buyKind}"]').click(); 1`);
+      ok('T6', `${buyKind}: the order confirmation first (PAPER · Alpaca, the read-back), nothing sent yet` + (w < 600 ? ', a bottom sheet' : ''), await until(`!!${OC}`, 2000)
+        && await js(`var d=${OC}, r=d.getBoundingClientRect(); return /PAPER · Alpaca/.test(d.querySelector('[data-oc-paper]').textContent) && /^PAPER · Alpaca: Buy 1 share of NVDA/.test(d.querySelector('[data-oc-readback]').textContent) && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2' : 'r.left > 0'};`), await js(`return ${OC} && ${OC}.innerText;`));
+      const posts0 = ppPosts().length, placedPx = await js(`return Number(${OC}.querySelector('[data-oc-price]').value);`);   // this menu's price (the scale may have moved a cent)
+      await js(`var i=${OC}.querySelector('[data-oc-qty]'); i.value='2'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+      await ocGo();
+      await until(`!${OC}`, 4000);
       const sent = ppPosts().slice(posts0).pop();
       const field = buyKind === 'buy-limit' ? 'limit_price' : 'stop_price';
       ok('T6', '...Place: one order to Alpaca paper at the menu\'s price, 2 shares, good till cancelled, as Tony', !!sent && sent[2].order.side === 'buy' && sent[2].order.qty === 2 && sent[2].order[field] === placedPx && sent[2].order.time_in_force === 'gtc' && sent[2].who === 'tony', JSON.stringify(sent));
