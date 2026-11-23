@@ -1,18 +1,6 @@
-// TradeHub Quant, Phase 12 in the real page (A1-Priv tradehub.html + TradeHub/ui/risk.js,
-// edge.js, rules.js, neo/rules-ctx.js, neo/reg/risk.js): Portfolio ▸ Risk, Journal ▸ Edge,
-// Control ▸ My rules and the heads-ups, on a played Webull portfolio and a seeded Journal.
-//
-//   1. Portfolio ▸ Risk: exposure by sector, concentration, VaR, the heat grid, open risk
-//      to the Journal's stop, drawdown, the size calculator, the flags and the rules' heads-ups
-//   2. display mode blurs every personal figure on the new cards
-//   3. Journal ▸ Edge: the breakdown with its switch, small samples marked, the patterns,
-//      the Monte Carlo fan (in the worker), the rule checks ("your 5th trade today")
-//   4. a heads-up dismissed for today, a check muted ("don't warn me again") and back on
-//   5. reconcile: the synced leg corrected (logged), the typed leg only flagged until
-//      "Use Webull's value"; nothing else in the Journal written
-//   6. Control ▸ My rules: a proposal checks nothing until Accept; Accept writes the doc
-//   7. Neo Quant: "show risk", "my edge" and "my rules" are instant commands
-//   8. 1504 / 820 / 390 px: the cards tile, no sideways scroll; no uncaught error
+// TradeHub Portfolio Risk and Journal Edge in the real page, using a played Webull portfolio and Journal.
+// Checks exposure, VaR, stops and sizing; Edge breakdown, patterns, Monte Carlo and reconciliation at three widths.
+// Neo Quant can still open both views, and display mode masks private figures.
 //
 // Run: node tests/live/tradehub-quant-risk.live.js   (SHOTS_DIR=… for screenshots)
 'use strict';
@@ -66,11 +54,6 @@ const PORTFOLIO = {
   ],
   activities: [], errors: {},
 };
-const RULES = { rules: [
-  { id: 'maxTradesDay', kind: 'maxTradesDay', value: 4, on: true, status: 'active', source: 'tony' },
-  { id: 'maxPositionPct', kind: 'maxPositionPct', value: 20, on: true, status: 'active', source: 'tony' },
-  { id: 'stopRequired', kind: 'stopRequired', on: true, status: 'proposed', source: 'neo', quote: 'Always use a stop.' },
-], muted: [], savedAt: CLOCK - DAY };
 
 (async () => {
   const api = quantApi();
@@ -89,7 +72,7 @@ const RULES = { rules: [
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
   });
   const { js, until, size, boot, tab, shot } = driver(c);
-  const docs = { 'dashboards/tradeboard_journal': journal(), 'dashboards/tradehub_rules': RULES };
+  const docs = { 'dashboards/tradeboard_journal': journal() };
   const R = `document.querySelector('[data-risk-view]')`, E = `document.querySelector('[data-edge-view]')`;
   const text = (sel) => js(`var e=document.querySelector('${sel}'); return e ? e.innerText : null;`);
 
@@ -115,7 +98,6 @@ const RULES = { rules: [
   await js(`var set=function(k,v){var i=document.querySelector('[data-rk-size="'+k+'"]'); i.value=v; i.dispatchEvent(new Event('input',{bubbles:true}));}; set('entry','400'); set('stop','390'); 1`);
   ok('...a tight stop on a dear stock stops at 20% of the account (50 shares)', await until(`/Shares\\s*50\\b/.test(document.querySelector('[data-rk-size-out]').innerText) && /Capped at 20%/.test(document.querySelector('[data-rk-size-out]').innerText)`, 3000), await text('[data-rk-size-out]'));
   ok('flags: NVDA over 20%, Semiconductors over 35%', await js(`var f=[...document.querySelectorAll('[data-rk-flag]')].map(function(x){return x.dataset.rkFlag;}).sort().join(); return f === 'position,sector';`), await text('[data-rk-flags]'));
-  ok('his rule as a heads-up: "NVDA is 27% of the account; your rule says 20% max."', await until(`[...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].some(function(x){return /Heads up: NVDA is 27% of the account; your rule says 20% max\\./.test(x.innerText);})`, 8000), await text('[data-rk-flags]'));
   await shot('risk-1504');
 
   console.log('\nDisplay mode');
@@ -141,7 +123,7 @@ const RULES = { rules: [
   await until(`document.querySelector('[data-journal-edge]')`, 6000);
   const swEdge = await swRight();
   ok('...on Trades it is the last thing at the right, where it sits on Edge', swTrades && swTrades.last && swEdge && Math.abs(swTrades.right - swEdge.right) <= 1, JSON.stringify({ swTrades, swEdge }));
-  ok('Edge draws its six cards', await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 6`, 10000));
+  ok('Edge draws its six cards', await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 5`, 10000));
   ok('the breakdown: overall over his closed trades', await until(`document.querySelector('[data-ed-row="All trades"]')`, 8000), await text('[data-ed-breakdown]'));
   await js(`var s=document.querySelector('[data-ed-by]'); s.value='ticker'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('by ticker: every group under 20 trades is marked small', await until(`document.querySelectorAll('[data-ed-row]').length >= 4 && [...document.querySelectorAll('[data-ed-row]')].every(function(r){return r.classList.contains('is-small');})`, 3000), await text('[data-ed-table]'));
@@ -153,22 +135,7 @@ const RULES = { rules: [
   const eLeaks = await js(LEAKS(E));
   ok('every personal figure on the Edge cards is blurred too', eLeaks.length === 0, JSON.stringify(eLeaks.slice(0, 8)));
   await js(`window._tbOps.app.display(false); 1`);
-  ok('rule checks: "this is your 5th trade today; your rule says 4."', await until(`[...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /this is your 5th trade today; your rule says 4\\./.test(x.innerText);})`, 8000), await text('[data-ed-rules]'));
-  ok('the proposed "stop required" rule checks nothing yet (no heads-up for the trade without a stop)', !(await js(`return [...document.querySelectorAll('[data-rw-head]')].some(function(x){return /has no stop/.test(x.innerText);});`)));
-  ok('how often each rule was broken, with those trades against the rest', await until(`document.querySelector('[data-ed-histrow="maxTradesDay"]')`, 3000), await text('[data-ed-rules]'));
   await shot('edge-1504');
-
-  console.log('\nDismiss and mute');
-  const pressOn = (scope, re, btnSel) => until(`(function(){var h=[...document.querySelectorAll('${scope} [data-rw-head]')].find(function(x){return ${re}.test(x.textContent);}); if(!h) return false; h.querySelector('${btnSel}').click(); return true;})()`, 8000);
-  ok('the 5th-trade heads-up has Dismiss', await pressOn('[data-ed-rules]', '/5th trade/', '[data-rw-dismiss]'), await text('[data-ed-rules]'));
-  ok('dismissed: gone for today', await until(`![...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /5th trade/.test(x.innerText);})`, 3000));
-  ok('...and no data changed (the rules doc untouched)', await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_rules'].rules.map(function(r){return r.id+r.status;})) === JSON.stringify(['maxTradesDayactive','maxPositionPctactive','stopRequiredproposed']) && !window.__fakeFs.log.some(function(l){return /tradehub_rules/.test(l.path);});`));
-  await tab('portfolio');
-  await js(`var b=[...document.querySelectorAll('.tbtabs [role=tab]')].find(function(b){return /^Risk/.test(b.textContent);}); if(b) b.click(); 1`);
-  ok('the NVDA heads-up has "Don\'t warn me about this again"', await pressOn('[data-rk-flags]', '/NVDA is 27%/', '[data-rw-mute]'), await text('[data-rk-flags]'));
-  ok('"Don\'t warn me about this again": that check goes quiet', await until(`![...document.querySelectorAll('[data-rk-flags] [data-rw-head]')].some(function(x){return /NVDA is 27%/.test(x.innerText);})`, 3000));
-  ok('...the plain flag stays (information, not the rule)', await js(`return !!document.querySelector('[data-rk-flag="position"]');`));
-  ok('...and the muted check is saved (one debounced write)', await until(`(window.__fakeFs.docs['dashboards/tradehub_rules'].muted||[]).indexOf('maxPositionPct') >= 0`, 5000));
 
   console.log('\nJournal vs Webull');
   await tab('journal');
@@ -182,16 +149,6 @@ const RULES = { rules: [
   ok('"Use Webull\'s value": the typed leg now reads 98.50, logged as Tony\'s', await until(`(function(){var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; var t=Object.values(d).find(function(x){return x&&x.id==='man1';}); return t && t.legs[0].price === 98.5 && t.corrections && t.corrections[0].by === 'tony';})()`, 6000), await trade('man1'));
   ok('...one write, and every other trade unchanged', await js(`var d=window.__fakeFs.docs['dashboards/tradeboard_journal']; return Object.values(d).filter(function(x){return x&&x.corrections;}).length === 2 && !!d && Object.values(d).filter(function(x){return x&&x.corrections;}).some(function(x){return x.id==='man1';});`) && (await js(`return window.__fakeFs.log.filter(function(l){return /tradeboard_journal$/.test(l.path);}).length;`)) - writesBefore <= 1);
 
-  console.log('\nControl ▸ My rules');
-  await tab('prompt');
-  ok('the My rules card lists the rules, the proposal and the muted check', await until(`document.querySelector('[data-my-rules] [data-rw-rule="maxTradesDay"]') && document.querySelector('[data-rw-proposed] [data-rw-rule="stopRequired"]') && document.querySelector('[data-rw-mutedrow="maxPositionPct"]')`, 10000), await text('[data-my-rules]'));
-  await js(`document.querySelector('[data-rw-mutedrow="maxPositionPct"] [data-rw-unmute]').click(); 1`);
-  ok('Turn back on: unmuted', await until(`!document.querySelector('[data-rw-mutedrow="maxPositionPct"]')`, 3000));
-  await js(`document.querySelector('[data-rw-rule="stopRequired"] [data-rw-accept]').click(); 1`);
-  ok('Accept: the rule is active and written to the doc', await until(`(window.__fakeFs.docs['dashboards/tradehub_rules'].rules.find(function(r){return r.id==='stopRequired';})||{}).status === 'active' && (window.__fakeFs.docs['dashboards/tradehub_rules'].muted||[]).length === 0`, 6000), await js(`return JSON.stringify(window.__fakeFs.docs['dashboards/tradehub_rules']);`));
-  await tab('journal');
-  ok('...and now it checks: the 11:30 trade has no stop', await until(`[...document.querySelectorAll('[data-ed-rules] [data-rw-head]')].some(function(x){return /PLTR trade from 11:30 AM has no stop/.test(x.innerText);})`, 8000), await text('[data-ed-rules]'));
-
   console.log('\nNeo Quant');
   await js(`import('./TradeHub/neo/app.js').then(function(m){ window.__tbNeoApp = m.getNeoApp(); }); 1`);
   await until(`window.__tbNeoApp && window.__tbNeoApp.session`, 10000);
@@ -199,10 +156,6 @@ const RULES = { rules: [
   ok('"show risk" → Portfolio ▸ Risk, no AI call', await until(`window._tbOps.app.page()==='portfolio' && document.querySelector('[data-risk-view]')`, 8000));
   await js(`window.__tbNeoApp.session.say('my edge'); 1`);
   ok('"my edge" → Journal ▸ Edge', await until(`window._tbOps.app.page()==='journal' && document.querySelector('[data-edge-view]')`, 8000));
-  await js(`window.__tbNeoApp.session.say('my rules'); 1`);
-  ok('"my rules" → Control ▸ My rules', await until(`window._tbOps.app.page()==='prompt' && document.querySelector('[data-my-rules]')`, 8000));
-  ok('the registry lists Risk, edge and my rules', await js(`return window.__tbNeoApp.registry.list().some(function(e){return e.id==='risk' && e.actions.propose && e.readers.warnings;});`));
-
   console.log('\nWidths');
   for (const [w, hgt] of [[1504, 950], [820, 1100], [390, 844]]) {
     await size(w, hgt);
@@ -216,7 +169,7 @@ const RULES = { rules: [
     ok(`${w} px: Risk's cards tile (none overlap) and nothing scrolls sideways`, !(await js(`return ${overlap(R)};`)) && (await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`)), await js(`return document.documentElement.scrollWidth + ' / ' + window.innerWidth;`));
     await shot('risk-' + w);
     await go('journal');
-    await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 6`, 8000);
+    await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 5`, 8000);
     ok(`${w} px: Edge's cards tile and nothing scrolls sideways`, !(await js(`return ${overlap(E)};`)) && (await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`)));
     await shot('edge-' + w);
   }

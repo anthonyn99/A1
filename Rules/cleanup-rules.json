@@ -312,6 +312,21 @@
       "origin": "a1-priv"
     },
     {
+      "id": "tradehub-manual-rules-local",
+      "store": "localStorage",
+      "program": "tradehub",
+      "origin": "a1-priv",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "tradehub_rules",
+        "tradehub_rules_dismissed"
+      ],
+      "owner": "TradeHub Control Rules, retired in TR7",
+      "reason": "The manual rules and dismissal cache have no remaining readers. The local rule cache may hold unsynced edits.",
+      "delete": false
+    },
+    {
       "id": "moved-programs-old-origin",
       "store": "localStorage",
       "program": "index",
