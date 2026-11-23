@@ -392,7 +392,6 @@ const ok = (ph, name, cond, extra) => {
       await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
       ok('TR2', '...the ticket says "Confirm off · Turn on"', await js(`return !!${OT}.querySelector('[data-ot-confirmoff]');`));
       await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '101'); await otSet('size', '1'); await otPress('[data-ot-go]');
-      ok('TR2', '...the next order goes straight out (no confirmation) with a short note', await until(`ppPosts().length`, 1) || true);
       ok('TR2', '...one more order sent, no confirmation shown, a note', await until(`!document.querySelector('[data-order-confirm]') && !!document.querySelector('[data-oc-note]')`, 3000) && ppPosts().length === n0 + 2);
       await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
       await js(`${OT}.querySelector('[data-ot-confirmoff]').click(); 1`);
