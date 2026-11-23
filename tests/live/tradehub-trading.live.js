@@ -158,6 +158,8 @@ const ok = (ph, name, cond, extra) => {
     }
 
     if (want('TR7')) {
+      await tab('market');
+      await js("localStorage.setItem('tradehub_control_sub','rules'); 1");
       await tab('prompt');
       ok('TR7', 'A saved Rules selection opens Watchlists and no Rules sub-tab is offered', await until("document.querySelector('[data-ctl-sub=watchlists].is-on') && !document.querySelector('[data-ctl-sub=rules], [data-quant-rules]')", 4000));
       await js("document.querySelector('[data-ctl-sub=alerts]').click(); 1");
@@ -168,6 +170,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR7', 'Neo Quant can still read Risk and Edge with the manual rule actions gone', await js("const {Registry}=await import('./TradeHub/neo/reg/index.js'); return !!Registry.reader('risk.now') && !!Registry.reader('risk.edge') && !Registry.reader('risk.rules') && !Registry.action('risk.openRules');"));
     }
 
+    if (['TR5', 'TR6', 'TR7'].some(want) && ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'TR1', 'TR2', 'TR3', 'TR4'].some(want)) await boot({ quant: true });
     // T2: the Trading tab
     ok('T2', 'the nav says "Trading" (no "Paper" tab left)', await js(`return !!document.querySelector('.tb-navtab[data-navid="trading"]') && !document.querySelector('.tb-navtab[data-navid="paper"]');`));
     await tab('trading');
