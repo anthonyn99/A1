@@ -21,7 +21,7 @@
 //
 // Run: CDP_PORT=93xx node tests/live/tradehub-trading.live.js    PHASES=T2,T3 runs only those tags.
 'use strict';
-const { connect } = require('./cdp.js');
+const { connect, sleep } = require('./cdp.js');
 const { quantApi, driver, PAGE_SETUP, CLOCK } = require('./quant-mock.js');
 
 const ONLY = (process.env.PHASES || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
@@ -116,8 +116,11 @@ const ok = (ph, name, cond, extra) => {
       const pctMode = await scaleMode();
       ok('TR6', 'Price scale logarithmic and percent apply to the price axis', logMode === 'log|1' && pctMode === 'pct|2', [logMode, pctMode]);
       await choose('data-ch-scale', 'auto');
+      const rawRequests = () => api.asked.filter((a) => a.p === '/bars' && /adj=0/.test(a.q)).length;
+      const beforeRaw = rawRequests();
       await click('data-ch-tg', 'adj');
-      ok('TR6', 'Adj. requests raw prices', await until(ch + "?.get().adj===false && document.querySelector('[data-ch-note]').hidden", 6000) && api.asked.some((a) => a.p === '/bars' && /adj=0/.test(a.q)));
+      for (let waited = 0; rawRequests() === beforeRaw && waited < 5000; waited += 100) await sleep(100);
+      ok('TR6', 'Adj. requests raw prices', await js('return ' + ch + '.get().adj===false;') && rawRequests() > beforeRaw);
       await click('data-ch-tg', 'adj');
       await click('data-ch-tg', 'volume');
       ok('TR6', 'Volume off removes the histogram', await until(ch + "?.chart().panes().every(p=>p.getSeries().every(s=>s.seriesType()!=='Histogram' || s.options().priceFormat?.type!=='volume'))", 5000));
