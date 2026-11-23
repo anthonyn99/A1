@@ -388,7 +388,7 @@ const ok = (ph, name, cond, extra) => {
       await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
       ok('TR3', '...one drop call; the stop stays', await until(`!${W}.querySelector('[data-pp-leg="w1tp"]')`, 3000) && ppCalls('POST', /\/paper\/orders\/w1tp\/drop$/).length === d0 + 1 && await js(`return !!${W}.querySelector('[data-pp-leg="w1sl"]');`));
       await js(`${W}.querySelector('[data-pp-ord="o1"] [data-pp-cancel]').click(); 1`);
-      ok('TR3', 'Cancel on a position's exit pair cancels the whole order (says both go), not just its take profit', await until(`!!${CDLG('cancel')}`, 2000) && await js(`var d=${CDLG('cancel')}; return /^Cancel order/.test(d.querySelector('.ot-head b').textContent) && /take profit and stop loss go with it/.test(d.innerText);`), await js(`return (${CDLG('cancel')}||{}).innerText;`));
+      ok('TR3', 'Cancel on a position exit pair cancels the whole order (says both go), not just its take profit', await until(`!!${CDLG('cancel')}`, 2000) && await js(`var d=${CDLG('cancel')}; return /^Cancel order/.test(d.querySelector('.ot-head b').textContent) && /take profit and stop loss go with it/.test(d.innerText);`), await js(`return (${CDLG('cancel')}||{}).innerText;`));
       const x0 = ppCalls('DELETE', /\/paper\/orders\/o1$/).length;
       await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
       ok('TR3', '...one cancel of the whole pair; no drop', await until(`!${W}.querySelector('[data-pp-ord="o1"]')`, 3000) && ppCalls('DELETE', /\/paper\/orders\/o1$/).length === x0 + 1 && !ppCalls('POST', /\/paper\/orders\/o1\/drop$/).length);
