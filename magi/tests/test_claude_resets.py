@@ -125,11 +125,10 @@ def test_turning_off_posts_an_empty_list(engine):
 
 
 @pytest.mark.parametrize("profile", ["tony", "veda"])
-def test_codex_uses_its_own_usage_and_settings(profile, engine, monkeypatch):
+def test_codex_uses_its_own_usage_and_settings(profile, tmp_path, monkeypatch):
     from magi.code.agents import limits
 
-    monkeypatch.undo()
-    monkeypatch.setattr(cr, "data_dir", lambda: engine["data_dir"])
+    monkeypatch.setattr(cr, "data_dir", lambda: tmp_path)
     monkeypatch.setattr(cr, "active_profile", lambda: profile)
     monkeypatch.setattr(cr, "api_token", lambda: "tok")
     monkeypatch.setattr(cr, "account_slot", lambda agent: "default")
@@ -137,7 +136,8 @@ def test_codex_uses_its_own_usage_and_settings(profile, engine, monkeypatch):
     monkeypatch.setattr(cr, "label_of", lambda slot, agent: slot)
     monkeypatch.setattr(cr.time, "time", lambda: NOW)
     reset = NOW + 29 * 86400
-    monkeypatch.setattr(limits, "usage", lambda agent, slot: {"30d": {"resets_at": reset}})
+    monkeypatch.setattr(limits, "usage", lambda agent, slot: {"30d": {"resets_at": reset}}
+                        if (agent, slot) == ("codex", "default") else {})
     calls = []
     monkeypatch.setattr(cr, "post", lambda *a: calls.append(a) or {"ok": True, "detail": ""})
 

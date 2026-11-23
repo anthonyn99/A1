@@ -1,4 +1,4 @@
-// Harness: load worker.js, expose handleClaudeResets, and run it against a fake
+// Harness: load the worker's reset routes and run them against a fake
 // Firestore. No network, no Cloudflare. Pins the three promises the endpoint
 // makes: a wrong token writes nothing, an old reset's reminder is deleted when
 // a new one arrives, and a reminder that already exists is never overwritten
@@ -11,10 +11,9 @@ import assert from 'assert/strict';
 
 const SP = mkdtempSync(join(tmpdir(), 'crtest-'));
 let src = readFileSync(new URL('./worker.js', import.meta.url), 'utf8');
-src = src.replace(/^export default \{[\s\S]*?\n\};/m, '');
 src = src.replace('async function getGoogleAccessToken(env) {',
                   "async function getGoogleAccessToken(env) { return 'svc';");
-src += '\nexport { handleClaudeResets, claudeResetList };\n';
+src += '\nexport { magiResetList };\n';
 writeFileSync(SP + '/_w.mjs', src);
 
 // ── a fake Firestore, just the REST shapes the handler uses ─────────────────
@@ -45,13 +44,13 @@ globalThis.fetch = async (url, opts = {}) => {
   throw new Error('unexpected ' + method + ' ' + url);
 };
 
-const { handleClaudeResets, claudeResetList } = await import(pathToFileURL(SP + '/_w.mjs').href);
+const { default: worker, magiResetList } = await import(pathToFileURL(SP + '/_w.mjs').href);
 
 const KV = { deleted: 0, delete: async () => { KV.deleted++; } };
 const env = { FIREBASE_PROJECT_ID: 'p', TOKEN_CACHE: KV };
-const call = async (body) => {
-  const req = new Request('https://x/claude-resets', { method: 'POST', body: JSON.stringify(body) });
-  const r = await handleClaudeResets(req, env, '');
+const call = async (body, agent = 'claude') => {
+  const req = new Request(`https://x/${agent}-resets`, { method: 'POST', body: JSON.stringify(body) });
+  const r = await worker.fetch(req, env, {});
   return { status: r.status, body: await r.json() };
 };
 const reminders = () => [...DOCS.keys()].filter(k => k.startsWith('reminders/')).sort();
@@ -146,7 +145,7 @@ assert.ok(DOCS.has('reminders/' + idP), 'a due reminder survives the post that d
 DOCS.delete('reminders/' + idP);
 
 // The pure filter: past, far-future, unknown and duplicate kinds are dropped.
-const list = claudeResetList('tony', { resets: [
+const list = magiResetList('claude', 'tony', { resets: [
   { kind: 'five_hour', at: now - 5 * 60000 },
   { kind: 'five_hour', at: A }, { kind: 'five_hour', at: B },
   { kind: 'seven_day', at: now + 30 * 24 * H },
@@ -154,4 +153,31 @@ const list = claudeResetList('tony', { resets: [
 ] }, now);
 assert.deepEqual(list.map(x => x.at), [A]);
 
-console.log('claude-resets: all assertions passed');
+// Codex free and paid windows route to each owner's devices and calendar.
+const tonyCodex = { profile: 'tony', token: 'tony-secret', resets: [
+  { kind: 'five_hour', at: A }, { kind: 'seven_day', at: now + 3 * 24 * H },
+] };
+const vedaCodex = { profile: 'veda', token: 'veda-secret', resets: [
+  { kind: 'thirty_day', at: now + 29 * 24 * H },
+] };
+assert.equal((await call({ ...vedaCodex, token: tonyCodex.token }, 'codex')).status, 401);
+const claudeDoc = DOCS.get('dashboards/claude_resets_tony');
+for (const body of [tonyCodex, vedaCodex]) {
+  const result = await call(body, 'codex');
+  assert.equal(result.status, 200);
+  assert.equal(result.body.created.length, body.resets.length);
+  assert.ok(DOCS.has(`dashboards/codex_resets_${body.profile}`));
+  for (const id of result.body.created) {
+    const rem = DOCS.get('reminders/' + id);
+    assert.equal(rem.dashboard.stringValue, body.profile);
+    assert.match(rem.title.stringValue, /^Codex/);
+  }
+  assert.deepEqual((await call(body, 'codex')).body.created, []);
+}
+assert.equal(DOCS.get('dashboards/claude_resets_tony'), claudeDoc);
+const vedaReminders = reminders().filter(k => k.startsWith('reminders/codex_veda_'));
+await call({ ...tonyCodex, enabled: false }, 'codex');
+assert.deepEqual(reminders(), vedaReminders);
+assert.equal(vedaReminders.length, 1);
+
+console.log('Claude and Codex resets: all assertions passed');
