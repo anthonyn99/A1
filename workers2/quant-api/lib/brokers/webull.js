@@ -351,7 +351,9 @@ export async function dropLeg(env, req, url, id, { fetchFn = fetch, now = Date.n
   await env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE id = ? AND broker = 'webull'").bind(id).run().catch(() => {});
   const steps = ['the ' + name(drop) + ' was cancelled'];
   let order = null;
-  for (const k of kept) {
+  // While the entry waits, the sandbox keeps the other leg (measured): nothing to wait for or put back.
+  const waiting = group.order_class !== 'oco' && OPEN.has(group.status) && !(group.filled_qty > 0);
+  for (const k of waiting ? [] : kept) {
     let st = null;
     for (let t = 0; t < 4; t++) { await wait(t ? 700 : 400); clearCache(); try { st = (await detail(env, a, k.id, fetchFn)).status; } catch (e) { st = null; } if (st === 'canceled') break; }
     if (st !== 'canceled') continue;
