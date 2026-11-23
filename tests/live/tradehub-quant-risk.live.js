@@ -123,7 +123,7 @@ const PORTFOLIO = {
   await until(`document.querySelector('[data-journal-edge]')`, 6000);
   const swEdge = await swRight();
   ok('...on Trades it is the last thing at the right, where it sits on Edge', swTrades && swTrades.last && swEdge && Math.abs(swTrades.right - swEdge.right) <= 1, JSON.stringify({ swTrades, swEdge }));
-  ok('Edge draws its six cards', await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 5`, 10000));
+  ok('Edge draws its five cards', await until(`${E} && ${E}.querySelectorAll('.lay-card').length === 5`, 10000));
   ok('the breakdown: overall over his closed trades', await until(`document.querySelector('[data-ed-row="All trades"]')`, 8000), await text('[data-ed-breakdown]'));
   await js(`var s=document.querySelector('[data-ed-by]'); s.value='ticker'; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
   ok('by ticker: every group under 20 trades is marked small', await until(`document.querySelectorAll('[data-ed-row]').length >= 4 && [...document.querySelectorAll('[data-ed-row]')].every(function(r){return r.classList.contains('is-small');})`, 3000), await text('[data-ed-table]'));
