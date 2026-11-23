@@ -388,7 +388,7 @@ async function usage(env) {
     usage: rows.map((r) => ({ service: r.service, n: r.n, cap: CAPS[r.service.split(':')[0]] || null })),
     health,
     caps: CAPS,
-    keys: { alpaca: alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), alphavantage: !!env.ALPHAVANTAGE_KEY, ...ai.keysSet(env), gemini: !!env.GEMINI_KEY },
+    keys: { alpaca: alpaca.has(env), 'alpaca-boats': alpaca.has(env), public: publicCom.has(env), finnhub: finnhub.has(env), yahoo: true, tiingo: tiingo.has(env), alphavantage: !!env.ALPHAVANTAGE_KEY, ...ai.keysSet(env), gemini: !!env.GEMINI_KEY },
   });
 }
 
