@@ -427,7 +427,8 @@ globalThis.fetch = async (url, init = {}) => {
   W.reset(); W.status['alpaca-boats'] = 403;
   r = await call(env, nightRoute, { key: GOOD });
   ok('An overnight entitlement refusal keeps the main chart bars and says they lack overnight coverage', r.status === 200
-    && r.body.night === 'unavailable' && !r.body.complete && r.body.provider === 'alpaca' && r.body.bars.length > 0);
+    && r.body.night === 'unavailable' && !r.body.complete && r.body.provider === 'alpaca' && r.body.bars.length > 0,
+  JSON.stringify({ status: r.status, night: r.body?.night, provider: r.body?.provider, error: r.body?.error, tried: r.body?.tried }));
   W.reset(); W.down.add('alpaca');
   r = await call(env, `/bars?symbol=NVDA&tf=1m&from=${NOW - 40 * DAY}&to=${NOW}`, { key: GOOD });
   ok('Yahoo keeps 30 days of 1-minute bars: asked further back, it says the answer is incomplete', r.status === 200 && r.body.provider === 'yahoo' && r.body.complete === false);
