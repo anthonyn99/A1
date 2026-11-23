@@ -372,7 +372,9 @@ const ok = (ph, name, cond, extra) => {
           legs: [{ id: 'w1tp', symbol: 'AMD', side: 'sell', type: 'limit', qty: 2, limit_price: 150, status: 'held' }, { id: 'w1sl', symbol: 'AMD', side: 'sell', type: 'stop', qty: 2, stop_price: 135, status: 'held' }] },
         { id: 'f1', symbol: 'NVDA', side: 'buy', type: 'market', qty: 10, status: 'filled', filled_qty: 10, filled_avg_price: 160, order_class: 'bracket', time_in_force: 'gtc',
           legs: [{ id: 'f1tp', symbol: 'NVDA', side: 'sell', type: 'limit', qty: 10, limit_price: 180, status: 'new' }, { id: 'f1sl', symbol: 'NVDA', side: 'sell', type: 'stop', qty: 10, stop_price: 150, status: 'held' }] },
-        { id: 's1', symbol: 'TSLA', side: 'sell', type: 'limit', qty: 1, limit_price: 320, status: 'new', order_class: 'simple', time_in_force: 'day', submitted_at: '2026-11-23T15:01:00Z' }];
+        { id: 's1', symbol: 'TSLA', side: 'sell', type: 'limit', qty: 1, limit_price: 320, status: 'new', order_class: 'simple', time_in_force: 'day', submitted_at: '2026-11-23T15:01:00Z' },
+        { id: 'o1', symbol: 'NVDA', side: 'sell', type: 'limit', qty: 10, limit_price: 190, status: 'new', order_class: 'oco', time_in_force: 'gtc', submitted_at: '2026-11-23T15:02:00Z',
+          legs: [{ id: 'o1s', symbol: 'NVDA', side: 'sell', type: 'stop', qty: 10, stop_price: 145, status: 'held' }] }];
       await js(`window._tbOps.trading.refresh(); 1`);
       const W = `document.querySelector('[data-pp-working]')`;
       ok('TR3', 'Working orders: one box per order; the bracket carries its take profit and stop inside, marked as waiting', await until(`!!${W} && !!${W}.querySelector('[data-pp-ord="w1"]')`, 6000)
@@ -385,6 +387,11 @@ const ok = (ph, name, cond, extra) => {
       ok('TR3', 'x on a leg asks "Remove take profit" (the chart\'s dialog)', await until(`!!${CDLG('cancel')}`, 2000) && await js(`return /^Remove take profit/.test(${CDLG('cancel')}.querySelector('.ot-head b').textContent);`));
       await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
       ok('TR3', '...one drop call; the stop stays', await until(`!${W}.querySelector('[data-pp-leg="w1tp"]')`, 3000) && ppCalls('POST', /\/paper\/orders\/w1tp\/drop$/).length === d0 + 1 && await js(`return !!${W}.querySelector('[data-pp-leg="w1sl"]');`));
+      await js(`${W}.querySelector('[data-pp-ord="o1"] [data-pp-cancel]').click(); 1`);
+      ok('TR3', 'Cancel on a position's exit pair cancels the whole order (says both go), not just its take profit', await until(`!!${CDLG('cancel')}`, 2000) && await js(`var d=${CDLG('cancel')}; return /^Cancel order/.test(d.querySelector('.ot-head b').textContent) && /take profit and stop loss go with it/.test(d.innerText);`), await js(`return (${CDLG('cancel')}||{}).innerText;`));
+      const x0 = ppCalls('DELETE', /\/paper\/orders\/o1$/).length;
+      await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
+      ok('TR3', '...one cancel of the whole pair; no drop', await until(`!${W}.querySelector('[data-pp-ord="o1"]')`, 3000) && ppCalls('DELETE', /\/paper\/orders\/o1$/).length === x0 + 1 && !ppCalls('POST', /\/paper\/orders\/o1\/drop$/).length);
       // Every order card fits its width, also squeezed narrow.
       const fits = () => js(`return ['[data-pp-working]','[data-pp-positions]','[data-pp-filled]','[data-pp-log]'].every(function(s){ var c=document.querySelector(s); return !c || c.scrollWidth <= c.clientWidth + 1; });`);
       ok('TR3', 'no order card runs past its edge', await fits());
