@@ -76,6 +76,9 @@ const ok = (ph, name, cond, extra) => {
     const OT = `document.querySelector('.ot-scrim [data-order-ticket]')`;
     const otSet = (k, v, root = OT) => js(`var i=${root}.querySelector('[data-ot-${k}]'); i.value=${JSON.stringify(String(v))}; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
     const otPress = (sel, root = OT) => js(`var b=${root}.querySelector('${sel}'); b.click(); 1`);
+    // TR2: the send button opens the one order confirmation (ui/order-confirm.js); its own button places.
+    const OC = `document.querySelector('[data-order-confirm]')`;
+    const ocGo = async () => { await until(`!!${OC} && !${OC}.querySelector('[data-oc-go]').disabled`, 3000); return js(`${OC}.querySelector('[data-oc-go]').click(); 1`); };
     const setBrokerTo = (b) => js(`var s=document.querySelector('[data-trade-broker]'); if (s.value!=='${b}') { s.value='${b}'; s.dispatchEvent(new Event('change',{bubbles:true})); } 1`);
     if (want('T3')) { await tab('trading'); await setBrokerTo('alpaca'); await until(`(document.querySelector('[data-pp-equity]')||{}).textContent==='$100,000.00'`, 6000); }
     ok('T3', '"New Order" opens the redesigned ticket with five type pills', await js(`var b=document.querySelector('[data-trade-new]'); if(!b) return false; b.click(); return true;`)
@@ -89,7 +92,9 @@ const ok = (ph, name, cond, extra) => {
       await otSet('symbol', 'NVDA');
       ok('T3', '10 NVDA held: Sell starts at the 10 shares and is an exit (no legs offered)', await until(`${OT}.querySelector('[data-ot-size]').value==='10' && !${OT}.querySelector('[data-ot-leg]')`, 2000), await js(`return ${OT}.querySelector('[data-ot-size]').value;`));
       await otSet('symbol', 'TSLA'); await otPress('[data-ot-side="short"]'); await otSet('size', '1'); await otPress('[data-ot-go]');
-      ok('T3', 'Short on TSLA reads back "PAPER · Alpaca: Sell short 1 share of TSLA"', await until(`/Sell short 1 share of TSLA/.test(${OT}.querySelector('[data-ot-readback]').textContent)`, 3000), await js(`return ${OT}.querySelector('[data-ot-readback]').textContent + ' | ' + ${OT}.querySelector('[data-ot-errors]').textContent;`));
+      ok('T3', 'Short on TSLA: the confirmation reads back "PAPER · Alpaca: Sell short 1 share of TSLA", its button "Short" in coral', await until(`!!${OC} && /Sell short 1 share of TSLA/.test(${OC}.querySelector('[data-oc-readback]').textContent)`, 3000)
+        && await js(`var g=${OC}.querySelector('[data-oc-go]'); return g.textContent==='Short' && g.dataset.tone==='short';`), await js(`return (${OC}||${OT}).innerText;`));
+      await js(`${OC}.querySelector('[data-oc-cancel]').click(); 1`);
       await otSet('symbol', ''); await otPress('[data-ot-side="buy"]');
       ok('T3', 'the popup fits the screen' + (w < 600 ? ' as a bottom sheet' : ', centred'), await js(`var r=${OT}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && r.width >= innerWidth - 1' : 'r.left > 0 && r.bottom < innerHeight'};`), await js(`return JSON.stringify(${OT}.getBoundingClientRect());`));
       await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '140'); await otSet('size', '10');
@@ -101,7 +106,7 @@ const ok = (ph, name, cond, extra) => {
       await shot('t3-ticket-' + w);
       const before = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length;
       await otPress('[data-ot-go]');
-      ok('T3', 'Review reads it back (PAPER · Alpaca) and sends nothing yet', await js(`return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(${OT}.querySelector('[data-ot-readback]').textContent) && ${OT}.querySelector('[data-ot-go]').textContent==='Place on paper · Alpaca';`)
+      ok('T3', 'TR2: "Buy AMD" opens the confirmation (Webull\'s rows, the read-back, Don\'t remind me) and sends nothing yet', await until(`!!${OC}`, 2000) && await js(`var d=${OC}; return /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00/.test(d.querySelector('[data-oc-readback]').textContent) && /Quantity/.test(d.innerText) && /Take profit/.test(d.innerText) && !!d.querySelector('[data-oc-noremind]') && d.querySelector('[data-oc-go]').textContent==='Buy' && 'Place on paper · Alpaca';`)
         && (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)).length === before, await js(`return ${OT}.querySelector('[data-ot-readback]').textContent;`));
       await otPress('[data-ot-go]');
       ok('T3', 'Confirm: one bracket order to Alpaca paper, as Tony\'s; the popup closes', await until(`!${OT}`, 5000) && (() => { const o = (api.posted.pp || []).filter(([m, p]) => m === 'POST' && /orders$/.test(p)); const last = o[o.length - 1]; return o.length === before + 1 && last[2].who === 'tony' && last[2].order.order_class === 'bracket' && last[2].order.qty === 10; })(), JSON.stringify((api.posted.pp || []).slice(-2)));
