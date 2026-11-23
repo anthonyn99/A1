@@ -360,6 +360,7 @@ const ok = (ph, name, cond, extra) => {
     }
     // TR3 (quant-trading-refine-1.md): positions, working orders, fills and the activity as boxes, at any card size.
     if (want('TR3')) {
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);   // the opening check's ticket
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       const keep3 = JSON.parse(JSON.stringify(api.state.pp.orders));
       api.state.pp.orders = [
@@ -372,7 +373,7 @@ const ok = (ph, name, cond, extra) => {
       const W = `document.querySelector('[data-pp-working]')`;
       ok('TR3', 'Working orders: one box per order; the bracket carries its take profit and stop inside, marked as waiting', await until(`!!${W} && !!${W}.querySelector('[data-pp-ord="w1"]')`, 6000)
         && await js(`var b=${W}.querySelector('[data-pp-ord="w1"]'); return b.classList.contains('pp-box') && b.querySelectorAll('[data-pp-leg]').length===2 && /waits for the entry/.test(b.innerText) && /Limit 140\\.00/.test(b.innerText) && !!b.querySelector('[data-pp-cancel]') && !!b.querySelector('[data-pp-reprice]');`), await js(`return ${W}.innerText;`));
-      ok('TR3', 'a filled bracket shows as the exits left on the position (no "working buy")', await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return !!b && /Exits/.test(b.innerText) && b.querySelectorAll('[data-pp-leg]').length===2 && !b.querySelector('[data-pp-cancel]');`), await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return b && b.innerText;`));
+      ok('TR3', 'a filled bracket shows as the exits left on the position (no "working buy")', await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return !!b && /Exits/.test(b.innerText) && b.querySelectorAll('[data-pp-leg]').length===2 && !b.querySelector('[data-pp-cancel]') && !/waits for the entry/.test(b.innerText);`), await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return b && b.innerText;`));
       ok('TR3', 'a sell with no long held reads Short', await js(`var b=${W}.querySelector('[data-pp-ord="s1"]'); return !!b && /Short/.test(b.querySelector('.pp-chip').textContent);`));
       ok('TR3', 'Positions: a box with Long, size @ average, P&L, Last / Value / Today, Order and Close', await js(`var b=document.querySelector('[data-pp-pos="NVDA"]'); return !!b && b.classList.contains('pp-box') && /Long/.test(b.innerText) && /10 @ \\$160\\.00/.test(b.innerText) && !!b.querySelector('[data-pp-close]') && !!b.querySelector('[data-pp-order]');`), await js(`return (document.querySelector('[data-pp-pos="NVDA"]')||{}).innerText;`));
       await js(`${W}.querySelector('[data-pp-ord="w1"] [data-pp-leg="w1tp"] [data-pp-legx]').click(); 1`);
