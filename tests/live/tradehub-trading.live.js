@@ -98,6 +98,10 @@ const ok = (ph, name, cond, extra) => {
         await sleep(260);
         const opened = await js(`var e=document.querySelector('${dockToggle}'), r=e.getBoundingClientRect(); return [r.x,r.y,e.getAttribute('aria-expanded')];`);
         ok('TR5', 'Neo Quant sidebar toggle stays in the same spot while open', opened[2] === 'true' && Math.abs(opened[0] - closed[0]) < 2 && Math.abs(opened[1] - closed[1]) < 2, [...closed, ...opened]);
+        const corners = await js(`const panel=document.querySelector('[data-nq-dock]'), r=panel.getBoundingClientRect(), css=getComputedStyle(panel);
+          const clipped=[r.left+2,r.right-2].every(x=>!panel.contains(document.elementFromPoint(x,r.bottom-2)));
+          return {clipped,pink:[css.borderBottomColor,css.borderLeftColor,css.borderRightColor].every(c=>c==='rgb(240, 179, 203)')};`);
+        ok('TR5', 'the Neo Quant contents respect both rounded pink bottom corners', corners.clipped && corners.pink, corners);
         await js("document.querySelector('[data-nq-close]').click(); 1");
         await sleep(260);
       } else ok('TR5', 'Neo Quant sidebar toggle stays in the same spot while open', false);
@@ -539,6 +543,8 @@ const ok = (ph, name, cond, extra) => {
         await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...to, button: 'left', clickCount: 1 });
       }
       ok('TR4', 'dragging a tab reorders it and keeps the same host and open tab', await until(`(function(){ var s=${TT}.querySelector('.lay-card[data-card="positions"] .lay-tabs'); return !!s && s.dataset.layTabs==='working,positions,filled' && s.querySelector('[aria-selected=true]').dataset.layTab==='working'; })()`, 2200));
+      ok('TR4', 'the grouped header keeps a blank drag corner', await js(`const grip=${TT}.querySelector('[data-card="positions"] .lay-group-grip');
+        return !!grip && grip.getBoundingClientRect().width>=24 && getComputedStyle(grip.querySelector('svg')).display==='none';`));
       if (w >= 600) {
         const strip = `document.querySelector('[data-card="positions"] [data-sb-strip].lay-tabs')`;
         const hover = await js(`var s=${strip}; s.style.maxWidth='130px'; var r=s.getBoundingClientRect(); return {x:r.left+12,y:r.top+16};`);
