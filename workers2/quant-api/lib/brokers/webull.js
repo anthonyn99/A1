@@ -296,7 +296,7 @@ export async function replace(env, req, url, id, { fetchFn = fetch, priceOf = nu
   if (!Object.keys(patch).length) throw fail(400, 'nothing to change');
   const a = await pick(env, url, fetchFn);
   const [was, kill, acct] = await Promise.all([detail(env, a, id, fetchFn), killOn(env), cached('bal:' + a.account_id, async () => must(await wb(env, 'GET', '/openapi/assets/balance', { query: { account_id: a.account_id }, version: 'v2' }, fetchFn), 'the balance')).catch(() => null)]);
-  if (!OPEN.has(was.status)) throw fail(409, `the order is ${was.status}: only an open order can change`);
+  if (!OPEN.has(was.status) && was.status !== 'held') throw fail(409, `the order is ${was.status}: only an open order can change`);
   const next = { symbol: was.symbol, side: was.side, type: was.type, time_in_force: was.time_in_force, qty: patch.qty || was.qty, limit_price: patch.limit_price || was.limit_price, stop_price: patch.stop_price || was.stop_price,
     ...(was.type === 'trailing_stop' ? (was.trail_percent != null ? { trail_percent: patch.trail || was.trail_percent } : { trail_price: patch.trail || was.trail_price }) : {}) };
   const shown = acct && book ? applyBook(book, acctOut(a, acct)) : null;
