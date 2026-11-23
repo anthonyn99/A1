@@ -14,7 +14,8 @@
 //   GET    /paper/log?limit=&run=       { orders }  every order TradeHub sent: who, why, its run
 //   POST   /paper/orders                { order, who, reason?, run? } → { order }
 //   PATCH  /paper/orders/:id            { qty?, limit_price?, stop_price?, trail?, who }   (replace)
-//   DELETE /paper/orders/:id            cancel one
+//   DELETE /paper/orders/:id            cancel one (a replaced order: its replacement, TR1)
+//   POST   /paper/orders/:id/drop       { parent, who } remove one take profit or stop loss, keep the rest (TR1)
 //   DELETE /paper/positions/:symbol     close one at market
 //   POST   /paper/kill                  { on: true|false } true: cancel every open order, pause every run
 //   GET    /paper/runs                  { runs }
@@ -163,7 +164,27 @@ export async function orders(env, url, fetchFn) {
   const status = ['open', 'closed', 'all'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'open';
   const limit = Math.max(1, Math.min(500, Number(url.searchParams.get('limit')) || 100));
   const r = must(await alpaca(env, `/v2/orders?status=${status}&limit=${limit}&nested=true`, {}, fetchFn), 'the orders');
-  return json({ ok: true, paper: true, orders: r || [] });
+  return json({ ok: true, paper: true, orders: status === 'open' ? await withLegs(env, r || [], fetchFn) : r || [] });
+}
+const OPEN_ST = new Set(['new', 'accepted', 'pending_new', 'partially_filled', 'held', 'pending_replace', 'accepted_for_bidding', 'calculated']);
+/** TR1 (measured 2026-11-23): once a bracket's entry fills, Alpaca's open list shows its take profit alone, a top-level
+ *  order with a class and no legs, and hides the held stop. Such an orphan is swapped for its filled parent with every leg
+ *  (one extra read, only when an orphan is there), so the page sees the take profit AND the stop. */
+export async function withLegs(env, list, fetchFn = fetch) {
+  const orphans = list.filter((o) => o.order_class && o.order_class !== 'simple' && !(Array.isArray(o.legs) && o.legs.length));
+  if (!orphans.length) return list;
+  const all = await alpaca(env, '/v2/orders?status=all&limit=100&direction=desc&nested=true', {}, fetchFn);
+  if (!all.ok || !Array.isArray(all.body)) return list;
+  const out = [], seen = new Set();
+  for (const o of list) {
+    if (!orphans.includes(o)) { out.push(o); continue; }
+    const parent = all.body.find((x) => Array.isArray(x.legs) && x.legs.some((l) => l.id === o.id));
+    if (!parent) { out.push(o); continue; }
+    if (seen.has(parent.id)) continue;
+    seen.add(parent.id);
+    out.push(parent);
+  }
+  return out;
 }
 /** T7: the account's latest orders, every status, legs nested (one read; lib/order-watch.js turns changes into alerts). */
 export async function recentOrders(env, fetchFn = fetch) {
@@ -259,12 +280,103 @@ export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, n
     .bind('x' + now.toString(36) + Math.random().toString(36).slice(2, 6), now, dayNY(now), runId || null, who, 'replaced ' + id, r.symbol, r.side, r.type, num(r.qty), JSON.stringify(patch), 'replaced', r.id).run());
   return json({ ok: true, paper: true, order: r });
 }
-export async function cancel(env, id, fetchFn) {
+/** Cancel one order. TR1 (Tony's #34): a replaced order (moved on the chart) cancels its replacement, following
+ *  Alpaca's replaced_by; one still being replaced is asked again a moment later. */
+export async function cancel(env, id, fetchFn = fetch, { wait = sleep } = {}) {
   if (!/^[\w-]{1,64}$/.test(id)) throw fail(400, 'not an order id');
-  const r = await alpaca(env, '/v2/orders/' + id, { method: 'DELETE' }, fetchFn);
-  if (!r.ok && r.status !== 404) must(r, 'the cancel');
-  await db(env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE alpaca_id = ?").bind(id).run()).catch(() => {});
-  return json({ ok: true, paper: true, canceled: id });
+  let cur = id;
+  for (let i = 0; i < 6; i++) {
+    const r = await alpaca(env, '/v2/orders/' + cur, { method: 'DELETE' }, fetchFn);
+    if (r.ok || r.status === 404) break;
+    const why = String((r.body && (r.body.message || r.body.error)) || '');
+    if (r.status === 422 && /replaced/i.test(why) && !/pending/i.test(why)) {
+      const g = await alpaca(env, '/v2/orders/' + cur, {}, fetchFn);
+      if (g.ok && g.body && g.body.replaced_by && /^[\w-]{1,64}$/.test(g.body.replaced_by)) { cur = g.body.replaced_by; continue; }
+    }
+    if (r.status === 422 && /pending/i.test(why) && i < 5) { await wait(350); continue; }
+    must(r, 'the cancel');
+  }
+  await db(env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE alpaca_id = ? OR alpaca_id = ?").bind(id, cur).run()).catch(() => {});
+  return json({ ok: true, paper: true, canceled: cur, asked: id });
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const exitOf = (x) => (x.type === 'stop' || x.type === 'stop_limit' || x.type === 'trailing_stop' ? 'sl' : 'tp');
+const exitName = (x) => (exitOf(x) === 'sl' ? 'stop loss' : 'take profit');
+/** Read an order until `done(order)` or `ms` pass → the last read (null if none answered). */
+async function until(env, id, done, { fetchFn, wait, ms = 6000, step = 300 }) {
+  let last = null;
+  for (let t = 0; t <= ms; t += step) {
+    const r = await alpaca(env, '/v2/orders/' + id + '?nested=true', {}, fetchFn);
+    if (r.ok) { last = r.body; if (done(last)) return last; }
+    await wait(step);
+  }
+  return last;
+}
+/**
+ * POST /paper/orders/:id/drop { parent, who }: take one take profit or stop loss off an order and keep the rest (TR1,
+ * Tony's #37). Alpaca cancels a whole bracket when one held leg is cancelled, and the other exit when one exit is
+ * cancelled after the fill (both measured 2026-11-23), so:
+ *   entry not filled (bracket / OTO): cancel the group, wait for Alpaca to say so, place the entry again with the kept
+ *     exit (an OTO) or alone; the kill switch refuses this (only cancels and closing orders go out while it is on).
+ *   entry filled, or an OCO pair on a position: cancel the dropped exit; a kept exit Alpaca took with it is placed again
+ *     as a closing order of its own.
+ * Each new order is logged ("dropped the take profit of …") before it is sent → { ok, order, kept, steps }.
+ */
+export async function dropLeg(env, req, id, { fetchFn = fetch, now = Date.now(), wait = sleep } = {}) {
+  if (!ID_RE.test(id)) throw fail(400, 'not an order id');
+  const b = await bodyOf(req, 1000), who = whoOf(b), pid = String((b && b.parent) || '');
+  if (!ID_RE.test(pid)) throw fail(400, 'the order the leg belongs to is needed (parent)');
+  const g = must(await alpaca(env, '/v2/orders/' + pid + '?nested=true', {}, fetchFn), 'the order');
+  const cls = g.order_class || 'simple', legs = Array.isArray(g.legs) ? g.legs : [];
+  const group = cls === 'oco' ? [g, ...legs] : legs;   // an OCO's parent is itself an exit
+  const drop = group.find((x) => x.id === id);
+  if (!drop || cls === 'simple') throw fail(404, 'that take profit or stop loss is not part of this order');
+  const kept = group.filter((x) => x.id !== id && OPEN_ST.has(String(x.status)));
+  const what = exitName(drop), steps = [];
+  let n = 0;
+  const placeAgain = async (o, reason, closing) => {
+    const cid = 'd' + now.toString(36) + (n++) + Math.random().toString(36).slice(2, 6);
+    const body = alpacaBody({ ...o, client_order_id: cid });
+    await db(env.DB.prepare('INSERT OR IGNORE INTO paper_orders (id, at, day, run, who, reason, symbol, side, type, qty, body, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(cid, now, dayNY(now), null, who, reason, body.symbol, body.side, body.type, num(body.qty) || null, JSON.stringify(body), 'sent').run());
+    const r = await alpaca(env, '/v2/orders', { method: 'POST', body: JSON.stringify(body) }, fetchFn);
+    await db(env.DB.prepare('UPDATE paper_orders SET alpaca_id = ?, status = ?, error = ? WHERE id = ?').bind(r.ok ? r.body.id : null, r.ok ? r.body.status : 'refused', r.ok ? null : String((r.body && r.body.message) || r.status).slice(0, 300), cid).run());
+    if (!r.ok) throw fail(502, `${steps.join('; ')}; but Alpaca refused placing ${closing ? 'the kept ' + exitName(o) : 'the order'} again (${(r.body && r.body.message) || 'HTTP ' + r.status}): ${closing ? 'the position has no ' + exitName(o) + ' now' : 'nothing is working for ' + o.symbol + ' now'}`, { alpaca: r.status });
+    return r.body;
+  };
+  const filled = num(g.filled_qty) > 0;
+  const entryOpen = cls !== 'oco' && OPEN_ST.has(String(g.status)) && !filled;
+  if (cls !== 'oco' && !entryOpen && g.status !== 'filled') throw fail(409, `the entry is ${g.status}${filled ? ' (part filled)' : ''}: cancel the order, or wait for the fill`);
+  if (entryOpen) {
+    if (await killOn(env)) throw fail(409, 'the kill switch is on: the order can be cancelled, not placed again without its ' + what);
+    const c = await alpaca(env, '/v2/orders/' + pid, { method: 'DELETE' }, fetchFn);
+    if (!c.ok && c.status !== 404) must(c, 'cancelling the order to take its ' + what + ' off');
+    const after = await until(env, pid, (x) => x && (x.status === 'canceled' || x.status === 'filled' || num(x.filled_qty) > 0), { fetchFn, wait });
+    if (!after || after.status !== 'canceled') throw fail(409, after && (after.status === 'filled' || num(after.filled_qty) > 0) ? 'the entry filled while the ' + what + ' was being taken off: its exits stand, look again' : 'Alpaca did not confirm the cancel in time: look again before placing anything');
+    steps.push('the order was cancelled');
+    const o = { symbol: g.symbol, side: g.side, type: g.type, time_in_force: g.time_in_force, qty: num(g.qty) };
+    for (const k of ['limit_price', 'stop_price', 'trail_percent', 'trail_price']) if (num(g[k]) != null && !(g.type === 'trailing_stop' && k === 'stop_price')) o[k] = num(g[k]);
+    if (g.extended_hours) o.extended_hours = true;
+    const k = kept[0];
+    if (k) { o.order_class = 'oto'; if (exitOf(k) === 'sl') o.stop_loss = { stop_price: num(k.stop_price), ...(num(k.limit_price) ? { limit_price: num(k.limit_price) } : {}) }; else o.take_profit = { limit_price: num(k.limit_price) }; }
+    const order = await placeAgain(o, `dropped the ${what} of ${pid}`, false);
+    return json({ ok: true, paper: true, order, kept: k ? exitOf(k) : null, steps: [...steps, 'placed again without its ' + what] });
+  }
+  // The exits of a position: cancel the one dropped; whatever Alpaca took with it goes back on its own.
+  const c = await alpaca(env, '/v2/orders/' + id, { method: 'DELETE' }, fetchFn);
+  if (!c.ok && c.status !== 404) must(c, 'the cancel');
+  steps.push('the ' + what + ' was cancelled');
+  let order = null;
+  for (const k of kept) {
+    const after = await until(env, k.id, (x) => x && x.status === 'canceled', { fetchFn, wait, ms: 2400 });
+    if (!after || after.status !== 'canceled') continue;   // still working: nothing to put back
+    const o = { symbol: k.symbol, side: k.side, type: k.type, time_in_force: k.time_in_force === 'day' ? 'day' : 'gtc', qty: num(k.qty) };
+    for (const f of ['limit_price', 'stop_price', 'trail_percent', 'trail_price']) if (num(k[f]) != null && !(k.type === 'trailing_stop' && f === 'stop_price')) o[f] = num(k[f]);
+    if (!(await closesPosition(env, o, fetchFn))) throw fail(409, `${steps.join('; ')}; the ${exitName(k)} went with it and no longer matches the position, so it was not placed again`);
+    order = await placeAgain(o, `kept the ${exitName(k)} of ${pid}`, true);
+    steps.push('the ' + exitName(k) + ' was placed again on its own');
+  }
+  return json({ ok: true, paper: true, order, kept: kept.length ? exitOf(kept[0]) : null, steps });
 }
 export async function closePosition(env, sym, fetchFn) {
   if (!SYM_RE.test(sym)) throw fail(400, 'not a ticker');
