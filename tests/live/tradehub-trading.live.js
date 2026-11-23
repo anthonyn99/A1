@@ -22,7 +22,7 @@
 // Run: CDP_PORT=93xx node tests/live/tradehub-trading.live.js    PHASES=T2,T3 runs only those tags.
 'use strict';
 const { connect } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, CLOCK } = require('./quant-mock.js');
 
 const ONLY = (process.env.PHASES || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 const want = (ph) => !ONLY.length || ONLY.includes(ph);
@@ -46,7 +46,38 @@ const ok = (ph, name, cond, extra) => {
   for (const w of [1280, 820, 390]) {
     console.log(`\n${w} px`);
     await size(w, w < 600 ? 844 : 900);
+    if (want('TR5')) api.state.convs = [{
+      id: 'tr5-history', title: 'AMD into earnings', created: CLOCK - 86400000, pinned: false, turns: [
+        { id: 'q-tr5', at: CLOCK - 86400000, role: 'q', text: 'AMD into earnings?' },
+        { id: 'a-tr5', at: CLOCK - 86396000, role: 'a', text: 'VERDICT: WAIT for the report.', verdict: 'WAIT' },
+      ],
+    }];
     await boot({ quant: true });
+
+    if (want('TR5')) {
+      await tab('catalysts');
+      const toggle = "document.querySelector('.tbx-actions [aria-expanded][title*=\"MAGI\"]').click(); 1";
+      await js(toggle);
+      ok('TR5', 'Debrief slides into view with outlined groups', await until("document.querySelector('.dbf-slide.is-open')") && await js("const p=document.querySelector('.dbf-slide'); const g=getComputedStyle(p.querySelector('.dbf-sec')); return getComputedStyle(p).transitionProperty==='grid-template-rows' && g.borderTopWidth==='1px' && g.borderRadius==='10px';"));
+      await shot('tr5-debrief-' + w);
+      await js(toggle);
+      ok('TR5', 'Debrief closes to zero height', await until("document.querySelector('.dbf-slide').getBoundingClientRect().height===0", 1200));
+
+      await tab('market');
+      ok('TR5', 'Macro sections have solid panel fills', await until("document.querySelector('[data-cx-group]')", 8000) && await js("return [...document.querySelectorAll('[data-cx-group]')].every(e=>{const s=getComputedStyle(e);return s.borderRadius==='10px' && s.backgroundImage==='none' && s.backgroundColor!=='rgba(0, 0, 0, 0)';});"));
+      await tab('prompt');
+      await js("document.querySelector('[data-ctl-sub=alerts]').click(); 1");
+      ok('TR5', 'Control uses a solid active tab and grouped Alerts settings', await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('.tal-sec')", 5000) && await js("const active=getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')); const group=getComputedStyle(document.querySelector('.tal-sec')); return active.backgroundImage==='none' && active.backgroundColor!=='rgba(0, 0, 0, 0)' && group.borderRadius==='10px';"));
+
+      await tab('neo');
+      ok('TR5', 'Neo Quant has the shorter header and prompt and no Recent conversations card', await until("document.querySelector('[data-neo-tab] [data-nq-input]')", 5000) && await js("const n=document.querySelector('[data-neo-tab]'); return n.querySelector('.ctl-meta').textContent==='Your desk quant' && n.querySelector('[data-nq-input]').placeholder==='Ask Neo Quant…' && !n.querySelector('[data-card=recent]');"));
+      await js("const b=document.querySelector('[data-neo-tab] [data-nq-side-btn]'); if (b.getAttribute('aria-expanded')==='false') b.click(); 1");
+      ok('TR5', 'The sidebar lists the seeded conversation', await until("document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]')", 5000));
+      ok('TR5', 'Search filters titles and Pin updates the conversation', await js("const s=document.querySelector('[data-neo-tab] [data-nq-side-search]'); s.value='nothing matches'; s.dispatchEvent(new Event('input')); const filtered=!document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]'); s.value='AMD'; s.dispatchEvent(new Event('input')); document.querySelector('[data-neo-tab] [data-nq-pin=tr5-history]').click(); return filtered;") && await until("document.querySelector('[data-neo-tab] [data-nq-pin=tr5-history]')?.getAttribute('aria-pressed')==='true'", 5000));
+      await js("document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]').click(); 1");
+      ok('TR5', 'Continuing shows the answer with grouped actions', await until("document.querySelector('[data-neo-tab] .nq-acts [data-nq-copy]') && document.querySelector('[data-neo-tab] .nq-acts [data-nq-speak]')", 5000));
+      await shot('tr5-neo-' + w);
+    }
 
     // T2: the Trading tab
     ok('T2', 'the nav says "Trading" (no "Paper" tab left)', await js(`return !!document.querySelector('.tb-navtab[data-navid="trading"]') && !document.querySelector('.tb-navtab[data-navid="paper"]');`));
