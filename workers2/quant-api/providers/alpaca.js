@@ -31,12 +31,13 @@ export async function quotes(L, env, syms, now) {
 
 async function page(L, env, sym, tf, from, to, adj, feed) {
   const out = [];
+  const provider = feed === 'boats' ? 'alpaca-boats' : 'alpaca';
   let token = '';
   for (let i = 0; i < 10; i++) {
     const u = `${BASE}/v2/stocks/${encodeURIComponent(sym)}/bars?timeframe=${TF[tf]}&start=${new Date(from).toISOString()}&end=${new Date(to).toISOString()}`
       + `&limit=10000&adjustment=${adj ? 'split' : 'raw'}&feed=${feed}&sort=asc${token ? '&page_token=' + encodeURIComponent(token) : ''}`;
-    const j = await call(L, 'alpaca', u, { headers: headers(env), timeout: BARS_TIMEOUT });
-    if (!j || (j.bars !== null && !Array.isArray(j.bars))) throw noteBad(L, 'alpaca', 'bars in an unknown shape');
+    const j = await call(L, provider, u, { headers: headers(env), timeout: BARS_TIMEOUT });
+    if (!j || (j.bars !== null && !Array.isArray(j.bars))) throw noteBad(L, provider, 'bars in an unknown shape');
     for (const b of j.bars || []) {
       const t = Date.parse(b.t);
       const x = bar(tf === '1d' ? dailyStamp(t) : t, b.o, b.h, b.l, b.c, b.v);
@@ -46,6 +47,13 @@ async function page(L, env, sym, tf, from, to, adj, feed) {
     if (!token) break;
   }
   return out;
+}
+
+/** Delayed Blue Ocean overnight bars. This feed has its own health and budget. */
+export function overnightBars(L, env, sym, tf, from, to, adj, now) {
+  if (!has(env) || !TF[tf] || tf === '1d' || !canQuote(sym)) return null;
+  const end = Math.min(to, now - SIP_LAG);
+  return from < end ? page(L, env, sym, tf, from, end, adj, 'boats') : [];
 }
 
 /** Bars of a base timeframe (TF above) between `from` and `to` (ms). History

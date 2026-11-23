@@ -500,15 +500,17 @@ async function bars(env, url, ctx) {
   if (from > to) throw fail(400, 'from is after to');
   if (MAX_SPAN[tf] && to - from > MAX_SPAN[tf]) throw fail(400, `at most ${Math.round(MAX_SPAN[tf] / DAY)} days of ${tf} bars a request`);
   const adj = q.get('adj') !== '0';
+  const night = q.get('night') === '1' && INTRADAY.has(tf);
   // A range that ends before this New York month began never changes again,
   // raw. Split-adjusted history changes the day a split happens, so it is
   // kept for a day only.
   const closed = to < nyMonthStart(now);
   const key = `https://quant-api.cache/bars?v=2&s=${symbol}&tf=${tf}&from=${from}&to=${to}&adj=${adj ? 1 : 0}`;   // v=2 (BV): answers stored before the volume marks are asked again
-  if (closed) { const hit = await cacheGet(key); if (hit) return hit; }
+  const cacheKey = night ? key + '&night=1' : key;
+  if (closed) { const hit = await cacheGet(cacheKey); if (hit) return hit; }
   const L = await Ledger.load(env, now);
   let out;
-  try { out = await getBars(L, env, symbol, tf, from, to, adj, now); }
+  try { out = await getBars(L, env, symbol, tf, from, to, adj, now, { night }); }
   finally { await later(ctx, L.flush()); }
   if (!out) throw fail(503, 'no provider answered', { tried: [] });
   out.known = await noteHistory(env, symbol, tf, out, now);
@@ -517,7 +519,7 @@ async function bars(env, url, ctx) {
   const cc = !(closed && out.complete) ? 'public, max-age=' + (marketHours(now) ? 15 : 300)
     : adj ? 'public, max-age=86400' : 'public, max-age=31536000, immutable';
   const r = json({ ok: true, ...out }, 200, { 'cache-control': cc });
-  if (closed && out.complete) await later(ctx, cachePut(key, r.clone()));
+  if (closed && out.complete) await later(ctx, cachePut(cacheKey, r.clone()));
   return r;
 }
 /** bars_meta: widen what is known of this symbol's history; one read, a write only when it grew. */

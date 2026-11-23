@@ -9,7 +9,8 @@ import * as cryptoData from '../providers/crypto.js';
 import { isCrypto } from './crypto.js';
 import { ProviderError } from './net.js';
 import { getSplits, resplit } from './splits.js';
-import { BASE_TF, INTRADAY, mergeBars, toTimeframe, within } from './bars.js';
+import { BASE_TF, INTRADAY, aggregate, mergeBars, toTimeframe, within } from './bars.js';
+import { nyClock } from './time.js';
 
 /* ── quotes ─────────────────────────────────────────────────────────────── */
 export const QUOTE_CHAIN = [
@@ -89,7 +90,7 @@ async function stretch(L, env, names, sym, tf, from, to, adj, now, tried) {
 }
 
 /** { symbol, tf, bars, provider, complete, tried } or null when nobody answered. */
-export async function getBars(L, env, sym, tf, from, to, adj, now) {
+export async function getBars(L, env, sym, tf, from, to, adj, now, { night = false } = {}) {
   const base = BASE_TF[tf] || tf, tried = [];
   const parts = [];
   if (isCrypto(sym)) {
@@ -138,12 +139,30 @@ export async function getBars(L, env, sym, tf, from, to, adj, now) {
   // A provider still on the old share basis after a split (Alpaca's history lags the ex-date): the
   // split events from the sources put it right (lib/splits.js; a split already applied is left alone).
   if (adj && base0.length > 1) { try { base0 = resplit(base0, await getSplits(L, env, sym, now)); } catch (e) { if (!(e instanceof ProviderError)) throw e; } }
-  const bars = toTimeframe(base0, tf);
+  let bars = toTimeframe(base0, tf), nightStatus;
+  if (night && INTRADAY.has(base)) {
+    try {
+      const overnight = await alpaca.overnightBars(L, env, sym, base, from, to, adj, now);
+      const eligible = (overnight || []).filter((b) => {
+        const m = nyClock(b.t).minutes;
+        return m < 240 || m >= 1200;
+      });
+      const bucket = (t) => t - (nyClock(t).minutes % 240) * 60_000;
+      bars = mergeBars(bars, tf === '4h' ? aggregate(eligible, bucket) : eligible);
+      nightStatus = overnight == null ? 'unavailable' : eligible.length ? 'delayed' : 'empty';
+      tried.push({ provider: 'alpaca-boats', answered: eligible.length });
+    } catch (e) {
+      if (!(e instanceof ProviderError)) throw e;
+      nightStatus = 'unavailable';
+      tried.push({ provider: 'alpaca-boats', error: e.message });
+    }
+  }
   return {
     symbol: sym, tf, bars,
     provider: [...new Set(ok.map((p) => p.provider))].join('+'),
-    complete: ok.length === parts.length && !ok.some((p) => p.clipped),
+    complete: ok.length === parts.length && !ok.some((p) => p.clipped) && nightStatus !== 'unavailable',
     tried,
+    ...(nightStatus ? { night: nightStatus } : {}),
     ...(check ? { check } : {}),
   };
 }

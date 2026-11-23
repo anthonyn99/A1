@@ -9,6 +9,7 @@
 export const CAPS = {
   finnhub: 20000,   // free: 60 a minute
   alpaca: 30000,    // free: 200 a minute
+  'alpaca-boats': 600,  // optional chart overlay; its failure must never inhibit the main feed
   coinbase: 5000,   // crypto candles and 24-hour stats, no key (B1)
   public: 5000,
   yahoo: 5000,
