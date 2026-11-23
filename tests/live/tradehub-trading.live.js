@@ -396,6 +396,8 @@ const ok = (ph, name, cond, extra) => {
       await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
       await js(`${OT}.querySelector('[data-ot-confirmoff]').click(); 1`);
       ok('TR2', '...Turn on brings confirmations back', await until(`!${OT}.querySelector('[data-ot-confirmoff]')`, 1500) && await js(`return localStorage.getItem('tb_order_confirm')===null;`));
+      await js(`document.querySelector('[data-trade-new]').click(); document.querySelector('[data-trade-new]').click(); 1`);
+      ok('TR2', 'New order twice: one ticket, never two stacked', await until(`document.querySelectorAll('.ot-scrim [data-order-ticket]').length === 1`, 1500), await js(`return document.querySelectorAll('.ot-scrim [data-order-ticket]').length;`));
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       // The chart's market buy: the confirmation with its live price.
       await tab('charts'); await js(`window._tbOps.charts.open('NVDA'); 1`);
