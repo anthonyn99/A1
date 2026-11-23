@@ -110,6 +110,14 @@ const noWait = async () => {};
   let threw = null; try { await P.cancel(env, 'nope', fakeFetch, { wait: noWait }); } catch (e) { threw = e; }
   ok('an unknown order is fine (already gone)', threw === null);
 
+  {
+    // An endless chain of replacements: never reported as cancelled (review).
+    const loopFetch = async (url, init = {}) => { const m = (init.method || 'GET').toUpperCase(); if (m === 'DELETE') return res({ message: 'order is already in "replaced" state' }, 422); return res({ id: 'q', status: 'replaced', replaced_by: 'q' + Math.random().toString(36).slice(2, 6) }); };
+    let e = null; try { await P.cancel(env, 'q0', loopFetch, { wait: noWait }); } catch (x) { e = x; }
+    ok('a cancel that runs out of tries says so (409), never "cancelled"', e && e.status === 409, e && e.message);
+  }
+  ok('Alpaca\'s cryptic refusals are said plainly (wash trade, shares held by an order)', /trade against one of your own working orders/.test(P.refusalText('potential wash trade detected. use complex orders')) && /already held by a working order/.test(P.refusalText('insufficient qty available for order (requested: 1, available: 0)')));
+
   console.log('\nThe stop leg after a fill is not lost');
   A.reset();
   const br = addOrder({ symbol: 'F', side: 'buy', type: 'market', qty: 1, time_in_force: 'day', order_class: 'bracket', take_profit: { limit_price: '12.5' }, stop_loss: { stop_price: '10.5' } });
