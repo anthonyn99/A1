@@ -199,10 +199,18 @@ async function census(c) {
   if (REAL && TABS.includes('charts')) {
     console.log('\n3. A 1-minute pan to the cap (REAL)');
     await js(`var ch=document.querySelector('[data-charts]').__charts.active(); ch.set({ tf: '1m' }); 1`); await sleep(2500);
-    for (let i = 0; i < 25; i++) { await js(`var ch=document.querySelector('[data-charts]').__charts.active(); var ts=ch.chart().timeScale(); var r=ts.getVisibleLogicalRange(); ts.setVisibleLogicalRange({ from: -5, to: (r.to - r.from) - 5 }); 1`); await sleep(1800); }
-    const held = await js(`return document.querySelector('[data-charts]').__charts.active().info().bars;`);
+    const barCount = () => js(`return document.querySelector('[data-charts]').__charts.active().info().bars;`);
+    const initial = await barCount();
+    for (let i = 0; i < 25; i++) {
+      await js(`var root=document.querySelector('[data-charts]'), chart=root.__charts.active(), ts=chart.chart().timeScale(), r=ts.getVisibleLogicalRange();
+        const dx=-(Math.max(0,r.from)+5)*ts.width()/Math.max(1,r.to-r.from);
+        root.querySelector('[data-ch-box]').dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaX:dx})); 1`);
+      await sleep(1800);
+    }
+    const held = await barCount();
     const s1 = await sample();
     console.log(`    1-minute bars held after 25 pans back: ${held}; heap ${s1.heapMB} MB, committed ${s1.committedMB} MB`);
+    ok('the pan actually loads older one-minute bars', held > initial, [initial, held]);
     ok('a 1-minute chart never holds more than ~8,000 bars (B5 cap, plus one older step)', held <= 8000 + 3600, held);
   }
   await js(`window.__ws.auto(0); 1`);
