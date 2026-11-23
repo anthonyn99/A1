@@ -252,6 +252,10 @@ globalThis.fetch = async (url, init = {}) => {
     && r.body.usage.some((u) => u.service === 'internal' && u.cap === null) && r.body.health.length === 1, JSON.stringify(r.body));
   ok('every cap is far under its free tier', Wk.CAPS.alphavantage < 25 && Wk.CAPS.fred < 1000 && Wk.CAPS.groq < 1000 && Wk.CAPS.tiingo < 1000);
   ok('/usage says which keys are set (and never shows them)', r.body.keys && r.body.keys.yahoo === true && r.body.keys.alpaca === false && !JSON.stringify(r.body).includes('"ak"'));
+  const withAlpaca = await call(fullEnv(), '/usage', { key: GOOD });
+  ok('BOATS reports the same existing Alpaca credentials, without exposing them',
+    r.body.keys['alpaca-boats'] === false && withAlpaca.body.keys.alpaca === true
+    && withAlpaca.body.keys['alpaca-boats'] === true && !JSON.stringify(withAlpaca.body.keys).includes('"ak"'));
 
   console.log('\nCORS');
   r = await call(env, '/health', { origin: 'https://a1-priv.av1.workers.dev' });
