@@ -119,6 +119,7 @@ const ok = (name, cond, extra) => {
       await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ga.x, y: ga.y });
       await press(ga.x, ga.y); await moveTo(ga, { x: gt.x - 20, y: gt.y }); await sleep(300);
       const lit = await js(`return document.querySelector('[data-mk] .lay-card[data-card="breadth"]').classList.contains('is-group-target');`);
+      console.log('    PROBE', await js(`return JSON.stringify(document.elementsFromPoint(${gt.x - 20}, ${gt.y}).slice(0,6).map(function(e){return e.tagName+'.'+String(e.className).slice(0,40)+'['+((e.closest('.lay-card')||{}).dataset||{}).card+']';}));`), JSON.stringify(ga), JSON.stringify(gt));
       await release(gt.x - 20, gt.y); await sleep(600);
       ok('a card dropped on another\'s title bar: it lit up, then one card with two tabs (Volume open)', lit && await js(`var s=document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-lay-tabs]'); return !!s && s.querySelectorAll('[data-lay-tab]').length===2 && s.querySelector('.is-on').dataset.layTab==='volume' && !document.querySelector('[data-mk] .lay-card[data-card="volume"]').parentNode.classList.contains('lay-grid');`), JSON.stringify({ lit }));
       await js(`document.querySelector('[data-mk] [data-lay-tab="breadth"]').click(); 1`); await sleep(250);
