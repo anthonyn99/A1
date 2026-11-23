@@ -49,6 +49,8 @@
  *     onDrop(from, to, fromList, toList),
  *                          indexes in the rows as drawn; called only when
  *                          something moved (a same-list drop has to != from)
+ *     onOutsideDrop(row, x, y),
+ *                          a free row released away from all lists
  *     onKey(row, dir),     a focused grip's arrow key, dir -1 / +1
  *     slots(from, to),     grid axis: where every row WOULD sit if row `from`
  *                          moved to slot `to` -- an array, by row index as
@@ -713,7 +715,12 @@
         if (raf) cancelAnimationFrame(raf);
         if (!live) return;                                  // a click, not a drag
         if (ev.type === 'pointercancel') cancelled = true;
+        if (!cancelled && me.o.onOutsideDrop) {
+          lastX = ev.clientX; lastY = ev.clientY;
+          place();
+        }
         if (cancelled) { clearTarget(); to = from; }
+        var outside = !cancelled && free && !tgt && !nearHome() && me.o.onOutsideDrop;
         // The click a drag's release may fire is not a click on the row. Only
         // that one: released on the next tick, or a drag ending off the row
         // (no click at all) would eat your next real click.
@@ -730,6 +737,9 @@
             ? { dx: sp.x - tgt.list.scrollLeft + tb.left - r0.left, dy: sp.y - tgt.list.scrollTop + tb.top - r0.top }
             : { dx: sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
               dy: sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top) };
+        } else if (outside && fly) {
+          var released = drag();
+          land = { dx: released.dx, dy: released.dy };
         } else if (copy) {
           land = null;
         } else if (grid && slotsAt) {
@@ -798,7 +808,8 @@
             setTimeout(cleanup, 600);
           }
           try {
-            if (tl) { if (onDrop) onDrop(from, tk, list, tl.list); }
+            if (outside) outside(row, lastX, lastY);
+            else if (tl) { if (onDrop) onDrop(from, tk, list, tl.list); }
             else if (to !== from && onDrop) onDrop(from, to, list, list);
           } finally {
             if (!moved || !obs.length) cleanup();
