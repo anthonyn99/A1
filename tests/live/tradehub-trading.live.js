@@ -370,7 +370,7 @@ const ok = (ph, name, cond, extra) => {
     const ppCalls = (m, re) => (api.posted.pp || []).filter(([mm, p]) => mm === m && re.test(p));
     const keepT6 = JSON.parse(JSON.stringify({ positions: api.state.pp.positions, orders: api.state.pp.orders }));
     // Drag a line by its tag from its height by dy px (pointer events, as a mouse or a finger sends them).
-    const dragLine = (k, dy, type = 'mouse') => js(`var l=${LINE(k)}, t=l.querySelector('.cho-name'), r=t.getBoundingClientRect(), x=r.left+4, y=r.top+r.height/2;
+    const dragLine = (k, dy, type = 'mouse', lowerEdge = false) => js(`var l=${LINE(k)}, t=l.querySelector('.cho-name'), r=t.getBoundingClientRect(), x=r.left+4, y=${lowerEdge ? 'r.bottom-1' : 'r.top+r.height/2'};
       function ev(n, yy){ return new PointerEvent(n,{bubbles:true,cancelable:true,composed:true,pointerId:7,pointerType:'${type}',isPrimary:true,button:0,buttons:n==='pointerup'?0:1,clientX:x,clientY:yy}); }
       t.dispatchEvent(ev('pointerdown', y)); l.dispatchEvent(ev('pointermove', y + ${dy} / 2)); l.dispatchEvent(ev('pointermove', y + ${dy})); l.dispatchEvent(ev('pointerup', y + ${dy})); return true;`);
     if (want('T6')) {
@@ -459,7 +459,7 @@ const ok = (ph, name, cond, extra) => {
         await js(`return [].map.call(${CH}.querySelectorAll('[data-cho-line]'),function(e){return e.dataset.role+':'+e.innerText;}).join(' | ');`));
       const slKey = await js(`return ${CH}.querySelector('[data-cho-line][data-role="sl"]').dataset.choLine;`);
       const slWas = await js(`return ${CH}.__orders.lines().find(function(l){return l.key==='${slKey}';}).price;`);
-      await dragLine(slKey, -20, w < 600 ? 'touch' : 'mouse');
+      await dragLine(slKey, -20, w < 600 ? 'touch' : 'mouse', true);
       ok('T6', 'the stop dragged up after the fill (trailing it): the confirmation shows the P&L at the new level', await until(`!!${CDLG('edit')}`, 2000) && await js(`var d=${CDLG('edit')}; return /^Change stop loss/.test(d.querySelector('.ot-head b').textContent) && Number(d.querySelector('[data-cho-price]').value) > ${slWas} && /\\$/.test(d.querySelector('[data-cho-newpnl]').textContent);`), await js(`return ${CDLG('edit')} && ${CDLG('edit')}.innerText;`));
       await js(`${CDLG('edit')}.querySelector('[data-cho-cancel-dlg]').click(); 1`);
       ok('T6', '...Cancel: the stop back where it was, nothing sent', await until(`!${CDLG('edit')}`, 1500) && await js(`return ${CH}.__orders.lines().find(function(l){return l.key==='${slKey}';}).price === ${slWas};`));
