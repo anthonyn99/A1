@@ -139,6 +139,9 @@ function paperRoutes(pp, posted, req, u, p) {
   const o = /^\/paper\/orders\/([\w-]+)$/.exec(p);
   if (o && m === 'DELETE') { const x = pp.orders.find((y) => y.id === o[1]); pp.orders = pp.orders.filter((y) => y.id !== o[1]); if (x) pp.closed.unshift({ ...x, status: 'canceled' }); return { json: { ok: true, canceled: o[1] } }; }
   if (o && m === 'PATCH') { const x = pp.orders.find((y) => y.id === o[1]); Object.assign(x, body()); return { json: { ok: true, order: x } }; }
+  // TR1: take one leg off a bracket, keep the rest (quant-api lib/paper.js dropLeg); the mock keeps the entry and the other leg.
+  const dl = /^\/paper\/orders\/([\w-]+)\/drop$/.exec(p);
+  if (dl && m === 'POST') { const b = body(), par = pp.orders.find((y) => y.id === b.parent); if (!par || !(par.legs || []).some((l) => l.id === dl[1])) return { status: 404, json: { ok: false, error: 'that take profit or stop loss is not part of this order' } }; par.legs = par.legs.filter((l) => l.id !== dl[1]); return { json: { ok: true, paper: true, order: null, kept: 'sl', steps: ['the take profit was cancelled'] } }; }
   const ps = /^\/paper\/positions\/([A-Z.]+)$/.exec(p);
   if (ps && m === 'DELETE') { pp.positions = pp.positions.filter((y) => y.symbol !== ps[1]); return { json: { ok: true, order: { symbol: ps[1] } } }; }
   if (p === '/paper/kill' && m === 'POST') { const b = body(); pp.kill = b.on !== false; let n = 0; if (pp.kill) { n = pp.orders.length; pp.closed.unshift(...pp.orders.map((x) => ({ ...x, status: 'canceled' }))); pp.orders = []; pp.runs.forEach((r) => { if (r.state === 'running') r.state = 'paused'; }); } return { json: { ok: true, kill: pp.kill, canceled: n } }; }

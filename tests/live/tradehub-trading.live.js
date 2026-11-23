@@ -12,6 +12,7 @@
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
 //   T9  Add card opens a popup with every tab's cards ([data-card-picker]); another tab's card runs on the grid as x-<tab>-<card>
 //   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
+//   TR1 a waiting take profit dropped from the chart (only that leg; the line goes at once)
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
 //       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
 //
@@ -347,6 +348,25 @@ const ok = (ph, name, cond, extra) => {
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       }
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+    // TR1 (A1-Priv docs/TradeHub/quant-trading-refine-1.md): x on a waiting take profit drops that leg only; its line goes at once.
+    if (want('TR1')) {
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      api.state.pp.orders.unshift({ id: 'trb', symbol: 'AMD', side: 'buy', type: 'limit', qty: 1, limit_price: 100, status: 'new', order_class: 'bracket', time_in_force: 'gtc',
+        legs: [{ id: 'trbtp', symbol: 'AMD', side: 'sell', type: 'limit', qty: 1, limit_price: 110, status: 'held' }, { id: 'trbsl', symbol: 'AMD', side: 'sell', type: 'stop', qty: 1, stop_price: 95, status: 'held' }] });
+      await js(`window._tbOps.trading.refresh(); 1`);
+      await tab('charts'); await js(`window._tbOps.charts.open('AMD'); 1`);
+      ok('TR1', 'a bracket waiting to fill: entry, take profit and stop loss lines, the legs marked held', await until(`!!${LINE('trbtp')} && !!${LINE('trbsl')} && !!${LINE('trb')}`, 8000) && await js(`return ${LINE('trbtp')}.classList.contains('is-held');`));
+      ok('TR1', 'its take profit may move below the market but above the entry (Tony #36): no refusal', await js(`var l=${CH}.__orders.lines().find(function(x){return x.key==='trbtp';}); return !!l && l.basis===100 && l.parent==='trb';`));
+      await js(`${LINE('trbtp')}.querySelector('[data-cho-cancel]').click(); 1`);
+      ok('TR1', 'x on the take profit asks "Remove take profit", saying only it goes', await until(`!!${CDLG('cancel')}`, 2000) && await js(`var d=${CDLG('cancel')}; return /^Remove take profit/.test(d.querySelector('.ot-head b').textContent) && /only the take profit goes/.test(d.innerText);`), await js(`return ${CDLG('cancel')} && ${CDLG('cancel')}.innerText;`));
+      await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
+      const t0 = Date.now();
+      ok('TR1', '...Remove: one drop call for that leg of that order (no cancel of the bracket)', await until(`!${CDLG('cancel')}`, 3000) && ppCalls('POST', /\/paper\/orders\/trbtp\/drop$/).length === 1 && !ppCalls('DELETE', /\/paper\/orders\/trb$/).length, JSON.stringify(api.posted.pp && api.posted.pp.slice(-3)));
+      ok('TR1', '...its line is gone at once; the entry and the stop stay', await until(`!${LINE('trbtp')}`, 1500) && await js(`return !!${LINE('trb')} && !!${LINE('trbsl')};`), Date.now() - t0);
+      api.state.pp.orders = api.state.pp.orders.filter((x) => x.id !== 'trb');
+      await js(`window._tbOps.trading.refresh(); 1`);
+      await tab('trading');
     }
 
     // T7: trade alerts (quant-api lib/order-watch.js; A1-Priv ui/alerts.js Trading section)
