@@ -82,7 +82,6 @@ const ok = (ph, name, cond, extra) => {
       await shot('tr5-neo-' + w);
     }
 
-    // T2: the Trading tab
     if (want('TR6')) {
       const bell = "[...document.querySelectorAll('[data-tal-bell]')].find(b=>b.offsetParent)";
       await until(bell, 8000);
@@ -114,7 +113,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR6', 'Price scale logarithmic and percent apply to the price axis', await until(ch + "?.chart().priceScale('right').options().mode===1", 3000) && await choose('data-ch-scale', 'pct') && await until(ch + "?.chart().priceScale('right').options().mode===2", 3000));
       await choose('data-ch-scale', 'auto');
       await click('data-ch-tg', 'adj');
-      ok('TR6', 'Adj. requests raw prices', await until(ch + '?.get().adj===false', 2500) && api.asked.some((a) => a.p === '/bars' && /adj=0/.test(String(a.url || a.u || ''))));
+      ok('TR6', 'Adj. requests raw prices', await until(ch + "?.get().adj===false && document.querySelector('[data-ch-note]').hidden", 6000) && api.asked.some((a) => a.p === '/bars' && /adj=0/.test(a.q)));
       await click('data-ch-tg', 'adj');
       await click('data-ch-tg', 'volume');
       ok('TR6', 'Volume off removes the histogram', await until(ch + "?.chart().panes().every(p=>p.getSeries().every(s=>s.seriesType()!=='Histogram' || s.options().priceFormat?.type!=='volume'))", 5000));
@@ -144,6 +143,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR6', 'The Portfolio tab has no entrance animation', await js("const active=document.querySelector('.tb-scroll-visible .tb-fade-in'); return !active || getComputedStyle(active).animationName==='none';"));
     }
 
+    // T2: the Trading tab
     ok('T2', 'the nav says "Trading" (no "Paper" tab left)', await js(`return !!document.querySelector('.tb-navtab[data-navid="trading"]') && !document.querySelector('.tb-navtab[data-navid="paper"]');`));
     await tab('trading');
     ok('T2', 'Paper | Live in the header: Paper on, Live dimmed and not pressable', await until(vis('[data-trade-mode="paper"]'), 4000)
