@@ -19796,10 +19796,10 @@ async function unitKickRun(id) {
    reset. Each device shows it in its own time zone. The old one goes when the
    next arrives, and turning this off removes both. Engine side:
    magi/engine/claude_resets.py, through the taskhub-reminders worker. It comes
-   in the /api/units/usage entry as `resets_push`, on whichever Claude row the
-   account belongs to. */
-const UNITS_RS = { busy: false, err: "" };
-const RS_KIND = { five_hour: "5-hour", seven_day: "Weekly" };
+   in /api/units/usage as `resets_push`. Codex's Code Mode account is under
+   ChatGPT. Claude's account is on its matching Claude row. */
+const UNITS_RS = { claude: {}, codex: {} };
+const RS_KIND = { five_hour: "5-hour", seven_day: "Weekly", thirty_day: "30-day" };
 
 function rsWhen(at) {
   const d = new Date(at * 1000);
@@ -19809,10 +19809,10 @@ function rsWhen(at) {
 }
 
 /** Where the push stands, as [text, tone]. */
-function rsLine(r) {
-  if (UNITS_RS.busy || r.busy) return ["Saving…", "muted"];
+function rsLine(r, name, saving) {
+  if (saving || r.busy) return ["Saving…", "muted"];
   if (!r.enabled) return ["Off", "muted"];
-  if (!r.account) return ["No Claude sign-in in Code Mode on this engine, so there are no reset times to read. Add one in Accounts.", "warn"];
+  if (!r.account) return [`No ${name} sign-in in Code Mode on this engine. Add one in Accounts to read reset times.`, "warn"];
   if (r.ok === false) return [`Not pushed: ${r.detail || "TaskHub did not answer"}`, "bad"];
   const who = r.profile === "veda" ? "Veda" : "Tony";
   const now = Date.now() / 1000;
@@ -19837,15 +19837,18 @@ function unitResetsBox(id) {
   const box = el("div", "unit-resets");
   box.dataset.unit = id;
   const r = UNITS_USE.byId[id] && UNITS_USE.byId[id].resets_push;
-  if (!r) return box;                       // another Claude row, or an older engine
-  const off = !online() || UNITS_RS.busy;
+  if (!r) return box;
+  const agent = r.agent || "claude";
+  const name = AGENT_NAME[agent];
+  const status = UNITS_RS[agent];
+  const off = !online() || status.busy;
 
   const hd = el("div", "kick-hd");
-  const main = rsSwitch("Reset times → TaskHub", r.enabled, off,
+  const main = rsSwitch(agent === "codex" ? "Codex reset times → TaskHub" : "Reset times → TaskHub", r.enabled, off,
     (v) => unitResetsSave(id, { enabled: v }));
-  main.title = "Put each Claude reset on your TaskHub as an event, with a notification " +
+  main.title = `Put each ${name} reset on your TaskHub as an event, with a notification ` +
     "when it resets. Shown in each device's own time zone.";
-  const [txt, tone] = rsLine(r);
+  const [txt, tone] = rsLine(r, name, status.busy);
   hd.append(main, el("span", `kick-st ${tone}`, txt));
   box.append(hd);
 
@@ -19860,7 +19863,7 @@ function unitResetsBox(id) {
     }
     box.append(opts);
   }
-  if (UNITS_RS.err) box.append(el("div", "unit-lim-sub warn", UNITS_RS.err));
+  if (status.err) box.append(el("div", "unit-lim-sub warn", status.err));
   return box;
 }
 
@@ -19871,22 +19874,24 @@ function refreshUnitResets() {
 }
 
 async function unitResetsSave(id, change) {
-  if (UNITS_RS.busy || !online()) return;
-  UNITS_RS.busy = true;
-  UNITS_RS.err = "";
+  const agent = UNITS_USE.byId[id]?.resets_push?.agent || "claude";
+  const status = UNITS_RS[agent];
+  if (status.busy || !online()) return;
+  status.busy = true;
+  status.err = "";
   refreshUnitResets();
   try {
-    const r = await fetch(`${link.api}/api/units/claude/resets`,
+    const r = await fetch(`${link.api}/api/units/${agent}/resets`,
       authed({ method: "POST", headers: { "Content-Type": "application/json" },
                body: JSON.stringify(change || {}) }));
     const d = await r.json().catch(() => ({}));
     const u = UNITS_USE.byId[id];
     if (r.ok && u && d.resets_push) u.resets_push = d.resets_push;
-    else if (!r.ok) UNITS_RS.err = d.detail || `Could not save (${r.status}).`;
+    else if (!r.ok) status.err = d.detail || `Could not save (${r.status}).`;
   } catch (e) {
-    UNITS_RS.err = e?.message || "Could not reach the engine.";
+    status.err = e?.message || "Could not reach the engine.";
   }
-  UNITS_RS.busy = false;
+  status.busy = false;
   refreshUnitResets();
 }
 
