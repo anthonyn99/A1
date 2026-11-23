@@ -115,18 +115,17 @@ const ok = (name, cond, extra) => {
       // TR4 (#10): onto a title bar: it lights up ("Group"), and the drop makes one card with two tabs.
       await menu('orig'); await sleep(500);
       await scrollTo('breadth');
-      const ga = await centre('[data-mk] .lay-card[data-card="volume"] .lay-title'), gt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-head');
+      const ga = await centre('[data-mk] .lay-card[data-card="regime"] .lay-title'), gt = await centre('[data-mk] .lay-card[data-card="breadth"] .lay-head');
       await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ga.x, y: ga.y });
       await press(ga.x, ga.y); await moveTo(ga, { x: gt.x - 20, y: gt.y }); await sleep(300);
       const lit = await js(`return document.querySelector('[data-mk] .lay-card[data-card="breadth"]').classList.contains('is-group-target');`);
-      console.log('    PROBE', await js(`return JSON.stringify(document.elementsFromPoint(${gt.x - 20}, ${gt.y}).slice(0,6).map(function(e){return e.tagName+'.'+String(e.className).slice(0,40)+'['+((e.closest('.lay-card')||{}).dataset||{}).card+']';}));`), JSON.stringify(ga), JSON.stringify(gt));
       await release(gt.x - 20, gt.y); await sleep(600);
-      ok('a card dropped on another\'s title bar: it lit up, then one card with two tabs (Volume open)', lit && await js(`var s=document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-lay-tabs]'); return !!s && s.querySelectorAll('[data-lay-tab]').length===2 && s.querySelector('.is-on').dataset.layTab==='volume' && !document.querySelector('[data-mk] .lay-card[data-card="volume"]').parentNode.classList.contains('lay-grid');`), JSON.stringify({ lit }));
-      await js(`document.querySelector('[data-mk] [data-lay-tab="breadth"]').click(); 1`); await sleep(250);
-      ok('...a tab click opens it (Breadth\'s own body shows, Volume\'s hides; neither redrawn)', await js(`var c=document.querySelector('[data-mk] .lay-card[data-card="breadth"]'); return c.querySelector('[data-lay-tab-body="breadth"]').hidden===false && c.querySelector('[data-lay-tab-body="volume"]').hidden===true;`));
-      await js(`document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-act="group"]').click(); 1`); await sleep(200);
+      ok('a card dropped on another title bar: it lit up, then one card with two tabs (Regime open)', lit && await js(`var s=document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-lay-tabs]'); return !!s && s.querySelectorAll('[data-lay-tab]').length===2 && s.querySelector('.is-on').dataset.layTab==='regime' && !document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="regime"]');`), JSON.stringify({ lit }));
+      await js(`var t=document.querySelector('[data-mk] [data-lay-tab="breadth"]'); if (t) t.click(); 1`); await sleep(250);
+      ok('...a tab click opens it (its own body shows, the other hides; neither redrawn)', await js(`var c=document.querySelector('[data-mk] .lay-card[data-card="breadth"]'); var b=c.querySelector('[data-lay-tab-body="breadth"]'), r=c.querySelector('[data-lay-tab-body="regime"]'); return !!b && !!r && b.hidden===false && r.hidden===true;`));
+      await js(`var b=document.querySelector('[data-mk] .lay-card[data-card="breadth"] [data-act="group"]'); if (b) b.click(); 1`); await sleep(200);
       await js(`var b=document.querySelector('[data-lay-gmenu] [data-lay-gout]'); if(b) b.click(); 1`); await sleep(500);
-      ok('...the group button ▸ Take out: Breadth is its own card again; no group left', await js(`return !document.querySelector('[data-mk] [data-lay-tabs]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="volume"]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="breadth"]');`));
+      ok('...the group button, Take out: each its own card again; no group left', await js(`return !document.querySelector('[data-mk] [data-lay-tabs]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="regime"]') && !!document.querySelector('[data-mk] .lay-grid > .lay-card[data-card="breadth"]');`));
       // #15: × asks first.
       await js(`window.__layAskForReal = true; document.querySelector('[data-mk] .lay-card[data-card="volume"] [data-act="hide"]').click(); 1`); await sleep(300);
       ok('× asks first ("Remove Unusual volume from this tab?"); Cancel keeps the card', await js(`return !!document.getElementById('uim-ok') && /from this tab/.test(document.body.innerText);`) && await js(`document.getElementById('uim-cancel').click(); return true;`) && await js(`return new Promise(function(r){ setTimeout(function(){ r(!!document.querySelector('[data-mk] .lay-card[data-card="volume"]') && !document.querySelector('[data-mk] .lay-card[data-card="volume"]').hidden); }, 300); });`));
