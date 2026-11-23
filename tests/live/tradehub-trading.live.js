@@ -373,6 +373,7 @@ const ok = (ph, name, cond, extra) => {
       await js(`${TT}.querySelector('[data-lay-tab="working"]').click(); 1`);
       ok('TR4', 'a tab click shows that card\'s own content (Working orders\' boxes), the others hidden', await until(`(function(){ var c=${TT}.querySelector('.lay-card[data-card="positions"]'); var w=c.querySelector('[data-lay-tab-body="working"]'), p=c.querySelector('[data-lay-tab-body="positions"]'); return !!w && !w.hidden && p.hidden && !!w.querySelector('[data-pp-working]'); })()`, 2000));
       ok('TR4', 'the group card is one spot on the grid; no overlaps', await js(`var cs=[...${TT}.querySelectorAll('.lay-grid > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0; for (var i=0;i<cs.length;i++) for (var j=i+1;j<cs.length;j++){ var p=cs[i],q=cs[j]; if (p.left<q.right-1&&q.left<p.right-1&&p.top<q.bottom-1&&q.top<p.bottom-1) bad++; } return bad===0 && !${TT}.querySelector('.lay-grid > .lay-card[data-card="working"]');`));
+      ok('TR4', 'the group card shows its tabs, not the old title', await js(`var t=${TT}.querySelector('.lay-card[data-card="positions"] .lay-head .lay-tt'); return !!t && getComputedStyle(t).display==='none';`));
       await shot('tr4-tabs-' + w);
       if (w >= 600) {
         // Detach by dragging a tab off the strip onto the grid.
