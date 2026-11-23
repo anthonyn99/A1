@@ -285,7 +285,7 @@ export async function place(env, req, url, { fetchFn = fetch, now = Date.now(), 
     .bind(r.ok ? (r.body.order_id || r.body.combo_order_id || null) : null, r.ok ? 'new' : 'refused', r.ok ? null : String((r.body && r.body.message) || r.status).slice(0, 300), cid).run().catch(() => {});
   const ok = must(r, 'the order');
   // A combo's entry is listed under its own id (cid + 'm'), so that is the id handed back (TR1: one id for one order).
-  return json({ ok: true, paper: true, broker: 'webull', order: { id: body.client_combo_order_id ? cid + 'm' : cid, broker_id: ok.order_id || null, combo_id: ok.combo_order_id || null, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' } });
+  return json({ ok: true, paper: true, broker: 'webull', order: { id: !body.client_combo_order_id ? cid : o.order_class === 'oco' ? cid + 'p' : cid + 'm', broker_id: ok.order_id || null, combo_id: ok.combo_order_id || null, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' } });
 }
 async function detail(env, a, cid, fetchFn) {
   const r = must(await wb(env, 'GET', '/trading/orders/get', { query: { account_id: a.account_id, client_order_id: cid } }, fetchFn), 'the order');
@@ -367,6 +367,8 @@ export async function dropLeg(env, req, url, id, { fetchFn = fetch, now = Date.n
     await logRow(env, { id: cid, at: now, who, reason: `kept the ${name(k)} of ${pid}`, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), body, status: 'sent' });
     const p = await wb(env, 'POST', '/trading/orders/place', { body, category: true }, fetchFn);
     clearCache();
+    await env.DB.prepare('UPDATE paper_orders SET alpaca_id = ?, status = ?, error = ? WHERE id = ?')
+      .bind(p.ok ? (p.body.order_id || null) : null, p.ok ? 'new' : 'refused', p.ok ? null : String((p.body && p.body.message) || p.status).slice(0, 300), cid).run().catch(() => {});
     if (!p.ok) throw fail(502, `${steps.join('; ')}; but Webull refused placing the ${name(k)} again (${(p.body && p.body.message) || 'HTTP ' + p.status}): the position has no ${name(k)} now`, { webull: p.status });
     order = { id: cid, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' };
     steps.push('the ' + name(k) + ' was placed again on its own');
@@ -392,7 +394,7 @@ async function cancelAll(env, a, fetchFn) {
   const open = ordersOut(await openGroups(env, a, fetchFn));
   let canceled = 0; const failed = [];
   for (const o of open) for (const x of [o, ...o.legs]) {
-    if (!OPEN.has(x.status)) continue;
+    if (!OPEN.has(x.status) && x.status !== 'held') continue;   // a waiting bracket's legs are 'held' (groupCombos)
     const r = await wb(env, 'POST', '/trading/orders/cancel', { body: { account_id: a.account_id, client_order_id: x.id } }, fetchFn);
     if (r.ok || (r.status === 417 && /not present/i.test(JSON.stringify(r.body || '')))) canceled++; else failed.push(x.id);   // a combo's legs go with its master
   }

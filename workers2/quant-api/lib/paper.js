@@ -181,12 +181,22 @@ const OPEN_ST = new Set(['new', 'accepted', 'pending_new', 'partially_filled', '
 export async function withLegs(env, list, fetchFn = fetch) {
   const orphans = list.filter((o) => o.order_class && o.order_class !== 'simple' && !(Array.isArray(o.legs) && o.legs.length));
   if (!orphans.length) return list;
-  const all = await alpaca(env, '/v2/orders?status=all&limit=100&direction=desc&nested=true', {}, fetchFn);
-  if (!all.ok || !Array.isArray(all.body)) return list;
+  // The newest 100 first; older pages (by submission time) only while an orphan's parent is still not found (review).
+  const seenAll = [];
+  let until = '';
+  for (let page = 0; page < 4; page++) {
+    const all = await alpaca(env, '/v2/orders?status=all&limit=100&direction=desc&nested=true' + (until ? '&until=' + encodeURIComponent(until) : ''), {}, fetchFn);
+    if (!all.ok || !Array.isArray(all.body) || !all.body.length) break;
+    seenAll.push(...all.body);
+    if (orphans.every((o) => seenAll.some((x) => Array.isArray(x.legs) && x.legs.some((l) => l.id === o.id))) || all.body.length < 100) break;
+    until = all.body[all.body.length - 1].submitted_at || all.body[all.body.length - 1].created_at;
+    if (!until) break;
+  }
+  if (!seenAll.length) return list;
   const out = [], seen = new Set();
   for (const o of list) {
     if (!orphans.includes(o)) { out.push(o); continue; }
-    const parent = all.body.find((x) => Array.isArray(x.legs) && x.legs.some((l) => l.id === o.id));
+    const parent = seenAll.find((x) => Array.isArray(x.legs) && x.legs.some((l) => l.id === o.id));
     if (!parent) { out.push(o); continue; }
     if (seen.has(parent.id)) continue;
     seen.add(parent.id);
@@ -292,10 +302,11 @@ export async function replace(env, req, id, { fetchFn = fetch, priceOf = null, n
  *  Alpaca's replaced_by; one still being replaced is asked again a moment later. */
 export async function cancel(env, id, fetchFn = fetch, { wait = sleep } = {}) {
   if (!/^[\w-]{1,64}$/.test(id)) throw fail(400, 'not an order id');
-  let cur = id;
+  let cur = id, done = false, last = null;
   for (let i = 0; i < 6; i++) {
     const r = await alpaca(env, '/v2/orders/' + cur, { method: 'DELETE' }, fetchFn);
-    if (r.ok || r.status === 404) break;
+    last = r;
+    if (r.ok || r.status === 404) { done = true; break; }
     const why = String((r.body && (r.body.message || r.body.error)) || '');
     if (r.status === 422 && /replaced/i.test(why) && !/pending/i.test(why)) {
       const g = await alpaca(env, '/v2/orders/' + cur, {}, fetchFn);
@@ -304,6 +315,8 @@ export async function cancel(env, id, fetchFn = fetch, { wait = sleep } = {}) {
     if (r.status === 422 && /pending/i.test(why) && i < 5) { await wait(350); continue; }
     must(r, 'the cancel');
   }
+  // Out of tries (a long chain of replacements, or one still being replaced): never reported as cancelled (review).
+  if (!done) throw fail(409, `Alpaca paper did not cancel the order (${(last && last.body && last.body.message) || 'still being changed'}): look again in a moment`, { alpaca: last && last.status });
   await db(env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE alpaca_id = ? OR alpaca_id = ?").bind(id, cur).run()).catch(() => {});
   return json({ ok: true, paper: true, canceled: cur, asked: id });
 }
