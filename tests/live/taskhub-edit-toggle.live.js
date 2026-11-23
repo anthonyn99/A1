@@ -50,6 +50,14 @@ async function side(c, who) {
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   const docs = who === 'tony' ? { 'dashboards/main': DOC } : { 'dashboards/vedasdash': DOC };
+  const at = Date.now() + 2 * 60 * 1000;
+  const resetId = `codex_${who}_five_hour_${Math.round(at / 1000)}`;
+  const reset = { id: resetId, kind: 'five_hour', at };
+  const other = who === 'tony' ? 'veda' : 'tony';
+  docs[`dashboards/codex_resets_${who}`] = { notify: true, resets: [reset] };
+  docs[`dashboards/codex_resets_${other}`] = { notify: true, resets: [{ ...reset, kind: 'seven_day' }] };
+  docs[`dashboards/claude_resets_${who}`] = { notify: false, resets: [{ ...reset, id: `claude_${who}_five_hour_${Math.round(at / 1000)}` }] };
+  docs[`reminders/${resetId}`] = { dashboard: who, title: 'Codex has reset' };
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','${who}'); localStorage.setItem('a1b_disabled','1');
     sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(docs))}); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
@@ -58,6 +66,26 @@ async function side(c, who) {
   await sleep(1500);
   const bridge = who === 'tony' ? '_thVoice' : '_vdVoice';
   const set = (on) => js(`window.${bridge}.setEdit(${on}); 1`);
+  const card = `[...document.querySelectorAll('[title^="Fresh 5-hour window · from MAGI"]')].find(e => e.offsetParent && e.textContent.includes('Codex resets'))`;
+  for (const [width, height] of [[1666, 1300], [390, 844]]) {
+    await c.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width === 390 });
+    await sleep(300);
+    ok(`Codex card and bell show alongside Claude at ${width}px`, await js(`return !!(${card})?.querySelector('[aria-label="Notifies at reset"]') &&
+      [...document.querySelectorAll('[title^="Fresh 5-hour window · from MAGI"]')].some(e => e.offsetParent && e.textContent.includes('Claude resets'))`));
+    ok(`the other profile's Codex reset is absent at ${width}px`, await js(`return ![...document.querySelectorAll('[title^="Weekly limit resets · from MAGI"]')].some(e => e.offsetParent)`));
+  }
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1666, height: 1300, deviceScaleFactor: 1, mobile: false });
+  await set(true);
+  await sleep(300);
+  await js(`(${card})?.querySelector('[title="Remove this reset and its notification"]')?.click(); return 1;`);
+  await sleep(400);
+  ok('dismissing Codex hides the card and deletes its reminder', await js(`return !(${card}) &&
+    !JSON.parse(sessionStorage.getItem('__fakefs_docs'))['reminders/${resetId}']`));
+  await js(`await window._crRestore('${who}', 'codex', '${resetId}', {dashboard:'${who}', title:'Codex has reset'}); return 1;`);
+  await set(false);
+  await sleep(400);
+  ok('restoring Codex brings back the card and reminder', await js(`return !!(${card}) &&
+    !!JSON.parse(sessionStorage.getItem('__fakefs_docs'))['reminders/${resetId}']`));
   const view = await js(`return ${SNAP};`);
   const n = Object.keys(view).length;
   ok('habit and goal rows rendered', Object.keys(view).filter((k) => k[0] === 'h').length >= 3 && Object.keys(view).filter((k) => k[0] === 'g').length >= 2, JSON.stringify(view));
