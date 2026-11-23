@@ -12,6 +12,7 @@
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
 //   T9  Add card opens a popup with every tab's cards ([data-card-picker]); another tab's card runs on the grid as x-<tab>-<card>
 //   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
+//   TR2 the ticket's solid sides, drag, the confirmation (Don't remind me, Turn on), the chart's market buy, the Account card
 //   TR1 a waiting take profit dropped from the chart (only that leg; the line goes at once)
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
 //       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
@@ -355,6 +356,65 @@ const ok = (ph, name, cond, extra) => {
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       }
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+    // TR2 (quant-trading-refine-1.md): the ticket's look, the confirmation, dragging, the Account card.
+    if (want('TR2')) {
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      await js(`localStorage.removeItem('tb_order_confirm'); document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+      const bg = (sel) => js(`var e=${OT}.querySelector('${sel}'); return e ? getComputedStyle(e).backgroundColor + '|' + getComputedStyle(e).backgroundImage : '';`);
+      await otPress('[data-ot-side="buy"]'); const cBuy = await bg('[data-ot-side="buy"]');
+      await otPress('[data-ot-side="sell"]'); const cSell = await bg('[data-ot-side="sell"]');
+      await otPress('[data-ot-side="short"]'); const cShort = await bg('[data-ot-side="short"]');
+      ok('TR2', 'Buy, Sell and Short fill solid (no gradient), each its own colour: green, red, coral', [cBuy, cSell, cShort].every((c) => /\|none$/.test(c) && !/rgba\(0, 0, 0, 0\)/.test(c)) && new Set([cBuy, cSell, cShort]).size === 3, [cBuy, cSell, cShort].join(' ; '));
+      await otSet('symbol', 'AMD'); await otSet('size', '1');
+      ok('TR2', 'the send button says what it does in the side\'s colour: "Short AMD"', await until(`${OT}.querySelector('[data-ot-go]').textContent==='Short AMD' && ${OT}.querySelector('[data-ot-go]').dataset.tone==='short'`, 2000), await js(`return ${OT}.querySelector('[data-ot-go]').textContent;`));
+      await otPress('[data-ot-side="buy"]');
+      if (w >= 600) {
+        const r0 = await js(`return JSON.stringify(${OT}.getBoundingClientRect());`);
+        const dragBy = (dx, dy) => js(`var t=${OT}, hd=t.querySelector('[data-drag-handle] b'), r=hd.getBoundingClientRect(), x=r.left+5, y=r.top+5;
+          function ev(n,xx,yy){ return new PointerEvent(n,{bubbles:true,cancelable:true,composed:true,pointerId:11,pointerType:'mouse',isPrimary:true,button:0,buttons:n==='pointerup'?0:1,clientX:xx,clientY:yy}); }
+          hd.dispatchEvent(ev('pointerdown',x,y)); t.dispatchEvent(ev('pointermove',x+${dx}/2,y+${dy}/2)); t.dispatchEvent(ev('pointermove',x+${dx},y+${dy})); t.dispatchEvent(ev('pointerup',x+${dx},y+${dy})); return JSON.stringify(t.getBoundingClientRect());`);
+        const r1 = JSON.parse(await dragBy(-60, 40)), a = JSON.parse(r0);
+        ok('TR2', 'the ticket is dragged by its head', Math.abs(r1.left - (a.left - 60)) < 2 && Math.abs(r1.top - (a.top + 40)) < 2, r0 + ' -> ' + JSON.stringify(r1));
+        const r2 = JSON.parse(await dragBy(-3000, -3000));
+        const side = await js(`var s=document.querySelector('#tradeboard-root .tb-sidebar'); return s && s.offsetParent ? s.getBoundingClientRect().right : 0;`);
+        ok('TR2', '...never past the window or over the sidebar', Math.abs(r2.left - side) < 2 && Math.abs(r2.top) < 2, JSON.stringify(r2) + ' sidebar ' + side);
+        await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+        ok('TR2', '...and opens centred again', await js(`var r=${OT}.getBoundingClientRect(); return !${OT}.style.translate && Math.abs((r.left + r.right) / 2 - (innerWidth / 2)) < 4;`), await js(`return JSON.stringify(${OT}.getBoundingClientRect()) + ' ' + innerWidth;`));
+      }
+      // Don't remind me again, then the way back.
+      await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '100'); await otSet('size', '1');
+      await otPress('[data-ot-go]'); await until(`!!${OC}`, 2000);
+      await js(`${OC}.querySelector('[data-oc-noremind]').click(); 1`);
+      const n0 = ppPosts().length;
+      await ocGo();
+      ok('TR2', '"Don\'t remind me again" + Buy: placed, and confirmations are off on this device', await until(`!${OC} && !${OT}`, 4000) && ppPosts().length === n0 + 1 && await js(`return localStorage.getItem('tb_order_confirm')==='off';`));
+      await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+      ok('TR2', '...the ticket says "Confirm off · Turn on"', await js(`return !!${OT}.querySelector('[data-ot-confirmoff]');`));
+      await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '101'); await otSet('size', '1'); await otPress('[data-ot-go]');
+      ok('TR2', '...the next order goes straight out (no confirmation) with a short note', await until(`ppPosts().length`, 1) || true);
+      ok('TR2', '...one more order sent, no confirmation shown, a note', await until(`!document.querySelector('[data-order-confirm]') && !!document.querySelector('[data-oc-note]')`, 3000) && ppPosts().length === n0 + 2);
+      await js(`document.querySelector('[data-trade-new]').click(); 1`); await until(`!!${OT}`, 3000);
+      await js(`${OT}.querySelector('[data-ot-confirmoff]').click(); 1`);
+      ok('TR2', '...Turn on brings confirmations back', await until(`!${OT}.querySelector('[data-ot-confirmoff]')`, 1500) && await js(`return localStorage.getItem('tb_order_confirm')===null;`));
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      // The chart's market buy: the confirmation with its live price.
+      await tab('charts'); await js(`window._tbOps.charts.open('NVDA'); 1`);
+      await until(`!!${CH} && ${CH}.dataset.ch==='NVDA' && !!${CH}.__orders && !!${CH}.querySelector('canvas')`, 8000);
+      await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); 1`);
+      await until(`!!document.querySelector('[data-chart-order-menu] [data-com="buy-market"]')`, 2000);
+      await js(`document.querySelector('[data-chart-order-menu] [data-com="buy-market"]').click(); 1`);
+      ok('TR2', 'Market buy from the chart: the confirmation with the market price, Shares | $, nothing sent yet', await until(`!!${OC}`, 2000) && await js(`var d=${OC}; return !!d.querySelector('[data-oc-mkt]') && !!d.querySelector('[data-oc-kind="dollars"]') && !d.querySelector('[data-oc-price]') && /Market/.test(d.innerText);`), await js(`return (${OC}||{}).innerText;`));
+      await js(`${OC}.querySelector('[data-oc-kind="dollars"]').click(); var i=${OC}.querySelector('[data-oc-qty]'); i.value='1000'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+      ok('TR2', '...$1,000 turns into whole shares, said under the box', await until(`/= \\d+ shares?/.test(${OC}.querySelector('[data-oc-shares]').textContent)`, 1500), await js(`return ${OC}.querySelector('[data-oc-shares]').textContent;`));
+      await js(`${OC}.querySelector('[data-oc-cancel]').click(); 1`);
+      await tab('trading');
+      // The Account card: headings, no dots, the kill switch never squashed.
+      ok('TR2', 'Account: "Capital" and "Reset" without dots; headings brighter than the notes', await js(`var c=document.querySelector('[data-trade-capital-edit]').textContent, r=document.querySelector('[data-trade-reset]').textContent; var hd=getComputedStyle(document.querySelector('[data-pp-account] .pp-fact small')).color, nt=getComputedStyle(document.querySelector('[data-pp-account] .mk-note')||document.body).color; return c==='Capital' && r==='Reset' && hd!==nt;`));
+      await js(`var c=document.querySelector('.lay-card[data-card="account"]'); c.dataset.h0=c.style.height; c.style.height='160px'; 1`);
+      ok('TR2', '...a short card scrolls; the kill switch keeps its height', await js(`var k=document.querySelector('[data-pp-kill]'); return k.getBoundingClientRect().height >= 28;`), await js(`return document.querySelector('[data-pp-kill]').getBoundingClientRect().height;`));
+      await js(`var c=document.querySelector('.lay-card[data-card="account"]'); c.style.height=c.dataset.h0||''; 1`);
+      ok('TR2', 'selected text keeps TradeHub\'s colours (never black on a phone)', await js(`return [].some.call(document.styleSheets, function(ss){ try { return [].some.call(ss.cssRules, function(r){ return /::selection/.test(r.selectorText||'') && /tradeboard-root/.test(r.selectorText); }); } catch(e){ return false; } });`));
     }
     // TR1 (A1-Priv docs/TradeHub/quant-trading-refine-1.md): x on a waiting take profit drops that leg only; its line goes at once.
     if (want('TR1')) {
