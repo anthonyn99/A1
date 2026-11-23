@@ -546,12 +546,12 @@ const ok = (ph, name, cond, extra) => {
         const rail = `[...document.querySelectorAll('.vc-rail.h.on')].find(e=>Math.abs(e.getBoundingClientRect().left-${strip}.getBoundingClientRect().left)<3)`;
         const shown = await until(`!!(${rail})`, 2500);
         if (shown) {
-          const point = await js(`var r=(${rail}).getBoundingClientRect(), t=${strip}.firstElementChild.getBoundingClientRect();
-            return {x:r.right-5,y:r.top+r.height/2,clear:r.top>=t.bottom};`);
+          const point = await js(`var bar=(${rail}), r=bar.getBoundingClientRect(), s=${strip}, t=s.firstElementChild.getBoundingClientRect();
+            return {x:r.right-5,y:r.top+r.height/2,clear:r.top>=t.bottom && r.bottom<=s.getBoundingClientRect().bottom,thumb:bar.firstElementChild.getBoundingClientRect().height};`);
           await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
           await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-          ok('TR4', 'the shared horizontal scrollbar stays clear of tabs and scrolls on click', point.clear && await until(`(${strip}).scrollLeft>0`, 1500), point);
-        } else ok('TR4', 'the shared horizontal scrollbar stays clear of tabs and scrolls on click', false);
+          ok('TR4', 'the 3 px horizontal scrollbar stays clear of tabs and scrolls on click', point.clear && point.thumb===3 && await until(`(${strip}).scrollLeft>0`, 1500), point);
+        } else ok('TR4', 'the 3 px horizontal scrollbar stays clear of tabs and scrolls on click', false);
         await js(`var s=${strip}; s.style.maxWidth=''; s.scrollLeft=0; 1`);
       }
       await shot('tr4-tabs-' + w);
