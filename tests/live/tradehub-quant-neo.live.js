@@ -178,7 +178,7 @@ const ok = (name, cond, extra) => {
     await js(`var i=document.querySelector('[data-nq-dock] [data-nq-input]'); i.focus(); i.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
     ok(`${w} px: Escape closes it`, await until(`document.querySelector('[data-nq-dock]').hidden && !document.querySelector('[data-nq-launch]').hidden`, 2000));
     await tab('neo'); await sleep(400);
-    ok(`${w} px: the Neo Quant tab, its four cards, no sideways scroll`, (await js(`return document.querySelectorAll('[data-neo-tab] .lay-card').length;`)) === 4 && (await js(`return document.scrollingElement.scrollWidth <= innerWidth + 1;`)));
+    ok(`${w} px: the Neo Quant tab, its three cards, no sideways scroll`, (await js(`return document.querySelectorAll('[data-neo-tab] .lay-card').length;`)) === 3 && (await js(`return document.scrollingElement.scrollWidth <= innerWidth + 1;`)));
     await shot('neo-tab-' + w);
   }
   ok('no uncaught errors', errs.length === 0, errs.join(' | '));

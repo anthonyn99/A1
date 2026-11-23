@@ -67,7 +67,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR5', 'Macro sections have solid panel fills', await until("document.querySelector('[data-cx-group]')", 8000) && await js("return [...document.querySelectorAll('[data-cx-group]')].every(e=>{const s=getComputedStyle(e);return s.borderRadius==='10px' && s.backgroundImage==='none' && s.backgroundColor!=='rgba(0, 0, 0, 0)';});"));
       await tab('prompt');
       await js("document.querySelector('[data-ctl-sub=alerts]').click(); 1");
-      const alertsLook = await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('.tal-sec')", 5000)
+      const alertsLook = await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('.tal-sec') && getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')).backgroundColor==='rgb(192, 174, 234)'", 5000)
         && await js("const active=getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')); const group=getComputedStyle(document.querySelector('.tal-sec')); return [active.backgroundImage, active.backgroundColor, group.borderRadius].join('|');");
       ok('TR5', 'Control uses a solid active tab and grouped Alerts settings', /^none\|/.test(alertsLook) && !alertsLook.includes('rgba(0, 0, 0, 0)') && alertsLook.endsWith('|10px'), alertsLook || await js("return document.querySelector('[data-ctl-pane=alerts]')?.innerText;"));
 
