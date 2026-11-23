@@ -12,6 +12,7 @@
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
 //   T9  Add card opens a popup with every tab's cards ([data-card-picker]); another tab's card runs on the grid as x-<tab>-<card>
 //   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
+//   TR3 positions, working orders (brackets with their legs), fills and the activity as boxes; squeezed narrow
 //   TR2 the ticket's solid sides, drag, the confirmation (Don't remind me, Turn on), the chart's market buy, the Account card
 //   TR1 a waiting take profit dropped from the chart (only that leg; the line goes at once)
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
@@ -356,6 +357,40 @@ const ok = (ph, name, cond, extra) => {
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       }
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+    // TR3 (quant-trading-refine-1.md): positions, working orders, fills and the activity as boxes, at any card size.
+    if (want('TR3')) {
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      const keep3 = JSON.parse(JSON.stringify(api.state.pp.orders));
+      api.state.pp.orders = [
+        { id: 'w1', symbol: 'AMD', side: 'buy', type: 'limit', qty: 2, limit_price: 140, status: 'new', order_class: 'bracket', time_in_force: 'gtc', submitted_at: '2026-11-23T15:00:00Z',
+          legs: [{ id: 'w1tp', symbol: 'AMD', side: 'sell', type: 'limit', qty: 2, limit_price: 150, status: 'held' }, { id: 'w1sl', symbol: 'AMD', side: 'sell', type: 'stop', qty: 2, stop_price: 135, status: 'held' }] },
+        { id: 'f1', symbol: 'NVDA', side: 'buy', type: 'market', qty: 10, status: 'filled', filled_qty: 10, filled_avg_price: 160, order_class: 'bracket', time_in_force: 'gtc',
+          legs: [{ id: 'f1tp', symbol: 'NVDA', side: 'sell', type: 'limit', qty: 10, limit_price: 180, status: 'new' }, { id: 'f1sl', symbol: 'NVDA', side: 'sell', type: 'stop', qty: 10, stop_price: 150, status: 'held' }] },
+        { id: 's1', symbol: 'TSLA', side: 'sell', type: 'limit', qty: 1, limit_price: 320, status: 'new', order_class: 'simple', time_in_force: 'day', submitted_at: '2026-11-23T15:01:00Z' }];
+      await js(`window._tbOps.trading.refresh(); 1`);
+      const W = `document.querySelector('[data-pp-working]')`;
+      ok('TR3', 'Working orders: one box per order; the bracket carries its take profit and stop inside, marked as waiting', await until(`!!${W} && !!${W}.querySelector('[data-pp-ord="w1"]')`, 6000)
+        && await js(`var b=${W}.querySelector('[data-pp-ord="w1"]'); return b.classList.contains('pp-box') && b.querySelectorAll('[data-pp-leg]').length===2 && /waits for the entry/.test(b.innerText) && /Limit 140\\.00/.test(b.innerText) && !!b.querySelector('[data-pp-cancel]') && !!b.querySelector('[data-pp-reprice]');`), await js(`return ${W}.innerText;`));
+      ok('TR3', 'a filled bracket shows as the exits left on the position (no "working buy")', await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return !!b && /Exits/.test(b.innerText) && b.querySelectorAll('[data-pp-leg]').length===2 && !b.querySelector('[data-pp-cancel]');`), await js(`var b=${W}.querySelector('[data-pp-ord="f1"]'); return b && b.innerText;`));
+      ok('TR3', 'a sell with no long held reads Short', await js(`var b=${W}.querySelector('[data-pp-ord="s1"]'); return !!b && /Short/.test(b.querySelector('.pp-chip').textContent);`));
+      ok('TR3', 'Positions: a box with Long, size @ average, P&L, Last / Value / Today, Order and Close', await js(`var b=document.querySelector('[data-pp-pos="NVDA"]'); return !!b && b.classList.contains('pp-box') && /Long/.test(b.innerText) && /10 @ \\$160\\.00/.test(b.innerText) && !!b.querySelector('[data-pp-close]') && !!b.querySelector('[data-pp-order]');`), await js(`return (document.querySelector('[data-pp-pos="NVDA"]')||{}).innerText;`));
+      await js(`${W}.querySelector('[data-pp-ord="w1"] [data-pp-leg="w1tp"] [data-pp-legx]').click(); 1`);
+      const d0 = ppCalls('POST', /\/paper\/orders\/w1tp\/drop$/).length;
+      ok('TR3', 'x on a leg asks "Remove take profit" (the chart\'s dialog)', await until(`!!${CDLG('cancel')}`, 2000) && await js(`return /^Remove take profit/.test(${CDLG('cancel')}.querySelector('.ot-head b').textContent);`));
+      await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
+      ok('TR3', '...one drop call; the stop stays', await until(`!${W}.querySelector('[data-pp-leg="w1tp"]')`, 3000) && ppCalls('POST', /\/paper\/orders\/w1tp\/drop$/).length === d0 + 1 && await js(`return !!${W}.querySelector('[data-pp-leg="w1sl"]');`));
+      // Every order card fits its width, also squeezed narrow.
+      const fits = () => js(`return ['[data-pp-working]','[data-pp-positions]','[data-pp-filled]','[data-pp-log]'].every(function(s){ var c=document.querySelector(s); return !c || c.scrollWidth <= c.clientWidth + 1; });`);
+      ok('TR3', 'no order card runs past its edge', await fits());
+      await js(`var c=document.querySelector('.lay-card[data-card="working"]'); c.dataset.w0=c.style.width; c.style.width='290px'; 1`);
+      await new Promise((r) => setTimeout(r, 120));
+      ok('TR3', '...squeezed to 290 px: the buttons take their own full-width line, nothing cut off', await js(`var c=document.querySelector('[data-pp-working]'); var a=c.querySelector('[data-pp-ord="w1"] .pp-sub .pp-acts'); return c.scrollWidth <= c.clientWidth + 1 && !!a && Math.abs(a.getBoundingClientRect().width - a.parentElement.getBoundingClientRect().width) < 2;`), await js(`var c=document.querySelector('[data-pp-working]'); return c.scrollWidth + '/' + c.clientWidth;`));
+      await shot('tr3-working-narrow-' + w);
+      await js(`var c=document.querySelector('.lay-card[data-card="working"]'); c.style.width=c.dataset.w0||''; c.scrollIntoView({block:'center'}); 1`);
+      await shot('tr3-cards-' + w);
+      api.state.pp.orders = keep3;
+      await js(`window._tbOps.trading.refresh(); 1`);
     }
     // TR2 (quant-trading-refine-1.md): the ticket's look, the confirmation, dragging, the Account card.
     if (want('TR2')) {
