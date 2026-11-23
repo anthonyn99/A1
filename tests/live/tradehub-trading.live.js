@@ -360,7 +360,9 @@ const ok = (ph, name, cond, extra) => {
     }
     // TR3 (quant-trading-refine-1.md): positions, working orders, fills and the activity as boxes, at any card size.
     if (want('TR3')) {
-      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);   // the opening check's ticket
+      const tk0 = await js(`return document.querySelectorAll('.ot-scrim [data-order-ticket]').length;`);
+      await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);   // the opening check's ticket
+      ok('TR3', 'Escape closes an open ticket', await until(`!document.querySelector('.ot-scrim [data-order-ticket]')`, 1500), tk0 + ' open before; ' + await js(`return document.querySelectorAll('.ot-scrim [data-order-ticket]').length + ' after; active=' + (document.activeElement && (document.activeElement.tagName + '.' + document.activeElement.className));`));
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       const keep3 = JSON.parse(JSON.stringify(api.state.pp.orders));
       api.state.pp.orders = [
