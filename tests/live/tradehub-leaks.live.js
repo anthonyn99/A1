@@ -15,11 +15,13 @@
 // B5 (r2-05.md): REAL=1 is the realistic-volume mode: Tony's 35-ticker Main as the watchlist and a 1-minute
 // pan to the chart's cap. Every sample also prints the committed heap (JSHeapTotalSize, closer to the
 // browser's figure Tony read) beside the used heap, and the work-out counts the stream connections made.
+// SOAK_MIN=60 runs the TR8 Trading / Charts / Market loop with a snapshot every 15 minutes.
 // Run: CDP_PORT=93xx node tests/live/tradehub-leaks.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP, WATCHLIST } = require('./quant-mock.js');
-const REAL = !!process.env.REAL;
+const { quantApi, driver, bigJournal, PAGE_SETUP, WATCHLIST } = require('./quant-mock.js');
+const SOAK_MIN = Number(process.env.SOAK_MIN) || 0;
+const REAL = !!process.env.REAL || SOAK_MIN > 0;
 // Tony's Main had 35 tickers (R0); the mock answers bars and quotes for any symbol.
 const MAIN35 = [...new Set([...WATCHLIST, 'MU', 'SNDK', 'AMD', 'NVDA', 'TSLA', 'PLTR', 'AAPL', 'META', 'AMZN', 'MSFT', 'GOOGL', 'AVGO', 'TSM', 'SMCI', 'COIN', 'HOOD', 'SOFI', 'RKLB', 'IONQ', 'ARM', 'NFLX', 'CRWD', 'SHOP', 'UBER', 'INTC', 'MRVL', 'ANET', 'DELL', 'ORCL', 'LRCX', 'AMAT', 'KLAC', 'QCOM', 'ADBE', 'CRM'])].slice(0, 35);
 
@@ -28,7 +30,7 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 600) : '')); }
 };
-const ALL = ['portfolio', 'market', 'charts', 'scanner', 'neo', 'paper', 'journal', 'catalysts', 'playbook', 'prompt', 'news', 'analysis'];
+const ALL = ['portfolio', 'market', 'charts', 'scanner', 'neo', 'trading', 'journal', 'catalysts', 'playbook', 'prompt', 'news', 'analysis'];
 const TABS = process.env.TABS ? process.env.TABS.split(',') : ALL;
 const LEAK_MIN = Number(process.env.LEAK_MIN) || 3, WARM_S = Number(process.env.WARM_S) || 45, CYCLES = Number(process.env.CYCLES) || 40;
 
@@ -72,10 +74,71 @@ async function census(c) {
     return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), committedMB: +(m.JSHeapTotalSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, canvases: canv };
   };
   await size(1504, 900);
-  await boot(REAL ? { quant: true, watchlist: MAIN35 } : { quant: true });
+  await boot({
+    quant: true,
+    ...(REAL ? { watchlist: MAIN35 } : {}),
+    ...(SOAK_MIN > 0 ? { docs: { 'dashboards/tradeboard_journal': bigJournal(800) } } : {}),
+  });
   if (REAL) console.log(`  (REAL: ${MAIN35.length} tickers on the watchlist)`);
   ok('the app is up with Quant on', await until(`document.querySelector('.tbq-on')`, 10000));
   await js(`window.__ws.auto(100); 1`);
+
+  if (SOAK_MIN > 0) {
+    const settle = async (id) => {
+      await tab(id);
+      if (!(await until("window._tbOps.app.page()==='" + id + "'", 8000))) throw new Error('Could not open ' + id);
+    };
+    const charts = "document.querySelector('[data-charts]')?.__charts?.active()";
+    const tour = async (round, pause) => {
+      await settle('trading');
+      await until("document.querySelector('[data-trade-broker]')", 6000);
+      await js("const e=document.querySelector('[data-trade-broker]'); e.value='" + (round % 2 ? 'alpaca' : 'webull') + "'; e.dispatchEvent(new Event('change',{bubbles:true})); 1");
+      await pause();
+      await settle('charts');
+      await until(charts + '?.info().bars > 0', 8000);
+      const sym = ['SPY', 'WMT', 'NVDA', 'AAPL'][round % 4];
+      await js(charts + ".set({symbol:'" + sym + "',tf:'" + (round % 2 ? '5m' : '15m') + "'}); 1");
+      await pause();
+      await settle('market');
+      await until("document.querySelector('[data-lay=market]')", 8000);
+      await pause();
+    };
+    const detached = (snapshot) => [...snapshot].filter(([name]) => name.startsWith('Detached ')).reduce((total, [, e]) => total + e.n, 0);
+    console.log('TR8: warming Trading, Charts and Market with 35 tickers');
+    for (let i = 0; i < 4; i++) await tour(i, () => sleep(1200));
+    await settle('trading');
+    await sleep(1500);
+    const first = await sample(), heapFirst = await census(c);
+    const started = Date.now(), deadline = started + SOAK_MIN * 60_000;
+    let nextSample = started + (deadline - started) / 4;
+    console.log('TR8: baseline ' + JSON.stringify(first) + '; detached objects ' + detached(heapFirst));
+    for (let round = 0; Date.now() < deadline; round++) {
+      await tour(round, () => sleep(Math.max(0, Math.min(15000, deadline - Date.now()))));
+      if (Date.now() >= nextSample && Date.now() < deadline) {
+        nextSample += (deadline - started) / 4;
+        await settle('trading');
+        await sleep(1500);
+        const mid = await sample();
+        console.log('TR8: ' + ((Date.now() - started) / 60000).toFixed(1) + ' min ' + JSON.stringify(mid) + '; detached objects ' + detached(await census(c)));
+      }
+    }
+    await settle('trading');
+    await sleep(1500);
+    const last = await sample(), heapLast = await census(c);
+    const d0 = detached(heapFirst), d1 = detached(heapLast);
+    console.log('TR8: ' + ((Date.now() - started) / 60000).toFixed(1) + ' min ' + JSON.stringify(last) + '; detached objects ' + d1);
+    const growth = [...heapLast].map(([name, e]) => [name, e.size - (heapFirst.get(name)?.size || 0)])
+      .sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, bytes]) => [name, Math.round(bytes / 1024)]);
+    console.log('TR8: largest increases by constructor (KB) ' + JSON.stringify(growth));
+    ok('[TR8] heap after GC grows under 10% across the session', last.heapMB < first.heapMB * 1.1, [first.heapMB, last.heapMB]);
+    ok('[TR8] DOM nodes and listeners stay within 10%', last.nodes <= first.nodes * 1.1 && last.listeners <= first.listeners * 1.1);
+    ok('[TR8] detached objects stay within the warm baseline allowance', d1 <= d0 * 1.1 + 50, [d0, d1]);
+    ok('[TR8] no uncaught errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    await js("window.__ws.auto(0); 1");
+    console.log(pass + ' passed, ' + fail + ' failed');
+    c.ws.close();
+    process.exit(fail ? 1 : 0);
+  }
 
   console.log(`\n1. Each tab alone (${WARM_S} s warm-up, then ${LEAK_MIN} min of ticks)`);
   const table = [];
