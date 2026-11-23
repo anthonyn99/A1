@@ -82,8 +82,9 @@ const ok = (ph, name, cond, extra) => {
       await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
       await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
       await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-      ok('TR5', 'Control selects the tab in purple while the pointer stays over it', await js(`var b=document.querySelector('[data-ctl-sub=neo]'), css=getComputedStyle(b);
-        return b.getAttribute('aria-selected')==='true' && css.backgroundColor===${JSON.stringify(purple)} && css.filter==='none';`));
+      const colorAfterClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'), css=getComputedStyle(b);
+        return [b.getAttribute('aria-selected'), css.backgroundColor, css.filter];`);
+      ok('TR5', 'Control selects the tab in purple while the pointer stays over it', colorAfterClick.join('|') === ['true', purple, 'none'].join('|'), colorAfterClick);
 
       await tab('neo');
       ok('TR5', 'Neo Quant has the shorter header and prompt and no Recent conversations card', await until("document.querySelector('[data-neo-tab] [data-nq-input]')", 5000) && await js("const n=document.querySelector('[data-neo-tab]'); return n.querySelector('.ctl-meta').textContent==='Your desk quant' && n.querySelector('[data-nq-input]').placeholder==='Ask Neo Quant…' && !n.querySelector('[data-card=recent]');"));
@@ -550,7 +551,9 @@ const ok = (ph, name, cond, extra) => {
         await js(`var title=${TT}.querySelector('.lay-card[data-card="working"] .lay-title');
           window.__groupDrag = function(t, p, el=window) { el.dispatchEvent(new PointerEvent(t,{bubbles:true,cancelable:true,pointerType:'mouse',pointerId:31,button:0,buttons:t==='pointerup'?0:1,clientX:p.x,clientY:p.y})); };
           __groupDrag('pointerdown',${JSON.stringify(toward.from)},title);
-          __groupDrag('pointermove',${JSON.stringify(toward.to)}); 1`);
+          __groupDrag('pointermove',${JSON.stringify({ x: toward.to.x, y: toward.to.y + 40 })}); 1`);
+        await sleep(220);
+        await js(`__groupDrag('pointermove',${JSON.stringify(toward.to)}); 1`);
         ok('TR4', 'the upper body below the title lights up as a grouping target', await until(`!!${TT}.querySelector('[data-card="positions"].is-group-target')`, 1500));
         await js(`__groupDrag('pointerup',${JSON.stringify(toward.to)}); delete window.__groupDrag; 1`);
         ok('TR4', 'releasing below the title groups the cards instead of moving them', await until(`!!${TT}.querySelector('[data-card="positions"] [data-lay-tab="working"]')`, 2000));
