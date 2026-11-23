@@ -122,7 +122,15 @@ async function alpaca(env, path, init = {}, fetchFn = fetch) {
   let body = null; try { body = text ? JSON.parse(text) : null; } catch (e) { body = { message: text.slice(0, 200) }; }
   return { ok: r.ok, status: r.status, body, limit: r.headers.get('x-ratelimit-limit'), remaining: r.headers.get('x-ratelimit-remaining') };
 }
-const must = (r, what) => { if (!r.ok) throw fail(r.status === 429 ? 429 : r.status >= 500 ? 502 : r.status === 404 ? 404 : 422, `Alpaca paper refused ${what}: ${(r.body && (r.body.message || r.body.error)) || 'HTTP ' + r.status}`, { alpaca: r.status }); return r.body; };
+/** Alpaca's refusal in plain words where its own is cryptic (TR1, met on the real paper account 2026-11-23). */
+export function refusalText(msg) {
+  const m = String(msg || '');
+  if (/wash trade/i.test(m)) return 'it could trade against one of your own working orders on the other side of this stock (Alpaca calls that a wash trade): cancel or change that order first, or send the entry and its exits together as one bracket';
+  if (/insufficient qty available/i.test(m)) return 'those shares are already held by a working order (a stop loss or take profit on them): cancel or change that order first';
+  if (/not shortable|cannot be sold short/i.test(m)) return 'this stock cannot be sold short on Alpaca paper';
+  return m;
+}
+const must = (r, what) => { if (!r.ok) throw fail(r.status === 429 ? 429 : r.status >= 500 ? 502 : r.status === 404 ? 404 : 422, `Alpaca paper refused ${what}: ${refusalText((r.body && (r.body.message || r.body.error)) || 'HTTP ' + r.status)}`, { alpaca: r.status, raw: r.body && r.body.message }); return r.body; };
 const noTable = (e) => /no such table/i.test(String(e && e.message));
 async function db(p) { try { return await p; } catch (e) { if (noTable(e)) throw fail(503, 'the paper tables are not there yet (D1 migration 0010_paper.sql)'); throw e; } }
 async function killOn(env) { const r = await db(env.DB.prepare("SELECT v FROM meta WHERE k = 'paper_kill'").first()); return !!(r && r.v === '1'); }
