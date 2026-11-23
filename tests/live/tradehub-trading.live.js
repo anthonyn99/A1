@@ -543,8 +543,8 @@ const ok = (ph, name, cond, extra) => {
         await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...to, button: 'left', clickCount: 1 });
       }
       ok('TR4', 'dragging a tab reorders it and keeps the same host and open tab', await until(`(function(){ var s=${TT}.querySelector('.lay-card[data-card="positions"] .lay-tabs'); return !!s && s.dataset.layTabs==='working,positions,filled' && s.querySelector('[aria-selected=true]').dataset.layTab==='working'; })()`, 2200));
-      ok('TR4', 'the grouped header keeps a blank drag corner', await js(`const grip=${TT}.querySelector('[data-card="positions"] .lay-group-grip');
-        return !!grip && grip.getBoundingClientRect().width>=24 && getComputedStyle(grip.querySelector('svg')).display==='none';`));
+      ok('TR4', 'the grouped header keeps an 18 px blank drag corner', await js(`const grip=${TT}.querySelector('[data-card="positions"] .lay-group-grip');
+        return !!grip && grip.getBoundingClientRect().width===18 && getComputedStyle(grip.querySelector('svg')).display==='none';`));
       if (w >= 600) {
         const strip = `document.querySelector('[data-card="positions"] [data-sb-strip].lay-tabs')`;
         const hover = await js(`var s=${strip}; s.style.maxWidth='130px'; var r=s.getBoundingClientRect(); return {x:r.left+12,y:r.top+16};`);
@@ -556,8 +556,8 @@ const ok = (ph, name, cond, extra) => {
             return {x:r.right-5,y:r.top+r.height/2,clear:r.top>=t.bottom && r.bottom<=s.getBoundingClientRect().bottom,thumb:bar.firstElementChild.getBoundingClientRect().height};`);
           await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
           await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-          ok('TR4', 'the 3 px horizontal scrollbar stays clear of tabs and scrolls on click', point.clear && point.thumb===3 && await until(`(${strip}).scrollLeft>0`, 1500), point);
-        } else ok('TR4', 'the 3 px horizontal scrollbar stays clear of tabs and scrolls on click', false);
+          ok('TR4', 'the 4 px horizontal scrollbar stays clear of tabs and scrolls on click', point.clear && point.thumb===4 && await until(`(${strip}).scrollLeft>0`, 1500), point);
+        } else ok('TR4', 'the 4 px horizontal scrollbar stays clear of tabs and scrolls on click', false);
         await js(`var s=${strip}; s.style.maxWidth=''; s.scrollLeft=0; 1`);
       }
       if (w >= 600) {

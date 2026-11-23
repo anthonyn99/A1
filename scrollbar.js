@@ -63,7 +63,7 @@
     '.vc-rail:hover .vc-thumb,.vc-rail.drag .vc-thumb{background:var(--ac,#c0aeea)}',
     '.vc-rail.v:hover .vc-thumb,.vc-rail.v.drag .vc-thumb{width:9px}.vc-rail.h:hover .vc-thumb,.vc-rail.h.drag .vc-thumb{height:9px}',
     '.vc-rail.h.vc-thin{height:8px}',
-    '.vc-rail.h.vc-thin .vc-thumb{bottom:2px;height:3px}',
+    '.vc-rail.h.vc-thin .vc-thumb{bottom:2px;height:4px}',
     '.vc-rail.h.vc-thin .vc-thumb::before{inset:-2px 0}',
     '.vc-rail.drag .vc-thumb{cursor:grabbing}',
     // Veda's colours: her mauve (StudyOS's --ac / --acl), the same bar.
