@@ -360,8 +360,9 @@ const ok = (ph, name, cond, extra) => {
     }
     // TR3 (quant-trading-refine-1.md): positions, working orders, fills and the activity as boxes, at any card size.
     if (want('TR3')) {
+      // The opening checks left the chart's menu open; a press anywhere closes it, as a person's would.
+      await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,composed:true})); 1`);
       const tk0 = await js(`return document.querySelectorAll('.ot-scrim [data-order-ticket]').length;`);
-      console.log('    MENU:', await js(`var m=document.querySelector('[data-chart-order-menu]'), c=document.querySelector('[data-lay="charts"] .ch'); var r=c&&c.getBoundingClientRect(); return JSON.stringify({menu:!!m, ch:!!c, op: c? (c.offsetParent? c.offsetParent.className : null):'none', con: c&&c.isConnected, r: r&&[r.width,r.height,r.left,r.top]});`));
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);   // the opening check's ticket
       ok('TR3', 'Escape closes an open ticket', await until(`!document.querySelector('.ot-scrim [data-order-ticket]')`, 1500), tk0 + ' open before; ' + await js(`return document.querySelectorAll('.ot-scrim [data-order-ticket]').length + ' after; active=' + (document.activeElement && (document.activeElement.tagName + '.' + document.activeElement.className));`));
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
