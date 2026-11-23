@@ -416,6 +416,13 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, `/bars?symbol=NVDA&tf=4h&from=${NOW - 3 * DAY}&to=${NOW}`, { key: GOOD });
   ok('4-hour bars are built from hourly ones on 04:00/08:00/12:00/16:00 New York', r.status === 200 && r.body.bars.length > 0
     && r.body.bars.every((b) => [240, 480, 720, 960].includes(T.nyClock(b.t).minutes)), JSON.stringify(r.body.bars.slice(0, 3).map((b) => T.nyClock(b.t))));
+  W.reset();
+  const nightRoute = `/bars?symbol=NVDA&tf=4h&night=1&from=${NOW - 3 * DAY}&to=${NOW}`;
+  r = await call(env, nightRoute, { key: GOOD });
+  const boats = W.calls.filter((u) => u.includes('feed=boats'));
+  ok('Night adds distinct 00:00 and 20:00 BOATS buckets and follows the delay', r.status === 200 && r.body.night === 'delayed'
+    && r.body.bars.some((b) => T.nyClock(b.t).minutes === 0) && r.body.bars.some((b) => T.nyClock(b.t).minutes === 1200)
+    && boats.length === 1 && Date.parse(new URL(boats[0]).searchParams.get('end')) <= NOW - 15 * 60_000);
   W.reset(); W.down.add('alpaca');
   r = await call(env, `/bars?symbol=NVDA&tf=1m&from=${NOW - 40 * DAY}&to=${NOW}`, { key: GOOD });
   ok('Yahoo keeps 30 days of 1-minute bars: asked further back, it says the answer is incomplete', r.status === 200 && r.body.provider === 'yahoo' && r.body.complete === false);

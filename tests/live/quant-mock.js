@@ -337,11 +337,17 @@ function quantApi() {
         // clock by the test), e.g. SNDK's 8-for-1, served on the old basis as Alpaca did.
         const real = state.realBars && state.realBars[sym] && state.realBars[sym][tf];
         const bars = real ? real.filter((b) => b.t >= from && b.t <= to).map((b) => ({ ...b })) : TF_MS[tf] ? fakeIntraday(sym, tf, from, to) : fakeBars(sym, from, to);
+        const night = u.searchParams.get('night') === '1' && state.nightBars;
+        if (night) {
+          const held = new Set(bars.map((bar) => bar.t));
+          bars.push(...night.filter((bar) => bar.t >= from && bar.t <= to && !held.has(bar.t)));
+          bars.sort((a, b) => a.t - b.t);
+        }
         // BV: state.barsVx = { SYM: { iex: n, none: [i…] } } marks the newest n bars as one exchange's volume
         // and the listed bar indexes (from the end) as unknown, as quant-api does.
         const vx = state.barsVx && state.barsVx[sym];
         if (vx && TF_MS[tf]) { bars.slice(-(vx.iex || 0)).forEach((b) => { b.vx = 'iex'; }); for (const k of vx.none || []) if (bars[bars.length - 1 - k]) bars[bars.length - 1 - k].vx = 'none'; }
-        const out = { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null } };
+        const out = { json: { ok: true, symbol: sym, tf, bars, provider: 'alpaca', complete: true, known: null, ...(night ? { night: 'delayed' } : {}) } };
         const late = state.barsDelay && state.barsDelay[sym];
         return late ? new Promise((ok) => setTimeout(() => ok(out), late)) : out;
       }
