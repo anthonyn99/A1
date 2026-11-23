@@ -12,6 +12,7 @@
 //       ([data-chart-order-dialog]), exits on a position, each broker its own lines, press and hold on a phone
 //   T9  Add card opens a popup with every tab's cards ([data-card-picker]); another tab's card runs on the grid as x-<tab>-<card>
 //   T8  Neo Quant's trading readers (each broker by name, the chart's order lines, the trade alerts' switches); no order action
+//   TR4 tab groups on Trading (menu and drag), the Trade card short, Levels narrow, the Add card popup (search, remove)
 //   TR3 positions, working orders (brackets with their legs), fills and the activity as boxes; squeezed narrow
 //   TR2 the ticket's solid sides, drag, the confirmation (Don't remind me, Turn on), the chart's market buy, the Account card
 //   TR1 a waiting take profit dropped from the chart (only that leg; the line goes at once)
@@ -357,6 +358,81 @@ const ok = (ph, name, cond, extra) => {
         await js(`var cv=document.querySelector('[data-lay="charts"] canvas'), r=cv.getBoundingClientRect(); cv.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,pointerType:'touch',isPrimary:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       }
       ok('T6', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
+    }
+    // TR4 (quant-trading-refine-1.md): tab groups on Trading, nothing cut off, Levels narrow, the Add card popup.
+    if (want('TR4')) {
+      await js(`document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,composed:true})); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
+      await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
+      const TT = `document.querySelector('[data-trading-tab]')`;
+      // Group by the group button (works on every device): Working orders into Positions, then Filled orders.
+      const groupVia = (id, into) => js(`var b=${TT}.querySelector('.lay-card[data-card="${id}"] [data-act="group"]'); b.click(); return new Promise(function(r){ setTimeout(function(){ var m=document.querySelector('[data-lay-gmenu] [data-lay-gwith="${into}"]'); if (m) m.click(); r(!!m); }, 120); });`);
+      ok('TR4', 'the group button lists the other cards; Working orders joins Positions', await groupVia('working', 'positions'));
+      await new Promise((r) => setTimeout(r, 400));
+      ok('TR4', '...Filled orders too: one card, tabs Positions | Working orders | Filled orders, Filled open', await groupVia('filled', 'positions') && await until(`(function(){ var s=${TT}.querySelector('.lay-card[data-card="positions"] [data-lay-tabs]'); return !!s && [].map.call(s.querySelectorAll('[data-lay-tab]'),function(t){return t.textContent;}).join('|')==='Positions|Working orders|Filled orders' && s.querySelector('.is-on').dataset.layTab==='filled'; })()`, 3000),
+        await js(`var s=${TT}.querySelector('[data-lay-tabs]'); return s ? s.innerText : 'none';`));
+      await js(`${TT}.querySelector('[data-lay-tab="working"]').click(); 1`);
+      ok('TR4', 'a tab click shows that card\'s own content (Working orders\' boxes), the others hidden', await until(`(function(){ var c=${TT}.querySelector('.lay-card[data-card="positions"]'); var w=c.querySelector('[data-lay-tab-body="working"]'), p=c.querySelector('[data-lay-tab-body="positions"]'); return !!w && !w.hidden && p.hidden && !!w.querySelector('[data-pp-working]'); })()`, 2000));
+      ok('TR4', 'the group card is one spot on the grid; no overlaps', await js(`var cs=[...${TT}.querySelectorAll('.lay-grid > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0; for (var i=0;i<cs.length;i++) for (var j=i+1;j<cs.length;j++){ var p=cs[i],q=cs[j]; if (p.left<q.right-1&&q.left<p.right-1&&p.top<q.bottom-1&&q.top<p.bottom-1) bad++; } return bad===0 && !${TT}.querySelector('.lay-grid > .lay-card[data-card="working"]');`));
+      await shot('tr4-tabs-' + w);
+      if (w >= 600) {
+        // Detach by dragging a tab off the strip onto the grid.
+        const tb = await js(`var t=${TT}.querySelector('[data-lay-tab="filled"]'), r=t.getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2, y:r.top+r.height/2});`).then(JSON.parse);
+        await js(`var t=${TT}.querySelector('[data-lay-tab="filled"]'), s=t.parentElement; function ev(n,x,y){ return new PointerEvent(n,{bubbles:true,cancelable:true,pointerId:21,pointerType:'mouse',isPrimary:true,button:0,buttons:n==='pointerup'?0:1,clientX:x,clientY:y}); }
+          t.dispatchEvent(ev('pointerdown',${tb.x},${tb.y})); s.dispatchEvent(ev('pointermove',${tb.x},${tb.y + 60})); s.dispatchEvent(ev('pointermove',${tb.x},${tb.y + 200})); s.dispatchEvent(ev('pointerup',${tb.x},${tb.y + 200})); 1`);
+        ok('TR4', 'a tab dragged off the strip becomes its own card again', await until(`!!${TT}.querySelector('.lay-grid > .lay-card[data-card="filled"]') && ${TT}.querySelectorAll('.lay-card[data-card="positions"] [data-lay-tab]').length===2`, 3000));
+      } else {
+        await js(`var b=${TT}.querySelector('.lay-card[data-card="positions"] [data-act="group"]'); 1`);
+      }
+      // Take the rest out through the menu (phone and desktop alike).
+      for (const id of ['filled', 'working']) {
+        const g = await js(`return !!${TT}.querySelector('[data-lay-tab="${id}"]');`);
+        if (!g) continue;
+        await js(`${TT}.querySelector('[data-lay-tab="${id}"]').click(); 1`);
+        await js(`${TT}.querySelector('.lay-card[data-card="positions"] [data-act="group"]').click(); 1`);
+        await until(`!!document.querySelector('[data-lay-gmenu] [data-lay-gout]')`, 1500);
+        await js(`document.querySelector('[data-lay-gmenu] [data-lay-gout]').click(); 1`);
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      ok('TR4', 'Take out of the group (the menu): every card its own again, no group left', await until(`!${TT}.querySelector('[data-lay-tabs]') && ['positions','working','filled'].every(function(i){ return !!${TT}.querySelector('.lay-grid > .lay-card[data-card="'+i+'"]'); })`, 3000));
+      // #8: the Trade card squeezed short scrolls; its buttons are never cut or squashed.
+      await js(`var s=document.querySelector('[data-trading-tab] [data-lay-add]'); if (s && [].some.call(s.options,function(o){return o.value==='trade';})) { s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); } 1`);
+      await until(`!!document.querySelector('.lay-card[data-card="trade"] [data-order-ticket]')`, 3000);
+      await js(`var c=document.querySelector('.lay-card[data-card="trade"]'); c.dataset.h0=c.style.height; c.style.height='260px'; 1`);
+      await new Promise((r) => setTimeout(r, 150));
+      ok('TR4', 'the Trade card 260 px tall: it scrolls, and its send button keeps its full height and width', await js(`var c=document.querySelector('.lay-card[data-card="trade"]'), b=c.querySelector('.lay-body'), g=c.querySelector('[data-ot-go]'); var r=g.getBoundingClientRect(); return b.scrollHeight > b.clientHeight && r.height >= 30 && r.width >= 100 && b.scrollWidth <= b.clientWidth + 1;`), await js(`var g=document.querySelector('.lay-card[data-card="trade"] [data-ot-go]').getBoundingClientRect(); return JSON.stringify(g);`));
+      await js(`var c=document.querySelector('.lay-card[data-card="trade"]'); c.style.height=c.dataset.h0||''; var x=c.querySelector('[data-act="hide"]'); if (x) x.click(); 1`);
+      // #13: Levels on Charts squeezed narrow: nothing runs off, the bells line up.
+      await tab('charts');
+      await until(`!!document.querySelector('.lay-card[data-card="levels"] .ch-lv')`, 6000);
+      await js(`var c=document.querySelector('.lay-card[data-card="levels"]'); c.dataset.w0=c.style.width; c.style.width='240px'; 1`);
+      await new Promise((r) => setTimeout(r, 200));
+      ok('TR4', 'Levels at 240 px: no row runs off the card, every bell in one column', await js(`var c=document.querySelector('.lay-card[data-card="levels"]'), b=c.querySelector('.lay-body'); var bells=[...c.querySelectorAll('.ch-bell')].filter(function(x){return x.offsetParent;}).map(function(x){return Math.round(x.getBoundingClientRect().right);}); var rows=[...c.querySelectorAll('.ch-lv')]; return b.scrollWidth <= b.clientWidth + 1 && rows.every(function(r){ return r.scrollWidth <= r.clientWidth + 1; }) && (bells.length < 2 || Math.max.apply(null,bells)-Math.min.apply(null,bells) <= 1);`),
+        await js(`var c=document.querySelector('.lay-card[data-card="levels"]'), b=c.querySelector('.lay-body'); return b.scrollWidth+'/'+b.clientWidth+' bells '+[...c.querySelectorAll('.ch-bell')].map(function(x){return Math.round(x.getBoundingClientRect().right);}).join(',');`));
+      await shot('tr4-levels-narrow-' + w);
+      await js(`var c=document.querySelector('.lay-card[data-card="levels"]'); c.style.width=c.dataset.w0||''; 1`);
+      // #5, #6: the Add card popup.
+      await tab('trading');
+      await js(`document.querySelector('[data-trading-tab] [data-lay-addbtn], [data-trading-tab] .lay-add-btn, [data-trading-tab] [data-card-picker-open]') ? document.querySelector('[data-trading-tab] [data-lay-addbtn], [data-trading-tab] .lay-add-btn, [data-trading-tab] [data-card-picker-open]').click() : 0; 1`);
+      const pk = await until(`!!document.querySelector('[data-card-picker]')`, 3000);
+      if (pk) {
+        await js(`var i=document.querySelector('[data-cpk-search]'); i.focus(); i.value='o'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+        const ring = await js(`var i=document.querySelector('[data-cpk-search]'); var cs=getComputedStyle(i); return cs.outlineStyle + '|' + cs.boxShadow;`);
+        ok('TR4', 'the search box has one outline (the box\'s), none on the text inside', /^none\|none$/.test(ring), ring);
+        await js(`document.querySelector('[data-cpk-tab="charts"]').click(); 1`);
+        ok('TR4', 'picking a tab keeps the search and shows that tab\'s matches', await js(`return document.querySelector('[data-cpk-search]').value==='o' && /matches? for "o"/.test(document.querySelector('[data-cpk-sub]').textContent) && /Charts/.test(document.querySelector('[data-cpk-sub]').textContent);`), await js(`return document.querySelector('[data-cpk-sub]').textContent;`));
+        await js(`var i=document.querySelector('[data-cpk-search]'); i.value=''; i.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('[data-cpk-tab="trading"]').click(); 1`);
+        const k = await js(`var b=[...document.querySelectorAll('[data-cpk-add].is-on')].find(function(x){return /On this tab/.test(x.textContent);}); return b ? b.dataset.cpkAdd : '';`);
+        ok('TR4', '"On this tab" is an outlined button you can press', !!k && await js(`var b=document.querySelector('[data-cpk-add="${k}"]'); var cs=getComputedStyle(b); return !b.disabled && cs.borderStyle!=='none' && parseFloat(cs.borderTopWidth)>0;`), k);
+        if (k) {
+          await js(`window.__layAskForReal = true; document.querySelector('[data-cpk-add="${k}"]').click(); 1`);
+          ok('TR4', '...pressed, it asks first ("Remove … from this tab?")', await until(`!!document.getElementById('uim-ok') && /from this tab/.test(document.body.innerText)`, 2000));
+          await js(`document.getElementById('uim-ok').click(); 1`);
+          ok('TR4', '...Remove: the card leaves the tab; the tile says Add again', await until(`/Add/.test(document.querySelector('[data-cpk-add="${k}"]').textContent) && !document.querySelector('[data-cpk-add="${k}"]').classList.contains('is-on')`, 2500));
+          await js(`window.__layAskForReal = false; document.querySelector('[data-cpk-add="${k}"]').click(); 1`);
+          await until(`document.querySelector('[data-cpk-add="${k}"]').classList.contains('is-on')`, 2500);
+        }
+        await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
+      } else ok('TR4', 'Add card opens its popup', false);
     }
     // TR3 (quant-trading-refine-1.md): positions, working orders, fills and the activity as boxes, at any card size.
     if (want('TR3')) {
