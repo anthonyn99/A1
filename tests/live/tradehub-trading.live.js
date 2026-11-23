@@ -360,9 +360,10 @@ const ok = (ph, name, cond, extra) => {
       ok('TR1', 'its take profit may move below the market but above the entry (Tony #36): no refusal', await js(`var l=${CH}.__orders.lines().find(function(x){return x.key==='trbtp';}); return !!l && l.basis===100 && l.parent==='trb';`));
       await js(`${LINE('trbtp')}.querySelector('[data-cho-cancel]').click(); 1`);
       ok('TR1', 'x on the take profit asks "Remove take profit", saying only it goes', await until(`!!${CDLG('cancel')}`, 2000) && await js(`var d=${CDLG('cancel')}; return /^Remove take profit/.test(d.querySelector('.ot-head b').textContent) && /only the take profit goes/.test(d.innerText);`), await js(`return ${CDLG('cancel')} && ${CDLG('cancel')}.innerText;`));
+      const drops0 = ppCalls('POST', /\/paper\/orders\/trbtp\/drop$/).length;
       await js(`${CDLG('cancel')}.querySelector('[data-cho-go]').click(); 1`);
       const t0 = Date.now();
-      ok('TR1', '...Remove: one drop call for that leg of that order (no cancel of the bracket)', await until(`!${CDLG('cancel')}`, 3000) && ppCalls('POST', /\/paper\/orders\/trbtp\/drop$/).length === 1 && !ppCalls('DELETE', /\/paper\/orders\/trb$/).length, JSON.stringify(api.posted.pp && api.posted.pp.slice(-3)));
+      ok('TR1', '...Remove: one drop call for that leg of that order (no cancel of the bracket)', await until(`!${CDLG('cancel')}`, 3000) && ppCalls('POST', /\/paper\/orders\/trbtp\/drop$/).length === drops0 + 1 && !ppCalls('DELETE', /\/paper\/orders\/trb$/).length, JSON.stringify(api.posted.pp && api.posted.pp.slice(-3)));
       ok('TR1', '...its line is gone at once; the entry and the stop stay', await until(`!${LINE('trbtp')}`, 1500) && await js(`return !!${LINE('trb')} && !!${LINE('trbsl')};`), Date.now() - t0);
       api.state.pp.orders = api.state.pp.orders.filter((x) => x.id !== 'trb');
       await tab('trading'); await until(`!!(window._tbOps && window._tbOps.trading)`, 4000);
