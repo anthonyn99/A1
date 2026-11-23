@@ -110,7 +110,11 @@ const ok = (ph, name, cond, extra) => {
       ok('TR6', 'Ext. hides pre-market and after-hours bars', await until(ch + '?.info().bars < ' + daytime, 6000));
       await click('data-ch-tg', 'ext');
       await choose('data-ch-scale', 'log');
-      ok('TR6', 'Price scale logarithmic and percent apply to the price axis', await until(ch + "?.chart().priceScale('right').options().mode===1", 3000) && await choose('data-ch-scale', 'pct') && await until(ch + "?.chart().priceScale('right').options().mode===2", 3000));
+      const scaleMode = () => js("const chart=" + ch + "; return [chart.get().scale, chart.chart().priceScale('right').options().mode].join('|');");
+      const logMode = await scaleMode();
+      await choose('data-ch-scale', 'pct');
+      const pctMode = await scaleMode();
+      ok('TR6', 'Price scale logarithmic and percent apply to the price axis', logMode === 'log|1' && pctMode === 'pct|2', [logMode, pctMode]);
       await choose('data-ch-scale', 'auto');
       await click('data-ch-tg', 'adj');
       ok('TR6', 'Adj. requests raw prices', await until(ch + "?.get().adj===false && document.querySelector('[data-ch-note]').hidden", 6000) && api.asked.some((a) => a.p === '/bars' && /adj=0/.test(a.q)));
