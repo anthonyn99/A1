@@ -591,7 +591,7 @@ const ok = (ph, name, cond, extra) => {
         ok('TR4', 'releasing below the title groups the cards instead of moving them', await until(`!!${TT}.querySelector('[data-card="positions"] [data-lay-tab="working"]')`, 2000));
         await js(`var btn=${TT}.querySelector('.lay-card[data-card="positions"] [data-act="group"]'); btn.click(); document.querySelector('[data-lay-gout]')?.click(); 1`);
         await sleep(240);
-        const loose = await js(`const {liveLayouts}=await import('/A1/TradeHub/ui/layout.js'); const layout=liveLayouts.get('trading'), state=layout.state();
+        const loose = await js(`const {liveLayouts}=await import('/A1/TradeHub/ui/layout.js'); const layout=liveLayouts.get('paper'), state=layout.state();
           const grid=layout.el.querySelector('.lay-grid'), card=grid.querySelector('[data-card="working"]'), head=card.querySelector('.lay-title');
           const a=head.getBoundingClientRect(), g=grid.getBoundingClientRect(), css=getComputedStyle(grid), step=parseFloat(css.gridAutoRows)+parseFloat(css.rowGap);
           const fire=(el,type,x,y)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerType:'mouse',pointerId:41,button:0,buttons:type==='pointerup'?0:1,clientX:x,clientY:y}));
@@ -600,7 +600,7 @@ const ok = (ph, name, cond, extra) => {
           const preview=grid.querySelector('.lay-ghost').style.gridRow;
           fire(window,'pointerup',x,target);
           const cls=layout.sizeClass(), raw=JSON.parse(localStorage.getItem('tradehub_layout'));
-          const saved=raw.trading[cls].pos.working;
+          const saved=raw.paper[cls].pos.working;
           const result=!!saved.spaced && preview===card.style.gridRow && saved.r>state.pos.working.r+3;
           layout.restore(state);
           return {result,preview,saved};`);
@@ -837,7 +837,7 @@ const ok = (ph, name, cond, extra) => {
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
       const chartStyle = (sel) => js(`var c=document.querySelector('${sel} [data-charts]')?.__charts?.active()?.chart();
         if(!c) return null;
-        var o=c.options(); return [o.layout.textColor,o.layout.panes.separatorColor,o.crosshair.vertLine.labelBackgroundColor,o.layout.background.color,c.series()[0]?.options().upColor];`);
+        var o=c.options(); return [o.layout.textColor,o.layout.panes.separatorColor,o.crosshair.vertLine.labelBackgroundColor,o.layout.background.color,c.panes()[0]?.getSeries()[0]?.options().upColor];`);
       await tab('charts');
       await until("!!document.querySelector('[data-lay=charts] canvas')", 10000);
       const homeStyle = await chartStyle('.tb-mk-host');
