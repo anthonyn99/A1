@@ -281,7 +281,8 @@ export async function place(env, req, url, { fetchFn = fetch, now = Date.now(), 
   await env.DB.prepare('UPDATE paper_orders SET alpaca_id = ?, status = ?, error = ? WHERE id = ?')
     .bind(r.ok ? (r.body.order_id || r.body.combo_order_id || null) : null, r.ok ? 'new' : 'refused', r.ok ? null : String((r.body && r.body.message) || r.status).slice(0, 300), cid).run().catch(() => {});
   const ok = must(r, 'the order');
-  return json({ ok: true, paper: true, broker: 'webull', order: { id: cid, broker_id: ok.order_id || null, combo_id: ok.combo_order_id || null, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' } });
+  // A combo's entry is listed under its own id (cid + 'm'), so that is the id handed back (TR1: one id for one order).
+  return json({ ok: true, paper: true, broker: 'webull', order: { id: body.client_combo_order_id ? cid + 'm' : cid, broker_id: ok.order_id || null, combo_id: ok.combo_order_id || null, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' } });
 }
 async function detail(env, a, cid, fetchFn) {
   const r = must(await wb(env, 'GET', '/trading/orders/get', { query: { account_id: a.account_id, client_order_id: cid } }, fetchFn), 'the order');
