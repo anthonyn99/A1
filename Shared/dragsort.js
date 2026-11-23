@@ -738,8 +738,7 @@
             : { dx: sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
               dy: sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top) };
         } else if (outside && fly) {
-          var released = drag();
-          land = { dx: released.dx, dy: released.dy };
+          land = { dx: lastX - e.clientX, dy: lastY - e.clientY };
         } else if (copy) {
           land = null;
         } else if (grid && slotsAt) {

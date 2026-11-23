@@ -76,6 +76,14 @@ const ok = (ph, name, cond, extra) => {
       const alertsLook = await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('.tal-sec') && getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')).backgroundColor==='rgb(192, 174, 234)'", 5000)
         && await js("const active=getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')); const group=getComputedStyle(document.querySelector('.tal-sec')); return [active.backgroundImage, active.backgroundColor, group.borderRadius].join('|');");
       ok('TR5', 'Control uses a solid active tab and grouped Alerts settings', /^none\|/.test(alertsLook) && !alertsLook.includes('rgba(0, 0, 0, 0)') && alertsLook.endsWith('|10px'), alertsLook || await js("return document.querySelector('[data-ctl-pane=alerts]')?.innerText;"));
+      const controlClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'); b.scrollIntoView({block:'nearest',inline:'nearest'});
+        var r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,purple:getComputedStyle(document.querySelector('.ctl-subs .is-on')).backgroundColor};`);
+      const { x, y, purple } = controlClick;
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+      ok('TR5', 'Control selects the tab in purple while the pointer stays over it', await js(`var b=document.querySelector('[data-ctl-sub=neo]'), css=getComputedStyle(b);
+        return b.getAttribute('aria-selected')==='true' && css.backgroundColor===${JSON.stringify(purple)} && css.filter==='none';`));
 
       await tab('neo');
       ok('TR5', 'Neo Quant has the shorter header and prompt and no Recent conversations card', await until("document.querySelector('[data-neo-tab] [data-nq-input]')", 5000) && await js("const n=document.querySelector('[data-neo-tab]'); return n.querySelector('.ctl-meta').textContent==='Your desk quant' && n.querySelector('[data-nq-input]').placeholder==='Ask Neo Quant…' && !n.querySelector('[data-card=recent]');"));
