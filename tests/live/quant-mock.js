@@ -441,6 +441,10 @@ const PAGE_SETUP = `(() => {
   // through Date.now() (tradehub.html tbLocalDate does).
   const real = Date.now.bind(Date), shift = ${CLOCK} - real();
   Date.now = () => real() + shift;
+  // TR4 (#15): a card's × asks "Remove X from this tab?". Tests that only need the card gone get a yes by themselves;
+  // a test that checks the dialog sets window.__layAskForReal = true first.
+  let uiC = null;
+  Object.defineProperty(window, 'uiConfirm', { configurable: true, get: () => (uiC ? (m, o) => (!window.__layAskForReal && /^Remove .+ from this tab\?/.test(String(m)) ? Promise.resolve(true) : uiC(m, o)) : undefined), set: (v) => { uiC = v; } });
   const Real = window.WebSocket;
   const state = { sent: [], sockets: [], subs: new Set(), timer: null };
   const emit = (o) => { for (const w of state.sockets) if (w.alpaca && w.readyState === 1 && w.onmessage) w.onmessage({ data: JSON.stringify(o) }); };
