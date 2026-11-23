@@ -1,4 +1,4 @@
-"""Claude's reset times -> TaskHub (engine/claude_resets.py).
+"""Claude and Codex reset times -> TaskHub (engine/claude_resets.py).
 
 `wanted()` decides what is on the calendar and `needs_read()` how often the
 usage endpoint is asked, so both are pinned: a known reset is never re-read,
@@ -86,17 +86,17 @@ def engine(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "data_dir", lambda: tmp_path)
     monkeypatch.setattr(cr, "active_profile", lambda: "tony")
     monkeypatch.setattr(cr, "api_token", lambda: "tok")
-    monkeypatch.setattr(cr, "account_slot", lambda: "default")
-    monkeypatch.setattr(cr, "plan_of", lambda slot: "pro")
-    monkeypatch.setattr(cr, "label_of", lambda slot: "Tony")
+    monkeypatch.setattr(cr, "account_slot", lambda agent: "default")
+    monkeypatch.setattr(cr, "plan_of", lambda slot, agent: "pro")
+    monkeypatch.setattr(cr, "label_of", lambda slot, agent: "Tony")
     box = {"wins": _wins(five=NOW + 3600), "posts": [], "reads": 0}
-    monkeypatch.setattr(cr, "stored_windows", lambda slot: box["wins"])
+    monkeypatch.setattr(cr, "stored_windows", lambda slot, agent: box["wins"])
 
-    def read(slot):
+    def read(slot, agent):
         box["reads"] += 1
     monkeypatch.setattr(cr, "read_windows", read)
 
-    def post(profile, token, cfg, items):
+    def post(profile, token, cfg, items, agent):
         box["posts"].append((profile, cfg["enabled"], cfg["notify"], items))
         return {"ok": True, "detail": ""}
     monkeypatch.setattr(cr, "post", post)
@@ -122,6 +122,32 @@ def test_turning_off_posts_an_empty_list(engine):
     cr.save_config({"enabled": False})
     asyncio.run(cr.tick())
     assert engine["posts"][-1][1:] == (False, True, [])
+
+
+@pytest.mark.parametrize("profile", ["tony", "veda"])
+def test_codex_uses_its_own_usage_and_settings(profile, engine, monkeypatch):
+    from magi.code.agents import limits
+
+    monkeypatch.undo()
+    monkeypatch.setattr(cr, "data_dir", lambda: engine["data_dir"])
+    monkeypatch.setattr(cr, "active_profile", lambda: profile)
+    monkeypatch.setattr(cr, "api_token", lambda: "tok")
+    monkeypatch.setattr(cr, "account_slot", lambda agent: "default")
+    monkeypatch.setattr(cr, "plan_of", lambda slot, agent: "free")
+    monkeypatch.setattr(cr, "label_of", lambda slot, agent: slot)
+    monkeypatch.setattr(cr.time, "time", lambda: NOW)
+    reset = NOW + 29 * 86400
+    monkeypatch.setattr(limits, "usage", lambda agent, slot: {"30d": {"resets_at": reset}})
+    calls = []
+    monkeypatch.setattr(cr, "post", lambda *a: calls.append(a) or {"ok": True, "detail": ""})
+
+    cr.save_config({"notify": False, "weekly": True}, "codex")
+    panel = asyncio.run(cr.tick(agent="codex"))
+    asyncio.run(cr.tick(agent="codex"))
+    assert panel["unit"] == "chatgpt" and panel["agent"] == "codex"
+    assert calls == [(profile, "tok", cr.config("codex"),
+                      [{"kind": "thirty_day", "at": round(reset / 60) * 60}], "codex")]
+    assert cr.state() == {} and cr.config() == cr.DEFAULTS
 
 
 def test_a_failed_post_is_retried_next_tick(engine, monkeypatch):
