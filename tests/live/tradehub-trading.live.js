@@ -46,6 +46,7 @@ const ok = (ph, name, cond, extra) => {
   for (const w of [1280, 820, 390]) {
     console.log(`\n${w} px`);
     await size(w, w < 600 ? 844 : 900);
+    if (want('TR6')) api.state.nightBars = [{ t: Date.UTC(2026, 10, 12, 7, 0), o: 164, h: 165, l: 163, c: 164.5, v: 40 }];
     if (want('TR5')) api.state.convs = [{
       id: 'tr5-history', title: 'AMD into earnings', created: CLOCK - 86400000, pinned: false, turns: [
         { id: 'q-tr5', at: CLOCK - 86400000, role: 'q', text: 'AMD into earnings?' },
@@ -82,6 +83,67 @@ const ok = (ph, name, cond, extra) => {
     }
 
     // T2: the Trading tab
+    if (want('TR6')) {
+      const bell = "[...document.querySelectorAll('[data-tal-bell]')].find(b=>b.offsetParent)";
+      await until(bell, 8000);
+      ok('TR6', 'Alerts has its dark background at insertion', await js(bell + ".click(); const sheet=document.querySelector('[data-tal-list]'); return !!sheet && getComputedStyle(sheet).backgroundColor==='rgb(35, 35, 39)';"));
+      await js("document.querySelector('[data-tal-close]').click(); 1");
+      await tab('prompt');
+      await js("document.querySelector('[data-ctl-sub=alerts]').click(); 1");
+      await until("document.querySelector('[data-tal-qfrom]') && document.querySelector('[data-tal-speak]')", 8000);
+      await js("window.__quietFrom=document.querySelector('[data-tal-qfrom]'); document.querySelector('[data-tal-speak]').click(); 1");
+      ok('TR6', 'Saving an Alerts checkbox keeps the same Quiet hours time input', await until("document.querySelector('[data-tal-qfrom]')===window.__quietFrom", 1500) && await js("return document.querySelector('[data-tal-qfrom]')===window.__quietFrom;"));
+
+      await tab('charts');
+      const ch = "document.querySelector('[data-charts]')?.__charts?.active()";
+      const click = (attr, value) => js("document.querySelector('[" + attr + (value ? '="' + value + '"' : '') + "]').click(); 1");
+      const choose = (attr, value) => js("const pick=document.querySelector('[" + attr + "]'); pick.value='" + value + "'; pick.dispatchEvent(new Event('change',{bubbles:true})); 1");
+      await until(ch + '?.info().bars > 20', 15000);
+      await js(ch + ".set({tf:'5m'}); 1");
+      await until(ch + "?.get().tf==='5m' && document.querySelector('[data-ch-note]').hidden", 12000);
+      await click('data-ch-display');
+      const daytime = await js('return ' + ch + '.info().bars;');
+      await click('data-ch-tg', 'night');
+      ok('TR6', 'Night loads and draws overnight bars', await until(ch + '?.get().night && ' + ch + '?.info().bars > ' + daytime, 10000));
+      await click('data-ch-tg', 'night');
+      await until(ch + '?.info().bars===' + daytime, 9000);
+      await click('data-ch-tg', 'ext');
+      ok('TR6', 'Ext. hides pre-market and after-hours bars', await until(ch + '?.info().bars < ' + daytime, 6000));
+      await click('data-ch-tg', 'ext');
+      await choose('data-ch-scale', 'log');
+      ok('TR6', 'Price scale logarithmic and percent apply to the price axis', await until(ch + "?.chart().priceScale('right').options().mode===1", 3000) && await choose('data-ch-scale', 'pct') && await until(ch + "?.chart().priceScale('right').options().mode===2", 3000));
+      await choose('data-ch-scale', 'auto');
+      await click('data-ch-tg', 'adj');
+      ok('TR6', 'Adj. requests raw prices', await until(ch + '?.get().adj===false', 2500) && api.asked.some((a) => a.p === '/bars' && /adj=0/.test(String(a.url || a.u || ''))));
+      await click('data-ch-tg', 'adj');
+      await click('data-ch-tg', 'volume');
+      ok('TR6', 'Volume off removes the histogram', await until(ch + "?.chart().panes().every(p=>p.getSeries().every(s=>s.seriesType()!=='Histogram' || s.options().priceFormat?.type!=='volume'))", 5000));
+      await click('data-ch-tg', 'volume');
+      const level = "document.querySelectorAll('[data-kind=level]:not([style*=\\\"display: none\\\"])').length";
+      await until(level + '>0', 7000);
+      const nearby = await js('return ' + level + ';');
+      await click('data-ch-tg', 'allLevels');
+      ok('TR6', 'All levels enables the expanded level set', await until(ch + '?.get().allLevels', 2500) && await js('return ' + level + '>=' + nearby + ';'));
+      await click('data-ch-tg', 'levels');
+      ok('TR6', 'Ranked level labels clear with Levels off', await until(level + '===0', 4000));
+      await click('data-ch-tg', 'options');
+      ok('TR6', 'Options levels can be enabled separately from ranked levels', await until(ch + '?.get().options && ' + level + '>0', 8000));
+      await choose('data-ch-tz', 'utc');
+      ok('TR6', 'Time zone shows the selected zone', await until(ch + "?.get().tz==='utc'", 3500));
+      await click('data-ch-preset', 'weekly');
+      ok('TR6', 'Weekly preset selects weekly bars', await until(ch + "?.get().tf==='1w'", 3000));
+      await click('data-ch-preset', 'monthly');
+      ok('TR6', 'Monthly preset selects monthly bars', await until(ch + "?.get().tf==='1mo'", 3000));
+      await until("document.querySelector('[data-ch-note]').hidden", 12000);
+      await js("const chart=" + ch + "; const t=chart.geo.t(chart.geo.width()/2); chart.set({marks:{catalysts:[{t,title:'WMT earnings'}]}}); 1");
+      ok('TR6', 'Catalysts use a round marker at the pane boundary', await js("const tag=document.querySelector('.ch-cat[title=\"WMT earnings\"]'); return !!tag && getComputedStyle(tag).borderRadius==='50%';"));
+
+      await tab('journal');
+      ok('TR6', 'Journal opens with static statistic cells', await until("document.querySelector('.tbf-j .v')", 8000) && await js("return [...document.querySelectorAll('.tbf-j .v')].every(e=>e.getAnimations().length===0);"));
+      await tab('portfolio');
+      ok('TR6', 'The Portfolio tab has no entrance animation', await js("const active=document.querySelector('.tb-scroll-visible .tb-fade-in'); return !active || getComputedStyle(active).animationName==='none';"));
+    }
+
     ok('T2', 'the nav says "Trading" (no "Paper" tab left)', await js(`return !!document.querySelector('.tb-navtab[data-navid="trading"]') && !document.querySelector('.tb-navtab[data-navid="paper"]');`));
     await tab('trading');
     ok('T2', 'Paper | Live in the header: Paper on, Live dimmed and not pressable', await until(vis('[data-trade-mode="paper"]'), 4000)
