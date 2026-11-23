@@ -80,15 +80,15 @@ const ok = (ph, name, cond, extra) => {
     ok('T3', '"New Order" opens the redesigned ticket with five type pills', await js(`var b=document.querySelector('[data-trade-new]'); if(!b) return false; b.click(); return true;`)
       && await until(`document.querySelectorAll('[data-order-ticket] [data-ot-type]').length === 5`, 3000));
     if (want('T3')) {
-      ok('T3', 'Buy | Sell, the symbol with Bid / Ask / Last, PAPER · Alpaca', await js(`var t=${OT}; return !!t.querySelector('[data-ot-side="buy"]') && !!t.querySelector('[data-ot-side="sell"]') && /Bid/.test(t.querySelector('[data-ot-quote]').innerText) && /Last/.test(t.querySelector('[data-ot-quote]').innerText) && /PAPER · Alpaca/.test(t.querySelector('[data-ot-paper]').textContent);`));
-      // Tony 2026-11-22 "I can't short": the symbol box's hint is not a ticker, and Sell says what it does.
+      ok('T3', 'Buy | Sell | Short (TR1), the symbol with Bid / Ask / Last, PAPER · Alpaca', await js(`var t=${OT}; return [...t.querySelectorAll('[data-ot-side]')].map(function(b){return b.textContent;}).join()==='Buy,Sell,Short' && /Bid/.test(t.querySelector('[data-ot-quote]').innerText) && /Last/.test(t.querySelector('[data-ot-quote]').innerText) && /PAPER · Alpaca/.test(t.querySelector('[data-ot-paper]').textContent);`));
+      // Tony 2026-11-22 "I can't short": the symbol box's hint is not a ticker. TR1 (#9): three sides, each one meaning.
       ok('T3', 'the symbol\'s hint is "Ticker" (never a real symbol that looks typed in)', await js(`return ${OT}.querySelector('[data-ot-symbol]').placeholder==='Ticker';`));
-      await otSet('symbol', 'TSLA');
-      ok('T3', 'nothing held in TSLA: the button says Sell short', await until(`${OT}.querySelector('[data-ot-side="sell"]').textContent==='Sell short'`, 2000));
+      await otSet('symbol', 'TSLA'); await otPress('[data-ot-side="sell"]');
+      ok('T3', 'Sell with no TSLA held is refused in words (use Short)', await until(`/use Short to sell short/.test(${OT}.querySelector('[data-ot-errors]').textContent)`, 2000), await js(`return ${OT}.querySelector('[data-ot-errors]').textContent;`));
       await otSet('symbol', 'NVDA');
-      ok('T3', '10 NVDA held: the button says Sell (an exit)', await until(`${OT}.querySelector('[data-ot-side="sell"]').textContent==='Sell'`, 2000));
-      await otSet('symbol', 'TSLA'); await otPress('[data-ot-side="sell"]'); await otPress('[data-ot-go]');
-      ok('T3', 'Sell short on TSLA reads back "PAPER · Alpaca: Sell short 1 share of TSLA"', await until(`/Sell short 1 share of TSLA/.test(${OT}.querySelector('[data-ot-readback]').textContent)`, 3000), await js(`return ${OT}.querySelector('[data-ot-readback]').textContent + ' | ' + ${OT}.querySelector('[data-ot-errors]').textContent;`));
+      ok('T3', '10 NVDA held: Sell starts at the 10 shares and is an exit (no legs offered)', await until(`${OT}.querySelector('[data-ot-size]').value==='10' && !${OT}.querySelector('[data-ot-leg]')`, 2000), await js(`return ${OT}.querySelector('[data-ot-size]').value;`));
+      await otSet('symbol', 'TSLA'); await otPress('[data-ot-side="short"]'); await otSet('size', '1'); await otPress('[data-ot-go]');
+      ok('T3', 'Short on TSLA reads back "PAPER · Alpaca: Sell short 1 share of TSLA"', await until(`/Sell short 1 share of TSLA/.test(${OT}.querySelector('[data-ot-readback]').textContent)`, 3000), await js(`return ${OT}.querySelector('[data-ot-readback]').textContent + ' | ' + ${OT}.querySelector('[data-ot-errors]').textContent;`));
       await otSet('symbol', ''); await otPress('[data-ot-side="buy"]');
       ok('T3', 'the popup fits the screen' + (w < 600 ? ' as a bottom sheet' : ', centred'), await js(`var r=${OT}.getBoundingClientRect(); return r.width <= innerWidth && ${w < 600 ? 'Math.abs(r.bottom - innerHeight) < 2 && r.width >= innerWidth - 1' : 'r.left > 0 && r.bottom < innerHeight'};`), await js(`return JSON.stringify(${OT}.getBoundingClientRect());`));
       await otSet('symbol', 'AMD'); await otPress('[data-ot-type="limit"]'); await otSet('limit', '140'); await otSet('size', '10');
