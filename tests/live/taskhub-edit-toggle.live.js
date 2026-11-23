@@ -72,7 +72,7 @@ async function side(c, who) {
     await sleep(300);
     ok(`Codex card and bell show alongside Claude at ${width}px`, await js(`return !!(${card})?.querySelector('[aria-label="Notifies at reset"]') &&
       [...document.querySelectorAll('[title^="Fresh 5-hour window · from MAGI"]')].some(e => e.offsetParent && e.textContent.includes('Claude resets'))`));
-    ok(`the other profile's Codex reset is absent at ${width}px`, await js(`return ![...document.querySelectorAll('[title^="Weekly limit resets · from MAGI"]')].some(e => e.offsetParent)`));
+    ok(`the other profile's Codex reset is absent at ${width}px`, await js(`![...document.querySelectorAll('[title^="Weekly limit resets · from MAGI"]')].some(e => e.offsetParent)`));
   }
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1666, height: 1300, deviceScaleFactor: 1, mobile: false });
   await set(true);
