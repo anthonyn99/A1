@@ -424,7 +424,7 @@ globalThis.fetch = async (url, init = {}) => {
   ok('Night adds distinct 00:00 and 20:00 BOATS buckets and follows the delay', r.status === 200 && r.body.night === 'delayed'
     && r.body.bars.some((b) => T.nyClock(b.t).minutes === 0) && r.body.bars.some((b) => T.nyClock(b.t).minutes === 1200)
     && boats.length === 1 && Date.parse(new URL(boats[0]).searchParams.get('end')) <= NOW - 15 * 60_000);
-  W.reset(); W.status['alpaca-boats'] = 403;
+  W.reset(); env = fullEnv(); W.status['alpaca-boats'] = 403;
   r = await call(env, nightRoute, { key: GOOD });
   ok('An overnight entitlement refusal keeps the main chart bars and says they lack overnight coverage', r.status === 200
     && r.body.night === 'unavailable' && !r.body.complete && r.body.provider === 'alpaca' && r.body.bars.length > 0,
