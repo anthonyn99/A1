@@ -79,9 +79,11 @@ const MIN = 60000;
   await setField('tpPrice', '150'); await setField('slPrice', '135');
   ok('Take profit and Stop loss: the $ at each and the reward to risk', await js(`return ${T}.querySelector('[data-ot-tpgain]').textContent === '+$100.00' && ${T}.querySelector('[data-ot-slloss]').textContent === '−$50.00' && ${T}.querySelector('[data-ot-rr]').textContent === 'Reward to risk 2.00';`), await js(`return ${T}.querySelector('.ot-legs').innerText;`));
   await press('[data-ot-go]');
-  ok('Review: the read-back says the entry, the target and the stop, PAPER · Alpaca first', await until(`/^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00, for today\\.$/.test(${T}.querySelector('[data-ot-readback]').textContent)`, 2000), await js(`return ${T}.querySelector('[data-ot-readback]').textContent;`));
-  ok('Review asks once more before anything goes out', await js(`return ${T}.querySelector('[data-ot-go]').textContent === 'Place on paper · Alpaca';`) && posts('/paper/orders').length === 0);
-  await press('[data-ot-go]');
+  // TR2: the send button ("Buy AMD") opens the one order confirmation (TradeHub/ui/order-confirm.js); its button places.
+  const OC = `document.querySelector('[data-order-confirm]')`;
+  ok('Confirmation: the read-back says the entry, the target and the stop, PAPER · Alpaca first', await until(`!!${OC} && /^PAPER · Alpaca: Buy 10 shares of AMD with a limit at 140\\.00, then a target at 150\\.00 and a stop at 135\\.00, for today\\.$/.test(${OC}.querySelector('[data-oc-readback]').textContent)`, 3000), await js(`return (${OC}||{}).innerText;`));
+  ok('...it asks before anything goes out (its button: Buy)', await js(`return ${OC}.querySelector('[data-oc-go]').textContent === 'Buy';`) && posts('/paper/orders').length === 0);
+  await js(`${OC}.querySelector('[data-oc-go]').click(); 1`);
   ok('Place on paper: one order to quant-api, as Tony\'s, the bracket with it', await until(`!${T}`, 5000) && posts('/paper/orders').length === 1 && posts('/paper/orders')[0][2].who === 'tony' && posts('/paper/orders')[0][2].order.order_class === 'bracket' && posts('/paper/orders')[0][2].order.take_profit.limit_price === 150);
   ok('...it shows as a working order', await until(`document.querySelector('[data-pp-ord="ord1"]')`, 8000));
 
