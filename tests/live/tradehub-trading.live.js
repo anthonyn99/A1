@@ -497,6 +497,22 @@ const ok = (ph, name, cond, extra) => {
       ok('TR4', 'a tab click shows that card\'s own content (Working orders\' boxes), the others hidden', await until(`(function(){ var c=${TT}.querySelector('.lay-card[data-card="positions"]'); var w=c.querySelector('[data-lay-tab-body="working"]'), p=c.querySelector('[data-lay-tab-body="positions"]'); return !!w && !w.hidden && p.hidden && !!w.querySelector('[data-pp-working]'); })()`, 2000));
       ok('TR4', 'the group card is one spot on the grid; no overlaps', await js(`var cs=[...${TT}.querySelectorAll('.lay-grid > .lay-card')].map(function(e){return e.getBoundingClientRect();}), bad=0; for (var i=0;i<cs.length;i++) for (var j=i+1;j<cs.length;j++){ var p=cs[i],q=cs[j]; if (p.left<q.right-1&&q.left<p.right-1&&p.top<q.bottom-1&&q.top<p.bottom-1) bad++; } return bad===0 && !${TT}.querySelector('.lay-grid > .lay-card[data-card="working"]');`));
       ok('TR4', 'the group card shows its tabs, not the old title', await js(`var t=${TT}.querySelector('.lay-card[data-card="positions"] .lay-head .lay-tt'); return !!t && getComputedStyle(t).display==='none';`));
+      const [from, to] = await js(`var host=${TT}.querySelector('.lay-card[data-card="positions"]');
+        host.querySelector('.lay-head').scrollIntoView({block:'center'});
+        var strip=host.querySelector('.lay-tabs'); strip.scrollLeft=0;
+        var a=strip.querySelector('[data-lay-tab="working"]').getBoundingClientRect(), b=strip.firstElementChild.getBoundingClientRect();
+        return [{x:Math.min(a.left+a.width/2,strip.getBoundingClientRect().right-5),y:a.top+a.height/2},{x:b.left+6,y:b.top+b.height/2}];`);
+      if (w < 600) {
+        await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+        await sleep(360);
+        for (let n = 1; n <= 8; n++) await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x + (to.x - from.x) * n / 8, y: from.y }] });
+        await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } else {
+        await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...from, button: 'left', clickCount: 1 });
+        await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...to, button: 'left', buttons: 1 });
+        await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...to, button: 'left', clickCount: 1 });
+      }
+      ok('TR4', 'dragging a tab reorders it and keeps the same host and open tab', await until(`(function(){ var s=${TT}.querySelector('.lay-card[data-card="positions"] .lay-tabs'); return !!s && s.dataset.layTabs==='working,positions,filled' && s.querySelector('[aria-selected=true]').dataset.layTab==='working'; })()`, 2200));
       await shot('tr4-tabs-' + w);
       if (w >= 600) {
         // Detach by dragging a tab off the strip onto the grid.
@@ -518,6 +534,20 @@ const ok = (ph, name, cond, extra) => {
         await new Promise((r) => setTimeout(r, 300));
       }
       ok('TR4', 'Take out of the group (the menu): every card its own again, no group left', await until(`!${TT}.querySelector('[data-lay-tabs]') && ['positions','working','filled'].every(function(i){ return !!${TT}.querySelector('.lay-grid > .lay-card[data-card="'+i+'"]'); })`, 3000));
+      if (w >= 600) {
+        const toward = await js(`var root=${TT}, title=root.querySelector('.lay-card[data-card="working"] .lay-title');
+          var head=root.querySelector('.lay-card[data-card="positions"] .lay-head'); head.scrollIntoView({block:'center'});
+          var a=title.getBoundingClientRect(), b=head.getBoundingClientRect();
+          return { from:{x:a.left+8,y:a.top+5}, to:{x:b.left+b.width/2,y:b.bottom+16} };`);
+        await js(`var title=${TT}.querySelector('.lay-card[data-card="working"] .lay-title');
+          window.__groupDrag = function(t, p, el=window) { el.dispatchEvent(new PointerEvent(t,{bubbles:true,cancelable:true,pointerType:'mouse',pointerId:31,button:0,buttons:t==='pointerup'?0:1,clientX:p.x,clientY:p.y})); };
+          __groupDrag('pointerdown',${JSON.stringify(toward.from)},title);
+          __groupDrag('pointermove',${JSON.stringify(toward.to)}); 1`);
+        ok('TR4', 'the upper body below the title lights up as a grouping target', await until(`!!${TT}.querySelector('[data-card="positions"].is-group-target')`, 1500));
+        await js(`__groupDrag('pointerup',${JSON.stringify(toward.to)}); delete window.__groupDrag; 1`);
+        ok('TR4', 'releasing below the title groups the cards instead of moving them', await until(`!!${TT}.querySelector('[data-card="positions"] [data-lay-tab="working"]')`, 2000));
+        await js(`var btn=${TT}.querySelector('.lay-card[data-card="positions"] [data-act="group"]'); btn.click(); document.querySelector('[data-lay-gout]')?.click(); 1`);
+      }
       // #8: the Trade card squeezed short scrolls; its buttons are never cut or squashed.
       await js(`var s=document.querySelector('[data-trading-tab] [data-lay-add]'); if (s && [].some.call(s.options,function(o){return o.value==='trade';})) { s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); } 1`);
       await until(`!!document.querySelector('.lay-card[data-card="trade"] [data-order-ticket]')`, 3000);
