@@ -10,7 +10,7 @@
 //      otherwise the units only on a press: a press lists them, another asks one
 //   6. research goes to Gemini with search, with no account figure on its sheet
 //   7. Deep dive hands the question to MAGI
-//   8. the Neo Quant tab: the same conversation, the brief, What changed?, recent conversations;
+//   8. the Neo Quant tab: the same conversation, the brief, What changed?, the history sidebar;
 //      the dock steps aside there; its cards tile
 //   9. Control ▸ Memory & Drive ▸ History: Continue opens the conversation in the dock
 //  10. the pink only on Neo Quant's surfaces; 1280, 820, 390 px (panel, slide-over, sheet);
@@ -143,7 +143,7 @@ const ok = (name, cond, extra) => {
 
   console.log('\nThe Neo Quant tab');
   await tab('neo');
-  ok('the tab mounts its four cards', await until(`['chat','brief','changed','recent'].every(function(id){return document.querySelector('[data-neo-tab] .lay-card[data-card="'+id+'"]');})`, 15000));
+  ok('the tab mounts its three cards', await until(`['chat','brief','changed'].every(function(id){return document.querySelector('[data-neo-tab] .lay-card[data-card="'+id+'"]');}) && !document.querySelector('[data-neo-tab] .lay-card[data-card="recent"]')`, 15000));
   ok('the dock steps aside there (the tab is the same conversation)', await js(`return document.querySelector('[data-nq-dock]').hidden && document.querySelector('[data-nq-launch]').hidden && !document.documentElement.classList.contains('nq-docked');`));
   ok('...which already holds the questions asked in the dock', await until(`document.querySelectorAll('[data-neo-tab] [data-nq-q]').length >= 4`, 3000));
   ok('the daily brief, its day and age, its sections', await until(`/Constructive into the open/.test((document.querySelector('[data-nq-brief]')||{}).innerText||'') && document.querySelector('[data-nq-briefday]')`, 5000));
@@ -151,7 +151,7 @@ const ok = (name, cond, extra) => {
   ok('What changed?: code finds the changes, the AI words them', await until(`/VERDICT|WATCH/.test(document.querySelector('[data-nq-changed]').innerText) && /Choppy to Constructive/.test(document.querySelector('[data-nq-changed] details').textContent)`, 8000), await js(`return document.querySelector('[data-nq-changed]').innerText;`));
   const ch = ai()[ai().length - 1].body;
   ok('...its sheet holds only code-made differences', ch.facts.every((f) => f.pack === 'changed') && /score 44\.5 → 63\.3/.test(ch.facts.map((f) => f.text).join(' ')), JSON.stringify(ch.facts.map((f) => f.text)));
-  ok('recent conversations, each with Continue', await until(`document.querySelector('[data-nq-recent] [data-nq-continue="cold000001"]')`, 5000));
+  ok('history sidebar conversations have Continue', await until(`document.querySelector('[data-neo-tab] [data-nq-side] [data-nq-continue="cold000001"]')`, 5000));
   await shot('neo-tab-1280');
 
   console.log('\nContinue from History');
