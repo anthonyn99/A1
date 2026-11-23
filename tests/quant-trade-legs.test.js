@@ -36,7 +36,7 @@ function realD1() {
 
 /* ── a fake Alpaca that keeps brackets the way the real one does ──────────── */
 const A = { orders: new Map(), next: 1, calls: [], held: 0, reset() { this.orders.clear(); this.calls.length = 0; this.held = 0; } };
-const res = (body, status = 200) => new Response(body == null ? '' : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const res = (body, status = 200) => new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const nested = (o) => ({ ...o, legs: (o.legIds || []).map((id) => A.orders.get(id)) });
 const OPEN = new Set(['new', 'accepted', 'held', 'pending_new']);
 function addOrder(b, extra = {}) {
