@@ -136,6 +136,7 @@ const W = {
 };
 const res = (body, status = 200, headers = {}) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 function providerOf(u) {
+  if (u.includes('data.alpaca.markets') && u.includes('feed=boats')) return 'alpaca-boats';
   if (u.includes('data.alpaca.markets')) return 'alpaca';
   if (u.includes('api.public.com')) return 'public';
   if (u.includes('finnhub.io')) return 'finnhub';
@@ -156,7 +157,7 @@ globalThis.fetch = async (url, init = {}) => {
     for (const s of q.get('symbols').split(',')) out[s] = { latestTrade: { p: 50 + s.length, t: new Date(NOW - 1000).toISOString(), s: 10 }, latestQuote: { bp: 49, ap: 51 } };
     return res(out);
   }
-  if (p === 'alpaca' && u.includes('/bars')) {
+  if ((p === 'alpaca' || p === 'alpaca-boats') && u.includes('/bars')) {
     const tf = q.get('timeframe'), start = Date.parse(q.get('start')), end = Date.parse(q.get('end'));
     let ts;
     if (tf === '1Day') ts = weekdays([new Date(start).getUTCFullYear(), new Date(start).getUTCMonth(), new Date(start).getUTCDate()], [new Date(end).getUTCFullYear(), new Date(end).getUTCMonth(), new Date(end).getUTCDate()]).map(nyMid).filter((t) => t >= start - DAY && t <= end);
@@ -423,6 +424,10 @@ globalThis.fetch = async (url, init = {}) => {
   ok('Night adds distinct 00:00 and 20:00 BOATS buckets and follows the delay', r.status === 200 && r.body.night === 'delayed'
     && r.body.bars.some((b) => T.nyClock(b.t).minutes === 0) && r.body.bars.some((b) => T.nyClock(b.t).minutes === 1200)
     && boats.length === 1 && Date.parse(new URL(boats[0]).searchParams.get('end')) <= NOW - 15 * 60_000);
+  W.reset(); W.status['alpaca-boats'] = 403;
+  r = await call(env, nightRoute, { key: GOOD });
+  ok('An overnight entitlement refusal keeps the main chart bars and says they lack overnight coverage', r.status === 200
+    && r.body.night === 'unavailable' && !r.body.complete && r.body.provider === 'alpaca' && r.body.bars.length > 0);
   W.reset(); W.down.add('alpaca');
   r = await call(env, `/bars?symbol=NVDA&tf=1m&from=${NOW - 40 * DAY}&to=${NOW}`, { key: GOOD });
   ok('Yahoo keeps 30 days of 1-minute bars: asked further back, it says the answer is incomplete', r.status === 200 && r.body.provider === 'yahoo' && r.body.complete === false);
