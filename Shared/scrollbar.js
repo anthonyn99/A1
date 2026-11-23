@@ -16,6 +16,7 @@
  * whole time the pointer is over it and fades after it leaves, sits in the
  * strip's bottom padding or just under it, and the wheel scrolls it sideways.
  * A finger just swipes the strip.
+ * Use `data-sb-strip="thin"` with at least 8px of bottom padding for a compact header.
  *
  * Both sides wear it. Veda's side of a two-profile page (data-profile or
  * data-th-profile = "veda" on <body> or <html>, followed live) gets the same
@@ -61,6 +62,9 @@
     '.vc-thumb::before{content:"";position:absolute;inset:-6px -4px}',
     '.vc-rail:hover .vc-thumb,.vc-rail.drag .vc-thumb{background:var(--ac,#c0aeea)}',
     '.vc-rail.v:hover .vc-thumb,.vc-rail.v.drag .vc-thumb{width:9px}.vc-rail.h:hover .vc-thumb,.vc-rail.h.drag .vc-thumb{height:9px}',
+    '.vc-rail.h.vc-thin{height:8px}',
+    '.vc-rail.h.vc-thin .vc-thumb{bottom:2px;height:3px}',
+    '.vc-rail.h.vc-thin .vc-thumb::before{inset:-2px 0}',
     '.vc-rail.drag .vc-thumb{cursor:grabbing}',
     // Veda's colours: her mauve (StudyOS's --ac / --acl), the same bar.
     'html.vc-veda .vc-thumb{background:rgba(168,146,176,.42)}',
@@ -188,6 +192,7 @@
   }
   function makeRail(el, axis) {
     var rail = h('div', 'vc-rail ' + axis);
+    if (axis === 'h' && el.getAttribute('data-sb-strip') === 'thin') rail.classList.add('vc-thin');
     var thumb = h('div', 'vc-thumb');
     rail.appendChild(thumb);
     rail.setAttribute('aria-hidden', 'true');
@@ -355,6 +360,7 @@
         // The thumb's middle is 8px below the rail's top (14px rail, 6px thumb
         // 3px off its bottom).
         var railTop = m.strip == null ? Math.min(g.bottom, g.rect.bottom - g.border.b) - s.hgt
+          : r.rail.classList.contains('vc-thin') && m.strip >= s.hgt ? g.rect.bottom - g.border.b - (m.strip + s.hgt) / 2
           : m.strip >= 10 ? g.rect.bottom - g.border.b - m.strip / 2 - 8
           : g.rect.bottom - 2;
         put(r, r.rail, 'top', Math.round(railTop - s.o.y) + 'px');
