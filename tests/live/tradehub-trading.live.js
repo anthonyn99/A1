@@ -85,11 +85,28 @@ const ok = (ph, name, cond, extra) => {
       const colorAfterClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'), css=getComputedStyle(b);
         return [b.getAttribute('aria-selected'), css.backgroundColor, css.filter];`);
       ok('TR5', 'Control selects the tab in purple while the pointer stays over it', colorAfterClick.join('|') === ['true', purple, 'none'].join('|'), colorAfterClick);
+      await js("document.querySelector('[data-ctl-sub=quant]').click(); 1");
+      ok('TR5', 'BOATS uses the existing Alpaca key in Control', await until("document.querySelector('[data-provider=alpaca-boats]')?.dataset.state === 'Not used yet'", 5000));
+
+      const dockToggle = "[data-nq-dock] [data-nq-side-btn]";
+      await js("document.querySelector('[data-nq-launch]').click(); 1");
+      if (await until(vis(dockToggle), 3000)) {
+        await js(`var b=document.querySelector('${dockToggle}'); if(b.getAttribute('aria-expanded')==='true') b.click(); 1`);
+        await sleep(260);
+        const closed = await js(`var r=document.querySelector('${dockToggle}').getBoundingClientRect(); return [r.x,r.y];`);
+        await js(`document.querySelector('${dockToggle}').click(); 1`);
+        await sleep(260);
+        const opened = await js(`var e=document.querySelector('${dockToggle}'), r=e.getBoundingClientRect(); return [r.x,r.y,e.getAttribute('aria-expanded')];`);
+        ok('TR5', 'Neo Quant sidebar toggle stays in the same spot while open', opened[2] === 'true' && Math.abs(opened[0] - closed[0]) < 2 && Math.abs(opened[1] - closed[1]) < 2, [...closed, ...opened]);
+        await js("document.querySelector('[data-nq-close]').click(); 1");
+        await sleep(260);
+      } else ok('TR5', 'Neo Quant sidebar toggle stays in the same spot while open', false);
 
       await tab('neo');
       ok('TR5', 'Neo Quant has the shorter header and prompt and no Recent conversations card', await until("document.querySelector('[data-neo-tab] [data-nq-input]')", 5000) && await js("const n=document.querySelector('[data-neo-tab]'); return n.querySelector('.ctl-meta').textContent==='Your desk quant' && n.querySelector('[data-nq-input]').placeholder==='Ask Neo Quant…' && !n.querySelector('[data-card=recent]');"));
       await js("const b=document.querySelector('[data-neo-tab] [data-nq-side-btn]'); if (b.getAttribute('aria-expanded')==='false') b.click(); 1");
       ok('TR5', 'The sidebar lists the seeded conversation', await until("document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]')", 5000));
+      ok('TR5', 'Neo Quant shows a pin icon, concise help and centered prompts', await js("const n=document.querySelector('[data-neo-tab]'); const pin=n.querySelector('[data-nq-pin]'), copy=n.querySelector('.nq-empty'); return !!pin?.querySelector('svg') && pin.getAttribute('aria-label')==='Pin conversation' && copy?.querySelector('p')?.textContent==='Ask about markets, signals or your trades.' && getComputedStyle(copy.querySelector('.nq-acts')).justifyContent==='center';"));
       ok('TR5', 'Search filters titles and Pin updates the conversation', await js("const s=document.querySelector('[data-neo-tab] [data-nq-side-search]'); s.value='nothing matches'; s.dispatchEvent(new Event('input')); const filtered=!document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]'); s.value='AMD'; s.dispatchEvent(new Event('input')); document.querySelector('[data-neo-tab] [data-nq-pin=tr5-history]').click(); return filtered;") && await until("document.querySelector('[data-neo-tab] [data-nq-pin=tr5-history]')?.getAttribute('aria-pressed')==='true'", 5000));
       await js("document.querySelector('[data-neo-tab] [data-nq-continue=tr5-history]').click(); 1");
       ok('TR5', 'Continuing shows the answer with grouped actions', await until("document.querySelector('[data-neo-tab] .nq-acts [data-nq-copy]') && document.querySelector('[data-neo-tab] .nq-acts [data-nq-speak]')", 5000));
@@ -522,6 +539,21 @@ const ok = (ph, name, cond, extra) => {
         await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...to, button: 'left', clickCount: 1 });
       }
       ok('TR4', 'dragging a tab reorders it and keeps the same host and open tab', await until(`(function(){ var s=${TT}.querySelector('.lay-card[data-card="positions"] .lay-tabs'); return !!s && s.dataset.layTabs==='working,positions,filled' && s.querySelector('[aria-selected=true]').dataset.layTab==='working'; })()`, 2200));
+      if (w >= 600) {
+        const strip = `document.querySelector('[data-card="positions"] [data-sb-strip].lay-tabs')`;
+        const hover = await js(`var s=${strip}; s.style.maxWidth='130px'; var r=s.getBoundingClientRect(); return {x:r.left+12,y:r.top+16};`);
+        await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...hover });
+        const rail = `[...document.querySelectorAll('.vc-rail.h.on')].find(e=>Math.abs(e.getBoundingClientRect().left-${strip}.getBoundingClientRect().left)<3)`;
+        const shown = await until(`!!(${rail})`, 2500);
+        if (shown) {
+          const point = await js(`var r=(${rail}).getBoundingClientRect(), t=${strip}.firstElementChild.getBoundingClientRect();
+            return {x:r.right-5,y:r.top+r.height/2,clear:r.top>=t.bottom};`);
+          await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+          await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+          ok('TR4', 'the shared horizontal scrollbar stays clear of tabs and scrolls on click', point.clear && await until(`(${strip}).scrollLeft>0`, 1500), point);
+        } else ok('TR4', 'the shared horizontal scrollbar stays clear of tabs and scrolls on click', false);
+        await js(`var s=${strip}; s.style.maxWidth=''; s.scrollLeft=0; 1`);
+      }
       await shot('tr4-tabs-' + w);
       if (w >= 600) {
         // Detach by dragging a tab off the strip onto the grid.
@@ -558,6 +590,21 @@ const ok = (ph, name, cond, extra) => {
         await js(`__groupDrag('pointerup',${JSON.stringify(toward.to)}); delete window.__groupDrag; 1`);
         ok('TR4', 'releasing below the title groups the cards instead of moving them', await until(`!!${TT}.querySelector('[data-card="positions"] [data-lay-tab="working"]')`, 2000));
         await js(`var btn=${TT}.querySelector('.lay-card[data-card="positions"] [data-act="group"]'); btn.click(); document.querySelector('[data-lay-gout]')?.click(); 1`);
+        await sleep(240);
+        const loose = await js(`const {liveLayouts}=await import('/A1/TradeHub/ui/layout.js'); const layout=liveLayouts.get('trading'), state=layout.state();
+          const grid=layout.el.querySelector('.lay-grid'), card=grid.querySelector('[data-card="working"]'), head=card.querySelector('.lay-title');
+          const a=head.getBoundingClientRect(), g=grid.getBoundingClientRect(), css=getComputedStyle(grid), step=parseFloat(css.gridAutoRows)+parseFloat(css.rowGap);
+          const fire=(el,type,x,y)=>el.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerType:'mouse',pointerId:41,button:0,buttons:type==='pointerup'?0:1,clientX:x,clientY:y}));
+          const x=a.left+8, y=a.top+5, target=g.bottom+step*3;
+          fire(head,'pointerdown',x,y); fire(window,'pointermove',x,target);
+          const preview=grid.querySelector('.lay-ghost').style.gridRow;
+          fire(window,'pointerup',x,target);
+          const cls=layout.sizeClass(), raw=JSON.parse(localStorage.getItem('tradehub_layout'));
+          const saved=raw.trading[cls].pos.working;
+          const result=!!saved.spaced && preview===card.style.gridRow && saved.r>state.pos.working.r+3;
+          layout.restore(state);
+          return {result,preview,saved};`);
+        ok('TR4', 'an isolated card stays exactly where its drag preview landed and the gap saves', loose.result, JSON.stringify(loose));
       }
       // #8: the Trade card squeezed short scrolls; its buttons are never cut or squashed.
       await js(`var s=document.querySelector('[data-trading-tab] [data-lay-add]'); if (s && [].some.call(s.options,function(o){return o.value==='trade';})) { s.value='trade'; s.dispatchEvent(new Event('change',{bubbles:true})); } 1`);
@@ -788,6 +835,12 @@ const ok = (ph, name, cond, extra) => {
     const pkAdd = (k) => js(`var b=${PK}.querySelector('[data-cpk-add="${k}"]'); if(!b||b.disabled) return false; b.click(); return true;`);
     if (want('T9')) {
       await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); 1`);
+      const chartStyle = (sel) => js(`var c=document.querySelector('${sel} [data-charts]')?.__charts?.active()?.chart();
+        if(!c) return null;
+        var o=c.options(); return [o.layout.textColor,o.layout.panes.separatorColor,o.crosshair.vertLine.labelBackgroundColor,o.layout.background.color,c.series()[0]?.options().upColor];`);
+      await tab('charts');
+      await until("!!document.querySelector('[data-lay=charts] canvas')", 10000);
+      const homeStyle = await chartStyle('.tb-mk-host');
       await tab('trading'); await setBrokerTo('alpaca'); await until(`${EQ}==='$100,000.00'`, 6000);
       ok('T9', 'Add card is a button that opens the popup', await openPk('[data-trading-tab]') && await until(`!!${PK}`, 3000));
       ok('T9', '...a section per tab: Trading first ("This tab"), then Market, Charts, Scanner, Invest, Neo Quant, Risk, Edge, Memory', await js(`var t=[].map.call(${PK}.querySelectorAll('[data-cpk-tab]'),function(b){return b.dataset.cpkTab;}).join(); return t==='trading,market,charts,scanner,invest,neo,risk,edge,memory' && /This tab/.test(${PK}.querySelector('[data-cpk-tab="trading"]').textContent);`),
@@ -802,6 +855,8 @@ const ok = (ph, name, cond, extra) => {
         && await js(`return document.querySelectorAll('.lay-portal-holder[data-portal-tab="risk"]').length === 1;`), await js(`return document.querySelectorAll('.lay-portal-holder').length;`));
       await pkTab('charts');
       ok('T9', 'Charts ▸ Chart added: a live chart on Trading', await pkAdd('charts:chart') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="x-charts-chart"] canvas')`, 10000));
+      const tradingStyle = await chartStyle('[data-portal-tab="charts"]');
+      ok('T9', 'Trading and Charts use the same chart colors, axes, and candles', !!homeStyle && JSON.stringify(homeStyle) === JSON.stringify(tradingStyle), JSON.stringify({ homeStyle, tradingStyle }));
       await pkTab('market');
       ok('T9', 'a Market card Trading already has (Regime) is shown in place, not added twice', await pkAdd('market:regime') && await until(`!!document.querySelector('[data-trading-tab] .lay-card[data-card="regime"]') && !document.querySelector('[data-card="x-market-regime"]')`, 4000));
       ok('T9', '...and the popup now says each is on this tab', await js(`return ['market:regime'].every(function(k){return /Added|On this tab/.test(${PK}.querySelector('[data-cpk-add="'+k+'"]').textContent);});`));
