@@ -58,7 +58,7 @@ const ok = (ph, name, cond, extra) => {
         { id: 'a-tr5', at: CLOCK - 86396000, role: 'a', text: 'VERDICT: WAIT for the report.', verdict: 'WAIT' },
       ],
     }];
-    await boot({ quant: true });
+    await boot({ quant: true, ls: want('TR7') ? { tradehub_control_sub: 'rules' } : {} });
 
     if (want('TR5')) {
       await tab('catalysts');
@@ -155,6 +155,17 @@ const ok = (ph, name, cond, extra) => {
       await tab('portfolio');
       ok('TR6', 'The Portfolio tab has no entrance animation', await js("const active=document.querySelector('.tb-scroll-visible .tb-fade-in'); return !active || getComputedStyle(active).animationName==='none';"));
       ok('TR6', 'No uncaught error while using Display or Alerts', errors.length === errorStart, errors.slice(errorStart).join('\n'));
+    }
+
+    if (want('TR7')) {
+      await tab('prompt');
+      ok('TR7', 'A saved Rules selection opens Watchlists and no Rules sub-tab is offered', await until("document.querySelector('[data-ctl-sub=watchlists].is-on') && !document.querySelector('[data-ctl-sub=rules], [data-quant-rules]')", 4000));
+      await js("document.querySelector('[data-ctl-sub=alerts]').click(); 1");
+      ok('TR7', 'Control Alerts still manages its own price alerts', await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('[data-tal-control]')", 6000));
+      await tab('journal');
+      await js("window._tbOps.journal.view('edge'); 1");
+      ok('TR7', 'Journal Edge loads its analysis without the Rule checks card', await until("document.querySelector('[data-edge-view] [data-card=breakdown]') && !document.querySelector('[data-edge-view] [data-card=rules]')", 8000));
+      ok('TR7', 'Neo Quant can still read Risk and Edge with the manual rule actions gone', await js("const {Registry}=await import('./TradeHub/neo/reg/index.js'); return !!Registry.reader('risk.now') && !!Registry.reader('risk.edge') && !Registry.reader('risk.rules') && !Registry.action('risk.openRules');"));
     }
 
     // T2: the Trading tab
