@@ -11,6 +11,7 @@
 //   POST   /trade/webull/orders                { order, who, reason? }   (Alpaca-shaped order in, Webull body out)
 //   PATCH  /trade/webull/orders/:id            { qty?, limit_price?, stop_price?, trail?, who }
 //   DELETE /trade/webull/orders/:id            cancel one (id = the client order id)
+//   POST   /trade/webull/orders/:id/drop       { parent, who } take one take profit or stop loss off, keep the rest (TR1)
 //   DELETE /trade/webull/positions/:symbol     close one at market
 //   POST   /trade/webull/kill                  { on } true: cancel every open order; only closing orders until off
 //   (T5) the account and the order checks follow the book (lib/books.js); rawAccount + flatten serve its reset
@@ -132,7 +133,36 @@ export function ordersOut(groups) {
     out.push({ ...master, order_class: g.combo_type && g.combo_type !== 'NORMAL' ? (legs.length === 3 ? 'bracket' : String(g.combo_type).toLowerCase()) : 'simple', combo_id: g.combo_order_id || null,
       legs: legs.filter((l) => l !== master) });
   }
-  return out;
+  return groupCombos(out);
+}
+const PART = new Set(['MASTER', 'STOP_PROFIT', 'STOP_LOSS', 'OTO', 'OCO']);
+/** TR1 (measured on the sandbox 2026-11-23): the open-order list gives each part of a bracket as its own group (MASTER,
+ *  STOP_PROFIT, STOP_LOSS sharing one combo id), so the page saw a take profit as a lone "Sell LMT". Parts with one combo
+ *  id become one order: the MASTER with the others as its legs (class bracket, oto or oco, as Alpaca's), each leg "held"
+ *  while the entry waits, as Alpaca says it. Without a MASTER (filled, so gone from the open list) an OCO pair stays one
+ *  order with the take profit first; anything else is left as it came. */
+export function groupCombos(list) {
+  const by = new Map(), out = [];
+  for (const o of list) {
+    const parts = [o, ...(o.legs || [])];
+    if (!o.combo_id || !parts.some((x) => PART.has(x.combo))) { out.push(o); continue; }
+    if (!by.has(o.combo_id)) { by.set(o.combo_id, []); out.push({ combo: o.combo_id }); }
+    by.get(o.combo_id).push(...parts.map((x) => { const { legs, ...rest } = x; return rest; }));
+  }
+  return out.map((o) => {
+    if (!o.combo || o.id) return o;
+    const parts = [...new Map(by.get(o.combo).map((x) => [x.id, x])).values()];
+    const master = parts.find((x) => x.combo === 'MASTER');
+    if (!master) {
+      if (parts.length === 1) return { ...parts[0], order_class: 'simple', combo_id: o.combo, legs: [] };
+      const tp = parts.find((x) => x.combo === 'STOP_PROFIT' || x.type === 'limit') || parts[0];
+      return { ...tp, order_class: 'oco', combo_id: o.combo, legs: parts.filter((x) => x !== tp) };
+    }
+    const legs = parts.filter((x) => x !== master);
+    const waits = OPEN.has(master.status) && !(master.filled_qty > 0);
+    const cls = legs.length >= 2 ? 'bracket' : legs.length === 1 ? 'oto' : 'simple';
+    return { ...master, order_class: cls, combo_id: o.combo, legs: legs.map((l) => (waits && OPEN.has(l.status) ? { ...l, status: 'held' } : l)) };
+  });
 }
 async function openGroups(env, a, fetchFn) {
   return cached('open:' + a.account_id, async () => {
@@ -296,6 +326,46 @@ export async function cancel(env, url, id, fetchFn = fetch) {
   if (!r.ok && !(r.status === 417 && /not present/i.test(JSON.stringify(r.body || '')))) must(r, 'the cancel');
   await env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE id = ? AND broker = 'webull'").bind(id).run().catch(() => {});
   return json({ ok: true, paper: true, broker: 'webull', canceled: id });
+}
+/**
+ * Take one take profit or stop loss off an order and keep the rest (TR1, Tony's #37). On the sandbox (2026-11-23) a
+ * bracket's leg cancels alone: the entry and the other leg stay. So the leg is cancelled; if Webull took the other exit
+ * with it all the same (an OCO pair on a position), that exit is placed again as a closing order of its own.
+ */
+export async function dropLeg(env, req, url, id, { fetchFn = fetch, now = Date.now(), wait = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  if (!CID_RE.test(id)) throw fail(400, 'not an order id');
+  const b = await bodyOf(req, 1000), who = whoOf(b), pid = String((b && b.parent) || '');
+  if (!CID_RE.test(pid)) throw fail(400, 'the order the leg belongs to is needed (parent)');
+  const a = await pick(env, url, fetchFn);
+  clearCache();
+  const group = ordersOut(await openGroups(env, a, fetchFn)).find((o) => o.id === pid || (o.legs || []).some((l) => l.id === pid) || (o.legs || []).some((l) => l.id === id));
+  const parts = group ? [group, ...group.legs] : [];
+  const drop = parts.find((x) => x.id === id);
+  if (!drop || !group || group.order_class === 'simple') throw fail(404, 'that take profit or stop loss is not part of this order');
+  const exits = group.order_class === 'oco' ? parts : group.legs;
+  const kept = exits.filter((x) => x.id !== id && (OPEN.has(x.status) || x.status === 'held'));
+  const name = (x) => (x.type === 'stop' || x.type === 'stop_limit' || x.type === 'trailing_stop' ? 'stop loss' : 'take profit');
+  const r = await wb(env, 'POST', '/trading/orders/cancel', { body: { account_id: a.account_id, client_order_id: id } }, fetchFn);
+  clearCache();
+  if (!r.ok && !(r.status === 417 && /not present/i.test(JSON.stringify(r.body || '')))) must(r, 'the cancel');
+  await env.DB.prepare("UPDATE paper_orders SET status = 'canceled' WHERE id = ? AND broker = 'webull'").bind(id).run().catch(() => {});
+  const steps = ['the ' + name(drop) + ' was cancelled'];
+  let order = null;
+  for (const k of kept) {
+    let st = null;
+    for (let t = 0; t < 4; t++) { await wait(t ? 700 : 400); clearCache(); try { st = (await detail(env, a, k.id, fetchFn)).status; } catch (e) { st = null; } if (st === 'canceled') break; }
+    if (st !== 'canceled') continue;
+    const o = { symbol: k.symbol, side: k.side, type: k.type, qty: k.qty, time_in_force: k.time_in_force === 'gtc' ? 'gtc' : 'day', limit_price: k.limit_price, stop_price: k.stop_price, trail_percent: k.trail_percent, trail_price: k.trail_price };
+    if (!(await closes(env, a, o, fetchFn))) throw fail(409, `${steps.join('; ')}; the ${name(k)} went with it and no longer matches the position, so it was not placed again`);
+    const cid = 'k' + now.toString(36) + Math.random().toString(36).slice(2, 6), body = webullBody(o, a.account_id, cid);
+    await logRow(env, { id: cid, at: now, who, reason: `kept the ${name(k)} of ${pid}`, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), body, status: 'sent' });
+    const p = await wb(env, 'POST', '/trading/orders/place', { body, category: true }, fetchFn);
+    clearCache();
+    if (!p.ok) throw fail(502, `${steps.join('; ')}; but Webull refused placing the ${name(k)} again (${(p.body && p.body.message) || 'HTTP ' + p.status}): the position has no ${name(k)} now`, { webull: p.status });
+    order = { id: cid, symbol: o.symbol, side: o.side, type: o.type, qty: num(o.qty), status: 'new' };
+    steps.push('the ' + name(k) + ' was placed again on its own');
+  }
+  return json({ ok: true, paper: true, broker: 'webull', order, kept: kept.length ? (name(kept[0]) === 'stop loss' ? 'sl' : 'tp') : null, steps });
 }
 export async function closePosition(env, url, sym, { fetchFn = fetch, now = Date.now() } = {}) {
   if (!SYM_RE.test(sym)) throw fail(400, 'not a ticker');

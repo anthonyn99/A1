@@ -415,6 +415,8 @@ async function paperRoute(req, env, url, p, m) {
   const o = /^\/paper\/orders\/([\w-]{1,64})$/.exec(p);
   if (o && m === 'PATCH') return paper.replace(env, req, o[1], { priceOf: paperPrice(env), book: await readBook(env, 'alpaca') });
   if (o && m === 'DELETE') return paper.cancel(env, o[1]);
+  const dl = /^\/paper\/orders\/([\w-]{1,64})\/drop$/.exec(p);
+  if (dl && m === 'POST') return paper.dropLeg(env, req, dl[1]);
   const ps = /^\/paper\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(p);
   if (ps && m === 'DELETE') return paper.closePosition(env, ps[1]);
   const rn = /^\/paper\/runs\/(r[a-z0-9]{4,20})$/.exec(p);
@@ -451,6 +453,8 @@ async function tradeRoute(req, env, url, p, m) {
   const o = /^\/orders\/([A-Za-z0-9]{1,32})$/.exec(rest);
   if (o && m === 'PATCH') return webull.replace(env, req, url, o[1], { priceOf: paperPrice(env), book: await readBook(env, 'webull') });
   if (o && m === 'DELETE') return webull.cancel(env, url, o[1]);
+  const dl = /^\/orders\/([A-Za-z0-9]{1,32})\/drop$/.exec(rest);
+  if (dl && m === 'POST') return webull.dropLeg(env, req, url, dl[1]);
   const ps = /^\/positions\/([A-Z][A-Z0-9.]{0,9})$/.exec(rest);
   if (ps && m === 'DELETE') return webull.closePosition(env, url, ps[1]);
   throw fail(404, 'no such route for webull (strategy runs are Alpaca-only until N3)');
