@@ -412,7 +412,7 @@ const ok = (ph, name, cond, extra) => {
       await js(`var c=document.querySelector('.lay-card[data-card="levels"]'); c.style.width=c.dataset.w0||''; 1`);
       // #5, #6: the Add card popup.
       await tab('trading');
-      await js(`document.querySelector('[data-trading-tab] [data-lay-addbtn], [data-trading-tab] .lay-add-btn, [data-trading-tab] [data-card-picker-open]') ? document.querySelector('[data-trading-tab] [data-lay-addbtn], [data-trading-tab] .lay-add-btn, [data-trading-tab] [data-card-picker-open]').click() : 0; 1`);
+      await js(`document.querySelector('[data-trading-tab] [data-lay-add-open]').click(); 1`);
       const pk = await until(`!!document.querySelector('[data-card-picker]')`, 3000);
       if (pk) {
         await js(`var i=document.querySelector('[data-cpk-search]'); i.focus(); i.value='o'; i.dispatchEvent(new Event('input',{bubbles:true})); 1`);
