@@ -63,10 +63,13 @@ const must = (r, what) => {
 
 // Reads are cached for READ_TTL and shared while in flight (Webull: 2 requests per 2 s). Writes clear the cache.
 const cache = new Map();
-export function clearCache() { cache.clear(); }
+// The account list is kept ACCT_TTL across writes (TR1: three quick cancels re-read it each time and met Webull's
+// "Too many requests"); its ids change only after a sandbox Reset. clearCache(true) drops it too.
+export const ACCT_TTL = 300_000;
+export function clearCache(all = false) { const a = cache.get('accounts'); cache.clear(); if (a && !all) cache.set('accounts', a); }
 function cached(key, load, now = Date.now()) {
   const hit = cache.get(key);
-  if (hit && now - hit.at < READ_TTL) return hit.p;
+  if (hit && now - hit.at < (key === 'accounts' ? ACCT_TTL : READ_TTL)) return hit.p;
   const p = load().catch((e) => { cache.delete(key); throw e; });
   cache.set(key, { at: now, p });
   return p;
@@ -103,7 +106,7 @@ export async function account(env, url, fetchFn = fetch, book = null) {
     accounts: list.map((x) => ({ id: x.account_id, label: x.account_label, class: x.account_class })) });
 }
 /** The broker's own account numbers (no book), fresh: the book's baseline (T5). */
-export async function rawAccount(env, url, fetchFn = fetch) { clearCache(); const a = await pick(env, url, fetchFn); return acctOut(a, await balance(env, a, fetchFn)); }
+export async function rawAccount(env, url, fetchFn = fetch) { clearCache(true); const a = await pick(env, url, fetchFn); return acctOut(a, await balance(env, a, fetchFn)); }
 
 /* ── positions and orders, in lib/paper.js's shapes ───────────────────────── */
 export function positionOut(p) {
