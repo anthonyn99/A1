@@ -32,7 +32,7 @@ const ok = (name, cond, extra) => {
   const api = quantApi();
   // The snapshot before (What changed?): a day earlier, a weaker regime.
   api.state.prevSnapshot = { ...FIXTURE, day: '2026-11-11', slot: 'close', at: FIXTURE.at - 86400000, due: FIXTURE.due - 86400000, regime: { ...FIXTURE.regime, label: 'Choppy', score: 44.5 } };
-  api.state.ai.brief = { day: FIXTURE.day, kind: 'daily', at: CLOCK - 3600000, text: 'VERDICT: Constructive into the open [F2].\nWHY: Breadth is firm [F3].\nRISK: VIX could lift.\nWATCH: SPY at its first resistance.', provider: 'groq', struck: [] };
+  api.state.ai.brief = { day: FIXTURE.day, kind: 'daily', at: CLOCK - 3600000, text: 'VERDICT: Constructive into the open [F2].\nWHY: Breadth is firm [F3]; sector participation improved. Volatility remains elevated.\nRISK: VIX could lift.\nWATCH: SPY at its first resistance.', provider: 'groq', struck: [] };
   api.state.convs = [{ id: 'cold000001', title: 'AMD into earnings', created: CLOCK - 86400000, pinned: false, turns: [
     { id: 'to1', at: CLOCK - 86400000, role: 'q', text: 'AMD into earnings?', tickers: ['AMD'] },
     { id: 'to2', at: CLOCK - 86400000 + 4000, role: 'a', text: 'VERDICT: WAIT until the report.\nWHY: Event risk.', verdict: 'WAIT', tickers: ['AMD'] }] }];
@@ -146,7 +146,9 @@ const ok = (name, cond, extra) => {
   ok('the tab mounts its three cards', await until(`['chat','brief','changed'].every(function(id){return document.querySelector('[data-neo-tab] .lay-card[data-card="'+id+'"]');}) && !document.querySelector('[data-neo-tab] .lay-card[data-card="recent"]')`, 15000));
   ok('the dock steps aside there (the tab is the same conversation)', await js(`return document.querySelector('[data-nq-dock]').hidden && document.querySelector('[data-nq-launch]').hidden && !document.documentElement.classList.contains('nq-docked');`));
   ok('...which already holds the questions asked in the dock', await until(`document.querySelectorAll('[data-neo-tab] [data-nq-q]').length >= 4`, 3000));
-  ok('the daily brief, its day and age, its sections', await until(`/Constructive into the open/.test((document.querySelector('[data-nq-brief]')||{}).innerText||'') && document.querySelector('[data-nq-briefday]')`, 5000));
+  ok('the daily brief shows its timestamp and sections', await until(`/Constructive into the open/.test((document.querySelector('[data-nq-brief]')||{}).innerText||'') && document.querySelector('[data-nq-briefday]')`, 5000));
+  ok('Daily Brief presents long explanations as short points', await until(`document.querySelectorAll('[data-nq-brief] [data-sec="WHY"] li').length===3`));
+  ok('Conversation uses primary text and an opaque lilac section heading', await js(`var p=document.querySelector('[data-nq-chat] .nq-sec-text'), label=document.querySelector('[data-nq-chat] .nq-a .nq-sec-label'); if(!p||!label)return false; var probe=document.createElement('span'); p.append(probe); probe.style.color='var(--tx)'; var text=getComputedStyle(probe).color===getComputedStyle(p).color; probe.style.color='var(--acp)'; var header=getComputedStyle(probe).color===getComputedStyle(label).color; probe.remove(); return text&&header;`));
   await js(`document.querySelector('[data-nq-changed-go]').click(); 1`);
   ok('What changed?: code finds the changes, the AI words them', await until(`/VERDICT|WATCH/.test(document.querySelector('[data-nq-changed]').innerText) && /Choppy to Constructive/.test(document.querySelector('[data-nq-changed] details').textContent)`, 8000), await js(`return document.querySelector('[data-nq-changed]').innerText;`));
   const ch = ai()[ai().length - 1].body;

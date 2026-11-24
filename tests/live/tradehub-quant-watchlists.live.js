@@ -15,7 +15,7 @@
 // Run: CDP_PORT=93xx node tests/live/tradehub-quant-watchlists.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP, WATCHLIST } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, WATCHLIST, CLOCK } = require('./quant-mock.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -36,6 +36,12 @@ const WB = [
 
 (async () => {
   const api = quantApi();
+  const yields = Array.from({length:60},(_,i)=>{
+    const t=Date.UTC(2026,10,1+i-59,5), c=4+i/100;
+    return {t,o:c,h:c,l:c,c,v:0,vx:'none'};
+  }).filter(b=>b.t<CLOCK&&new Date(b.t).getUTCDay()%6!==0);
+  api.state.realBars={US2Y:{'1d':yields},US10Y:{'1d':yields}};
+  api.state.barsProviders={US2Y:'fred',US10Y:'fred'};
   let webullDown = false, webullCalls = 0;
   api.state.tradeboard = (req) => {
     const p = new URL(req.url).pathname;
@@ -95,9 +101,14 @@ const WB = [
   ok('Webull was read once for the visit', webullCalls === 1, webullCalls);
   await pickRail('wb:14');
   ok('Trackers retains all nine symbols in Webull app order', (await rail()) === 'US2Y,US10Y,CLMAIN,BZMAIN,VIX,DXY,SOXX,NQMAIN,HGMAIN', await rail());
-  await js(`document.querySelector('[data-ch-rail] [data-sym="US2Y"]').click(); 1`);
+  await js(`var c=document.querySelector('[data-charts]').__charts.active(); c.set({type:'candles',volume:true}); document.querySelector('[data-ch-rail] [data-sym="US2Y"]').click(); 1`);
   ok('Treasury yield opens a daily chart, with intraday choices disabled', await until(`document.querySelector('[data-charts]').__charts.active().get().symbol==='US2Y' && document.querySelector('[data-ch-tf]').value==='1d' && document.querySelector('[data-ch-tf] option[value="5m"]').disabled`));
+  ok('yields default to a line with candle types unavailable', await until(`document.querySelector('[data-charts]').__charts.active().get().type==='line' && !document.querySelector('[data-charts]').__charts.active().get().volume && document.querySelector('[data-ch-type] option[value="candles"]').disabled`));
+  await js(`document.querySelector('[data-ch-rail] [data-sym="US10Y"]').click(); 1`);
+  ok('the second Treasury yield also uses a line', await until(`document.querySelector('[data-charts]').__charts.active().get().symbol==='US10Y' && document.querySelector('[data-charts]').__charts.active().get().type==='line'`));
+  ok('published FRED yield history supplies the header if its quote is missing', await until(`document.querySelector('.ch-head [data-ch-src]').textContent.includes('daily observation') && document.querySelector('.ch-head [data-ch-label]').textContent==='HISTORICAL' && document.querySelector('[data-ch-read]').textContent.includes('Yield')`));
   await js(`document.querySelector('[data-ch-rail] [data-sym="VIX"]').click(); 1`);
+  ok('switching away restores candles and volume', await until(`document.querySelector('[data-charts]').__charts.active().get().type==='candles' && document.querySelector('[data-charts]').__charts.active().get().volume && !document.querySelector('[data-ch-type] option[value="candles"]').disabled`));
   ok('VIX opens the index chart', await until(`document.querySelector('[data-charts]').__charts.active().get().symbol==='VIX'`));
   await pickRail('tradehub');
   ok('picking TradeHub shows the TradeHub list in its order', (await rail()) === WATCHLIST.join(), await rail());

@@ -50,6 +50,9 @@ async function side(c, who) {
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   const docs = who === 'tony' ? { 'dashboards/main': DOC } : { 'dashboards/vedasdash': DOC };
+  const alert = { id: 'qa1', at: Date.now(), title: 'Test TradeHub alert', body: 'A signal fired', kind: 'signal' };
+  const incoming = { ...alert, id: 'qa2', title: 'New TradeHub alert' };
+  docs['dashboards/quant_alerts_tony'] = { items: JSON.stringify([alert]) };
   const at = Date.now() + 2 * 60 * 1000;
   const resetId = `codex_${who}_five_hour_${Math.round(at / 1000)}`;
   const reset = { id: resetId, kind: 'five_hour', at };
@@ -86,6 +89,22 @@ async function side(c, who) {
   await sleep(400);
   ok('restoring Codex brings back the card and reminder', await js(`return !!(${card}) &&
     !!JSON.parse(sessionStorage.getItem('__fakefs_docs'))['reminders/${resetId}']`));
+  const qa = `[...document.querySelectorAll('[data-qa-card]')].find(e=>e.offsetParent&&e.textContent.includes('Test TradeHub alert'))`;
+  if (who === 'tony') {
+    ok('TradeHub notification removal is hidden in view mode', await js(`return !!(${qa})&&!((${qa})?.querySelector('button'));`));
+    await set(true); await sleep(200);
+    ok('the notification has a remove button in edit mode', await js(`return !!(${qa})?.querySelector('[aria-label="Remove this TradeHub alert"]');`));
+    await js(`(${qa}).querySelector('button').click(); 1`); await sleep(350);
+    ok('removing the alert hides it and adds an Undo action', await js(`return !(${qa})&&!!document.querySelector('button[title="Undo"]');`));
+    await js(`__fakeFs.remote('dashboards/quant_alerts_tony',{items:${JSON.stringify(JSON.stringify([incoming]))}},{merge:true}); 1`);
+    await js(`document.querySelector('button[title="Undo"]').click(); 1`); await sleep(350);
+    ok('Undo restores the removed alert even after the rolling feed changes', await js(`return !!(${qa})&&document.body.innerText.includes('New TradeHub alert');`));
+    await js(`document.querySelector('button[title="Redo"]').click(); 1`); await sleep(350);
+    ok('Redo hides only the removed alert', await js(`return !(${qa})&&document.body.innerText.includes('New TradeHub alert');`));
+    await set(false); await sleep(300);
+  } else {
+    ok('Tony’s TradeHub notifications are absent on Veda’s TaskHub', await js(`return !(${qa});`));
+  }
   const view = await js(`return ${SNAP};`);
   const n = Object.keys(view).length;
   ok('habit and goal rows rendered', Object.keys(view).filter((k) => k[0] === 'h').length >= 3 && Object.keys(view).filter((k) => k[0] === 'g').length >= 2, JSON.stringify(view));
