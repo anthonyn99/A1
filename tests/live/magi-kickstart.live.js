@@ -1,6 +1,6 @@
 // LIVE test -- the real console against the real engine (not run by run-all.js).
 // Run: node tests/live/magi-kickstart.live.js   Screenshots: %TEMP%/magi-live-shots
-// VERIFY_ONLY=1 checks the signed-in panels at desktop and phone without saving any settings.
+// VERIFY_ONLY=1 uses a read-only snapshot from the engine and mocks button responses.
 //
 // The daily Claude (Pro) kickstart section in the Units sheet. Sends nothing
 // unless RUN=1 (then one ~670-token Haiku message through "Send now").
@@ -14,6 +14,7 @@ const fs = require('fs');
 
 const URL = require('./cdp.js').PAGES_URL;
 const API = 'http://127.0.0.1:8000/api/units/claude-pro/kickstart';
+const VERIFY_ONLY = process.env.VERIFY_ONLY === '1';
 const STUB = `(()=>{if(window.top!==window)return;const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
  if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));
  if(s.indexOf('firebase')>=0||s.indexOf('googleapis')>=0||s.indexOf('gstatic')>=0)return Promise.reject(new TypeError('x'));
@@ -62,6 +63,30 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: STUB });
   await size(c, 1440, 900, false);
   await c.send('Page.navigate', { url: URL });
+  if (VERIFY_ONLY) {
+    if (!(await waitFor(c, 'typeof openChairPicker === "function"', 10000))) throw new Error('MAGI console did not load');
+    await evalJs(c, `
+      const sample = ${JSON.stringify(panels)};
+      const actual = window.fetch;
+      const origin = 'https://kickstart.example.test';
+      window.kickRequests = [];
+      window.fetch = (url, init) => {
+        if (!String(url).startsWith(origin)) return actual(url, init);
+        const path = new URL(url).pathname;
+        window.kickRequests.push(path);
+        const reply = (data) => Promise.resolve(new Response(JSON.stringify(data)));
+        if (path === '/api/units/usage')
+          return reply({ units: Object.keys(sample).map(id => ({ id, state: 'ready', kickstart: sample[id] })) });
+        if (path === '/api/units/chatgpt/kickstart/run') {
+          sample.chatgpt.state = {status:'sent', sent_at:Date.now()/1000};
+          return reply({ kickstart: sample.chatgpt });
+        }
+        return Promise.resolve(new Response('{}', {status:404}));
+      };
+      link.api = origin; link.where = 'local';
+      S.providers = Object.keys(sample).map(id => ({id, display_name:id === 'chatgpt' ? 'ChatGPT' : 'Claude (Pro)'}));
+      await loadUnitsUsage(); return 1;`);
+  }
   ok('engine online', await waitFor(c, 'online()', 30000));
   ok('the units verdict loads', await waitFor(c, '!!(UNITS_USE.byId["claude-pro"] && UNITS_USE.byId["claude-pro"].kickstart)', 30000));
 
@@ -83,7 +108,13 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
   await evalJs(c, `${BOX}.scrollIntoView(); return 1;`);
   await shot(c, 'kick-desktop');
 
-  if (process.env.VERIFY_ONLY === '1') {
+  if (VERIFY_ONLY) {
+    if (panels.chatgpt) {
+      await evalJs(c, `document.querySelector('.unit-kick[data-unit="chatgpt"] .unit-lim-check').click(); return 1;`);
+      ok('Codex Send now uses the Codex route and shows its result', await waitFor(c, `
+        return window.kickRequests.includes('/api/units/chatgpt/kickstart/run') &&
+          document.querySelector('.unit-kick[data-unit="chatgpt"] .kick-st').textContent.startsWith('Sent ');`, 3000));
+    }
     await size(c, 390, 844, true);
     await sleep(400);
     ok('at 390px the kickstart panels fit inside the sheet', await evalJs(c, `
