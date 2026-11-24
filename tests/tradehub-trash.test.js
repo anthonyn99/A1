@@ -330,7 +330,7 @@ check('the Daily Reminder is a pinned page with its fixed id',
 check('every confirmed save of it is pushed to the launcher (and only it)',
       /onSave:tbPbPushReminder/.test(pbHost) && /entry\.id!==TB_PB_DAILY_ID/.test(pbHost) && /\/daily-reminder/.test(pbHost));
 check('it mounts only after the migration succeeds',
-      /_fbMigrateTBPlaybook\(tbPbToEntries\)\)\s*\.then\(\(\)=>\{[^}]*Notebook\.mount\(cfg\)/.test(pbHost));
+      /_fbMigrateTBPlaybook\(tbPbToEntries\)\)\s*\.then\(\(\)=>\{[^}]*tbMountNotebook\(cfg\)/.test(pbHost));
 const mig = slice('window._fbMigrateTBPlaybook =', '    // Analysis cfg');
 check('the migration is one transaction', /runTransaction\(db, async \(tx\)/.test(mig));
 check('...that runs once (a marker, or any entry already there)',
