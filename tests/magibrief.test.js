@@ -162,6 +162,31 @@ const onlyNotes = MB.text('NOTES\n- One caveat.');
 t('notes alone have no blank answer column', !onlyNotes.querySelector('.v-aside') &&
   /One caveat/.test(onlyNotes.querySelector('.v-main')?.textContent || ''));
 
+const market = [
+  'ANSWER', '# **Daily Market Report**', '', '**Tuesday, November 24 | Premarket**', '',
+  'The open looks weak.', '', '## **1. Executive Summary**', '',
+  'Market bias', '', '# **Chop / Bearish**', '', 'Long-entry decision', '', '# **NO-GO**', '',
+  'Confidence', '', '# **Medium**', '', '### **Top Drivers**', '', '- Earnings are due.',
+  '', '## **2. Catalyst Calendar**', '', '#### **Benchmark Yield**', '', '# **4.91%**', '',
+  '## **3. Watchlist**', '', '### **Trading tiers**', '', '# **S**', '', 'NVDA', '', '# **A**', '', 'MU',
+  '', 'NOTES', 'None.', '', 'CONFIDENCE', 'HIGH — inputs agreed.',
+].join('\n');
+const marketBrief = MB.brief(market);
+const chips = [...marketBrief.querySelectorAll('.br-toc-chip')];
+t('the report title, display values, and nested headings stay out of chapter navigation',
+  chips.map(b => b.textContent).join('|') === 'Executive Summary|Catalyst Calendar|Watchlist' &&
+  marketBrief.querySelector('.br-cover-title')?.textContent === 'Daily Market Report' &&
+  /4\.91%/.test(marketBrief.querySelectorAll('.br-sec')[1]?.textContent || ''));
+t('every chapter button identifies a distinct heading in its own response',
+  new Set(chips.map(b => b.getAttribute('aria-controls'))).size === 3 &&
+  chips.every(b => [...marketBrief.querySelectorAll('.br-sec')].some(s =>
+    s.id === b.getAttribute('aria-controls') && s.querySelector('.br-sec-title')?.textContent === b.textContent)));
+const marketText = MB.text(market);
+t('Text keeps inline report confidence and metrics in the main text',
+  /Confidence.*Medium/.test(marketText.querySelector('.v-main')?.textContent || '') &&
+  marketText.querySelectorAll('.v-aside .conf-tag').length === 1 && !!marketText.querySelector('.v-aside .conf-tag.high') &&
+  ![...marketText.querySelectorAll('.v-main .md-h')].some(h => /^(NO-GO|4\.91%|S|A)$/.test(h.textContent)));
+
 const codeSample = MB.brief('### Example\n~~~text\nReport.NOTES Keep this.\nCONFIDENCE HIGH\n~~~');
 t('ratings and note labels inside fenced examples remain verbatim',
   codeSample.querySelector('pre code')?.textContent.includes('Report.NOTES Keep this.\nCONFIDENCE HIGH') &&
