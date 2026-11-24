@@ -8128,7 +8128,7 @@ const NUMBERED = /^(\s*)(\d+)[.)]\s+(.*)$/;
  * ("HIGH on the architecture and the build order, ..."), and splitting there
  * strands a fragment that starts mid-clause in lowercase. In that case the
  * whole line stays together and the tag is derived without consuming it. */
-const CONF = /^\s*(HIGH|MEDIUM|LOW)\b\s*(?:[-—:.]+\s*|,\s+)(.+)$/i;
+const CONF = /^\s*(HIGH|MEDIUM|LOW)\b\s*(?:[-—–:.]+\s*|,\s+)(.+)$/i;
 /** Any line that merely OPENS with a rating, used when CONF does not split. */
 const CONF_LEAD = /^\s*(HIGH|MEDIUM|LOW)\b/i;
 const TABLE_ROW = /^\s*\|(.+)\|\s*$/;
@@ -8359,13 +8359,14 @@ function unescapeBold(lines) {
   });
 }
 
+const isTableRow = (l) => TABLE_ROW.test(l) || (/\|/.test(l) && /\S/.test(l.replace(/\|/g, "")) && l.split("|").length > 2);
+
 function mdParse(text) {
   const lines = unescapeBold(String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n"));
   const out = [];
   const notes = [];
   let i = 0;
 
-  const isTableRow = (l) => TABLE_ROW.test(l) || (/\|/.test(l) && /\S/.test(l.replace(/\|/g, "")) && l.split("|").length > 2);
   const startsBlock = (l, next) =>
     MD.fence.test(l) || MD.heading.test(l) || MD.quote.test(l) ||
     MD.math.test(l) || MD.mathLine.test(l) || MD.footdef.test(l) ||
@@ -8564,9 +8565,10 @@ function parseList(lines, start) {
  */
 function parseVerdict(text) {
   const g = { main: [], notes: [], conf: [] };
-  const buckets = { main: [], notes: [], conf: [] };
+  const buckets = { main: [], notes: [] };
   let where = "main";
   let fenced = false;
+  let afterRating = false;
 
   // A capture that lost the newline after a section label leaves it glued to
   // the text it heads ("ANSWER AI consumes...", "CONFIDENCE HIGH -- ...").
@@ -8586,15 +8588,26 @@ function parseVerdict(text) {
       });
   });
   fenced = false;
-  for (const raw of lines) {
-    if (MD.fence.test(raw)) fenced = !fenced;
-    const heading = MD.heading.test(raw);
-    const bold = raw.trim().replace(/^#{1,6}\s+/, "").match(/^(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/);
-    const label = bold ? bold[1] + bold[2] : raw.trim();
-    const sec = !fenced && label.match(SECTION);
+  const lastContent = lines.findLastIndex((line) => line.trim());
+  for (const [i, raw] of lines.entries()) {
+    if (MD.fence.test(raw)) {
+      if (!fenced) where = "main";
+      fenced = !fenced;
+      afterRating = false;
+      buckets.main.push(raw);
+      continue;
+    }
+    if (fenced) { buckets.main.push(raw); continue; }
+    const heading = raw.match(MD.heading);
+    const title = heading ? heading[2] : raw.trim();
+    const bold = title.match(/^(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/);
+    const label = bold ? bold[1] + bold[2] : title;
+    const sec = label.match(SECTION);
     if (sec) {
       const s = sec[1].toUpperCase();
       where = s === "NOTES" || s === "CAVEATS" ? "notes" : s === "CONFIDENCE" ? "conf" : "main";
+      afterRating = false;
+      buckets.main.push("");
       // Verdicts archived under the older prompt open with AGREEMENTS and
       // DISAGREEMENTS before the answer; label them rather than letting the
       // deliberation notes masquerade as the answer's opening paragraph.
@@ -8603,55 +8616,42 @@ function parseVerdict(text) {
       }
       continue;
     }
-    if (!fenced && where !== "main") {
-      // A new report heading closes a metadata section. Some captures put
-      // the rating after NOTES without a CONFIDENCE heading.
-      const rating = label.replace(/^#{1,6}\s+/, "");
-      if (/^(HIGH|MEDIUM|LOW)(?:\s*[-—:.,]\s*.*)?$/i.test(rating)) {
-        where = "conf";
-        buckets.conf.push(rating);
-        continue;
-      }
-      if (bold && !heading && buckets[where].some((line) => line.trim())) {
-        where = "main";
-        buckets.main.push("", "### " + label, "");
-        continue;
-      }
-      if (heading || MD.hr.test(raw)) where = "main";
+    if (!raw.trim()) {
+      if (where !== "conf") buckets[where].push(raw);
+      continue;
     }
-    buckets[where].push(raw);
+    const rating = label.replace(/^(\*\*|__)(HIGH|MEDIUM|LOW)\1(?=\s*[-—–:.,])/i, "$2");
+    const level = rating.match(CONF_LEAD);
+    const explicit = rating.match(CONF);
+    const bare = level && rating === level[0];
+    // A rating consumes one line. The next report block belongs to the answer
+    // even when the capture lost its heading or left it as a plain label.
+    if (level && (where !== "main" || (!heading && i === lastContent)) &&
+        (bare || explicit || (where === "conf" && /^(HIGH|MEDIUM|LOW)\s+(on|for|because)\b/i.test(rating)))) {
+      const why = explicit ? explicit[2] : bare ? "" : rating;
+      g.conf.push({ kind: "conf", level: level[1].toUpperCase(), why: why.length <= 320 ? why : "" });
+      if (why.length > 320) buckets.main.push("", raw, "");
+      where = "main";
+      afterRating = true;
+      continue;
+    }
+    if (bold && !heading && (afterRating || (where === "notes" && buckets.notes.some((line) => line.trim())))) {
+      where = "main";
+      buckets.main.push("", "### " + label, "");
+    } else {
+      if (where === "conf") {
+        where = "main";
+        if (!heading && !MD.hr.test(raw)) buckets.main.push("", "### Confidence", "");
+      }
+      if (where === "notes" && (heading || MD.hr.test(raw) ||
+          (isTableRow(raw) && TABLE_SEP.test(lines[i + 1] || "")))) where = "main";
+      buckets[where].push(raw);
+    }
+    afterRating = false;
   }
 
-  // A line that is only **bold** stays bold text. It used to be promoted to a
-  // sub-heading, which is how "**Bold text**" in a markdown demo rendered as
-  // a "BOLD TEXT" section label; a model that wants a heading writes one.
   g.main = mdParse(buckets.main.join("\n"));
   g.notes = mdParse(buckets.notes.join("\n"));
-
-  // Confidence: a HIGH/MEDIUM/LOW opener is a rating wherever it appears --
-  // some chairmen drop the heading and just write the line.
-  const pull = (list) => list.filter((b) => {
-    if (b.kind !== "p") return true;
-    const lead = b.text.match(CONF_LEAD);
-    if (!lead) return true;
-    const c = b.text.match(CONF);
-    g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : b.text });
-    return false;
-  });
-  g.main = pull(g.main);
-  g.notes = pull(g.notes);
-  for (const b of mdParse(buckets.conf.join("\n"))) {
-    if (b.kind === "p") {
-      const lead = b.text.match(CONF_LEAD);
-      if (lead) {
-        const c = b.text.match(CONF);
-        g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : b.text });
-        continue;
-      }
-    }
-    g.conf.push(b);
-  }
-
   // A sidebar card reading only "None." is noise.
   if (g.notes.length === 1 && g.notes[0].kind === "p" && /^none[.!]?$/i.test(g.notes[0].text))
     g.notes = [];
