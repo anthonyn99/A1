@@ -1793,8 +1793,7 @@ del.md-html { color: var(--txd); }
 
 .br-notes {
   margin-top: 4px; padding: 14px 18px; border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--amber) 26%, transparent);
-  background: color-mix(in srgb, var(--amber) 5%, transparent);
+  border: 1px solid var(--bd); background: var(--s1);
 }
 .br-notes-hd {
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -1804,7 +1803,7 @@ del.md-html { color: var(--txd); }
 .br-notes-ic { display: inline-flex; font-size: 14px; }
 .br-notes p, .br-notes .v-list li { font-size: 13px; color: var(--txd); }
 .br-notes > *:last-child { margin-bottom: 0; }
-.br-notes .br-point { background: transparent; border-left-color: var(--amber); }
+.br-notes .br-point { background: transparent; border-left-color: var(--bdl); }
 
 /* ── what the blocks inside a card become ── */
 .br-group-title {
@@ -1825,9 +1824,7 @@ del.md-html { color: var(--txd); }
 .br-sec.tone-bad .br-sec-n { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
 .br-sec.hl {
   border-color: color-mix(in srgb, var(--ac) 40%, var(--bdl));
-  background:
-    radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--ac) 10%, transparent), transparent 65%),
-    color-mix(in srgb, var(--s1) 80%, transparent);
+  background: var(--s2);
 }
 .br-subhd {
   margin: 18px 0 8px; font-family: var(--font-display); font-size: 13px; font-weight: 700;
