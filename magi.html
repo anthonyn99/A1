@@ -1293,12 +1293,19 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
    allowed to grow to the full 2000px page. `1fr` on the answer with a max-width
    on the wrapper keeps the two columns adjacent instead of being pushed to
    opposite edges with a dead gutter between them. */
-.verdict-body.split {
+.verdict-body.split { container: magi-text / inline-size; }
+.v-layout {
   display: grid;
-  grid-template-columns: minmax(0, 78ch) minmax(230px, 290px);
-  justify-content: center;
-  gap: 22px 40px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@container magi-text (min-width: 860px) {
+  .v-layout {
+    grid-template-columns: minmax(0, 78ch) minmax(230px, 290px);
+    justify-content: center;
+    gap: 22px 32px;
+    align-items: start;
+  }
 }
 /* Without a sidebar there is no grid to cap the measure, so on a 2000px page
    the answer ran the full width -- ~200 characters a line, which is the single
@@ -1323,6 +1330,8 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
 }
 .v-card > *:last-child { margin-bottom: 0; }
 .v-card p, .v-card .v-list li { font-size: 12.5px; line-height: 1.6; color: var(--txd); }
+.v-notes-wide { margin: 16px auto 0; max-width: 78ch; }
+.v-notes-wide p, .v-notes-wide .v-list li { font-size: inherit; }
 
 /* ── inline + blocks ── */
 .verdict-body p { margin: 0 0 14px; }
@@ -1643,13 +1652,12 @@ del.md-html { color: var(--txd); }
    rather than a stutter. */
 .verdict-body .conf-why > .conf-echo { color: var(--txm); }
 
-/* Below this the sidebar has no room to be a sidebar. */
-@media (max-width: 1080px) {
-  .verdict-body.split { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+/* Below the column width, the metadata cards can share a row under the answer. */
+@container magi-text (width < 860px) {
   .v-aside { flex-direction: row; flex-wrap: wrap; }
   .v-aside .v-card { flex: 1 1 260px; }
 }
-@media (max-width: 640px) {
+@container magi-text (width < 570px) {
   /* Stacked again -- the 260px basis above is a WIDTH hint for the side-by-side
      row, and would otherwise become a fixed HEIGHT once the axis flips. */
   .v-aside { flex-direction: column; }
@@ -5435,7 +5443,6 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 
 
   /* ── verdict + cards ──────────────────────────────────────────────────── */
-  .verdict-body.split { grid-template-columns: minmax(0, 1fr); }
   .verdict, .studio-view, .drawer { border-radius: var(--r-card); }
   .verdict-hd, .studio-view-hd { flex-wrap: wrap; gap: 6px; }
   .v-lead { font-size: 15px; }
@@ -8800,24 +8807,33 @@ function mdBody(text) {
  *  in it, so a plain-prose verdict just reads as one column. */
 function verdictBody(text) {
   const g = parseVerdict(text);
-  const hasAside = g.notes.length > 0 || g.conf.length > 0;
-  const root = el("div", `verdict-body ${hasAside ? "split" : ""}`);
-  root.append(renderBlocks(el("div", "v-main"), g.main, true));
-  if (hasAside) {
-    const aside = el("aside", "v-aside");
-    if (g.notes.length) {
-      const c = el("div", "v-card");
-      c.append(el("div", "sec", "Notes"));
-      renderBlocks(c, g.notes);
-      aside.append(c);
+  const root = el("div", "verdict-body");
+  const main = renderBlocks(el("div", "v-main"), g.main, true);
+  const aside = el("aside", "v-aside");
+  if (g.notes.length) {
+    const notes = el("section", "v-card");
+    notes.append(el("div", "sec", "Notes"));
+    renderBlocks(notes, g.notes);
+    // A long notes section needs the same reading width as the report.
+    if (g.main.length && notes.textContent.length <= 900) aside.append(notes);
+    else {
+      notes.classList.add("v-notes-wide");
+      main.append(notes);
     }
-    if (g.conf.length) {
-      const c = el("div", "v-card");
-      c.append(el("div", "sec", "Confidence"));
-      renderBlocks(c, g.conf);
-      aside.append(c);
-    }
-    root.append(aside);
+  }
+  if (g.conf.length) {
+    const confidence = el("div", "v-card");
+    confidence.append(el("div", "sec", "Confidence"));
+    renderBlocks(confidence, g.conf);
+    (g.main.length ? aside : main).append(confidence);
+  }
+  if (aside.childElementCount) {
+    root.classList.add("split");
+    const layout = el("div", "v-layout");
+    layout.append(main, aside);
+    root.append(layout);
+  } else {
+    root.append(main);
   }
   return root;
 }
