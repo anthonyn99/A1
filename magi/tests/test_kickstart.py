@@ -163,7 +163,7 @@ def claims(tmp_path, monkeypatch):
 
 def test_one_send_per_shared_account_per_day(claims, monkeypatch):
     who, d = claims
-    monkeypatch.setattr(ks, "_account_key", lambda slot: "shared")
+    monkeypatch.setattr(ks, "_account_key", lambda slot, agent: "shared")
     assert ks._claim("system", TODAY) is None          # Tony's engine wins
     assert ks._claim("system", TODAY) is None          # ...and keeps it
     who["p"] = "veda"
@@ -178,7 +178,7 @@ def test_one_send_per_shared_account_per_day(claims, monkeypatch):
 
 def test_separate_accounts_never_block_each_other(claims, monkeypatch):
     who, _ = claims
-    monkeypatch.setattr(ks, "_account_key", lambda slot: f"acct-{who['p']}")
+    monkeypatch.setattr(ks, "_account_key", lambda slot, agent: f"acct-{who['p']}")
     assert ks._claim("system", TODAY) is None
     who["p"] = "veda"
     assert ks._claim("system", TODAY) is None
@@ -186,7 +186,7 @@ def test_separate_accounts_never_block_each_other(claims, monkeypatch):
 
 def test_old_claims_are_swept(claims, monkeypatch):
     _, d = claims
-    monkeypatch.setattr(ks, "_account_key", lambda slot: "k")
+    monkeypatch.setattr(ks, "_account_key", lambda slot, agent: "k")
     (d / "k-2026-09-28.json").write_text('{"profile": "veda"}', encoding="utf-8")
     assert ks._claim("system", TODAY) is None
     assert sorted(f.name for f in d.iterdir()) == [f"k-{TODAY}.json"]
@@ -205,11 +205,11 @@ def _tick_env(monkeypatch, tmp_path, claim_by):
     monkeypatch.setattr(ks, "data_dir", lambda: tmp_path)
     monkeypatch.setattr(ks, "pro_slot", lambda: "system")
     monkeypatch.setattr(ks, "_local_now", lambda: NOW)
-    monkeypatch.setattr(ks, "windows", lambda slot, fresh=True: _wins())
+    monkeypatch.setattr(ks, "windows", lambda slot, fresh=True, agent="claude": _wins())
     monkeypatch.setattr(limits, "blocked_until", lambda a, s: None)
     monkeypatch.setattr(updates, "updating", lambda a: False)
-    monkeypatch.setattr(ks, "_claim", lambda slot, day: claim_by)
-    monkeypatch.setattr(ks, "_release", lambda slot, day: None)
+    monkeypatch.setattr(ks, "_claim", lambda slot, day, agent: claim_by)
+    monkeypatch.setattr(ks, "_release", lambda slot, day, agent: None)
     sent = []
 
     async def fake_send(slot, message):
@@ -243,18 +243,18 @@ def test_a_send_pushes_the_reset_to_taskhub_at_once(monkeypatch, tmp_path):
     from magi.engine import claude_resets
     pushed = []
 
-    async def fake_resets_tick(force=False):
-        pushed.append(force)
+    async def fake_resets_tick(force=False, agent="claude"):
+        pushed.append(agent)
     monkeypatch.setattr(claude_resets, "tick", fake_resets_tick)
-    monkeypatch.setattr(ks, "available", lambda: True)
-    monkeypatch.setattr(ks, "panel", lambda: None)
+    monkeypatch.setattr(ks, "available", lambda agent: True)
+    monkeypatch.setattr(ks, "panel", lambda agent: None)
     sent = _tick_env(monkeypatch, tmp_path, claim_by="tony")
     asyncio.run(ks.tick())
     assert sent == [] and pushed == []
     ks._put_state({})
     _tick_env(monkeypatch, tmp_path, claim_by=None)
     asyncio.run(ks.tick())
-    assert ks.state()["status"] == "sent" and pushed == [False]
+    assert ks.state()["status"] == "sent" and pushed == ["claude"]
 
 
 def test_a_day_already_done_still_holds_the_claim(monkeypatch, tmp_path):
@@ -263,7 +263,7 @@ def test_a_day_already_done_still_holds_the_claim(monkeypatch, tmp_path):
     import asyncio
     _tick_env(monkeypatch, tmp_path, claim_by=None)
     took = []
-    monkeypatch.setattr(ks, "_claim", lambda slot, day: took.append(day))
+    monkeypatch.setattr(ks, "_claim", lambda slot, day, agent: took.append(day))
     ks._put_state({"day": TODAY, "status": "sent"})
     asyncio.run(ks._tick(False))
     assert took == [TODAY]
@@ -283,8 +283,101 @@ def test_send_now_is_never_blocked_by_a_claim(monkeypatch, tmp_path):
 
 
 def test_next_sleep_wakes_just_after_the_wait(monkeypatch):
-    monkeypatch.setattr(ks, "state", lambda: {"until": 1000.0})
+    monkeypatch.setattr(ks, "state", lambda agent: {"until": 1000.0})
     assert ks.next_sleep(now=900.0) == 115.0
     assert ks.next_sleep(now=990.0) == 30.0          # floor
-    monkeypatch.setattr(ks, "state", lambda: {})
+    monkeypatch.setattr(ks, "state", lambda agent: {})
     assert ks.next_sleep(now=900.0) == ks.TICK_S
+
+
+def test_codex_shares_each_profiles_claude_time_and_keeps_its_own_settings(monkeypatch, tmp_path):
+    who = {"profile": "tony"}
+    for p in ("tony", "veda"):
+        (tmp_path / p).mkdir()
+    monkeypatch.setattr(ks, "data_dir", lambda: tmp_path / who["profile"])
+    monkeypatch.setattr(ks, "active_profile", lambda: who["profile"])
+    from magi.engine import claude_resets
+    monkeypatch.setattr(claude_resets, "account_slot", lambda agent: who["profile"])
+    ks.save_config({"not_before": "07:45", "message": "claude"})
+    assert ks.available("codex")
+    assert ks.config("codex") == {**ks.DEFAULTS, "not_before": "07:45"}
+    ks.save_config({"not_before": "08:10", "week_cap": 70}, "codex")
+    assert ks.config() == {**ks.DEFAULTS, "not_before": "08:10", "message": "claude"}
+    assert ks.config("codex")["week_cap"] == 70
+    who["profile"] = "veda"
+    assert ks.available("codex") and ks.config("codex") == ks.DEFAULTS
+    monkeypatch.setattr(claude_resets, "account_slot", lambda agent: None)
+    assert not ks.available("codex")
+
+
+def test_codex_uses_the_accounts_actual_windows():
+    sample = {"utilization": 0.1, "resets_at": None}
+    assert _act(agent="codex", wins={"5h": sample, "7d": sample})["act"] == "send"
+    assert _act(agent="codex", wins={"7d": {**sample, "utilization": 0.8}}, force=True)["status"] == "capped"
+    opened = {**sample, "resets_at": (NOW + timedelta(hours=4)).timestamp()}
+    assert _act(agent="codex", wins={"5h": opened})["status"] == "already"
+    monthly = {**sample, "resets_at": (NOW + timedelta(days=29)).timestamp()}
+    assert _act(agent="codex", wins={"30d": monthly})["status"] == "open"
+    assert _act(agent="codex", wins={"30d": sample})["act"] == "send"
+
+
+def test_codex_same_login_is_claimed_once_across_profiles(claims, monkeypatch):
+    from magi.code.agents import usage_fetch
+    who, _ = claims
+    monkeypatch.setattr(usage_fetch, "codex_tokens", lambda slot: {"account_id": "shared-id"})
+    assert ks._claim("first-slot", TODAY, "codex") is None
+    who["p"] = "veda"
+    assert ks._claim("second-slot", TODAY, "codex") == "tony"
+
+
+def test_codex_runs_a_tiny_ephemeral_turn_and_pushes_its_reset(monkeypatch, tmp_path):
+    import asyncio
+    from magi.code.agents import limits, models, slots
+    from magi.code.agents import _proc
+    from magi.engine import claude_resets
+    sent, pushed = [], []
+    reset = (NOW + timedelta(hours=5)).timestamp()
+    monkeypatch.setattr(ks, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(ks, "active_profile", lambda: "veda")
+    monkeypatch.setattr(ks, "_local_now", lambda: NOW)
+    monkeypatch.setattr(ks, "_claim", lambda slot, day, agent: None)
+    monkeypatch.setattr(ks, "windows", lambda slot, **kw: {
+        "5h": {"resets_at": reset if sent else None}})
+    monkeypatch.setattr(claude_resets, "account_slot", lambda agent: "veda-slot")
+    monkeypatch.setattr(limits, "blocked_until", lambda agent, slot: None)
+    monkeypatch.setattr(models, "cap_block", lambda agent, slot: (None, ""))
+    monkeypatch.setattr(models, "plan_used_up", lambda agent, slot: None)
+    monkeypatch.setattr(models, "catalog", lambda agent, slot: {})
+    monkeypatch.setattr(models, "models_for", lambda agent, slot: [
+        {"id": "big", "capability": 8, "available": True, "light": False, "credits": False},
+        {"id": "mini", "capability": 3, "available": True, "light": True, "credits": False},
+    ])
+    monkeypatch.setattr(slots, "cli_path", lambda agent: "codex")
+    monkeypatch.setattr(slots, "env_for", lambda agent, slot: {"SLOT": slot})
+
+    class FakeStream:
+        def __init__(self, argv, *, cwd, env, stdin_text, absolute_s):
+            sent.append((argv, env, stdin_text))
+            assert (cwd / "kickstart.txt").read_text(encoding="utf-8") == "Reply with k only."
+
+        async def lines(self, cancel):
+            yield '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+
+        async def wait(self):
+            return 0
+
+    async def fake_push(force=False, agent="claude"):
+        pushed.append(agent)
+
+    monkeypatch.setattr(_proc, "Stream", FakeStream)
+    monkeypatch.setattr(claude_resets, "tick", fake_push)
+    panel = asyncio.run(ks.tick(agent="codex"))
+    assert panel["state"]["status"] == "sent"
+    assert panel["state"]["window_resets_at"] == reset
+    argv, env, msg = sent[0]
+    assert env == {"SLOT": "veda-slot"} and msg == "k"
+    assert argv[argv.index("--model") + 1] == "mini"
+    for arg in ("--ephemeral", "--ignore-user-config", "shell_tool", "model_reasoning_effort=low"):
+        assert arg in argv
+    asyncio.run(ks.tick(agent="codex"))
+    assert len(sent) == 1 and pushed == ["codex"]
