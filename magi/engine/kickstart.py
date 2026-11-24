@@ -1,4 +1,4 @@
-"""The daily Claude (Pro) kickstart: open the five-hour window on purpose.
+"""Daily Claude and Codex kickstarts: open the usage window on purpose.
 
 Claude's five-hour allowance starts counting at the first message, not on the
 clock. Tony used to send "hi" by hand in the morning so the resets fell where
@@ -45,6 +45,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +53,8 @@ from pathlib import Path
 from ..settings import ROOT, active_profile, data_dir
 
 PROFILES = ("tony", "veda")
+AGENTS = ("claude", "codex")
+NAMES = {"claude": "Claude Code", "codex": "Codex"}
 FILE = "kickstart.json"
 CLAIMS = "_kickstart_claims"
 WINDOW_S = 5 * 3600
@@ -65,36 +68,39 @@ SYSTEM = "Answer with the single letter k and nothing else."
 DEFAULTS = {"enabled": True, "message": "k", "not_before": "06:00", "week_cap": 80}
 
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
-_lock = asyncio.Lock()
+_locks = {agent: asyncio.Lock() for agent in AGENTS}
 
 
 # ── config and state (one file, per profile) ────────────────────────────────
 
-def _path() -> Path:
-    return data_dir() / FILE
+def _path(agent: str) -> Path:
+    return data_dir() / (FILE if agent == "claude" else "codex_kickstart.json")
 
 
-def _load() -> dict:
+def _load(agent: str) -> dict:
     try:
-        d = json.loads(_path().read_text(encoding="utf-8"))
+        d = json.loads(_path(agent).read_text(encoding="utf-8"))
         return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
-def _save(d: dict) -> None:
-    p = _path()
+def _save(d: dict, agent: str) -> None:
+    p = _path(agent)
     tmp = p.with_suffix(".tmp")
     tmp.write_text(json.dumps(d, indent=1), encoding="utf-8")
     tmp.replace(p)
 
 
-def config() -> dict:
-    return clean({**DEFAULTS, **(_load().get("config") or {})})
+def config(agent: str = "claude") -> dict:
+    cfg = clean({**DEFAULTS, **(_load(agent).get("config") or {})})
+    if agent == "codex":
+        cfg["not_before"] = config()["not_before"]
+    return cfg
 
 
-def state() -> dict:
-    s = _load().get("state")
+def state(agent: str = "claude") -> dict:
+    s = _load(agent).get("state")
     return s if isinstance(s, dict) else {}
 
 
@@ -124,18 +130,20 @@ def clean(cfg: dict) -> dict:
     return out
 
 
-def save_config(changes: dict) -> dict:
-    d = _load()
-    cfg = clean({**config(), **(changes or {})})
+def save_config(changes: dict, agent: str = "claude") -> dict:
+    d = _load(agent)
+    cfg = clean({**config(agent), **(changes or {})})
+    if agent == "codex" and "not_before" in changes:
+        save_config({"not_before": cfg["not_before"]})
     d["config"] = cfg
-    _save(d)
+    _save(d, agent)
     return cfg
 
 
-def _put_state(s: dict) -> None:
-    d = _load()
+def _put_state(s: dict, agent: str = "claude") -> None:
+    d = _load(agent)
     d["state"] = s
-    _save(d)
+    _save(d, agent)
 
 
 # ── the account ──────────────────────────────────────────────────────────────
@@ -153,8 +161,15 @@ def pro_slot() -> str | None:
     return None
 
 
-def available() -> bool:
-    return active_profile() in PROFILES and pro_slot() is not None
+def account_slot(agent: str) -> str | None:
+    if agent == "claude":
+        return pro_slot()
+    from . import claude_resets
+    return claude_resets.account_slot("codex")
+
+
+def available(agent: str = "claude") -> bool:
+    return active_profile() in PROFILES and account_slot(agent) is not None
 
 
 # ── one send per account per day, across every engine on this PC ───────────
@@ -165,18 +180,21 @@ def _claims_dir() -> Path:
     return d
 
 
-def _account_key(slot: str) -> str:
-    """Which login this slot is, as a short hash of its credentials file's
-    path. Two profiles whose slots point at one file are one account."""
+def _account_key(slot: str, agent: str = "claude") -> str:
+    """Hash the shared Claude credentials path or the Codex account ID."""
     try:
-        from ..code.agents import usage_fetch
-        p = str(usage_fetch._claude_creds(slot).resolve()).lower()
+        from ..code.agents import slots, usage_fetch
+        if agent == "codex":
+            account = usage_fetch.codex_tokens(slot).get("account_id")
+            p = f"codex:{account or slots.slot_dir(agent, slot).resolve()}"
+        else:
+            p = str(usage_fetch._claude_creds(slot).resolve()).lower()
     except Exception:  # noqa: BLE001
-        p = f"{active_profile()}:{slot}"
+        p = f"{agent}:{active_profile()}:{slot}"
     return hashlib.sha1(p.encode("utf-8")).hexdigest()[:16]
 
 
-def _claim(slot: str, day: str) -> str | None:
+def _claim(slot: str, day: str, agent: str = "claude") -> str | None:
     """Claim today's send on this account. None when it is ours (new, or
     already ours); otherwise the profile that holds it. Atomic (O_EXCL), so
     two engines ticking in the same second cannot both win."""
@@ -190,7 +208,7 @@ def _claim(slot: str, day: str) -> str | None:
                 old.unlink()
             except OSError:
                 pass
-    f = d / f"{_account_key(slot)}-{day}.json"
+    f = d / f"{_account_key(slot, agent)}-{day}.json"
     me = active_profile()
     try:
         fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -207,18 +225,18 @@ def _claim(slot: str, day: str) -> str | None:
     return None
 
 
-def _release(slot: str, day: str) -> None:
+def _release(slot: str, day: str, agent: str = "claude") -> None:
     """Give the claim back after a failed send, so a retry (ours or the other
     engine's) can still open today's window."""
     try:
-        f = _claims_dir() / f"{_account_key(slot)}-{day}.json"
+        f = _claims_dir() / f"{_account_key(slot, agent)}-{day}.json"
         if json.loads(f.read_text(encoding="utf-8")).get("profile") == active_profile():
             f.unlink()
     except (OSError, ValueError):
         pass
 
 
-def windows(slot: str, fresh: bool = True) -> dict | None:
+def windows(slot: str, fresh: bool = True, agent: str = "claude") -> dict | None:
     """{window: {utilization 0..1, resets_at epoch|None}}, or None when there
     is no reading at all. Fresh from the usage endpoint when the token allows
     it; otherwise the last stored figures, aged (a passed window is 0%). The
@@ -227,10 +245,10 @@ def windows(slot: str, fresh: bool = True) -> dict | None:
     from ..code.agents import limits, usage_fetch
     if fresh:
         try:
-            usage_fetch.refresh("claude", slot, force=True)
+            usage_fetch.refresh(agent, slot, force=True)
         except Exception:  # noqa: BLE001 -- the stored reading still stands
             pass
-    got = limits.aged(limits.usage("claude", slot))
+    got = limits.aged(limits.usage(agent, slot))
     return {k: v for k, v in got.items() if isinstance(v, dict)} or None
 
 
@@ -242,7 +260,8 @@ def _at(day: datetime, hhmm: str) -> datetime:
 
 
 def decide(now: datetime, cfg: dict, st: dict, wins: dict | None,
-           blocked_until: float | None = None, force: bool = False) -> dict:
+           blocked_until: float | None = None, force: bool = False,
+           agent: str = "claude") -> dict:
     """What to do right now. `now` is local and aware. Returns
     {"act": send|wait|skip|done|off, "status", "detail", "until"(epoch|None)}.
 
@@ -262,24 +281,29 @@ def decide(now: datetime, cfg: dict, st: dict, wins: dict | None,
     if now < nb and not force:
         return out("wait", "early", "", nb.timestamp())
     if wins is None:
-        return out("skip", "no_reading", "No usage reading for the Pro account yet.")
-    week = max((float(w.get("utilization") or 0) for k, w in wins.items()
-                if k.startswith("seven_day")), default=0.0)
+        return out("skip", "no_reading", f"No usage reading for {NAMES[agent]} yet.")
+    long_usage = max((float(w.get("utilization") or 0) for k, w in wins.items()
+                     if k.startswith("seven_day") or k in ("7d", "30d")), default=0.0)
     cap = int(cfg.get("week_cap") or DEFAULTS["week_cap"])
-    if round(week * 100) >= cap:
-        return out("skip", "capped", f"Week at {round(week * 100)}% (cap {cap}%)")
+    if round(long_usage * 100) >= cap:
+        label = "Week" if agent == "claude" else "Plan window"
+        return out("skip", "capped", f"{label} at {round(long_usage * 100)}% (cap {cap}%)")
     if blocked_until and blocked_until > now.timestamp():
-        return out("skip", "limited", "Claude is limited", blocked_until)
-    five = wins.get("five_hour") or {}
-    r = five.get("resets_at")
+        return out("skip", "limited", f"{NAMES[agent]} is limited", blocked_until)
+    window = "five_hour" if agent == "claude" else _codex_window(wins)
+    r = (wins.get(window) or {}).get("resets_at")
     if r and float(r) > now.timestamp() and not force:
-        started = float(r) - WINDOW_S
+        started = float(r) - (30 * 86400 if window == "30d" else WINDOW_S)
         if started >= nb.timestamp():
             return out("done", "already", "You opened today's window yourself", float(r))
         return out("wait", "open", "", float(r))
     if int(mine.get("tries") or 0) >= MAX_TRIES and not force:
         return out("skip", "gave_up", mine.get("detail") or f"{MAX_TRIES} tries failed today")
     return out("send", "sending")
+
+
+def _codex_window(wins: dict) -> str:
+    return "30d" if "30d" in wins and "5h" not in wins else "5h"
 
 
 # ── the send ─────────────────────────────────────────────────────────────────
