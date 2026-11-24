@@ -1097,7 +1097,7 @@ function briefBody(text, opts = {}) {
     }
   }
   push();
-  const titled = sections.filter((s) => typeof s.title === "string");
+  const chapterCount = sections.filter((s) => s.title !== null).length;
 
   if (hero.childNodes.length) root.append(hero);
 
@@ -1108,48 +1108,41 @@ function briefBody(text, opts = {}) {
     return { n: report ? String(k + 1) : c.n, kicker: c.kicker, title: c.title };
   };
 
-  // contents chips when there is enough to navigate
-  const secEls = [];
-  const jump = (k) => secEls[k] && secEls[k].scrollIntoView({ behavior: "instant", block: "start" });
-  if (titled.length >= (report ? 2 : 3)) {
-    const toc = el("div", "br-toc");
-    titled.forEach((s, k) => {
-      const b = el("button", "br-toc-chip");
-      b.type = "button";
-      inline(b, chapter(s, k).title);
-      b.onclick = () => jump(k);
-      toc.append(b);
-    });
+  const toc = chapterCount >= 2 ? el("nav", "br-toc") : null;
+  if (toc) {
+    toc.setAttribute("aria-label", "Contents");
     root.append(toc);
   }
 
   // A report's body sits beside a contents rail; a verdict's is the root.
   let host = root, rail = null;
-  if (report && titled.length >= 2) {
+  if (report && toc) {
     const doc = el("div", "br-doc");
     rail = el("nav", "br-rail");
     rail.setAttribute("aria-label", "Contents");
     rail.append(el("div", "br-rail-hd", "Contents"));
-    titled.forEach((s, k) => {
-      const c = chapter(s, k);
-      const b = el("button", "br-rail-item");
-      b.type = "button";
-      if (c.n) b.append(el("span", "br-rail-n", c.n.padStart(2, "0")));
-      b.append(inline(el("span", "br-rail-t"), c.title));
-      b.onclick = () => jump(k);
-      rail.append(b);
-    });
     host = el("div", "br-doc-main");
     doc.append(rail, host);
     root.append(doc);
   }
 
-  let k = 0;
-  for (const s of sections) {
-    if (s.group !== undefined) {
-      host.append(inline(el("div", "br-group-title"), s.group));
-      continue;
+  const targets = new Map();
+  const room = toc ? el("div") : null;
+  const docId = toc ? ++briefDocId : 0;
+  let selected = null, k = 0;
+  const mark = (card) => {
+    if (selected === card) return;
+    for (const b of targets.get(selected) || []) {
+      b.classList.remove("on");
+      b.removeAttribute("aria-current");
     }
+    for (const b of targets.get(card) || []) {
+      b.classList.add("on");
+      b.setAttribute("aria-current", "location");
+    }
+    selected = card;
+  };
+  for (const s of sections) {
     if (s.title === null) {
       if (s.blocks.length) host.append(briefBlocks(el("div", "br-intro"), s.blocks));
       continue;
@@ -1161,25 +1154,42 @@ function briefBody(text, opts = {}) {
     if (c.n) hd.append(el("span", "br-sec-n", c.n));
     const tw = el("div", "br-sec-tw");
     if (c.kicker) tw.append(el("div", "br-sec-kicker", c.kicker));
-    tw.append(inline(el("h3", "br-sec-title"), c.title));
+    const title = inline(el("h3", "br-sec-title"), c.title);
+    tw.append(title);
     hd.append(tw);
     card.append(hd);
     if (s.blocks.length) card.append(briefBlocks(el("div", "br-sec-body"), s.blocks));
-    secEls.push(card);
     host.append(card);
+    if (!toc) continue;
+    card.id = "magi-chapter-" + docId + "-" + k;
+    card.tabIndex = -1;
+    const buttons = [];
+    for (const nav of rail ? [toc, rail] : [toc]) {
+      const b = el("button", nav === rail ? "br-rail-item" : "br-toc-chip");
+      b.type = "button";
+      b.title = title.textContent;
+      b.setAttribute("aria-controls", card.id);
+      if (nav === rail) {
+        if (c.n) b.append(el("span", "br-rail-n", c.n.padStart(2, "0")));
+        b.append(el("span", "br-rail-t", title.textContent));
+      } else {
+        b.textContent = title.textContent;
+      }
+      b.onclick = () => { mark(card); jumpToBriefChapter(root, card, room); };
+      nav.append(b);
+      buttons.push(b);
+    }
+    targets.set(card, buttons);
   }
 
   // The rail marks the chapter being read.
   if (rail && "IntersectionObserver" in window) {
-    const items = [...rail.querySelectorAll(".br-rail-item")];
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        const i = secEls.indexOf(e.target);
-        items.forEach((it, j) => it.classList.toggle("on", j === i));
+        if (e.isIntersecting) mark(e.target);
       }
     }, { rootMargin: "-15% 0px -70% 0px" });
-    secEls.forEach((s) => io.observe(s));
+    targets.forEach((_, card) => io.observe(card));
     root.stopSpy = () => io.disconnect();
   }
 
@@ -1190,6 +1200,11 @@ function briefBody(text, opts = {}) {
     notes.append(hd);
     briefBlocks(notes, g.notes);
     host.append(notes);
+  }
+  if (room) {
+    room.setAttribute("aria-hidden", "true");
+    // Keep the reserve outside the report's two-column grid.
+    root.append(room);
   }
   return root;
 }
