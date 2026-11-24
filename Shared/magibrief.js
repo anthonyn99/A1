@@ -526,15 +526,21 @@ function parseVerdict(text) {
   // previous sentence too ("...*Dream*.NOTES None.CONFIDENCE HIGH", a sole
   // Gemini verdict, 2026-09-30): only right after a sentence's end, and only
   // followed by a space or a colon, so "NOTES-style" in prose stays put.
-  const unglued = String(text || "").replace(/\r/g, "")
-    .replace(/([.!?][*_"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?=[ \t]*:|[ \t]+\S)/g, "$1\n$2");
-  const lines = unglued.split("\n").flatMap((l) => {
-    const m = l.match(/^\s*(?:#{1,4}\s*)?(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:\s*:\s*|\s+)(?=\S)(.+)$/);
+  const lines = String(text || "").replace(/\r/g, "").split("\n").flatMap((line) => {
+    if (MD.fence.test(line)) { fenced = !fenced; return [line]; }
+    if (fenced) return [line];
+    return line.replace(/([.!?][*_"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?=[ \t]*:|[ \t]+\S)/g, "$1\n$2").split("\n");
+  }).flatMap((l) => {
+    if (MD.fence.test(l)) { fenced = !fenced; return [l]; }
+    if (fenced) return [l];
+    const m = l.match(/^\s*(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:[ \t]*:[ \t]*|[ \t]+)(?=\S)(.+)$/);
     return m ? [m[1], m[2]] : [l];
   });
+  fenced = false;
   for (const raw of lines) {
     if (MD.fence.test(raw)) fenced = !fenced;
-    const sec = !fenced && raw.match(SECTION);
+    const label = raw.trim().replace(/^(?:#{1,6}\s+)?(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/, "$1$2");
+    const sec = !fenced && label.match(SECTION);
     if (sec) {
       const s = sec[1].toUpperCase();
       where = s === "NOTES" || s === "CAVEATS" ? "notes" : s === "CONFIDENCE" ? "conf" : "main";
@@ -545,6 +551,22 @@ function parseVerdict(text) {
         buckets.main.push("", `### ${s[0] + s.slice(1).toLowerCase()}`, "");
       }
       continue;
+    }
+    if (!fenced && where !== "main") {
+      // A new report heading closes a metadata section. Some captures put
+      // the rating after NOTES without a CONFIDENCE heading.
+      if (where === "notes" && /^(HIGH|MEDIUM|LOW)(?:\s*[-—:.]\s*.*)?$/i.test(label)) {
+        where = "conf";
+        buckets.conf.push(label);
+        continue;
+      }
+      if (MD.heading.test(raw) || MD.hr.test(raw) ||
+          (where === "conf" && raw.trim() !== label && !CONF_LEAD.test(label)) ||
+          /^\s*(?:\*\*|__)\d+[.)]\s+\S/.test(raw)) where = "main";
+      else if (where === "conf" && CONF_LEAD.test(label) && raw.trim() !== label) {
+        buckets.conf.push(label);
+        continue;
+      }
     }
     buckets[where].push(raw);
   }
@@ -970,7 +992,8 @@ function briefBody(text, opts = {}) {
 
   /* hero */
   const hero = el("div", "br-hero");
-  const lead = blocks[0] && blocks[0].kind === "p" ? blocks.shift() : null;
+  const isLead = (b) => b?.kind === "p" && b.lines.length === 1 && !LABEL_ONLY.test(b.text) && !PLAIN_LABEL.test(b.text);
+  const lead = isLead(blocks[0]) ? blocks.shift() : null;
   if (report) {
     hero.append(el("div", "br-kicker", "Report"));
     if (opts.title) hero.append(inline(el("h2", "br-cover-title"), opts.title));
@@ -981,7 +1004,7 @@ function briefBody(text, opts = {}) {
     // The headline stood alone and the answer goes on with a short framing
     // paragraph before its first section: that paragraph is the summary.
     const next = blocks[0];
-    const summary = rest || (next && next.kind === "p" && next.text.length <= 420 ? (blocks.shift(), next.text) : "");
+    const summary = rest || (isLead(next) && next.text.length <= 420 ? (blocks.shift(), next.text) : "");
     if (summary) hero.append(inline(el("div", "br-summary"), summary));
   }
   const conf = g.conf.find((b) => b.kind === "conf");
@@ -1041,7 +1064,7 @@ function briefBody(text, opts = {}) {
 
   // contents chips when there is enough to navigate
   const secEls = [];
-  const jump = (k) => secEls[k] && secEls[k].scrollIntoView({ behavior: "smooth", block: "start" });
+  const jump = (k) => secEls[k] && secEls[k].scrollIntoView({ behavior: "instant", block: "start" });
   if (titled.length >= (report ? 2 : 3)) {
     const toc = el("div", "br-toc");
     titled.forEach((s, k) => {
@@ -1114,15 +1137,21 @@ function briefBody(text, opts = {}) {
     root.stopSpy = () => io.disconnect();
   }
 
-  /* notes + the rest of the confidence section */
+  /* Keep the notes and unrated confidence copy in their own sections. */
   const confRest = g.conf.filter((b) => b.kind !== "conf");
-  if (g.notes.length || confRest.length) {
+  if (g.notes.length) {
     const notes = el("div", "br-notes");
     const hd = el("div", "br-notes-hd");
     hd.append(icSpan("br-notes-ic", "help"), el("span", null, "Worth knowing"));
     notes.append(hd);
-    briefBlocks(notes, [...g.notes, ...confRest]);
+    briefBlocks(notes, g.notes);
     host.append(notes);
+  }
+  if (confRest.length) {
+    const box = el("div", "br-notes");
+    box.append(el("div", "br-conf-k", "Confidence"));
+    briefBlocks(box, confRest);
+    host.append(box);
   }
   return root;
 }
