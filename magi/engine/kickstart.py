@@ -364,70 +364,150 @@ async def send(slot: str, message: str) -> dict:
     return {"ok": False, "detail": (said.strip()[-300:] or "Claude Code gave no result.")}
 
 
+def codex_argv(exe: str, model: str, effort: str) -> list[str]:
+    from ..code.agents.codex_cli import DISABLED_FEATURES, SANDBOX_CONFIG
+    argv = [exe, "--ask-for-approval", "never", "exec", "--json", "--ephemeral",
+            "--sandbox", "read-only", "--skip-git-repo-check", "--ignore-user-config",
+            "--ignore-rules", "--model", model]
+    for feature in (*DISABLED_FEATURES, "shell_tool"):
+        argv.extend(("--disable", feature))
+    for option in (*SANDBOX_CONFIG, "web_search=disabled", "mcp_servers={}",
+                   "model_instructions_file=kickstart.txt", f"model_reasoning_effort={effort}"):
+        argv.extend(("-c", option))
+    return [*argv, "-"]
+
+
+def codex_model(slot: str) -> tuple[str, str] | None:
+    from ..code.agents import models
+    models.refresh("codex", slot)
+    choices = [m for m in models.models_for("codex", slot)
+               if m["available"] and not m["credits"]]
+    if not choices:
+        return None
+    model = min(choices, key=lambda m: (not m["light"], m["capability"]))
+    effort = models._effort_for(model, "low")
+    return model["id"], effort
+
+
+async def send_codex(slot: str, message: str) -> dict:
+    from ..code.agents import codex_cli, limits, slots
+    from ..code.agents._proc import Stream
+    from ..code.agents.base import Outcome
+
+    exe = slots.cli_path("codex")
+    if not exe:
+        return {"ok": False, "detail": "Codex CLI is not installed."}
+    choice = await asyncio.to_thread(codex_model, slot)
+    if not choice:
+        return {"ok": False, "detail": "No included Codex model is available."}
+    model, effort = choice
+    done, error = False, ""
+    cancel = asyncio.Event()
+    with tempfile.TemporaryDirectory(prefix="magi-codex-kick-") as folder:
+        cwd = Path(folder)
+        (cwd / "kickstart.txt").write_text("Reply with k only.", encoding="utf-8")
+        try:
+            s = Stream(codex_argv(exe, model, effort), cwd=cwd, env=slots.env_for("codex", slot),
+                       stdin_text=message, absolute_s=SEND_TIMEOUT_S)
+        except OSError as e:
+            return {"ok": False, "detail": f"Could not start Codex: {e}"}
+        try:
+            async for raw in s.lines(cancel):
+                ev = codex_cli.parse_line(raw)
+                if ev and ev["k"] == "done":
+                    done = True
+                elif ev and ev["k"] in ("error", "failed"):
+                    error = ev["text"] or error
+            code = await s.wait()
+        except asyncio.CancelledError:
+            s.kill()
+            await s.wait()
+            raise
+    if done and code == 0:
+        wins = await asyncio.to_thread(windows, slot, agent="codex") or {}
+        return {"ok": True, "window_resets_at": (wins.get(_codex_window(wins)) or {}).get("resets_at"),
+                "model": model}
+    error = error or s.stalled or "\n".join(s.stderr_tail)
+    if codex_cli.classify_failure(error) == Outcome.LIMITED:
+        limits.mark("codex", slot, codex_cli.parse_reset(error), "kickstart")
+        return {"ok": False, "limited": True, "detail": "Codex's usage limit was reached."}
+    return {"ok": False, "detail": error.strip()[-300:] or "Codex gave no result."}
+
+
 # ── one pass, and the loop ───────────────────────────────────────────────────
 
 def _local_now() -> datetime:
     return datetime.now().astimezone()
 
 
-async def tick(force: bool = False) -> dict | None:
+async def tick(force: bool = False, agent: str = "claude") -> dict | None:
     """Decide, and send if that is the decision. Returns the panel."""
-    if available():
-        async with _lock:
-            sent = await _tick(force)
+    if available(agent):
+        async with _locks[agent]:
+            sent = await _tick(force, agent)
         if sent:
-            await push_resets()
-    return panel()
+            await push_resets(agent)
+    return panel(agent)
 
 
-async def push_resets() -> None:
+async def push_resets(agent: str = "claude") -> None:
     """The send just opened a window and stored its reset time, so put it on
     TaskHub now. Left to its own 5-minute loop, the reset reached TaskHub
     minutes after MAGI said "Sent", and looked like it never would."""
     try:
         from . import claude_resets
-        await claude_resets.tick()
+        await claude_resets.tick(agent=agent)
     except Exception:  # noqa: BLE001 -- its own loop retries anyway
         pass
 
 
-async def _tick(force: bool) -> bool:
+async def _tick(force: bool, agent: str = "claude") -> bool:
     """One pass. -> True when a message was sent."""
-    from ..code.agents import limits, updates
-    slot = pro_slot()
+    from ..code.agents import limits, models, updates
+    slot = account_slot(agent)
+    if slot is None:
+        return False
     now = _local_now()
     today = now.date().isoformat()
-    cfg, st = config(), state()
+    cfg, st = config(agent), state(agent)
     mine = st if st.get("day") == today else {"day": today, "tries": 0}
     # A cheap pre-check first: nothing to do today means no usage read.
-    d = decide(now, cfg, st, {}, force=force)
+    d = decide(now, cfg, st, {}, force=force, agent=agent)
     if d["act"] in ("off", "done"):
         # Done today, or switched off: hold the account's claim anyway, so the
         # other profile's engine on this PC (same login) neither sends twice
         # nor kickstarts an account whose owner turned it off.
-        _claim(slot, today)
-    if d["act"] in ("off", "done"):
-        return
+        _claim(slot, today, agent)
+        return False
     if d["status"] != "early":
-        wins = await asyncio.to_thread(windows, slot)
-        d = decide(now, cfg, st, wins, limits.blocked_until("claude", slot), force=force)
-    if d["act"] == "send" and updates.updating("claude"):
-        d = {"act": "wait", "status": "updating", "detail": "Claude Code is updating", "until": None}
+        wins = await asyncio.to_thread(windows, slot, agent=agent)
+        d = decide(now, cfg, st, wins, limits.blocked_until(agent, slot), force=force, agent=agent)
+    if d["act"] == "send" and agent == "codex":
+        cap_until, cap_why = models.cap_block(agent, slot)
+        plan_until = models.plan_used_up(agent, slot)
+        if cap_until or plan_until:
+            d = {"act": "skip", "status": "capped" if cap_until else "limited",
+                 "detail": cap_why, "until": cap_until or plan_until}
+    if d["act"] == "send" and updates.updating(agent):
+        d = {"act": "wait", "status": "updating", "detail": f"{NAMES[agent]} is updating", "until": None}
     mine = {**mine, "at": time.time()}
     if d["act"] == "send":
         # Send now records the claim but is never blocked by one.
-        holder = _claim(slot, today)
+        holder = _claim(slot, today, agent)
         if holder and not force:
             d = {"act": "done", "status": "already",
-                 "detail": f"{holder.title()}'s engine on this PC handles this Claude login",
+                 "detail": f"{holder.title()}'s engine on this PC handles this {NAMES[agent]} login",
                  "until": None}
     if d["act"] == "send":
-        r = await send(slot, cfg["message"])
+        sender = send if agent == "claude" else send_codex
+        r = await sender(slot, cfg["message"])
         if not r["ok"]:
-            _release(slot, today)
+            _release(slot, today, agent)
         if r["ok"]:
             mine.update(status="sent", detail="", until=None, sent_at=time.time(),
                         window_resets_at=r.get("window_resets_at"))
+            if r.get("model"):
+                mine["model"] = r["model"]
         else:
             mine.update(status="limited" if r.get("limited") else "failed",
                         detail=r["detail"], until=None,
@@ -436,15 +516,15 @@ async def _tick(force: bool) -> bool:
         mine.update(status=d["status"], detail=d["detail"], until=d["until"])
         if d["status"] == "already":
             mine["window_resets_at"] = d["until"]
-    _put_state(mine)
+    _put_state(mine, agent)
     return mine.get("status") == "sent" and d["act"] == "send"
 
 
-def next_sleep(now: float | None = None) -> float:
+def next_sleep(now: float | None = None, agent: str = "claude") -> float:
     """Wake just after the thing being waited for (Not before, or the open
     window's reset), and never later than a normal tick."""
     now = now or time.time()
-    until = state().get("until")
+    until = state(agent).get("until")
     try:
         u = float(until) if until else None
     except (TypeError, ValueError):
@@ -454,25 +534,26 @@ def next_sleep(now: float | None = None) -> float:
     return TICK_S
 
 
-async def auto_loop() -> None:
+async def auto_loop(agent: str = "claude") -> None:
     """Started with the engine; the first tick is "when the engine comes
     online". Does nothing without a Claude Pro account in this profile's
     Code Mode."""
     await asyncio.sleep(FIRST_TICK_S)
     while True:
         try:
-            await tick()
+            await tick(agent=agent)
         except Exception:  # noqa: BLE001 -- a kickstart must never take the engine down
             pass
-        await asyncio.sleep(next_sleep())
+        await asyncio.sleep(next_sleep(agent=agent))
 
 
-def panel() -> dict | None:
+def panel(agent: str = "claude") -> dict | None:
     """What the Units sheet shows, or None where the feature does not exist
     (no Claude Pro account signed in to this profile's Code Mode)."""
-    if not available():
+    if not available(agent):
         return None
-    st = state()
+    st = state(agent)
     today = _local_now().date().isoformat()
-    return {**config(), "state": st if st.get("day") == today else {},
-            "last": st, "busy": _lock.locked(), "model": MODEL}
+    return {**config(agent), "state": st if st.get("day") == today else {},
+            "last": st, "busy": _locks[agent].locked(),
+            "model": MODEL if agent == "claude" else st.get("model")}
