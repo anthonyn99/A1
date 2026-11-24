@@ -145,7 +145,11 @@ const RUN = {
     ok('another tab: the dialog keeps its size and place', g3.card[0] === g1.card[0] && g3.card[1] === g1.card[1], JSON.stringify([g1.card, g3.card]));
     await js(`document.querySelector('.dbr [data-dkey="magi"]')?.click(); 1`);
     ok('Daily Report remains available with an empty report', await until("document.querySelector('.dbr .tbx-empty')?.textContent.includes('No answer from MAGI yet')", 3000));
-    ok('all five tabs fit the screen', !(await geo()).sideways);
+    ok('the selected report tab is visible without widening the page', await js(`
+      var tab=document.querySelector('.dbr [data-dkey="magi"][aria-selected="true"]');
+      if(!tab)return false;
+      var row=tab.parentElement.getBoundingClientRect(), box=tab.getBoundingClientRect();
+      return box.left>=row.left-1 && box.right<=row.right+1 && document.documentElement.scrollWidth<=innerWidth+1;`));
 
     // The News overlay: the build time as mm/dd/'yy h:mm AM/PM and "x ago".
     await js(`var host=document.getElementById('__dbr'); host.__root.unmount(); host.remove();
@@ -163,15 +167,14 @@ const RUN = {
   // the Debrief was last closed on (Tony, 2026-11-17). A request past the wait opens at once.
   console.log('\nthe morning opening');
   await size(1280, 1000);
-  const cfg = { aiSite: 'magi', magiMigrated: 1 };
+  const cfg = { aiSite: 'magi', magiMigrated: 1, analysisPromptId: 'daily-test' };
+  const prompt = { id: 'daily-test', name: 'Daily Macro Report', text: 'Test prompt for the daily macro report' };
   await js(`
     __fakeFs.remote('dashboards/tradeboard_analysis', {cfg:${JSON.stringify(cfg)}});
     localStorage.setItem('td6_analysis_cfg', ${JSON.stringify(JSON.stringify(cfg))});
-    var prompt=JSON.parse(localStorage.getItem('tradeboard_prompts_v2')||'[]')[0];
-    var question=prompt?.text||'Macro & Long-Only Trading Dashboard';
-    if(!prompt) localStorage.setItem('tradeboard_prompts_v2', JSON.stringify([{id:'daily-test',name:'Daily Macro Report',text:question}]));
+    localStorage.setItem('tradeboard_prompts_v2', JSON.stringify([${JSON.stringify(prompt)}]));
     __fakeFs.remote('dashboards/magi/runs/morning-test', ${JSON.stringify(RUN)});
-    __fakeFs.remote('dashboards/magi', {runs:[{id:'morning-test',question:question.slice(0,300),created_at:new Date().toISOString()}]});
+    __fakeFs.remote('dashboards/magi', {runs:[{id:'morning-test',question:${JSON.stringify(prompt.text)},created_at:new Date().toISOString()}]});
     sessionStorage.setItem('tb_debrief_wait', String(Date.now() - 61 * 60 * 1000));
     localStorage.setItem('tb_debrief_tab', 'movers'); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
@@ -187,6 +190,8 @@ const RUN = {
   await until("!document.querySelector('.dbr')", 3000);
   await js(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Debrief')?.click(); 1`);
   ok('reopening Debrief restores the report while Analysis sends to ChatGPT', await until(dailyReport, 6000));
+  await js(`__fakeFs.remote('dashboards/magi', {runs:[{id:'missing-body',question:${JSON.stringify(prompt.text)},created_at:new Date().toISOString()}]}); 1`);
+  ok('a missing report body settles to an unavailable message', await until("document.querySelector('.dbr .tbx-empty')?.textContent.includes('Daily Report unavailable')", 3000));
 
   // Analysis' Deploy button (2026-11-19): TradeHub is already open, so the launcher reuses it and
   // never loads #tbdebrief. Deploy arms the same wait on the page itself, and it opens with no reload.
