@@ -1707,9 +1707,7 @@ del.md-html { color: var(--txd); }
   position: relative; overflow: hidden;
   padding: 22px 24px 18px; margin-bottom: 14px;
   border: 1px solid var(--bdl); border-radius: 14px;
-  background:
-    radial-gradient(90% 140% at 100% 0%, color-mix(in srgb, var(--ac) 11%, transparent), transparent 60%),
-    linear-gradient(160deg, var(--s2), var(--s1));
+  background: var(--s2);
 }
 .br-headline {
   font-family: var(--font-display); font-size: 22px; font-weight: 800;
@@ -8581,17 +8579,16 @@ function parseVerdict(text) {
   const lines = String(text || "").replace(/\r/g, "").split("\n").flatMap((line) => {
     if (MD.fence.test(line)) { fenced = !fenced; return [line]; }
     if (fenced) return [line];
-    return line.replace(/([.!?][*_"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?=[ \t]*:|[ \t]+\S)/g, "$1\n$2").split("\n");
-  }).flatMap((l) => {
-    if (MD.fence.test(l)) { fenced = !fenced; return [l]; }
-    if (fenced) return [l];
-    const m = l.match(/^\s*(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:[ \t]*:[ \t]*|[ \t]+)(?=\S)(.+)$/);
-    return m ? [m[1], m[2]] : [l];
+    return line.replace(/([.!?][*_"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?=[ \t]*:|[ \t]+\S)/g, "$1\n$2")
+      .split("\n").flatMap((l) => {
+        const m = l.match(/^\s*(?:#{1,4}\s+)?(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:[ \t]*:[ \t]*|[ \t]+)(?=\S)(.+)$/);
+        return m ? [m[1], m[2]] : [l];
+      });
   });
   fenced = false;
   for (const raw of lines) {
     if (MD.fence.test(raw)) fenced = !fenced;
-    const label = raw.trim().replace(/^(?:#{1,6}\s+)?(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/, "$1$2");
+    const label = raw.trim().replace(/^#{1,6}\s+/, "").replace(/^(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/, "$1$2");
     const sec = !fenced && label.match(SECTION);
     if (sec) {
       const s = sec[1].toUpperCase();
