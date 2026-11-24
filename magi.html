@@ -8609,13 +8609,13 @@ function parseVerdict(text) {
         buckets.conf.push(label);
         continue;
       }
-      if (MD.heading.test(raw) || MD.hr.test(raw) ||
-          (where === "conf" && raw.trim() !== label && !CONF_LEAD.test(label)) ||
-          /^\s*(?:\*\*|__)\d+[.)]\s+\S/.test(raw)) where = "main";
-      else if (where === "conf" && CONF_LEAD.test(label) && raw.trim() !== label) {
+      if (where === "conf" && CONF_LEAD.test(label) && raw.trim() !== label) {
         buckets.conf.push(label);
         continue;
       }
+      if (MD.heading.test(raw) || MD.hr.test(raw) ||
+          (where === "conf" && raw.trim() !== label) ||
+          /^\s*(?:\*\*|__)\d+[.)]\s+\S/.test(raw)) where = "main";
     }
     buckets[where].push(raw);
   }

@@ -87,6 +87,36 @@ if (brief) {
 }
 if (text) t('Text: answer column + notes/confidence aside', text.querySelector('.v-main') && text.querySelector('.v-aside'));
 
+const mixed = MB.brief([
+  'ANSWER',
+  'This is the morning report.',
+  '',
+  '**NOTES**',
+  '- **Data limitations:** quotes were delayed.',
+  '**Medium**',
+  '**Top 3 Market Drivers**',
+  '1. **AI rally:** Nvidia led the session.',
+  '',
+  '### Previous Session',
+  'The S&P 500 closed higher.',
+].join('\n'));
+t('a bare bold rating and a report section end the notes',
+  /Data limitations/.test(mixed.querySelector('.br-notes')?.textContent || '') &&
+  !/Market Drivers|Previous Session|Nvidia/.test(mixed.querySelector('.br-notes')?.textContent || '') &&
+  mixed.querySelector('.br-conf.medium') && /Nvidia/.test(mixed.querySelector('.br-intro')?.textContent || '') &&
+  /Previous Session/.test(mixed.querySelector('.br-sec')?.textContent || ''));
+
+const resumed = MB.brief('ANSWER\nLead.\n\n### NOTES\n- Short caveat.\n\n## Sector check\nMain report.\n\n### CONFIDENCE\nHIGH — consistent data.\n\n## Appendix\nMore figures.');
+t('normal headings resume the report after notes or confidence',
+  [...resumed.querySelectorAll('.br-sec-title')].map(el => el.textContent).join(',') === 'Sector check,Appendix' &&
+  resumed.querySelector('.br-notes')?.textContent === 'Worth knowingShort caveat.' &&
+  !!resumed.querySelector('.br-conf.high'));
+
+const codeSample = MB.brief('### Example\n~~~text\nReport.NOTES Keep this.\nCONFIDENCE HIGH\n~~~');
+t('ratings and note labels inside fenced examples remain verbatim',
+  codeSample.querySelector('pre code')?.textContent.includes('Report.NOTES Keep this.\nCONFIDENCE HIGH') &&
+  !codeSample.querySelector('.br-notes,.br-conf'));
+
 // A minus after a bold lead is the number's sign, not a separator; a spaced
 // hyphen still is one.
 const signs = MB.brief('### Movers\n1. **TSLA** -2.4% after a delivery cut\n2. **NVDA** +3.1% on orders\n3. **AMD** - beat on revenue');

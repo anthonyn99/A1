@@ -104,7 +104,7 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
 
   if (process.env.RUN === '1') {
     await evalJs(c, `${BOX}.querySelector(".unit-lim-check").click(); return 1;`);
-    ok('Send now lands', await waitFor(c, `!UNITS_KICK.busy`, 120000));
+    ok('Send now lands', await waitFor(c, '!UNITS_KICK["claude-pro"].busy', 120000));
     const st = await evalJs(c, `${BOX}.querySelector(".kick-st").textContent`);
     ok('it says Sent', /^Sent /.test(st), st);
   }
