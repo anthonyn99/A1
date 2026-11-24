@@ -519,6 +519,8 @@ function parseVerdict(text) {
   let where = "main";
   let fenced = false;
   let afterRating = false;
+  // Captured reports sometimes use large H1 text to display a metric.
+  const metric = /^(?:(?:US)?[$€£]?\s*[+\-−]?\d[\d,.]*(?:%|[KMBT]|x| bps?)?|[SABCD]|(?:NO[-‑ ]?)?GO|(?:HIGH|MEDIUM|LOW)|(?:BULLISH|BEARISH|CHOP|MIXED|NEUTRAL|RISK[- ](?:ON|OFF))(?:\s*\/\s*(?:BULLISH|BEARISH|MIXED|NEUTRAL|RISK[- ](?:ON|OFF)))?)$/i;
 
   // A capture that lost the newline after a section label leaves it glued to
   // the text it heads ("ANSWER AI consumes...", "CONFIDENCE HIGH -- ...").
@@ -555,6 +557,14 @@ function parseVerdict(text) {
     const sec = label.match(SECTION);
     if (sec) {
       const s = sec[1].toUpperCase();
+      if (where === "main" && s === "CONFIDENCE" && label !== s) {
+        let next = i + 1;
+        while (next < lines.length && !lines[next].trim()) next++;
+        if (/^#\s+(?:\*\*|__)?(?:High|Medium|Low)(?:\*\*|__)?\s*$/i.test(lines[next] || "")) {
+          buckets.main.push(raw);
+          continue;
+        }
+      }
       where = s === "NOTES" || s === "CAVEATS" ? "notes" : s === "CONFIDENCE" ? "conf" : "main";
       afterRating = false;
       buckets.main.push("");
@@ -564,6 +574,17 @@ function parseVerdict(text) {
       if (s === "AGREEMENTS" || s === "DISAGREEMENTS" || s === "VERDICT") {
         buckets.main.push("", `### ${s[0] + s.slice(1).toLowerCase()}`, "");
       }
+      continue;
+    }
+    if (where === "main" && heading?.[1] === "#" && bold && metric.test(label)) {
+      const j = buckets.main.findLastIndex((line) => line.trim());
+      const caption = buckets.main[j]?.trim();
+      if (caption && /^[A-Z][\w /+&-]{1,62}:?$/i.test(caption) && !/^[SABCD]$/.test(label)) {
+        buckets.main[j] = "**" + caption.replace(/:$/, "") + ":** " + label;
+      } else {
+        buckets.main.push("**" + label + "**");
+      }
+      afterRating = false;
       continue;
     }
     if (!raw.trim()) {
