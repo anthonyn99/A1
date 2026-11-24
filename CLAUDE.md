@@ -115,7 +115,7 @@
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-refine-3.md` and build its
   phases C1-C4 in order** (the work stays on Tony's account; the one plan artifact
   is named in quant-refine-2.md §0). Batch 3 COMPLETE 2026-11-21. **Batch 4, Trading
-  app + Neo Quant Autopilot (2026-11-21, phases T0-T9 then N0-N10, Part 2 refined with Tony 2026-11-24; Part 1 T0-T9 COMPLETE 2026-11-22): "continue Quant" /
+  app + Neo Cortex (was "Neo Quant Autopilot"; 2026-11-21, phases T0-T9 then N0-N10, Part 2 refined with Tony 2026-11-24; Part 1 T0-T9 COMPLETE 2026-11-22): "continue Quant" /
   "next Trading phase" = read §0 of
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-trading.md`, build the phase it
   names, and update the plan artifact's `#trading` section at each phase's start and
