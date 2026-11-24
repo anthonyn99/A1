@@ -379,7 +379,7 @@ def codex_argv(exe: str, model: str, effort: str) -> list[str]:
 
 def codex_model(slot: str) -> tuple[str, str] | None:
     from ..code.agents import models
-    models.refresh("codex", slot)
+    models.catalog("codex", slot)
     choices = [m for m in models.models_for("codex", slot)
                if m["available"] and not m["credits"]]
     if not choices:

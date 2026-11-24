@@ -19637,16 +19637,13 @@ async function unitRefreshModels(id) {
   refreshUnitPicks();
 }
 
-/* ══ UNITS: DAILY KICKSTART (Claude Pro, Tony's and Veda's engines) ═══════
-   Once a day, after "Not before", the engine sends the smallest possible
-   message on the Pro account through Claude Code (Haiku, no tools, a
-   one-line system prompt: ~670 tokens in, 4 out) so the five-hour window
-   starts when you want it, not at the day's first real question. Engine
-   side: magi/engine/kickstart.py. It comes in the /api/units/usage entry as
-   `kickstart`, on any engine (Tony's or Veda's) with a Claude Pro account
-   in that profile's Code Mode; without one the section is absent. Silent: no browser, nothing in the
-   claude.ai chat list, and ticking or unticking the unit has no effect. */
-const UNITS_KICK = { busy: false, err: "" };
+/* ══ UNITS: DAILY KICKSTART ════════════════════════════════════════════════
+   Claude Pro and Codex use their own Code Mode logins and share a start time.
+   The engine supplies each panel in /api/units/usage when a login is present. */
+const UNITS_KICK = {
+  "claude-pro": { busy: false, err: "" },
+  chatgpt: { busy: false, err: "" },
+};
 
 const kickClock = (sec) => sec
   ? new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
@@ -19658,8 +19655,8 @@ const kickHHMM = (hhmm) => {
 };
 
 /** Where today's kickstart stands, as [text, tone]. */
-function kickLine(k) {
-  if (UNITS_KICK.busy || k.busy) return ["Sending…", "muted"];
+function kickLine(k, busy) {
+  if (busy) return ["Sending…", "muted"];
   if (!k.enabled) return ["Off", "muted"];
   const s = k.state || {};
   const resets = kickUntil(s.window_resets_at);
@@ -19673,7 +19670,7 @@ function kickLine(k) {
     case "capped": return [`Skipped — ${s.detail}`, "warn"];
     case "limited": return ["Skipped — limited" + (until ? ` until ${until}` : ""), "bad"];
     case "no_reading": return ["Waiting for a usage reading", "warn"];
-    case "updating": return ["Waiting — Claude Code is updating", "muted"];
+    case "updating": return [s.detail || "Waiting for the CLI update", "muted"];
     case "failed": return [`Failed (try ${s.tries || 1}/3) — ${s.detail || "no answer"}`, "bad"];
     case "gave_up": return [`Gave up today — ${s.detail || "3 tries failed"}`, "bad"];
   }
@@ -19684,21 +19681,24 @@ function unitKickBox(id) {
   const box = el("div", "unit-kick");
   box.dataset.unit = id;
   const k = UNITS_USE.byId[id] && UNITS_USE.byId[id].kickstart;
-  if (!k) return box;                       // no Pro account in Code Mode, or an older engine
-  const busy = UNITS_KICK.busy || !!k.busy;
+  const local = UNITS_KICK[id];
+  if (!k || !local) return box;
+  const codex = id === "chatgpt";
+  const busy = local.busy || !!k.busy;
   const off = !online();
 
   const hd = el("div", "kick-hd");
   const sw = el("label", "kick-sw");
-  sw.title = "Once a day, send the smallest possible message on this account so the " +
-    "five-hour window starts early. Runs silently through Claude Code, ticked or not.";
+  sw.title = codex
+    ? "Start this account’s Codex usage window with a short CLI message. Uses the same start time as Claude."
+    : "Start the five-hour window with a short Claude Code message once a day.";
   const cb = document.createElement("input");
   cb.type = "checkbox";
   cb.checked = !!k.enabled;
   cb.disabled = off;
   cb.onchange = () => unitKickSave(id, { enabled: cb.checked });
-  sw.append(cb, el("i"), el("span", "kick-title", "Daily kickstart"));
-  const [txt, tone] = kickLine(k);
+  sw.append(cb, el("i"), el("span", "kick-title", codex ? "Codex daily kickstart" : "Daily kickstart"));
+  const [txt, tone] = kickLine(k, busy);
   const st = el("span", `kick-st ${tone}`, txt);
   if (k.last && k.last.at) st.title = `Last checked ${docAgo(new Date(k.last.at * 1000).toISOString())}`;
   const now = el("button", "unit-lim-check");
@@ -19706,7 +19706,7 @@ function unitKickBox(id) {
   now.disabled = busy || off;
   if (busy) now.append(spinnerEl());
   now.append(document.createTextNode(busy ? "Sending…" : "Send now"));
-  now.title = "Send it now (still skipped at the weekly cap or a limit)";
+  now.title = "Send now, subject to usage caps and limits";
   now.onclick = () => unitKickRun(id);
   hd.append(sw, now, st);
   box.append(hd);
@@ -19720,18 +19720,19 @@ function unitKickBox(id) {
     tm.className = "kick-in kick-time";
     tm.value = k.not_before || "06:00";
     tm.disabled = off;
+    tm.title = "Shared by Claude and Codex kickstarts on this profile";
     tm.onchange = () => { if (tm.value) unitKickSave(id, { not_before: tm.value }); };
     nb.append(tm);
 
     const cap = el("label", "kick-f kick-cap");
-    cap.append(el("span", "unit-pick-lbl", "Skip at week ≥"));
+    cap.append(el("span", "unit-pick-lbl", codex ? "Skip at plan usage ≥" : "Skip at week ≥"));
     const rng = document.createElement("input");
     rng.type = "range";
     rng.className = "use-slider is-plain";
     rng.min = "50"; rng.max = "100"; rng.step = "5";
     rng.value = String(k.week_cap || 80);
     rng.disabled = off;
-    rng.setAttribute("aria-label", "Skip when the weekly usage is at or above");
+    rng.setAttribute("aria-label", codex ? "Skip when plan usage is at or above" : "Skip when the weekly usage is at or above");
     const val = el("span", "use-val");
     const show = () => {
       val.textContent = `${rng.value}%`;
@@ -19763,7 +19764,7 @@ function unitKickBox(id) {
     opts.append(nb, cap, msg);
     box.append(opts);
   }
-  if (UNITS_KICK.err) box.append(el("div", "unit-lim-sub warn", UNITS_KICK.err));
+  if (local.err) box.append(el("div", "unit-lim-sub warn", local.err));
   return box;
 }
 
@@ -19778,20 +19779,25 @@ function refreshUnitKicks(force) {
 
 function unitKickTake(id, d) {
   const u = UNITS_USE.byId[id];
-  if (u && d && d.kickstart) u.kickstart = d.kickstart;
+  if (u && d?.kickstart) {
+    u.kickstart = d.kickstart;
+    const other = UNITS_USE.byId[id === "chatgpt" ? "claude-pro" : "chatgpt"]?.kickstart;
+    if (other) other.not_before = d.kickstart.not_before;
+  }
 }
 
 async function unitKickPost(id, path, body) {
-  UNITS_KICK.err = "";
+  const local = UNITS_KICK[id];
+  local.err = "";
   try {
-    const r = await fetch(`${link.api}/api/units/claude-pro/kickstart${path}`,
+    const r = await fetch(`${link.api}/api/units/${id}/kickstart${path}`,
       authed({ method: "POST", headers: { "Content-Type": "application/json" },
                body: JSON.stringify(body || {}) }));
     const d = await r.json().catch(() => ({}));
     if (r.ok) unitKickTake(id, d);
-    else UNITS_KICK.err = d.detail || `Could not save (${r.status}).`;
+    else local.err = d.detail || `Could not update kickstart (${r.status}).`;
   } catch (e) {
-    UNITS_KICK.err = e?.message || "Could not reach the engine.";
+    local.err = e?.message || "Could not reach the engine.";
   }
 }
 
@@ -19802,11 +19808,12 @@ async function unitKickSave(id, change) {
 }
 
 async function unitKickRun(id) {
-  if (UNITS_KICK.busy || !online()) return;
-  UNITS_KICK.busy = true;
+  const local = UNITS_KICK[id];
+  if (local.busy || !online()) return;
+  local.busy = true;
   refreshUnitKicks(true);
   await unitKickPost(id, "/run");
-  UNITS_KICK.busy = false;
+  local.busy = false;
   refreshUnitKicks(true);
   // The send moved the five-hour bar: re-read the numbers.
   loadUnitsUsage();
