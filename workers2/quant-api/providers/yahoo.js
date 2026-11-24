@@ -8,6 +8,8 @@ import { call, noteBad, UA_BROWSER, QUOTE_TIMEOUT, BARS_TIMEOUT } from '../lib/n
 import { bar, dailyStamp, mergeBars, unsplit } from '../lib/bars.js';
 import { markYahooVolume } from '../lib/volume.js';
 
+import { YAHOO_TRACKERS, yahooDelay } from './trackers.js';
+
 const BASE = 'https://query1.finance.yahoo.com';
 const H = { 'user-agent': UA_BROWSER, accept: 'application/json' };
 const INTERVAL = { '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '60m', '1d': '1d' };
@@ -15,7 +17,7 @@ const DAY = 86400_000;
 /** How far back Yahoo serves each interval, and the most one request may span. */
 export const REACH = { '1m': [29 * DAY, 7 * DAY], '5m': [59 * DAY, 59 * DAY], '15m': [59 * DAY, 59 * DAY], '30m': [59 * DAY, 59 * DAY], '1h': [729 * DAY, 729 * DAY] };
 /** Yahoo writes class shares with a dash (BRK-B). */
-export const ysym = (s) => s.replace(/\./g, '-');
+export const ysym = (s) => Object.hasOwn(YAHOO_TRACKERS, s) ? YAHOO_TRACKERS[s] : s.replace(/\./g, '-');
 
 export async function quotes(L, env, syms, now) {
   const out = {};
@@ -33,7 +35,9 @@ export async function quotes(L, env, syms, now) {
       for (let k = ts.length - 1; k >= 0; k--) {
         if (cl[k] > 0) { if (ts[k] * 1000 > t) { price = cl[k]; t = ts[k] * 1000; } break; }
       }
-      if (price > 0 && t > 0) out[s] = { symbol: s, price, t, heard: now, provider: 'yahoo', realtime: false, delayMs: 0 };
+      const delayMs = yahooDelay(s), prevClose = q.meta.chartPreviousClose;
+      if (price > 0 && t > 0) out[s] = { symbol: s, price, t, heard: now, provider: 'yahoo', realtime: false, delayMs,
+        ...(delayMs && Number.isFinite(prevClose) && prevClose > 0 ? { prevClose } : {}), ...(delayMs ? { benchmark: true } : {}) };
     }
   }
   return out;

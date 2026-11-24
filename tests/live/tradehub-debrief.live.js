@@ -77,13 +77,13 @@ const RUN = {
   const until = async (expr, ms) => { for (let i = 0; i < (ms || 10000) / 250; i++) { if (await js(`return !!(${expr});`)) return true; await sleep(250); } return false; };
   const size = (w, h) => c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 });
   const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(SHOTS, name + '.png'), Buffer.from(r.result.data, 'base64')); };
-  const mount = (tab) => js(`
+  const mount = (tab, searches = []) => js(`
     localStorage.setItem('tb_debrief_tab', ${JSON.stringify(tab)});
     window._fbWatchDebriefAuto = function(cb){ cb(${JSON.stringify({ movers: RUN, weekly: null })}); return function(){}; };
     var host=document.getElementById('__dbr'); if(host&&host.__root){host.__root.unmount();host.remove();}
     host=document.createElement('div'); host.id='__dbr'; document.body.appendChild(host);
     host.__root=ReactDOM.createRoot(host);
-    host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){window.__closed=1;}, promptText:''}));
+    host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){window.__closed=1;}, promptText:'', searches:${JSON.stringify(searches)}}));
     1`);
   const geo = () => js(`
     var q=s=>document.querySelector(s), b=e=>{var r=e.getBoundingClientRect(); return [Math.round(r.top),Math.round(r.height),Math.round(r.width)];};
@@ -102,6 +102,20 @@ const RUN = {
     if (!(await until("document.querySelector('.tb-navtab') && window.tbDebrief && window.MagiBrief", 25000))) { ok('TradeHub rendered with MagiBrief', false); continue; }
     await sleep(1200);
     await js(`window.MagiBrief.setView('brief'); 1`);
+    await js(`
+      localStorage.setItem('tradehub.orcaKey','orca_sk_debrief_fixture');
+      window.__searchCalls=[];
+      var original=window.fetch; window.fetch=function(url,opts){
+        if(!String(url).includes('/debrief/search'))return original.apply(this,arguments);
+        var query=JSON.parse(opts.body).query; window.__searchCalls.push(query);
+        var at=new Date().getTime();
+        return Promise.resolve(new Response(JSON.stringify({retryAt:at+1800000,result:{at,updates:[{text:'Recent reporting on '+query,refs:[1]}],sources:[{url:'https://example.com/report',title:'Latest report',publisher:'Sample Wire',at}]}}),{status:200}));
+      }; 1`);
+    await mount('searches', ['Hormuz shipping updates', 'Copper market news', 'https://example.com/']);
+    ok('Searches groups topics and a saved link into three cards', await until("document.querySelectorAll('.dbr-search-card').length===3 && document.querySelectorAll('.dbr-search-updates li').length===2"));
+    ok('Searches shows publisher citations and no sideways overflow', await js(`return document.querySelector('.dbr-search-refs a')?.textContent==='Sample Wire' && document.querySelector('.dbr-scroll').scrollWidth<=document.querySelector('.dbr-scroll').clientWidth+1;`));
+    ok('Searches requests only the two topics', await js("return window.__searchCalls.slice().sort().join(',')==='Copper market news,Hormuz shipping updates';"));
+    await shot(tag+'-searches');
     await mount('movers');
     ok('the Debrief opens on Today’s Movers', await until("document.querySelector('.dbr .br-headline')", 6000));
     await sleep(400);

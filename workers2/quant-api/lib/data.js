@@ -10,6 +10,7 @@ import { isCrypto } from './crypto.js';
 import { ProviderError } from './net.js';
 import { getSplits, resplit } from './splits.js';
 import { BASE_TF, INTRADAY, aggregate, mergeBars, toTimeframe, within } from './bars.js';
+import { isTracker, isYield, yieldBars, yieldQuotes } from '../providers/trackers.js';
 import { nyClock } from './time.js';
 
 /* ── quotes ─────────────────────────────────────────────────────────────── */
@@ -33,7 +34,9 @@ export function parseSymbols(s) {
 export async function getQuotes(L, env, asked, now) {
   const quotes = {}, tried = [];
   // Crypto (B1): Coinbase's 24-hour stats, then Alpaca's crypto trades; never the stock chain.
-  const coins = asked.filter(isCrypto), syms = asked.filter((s) => !isCrypto(s));
+  const coins = asked.filter(isCrypto), trackers = asked.filter(isTracker);
+  const yields = trackers.filter(isYield), benchmarks = trackers.filter((s) => !isYield(s));
+  const syms = asked.filter((s) => !isCrypto(s) && !isTracker(s));
   if (coins.length) {
     const got = await cryptoData.quotes(L, env, coins, now);
     for (const s of coins) if (got[s]) quotes[s] = got[s];
@@ -53,8 +56,20 @@ export async function getQuotes(L, env, asked, now) {
       tried.push({ provider: p.name, error: e.message });
     }
   }
+  for (const [provider, symbols, fetchQuotes] of [['fred', yields, () => yieldQuotes(L, yields, now)],
+    ['yahoo', benchmarks, () => yahoo.quotes(L, env, benchmarks, now)]]) {
+    if (!symbols.length) continue;
+    try {
+      const got = await fetchQuotes();
+      Object.assign(quotes, got);
+      tried.push({ provider, answered: Object.keys(got).length });
+    } catch (e) {
+      if (!(e instanceof ProviderError)) throw e;
+      tried.push({ provider, error: e.message });
+    }
+  }
   const missing = {};
-  for (const s of asked) if (!quotes[s]) missing[s] = isCrypto(s) ? ['coinbase', 'alpaca'] : tried.filter((t) => t.provider !== 'crypto').map((t) => t.provider);
+  for (const s of asked) if (!quotes[s]) missing[s] = isCrypto(s) ? ['coinbase', 'alpaca'] : isTracker(s) ? [isYield(s) ? 'fred' : 'yahoo'] : [...new Set(tried.filter((t) => QUOTE_CHAIN.some((p) => p.name === t.provider)).map((t) => t.provider))];
   return { quotes, missing, tried };
 }
 
@@ -62,6 +77,7 @@ export async function getQuotes(L, env, asked, now) {
 // Alpaca's history starts in 2016; older daily bars come from Yahoo.
 export const ALPACA_START = Date.UTC(2016, 0, 4);
 const BARS = {
+  fred: { has: () => true, bars: yieldBars },
   alpaca: { has: alpaca.has, bars: alpaca.bars },
   alpacaCrypto: { has: () => true, bars: (L, e, s, tf, f, t) => cryptoData.alpacaBars(L, e, s, tf, f, t) },
   coinbase: { has: () => true, bars: (L, e, s, tf, f, t) => cryptoData.coinbaseBars(L, s, tf, f, t) },
@@ -93,6 +109,11 @@ async function stretch(L, env, names, sym, tf, from, to, adj, now, tried) {
 export async function getBars(L, env, sym, tf, from, to, adj, now, { night = false } = {}) {
   const base = BASE_TF[tf] || tf, tried = [];
   const parts = [];
+  if (isTracker(sym)) {
+    const r = await stretch(L, env, [isYield(sym) ? 'fred' : 'yahoo'], sym, base, from, to, adj, now, tried);
+    if (!r) return null;
+    return { symbol: sym, tf, bars: toTimeframe(within(r.bars, from, to), tf, { continuous: !isYield(sym) }), provider: r.provider, complete: !r.clipped, tried };
+  }
   if (isCrypto(sym)) {
     // Crypto (B1): Alpaca's crypto bars, then Coinbase; no split re-basing, UTC 4-hour buckets.
     // B4 (ask 44): Alpaca's crypto volume is its own small venue's (a fraction of a coin a bar), so

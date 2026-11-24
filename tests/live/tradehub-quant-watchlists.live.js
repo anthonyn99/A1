@@ -29,6 +29,7 @@ const ok = (name, cond, extra) => {
 const R2_DOC = () => ({ 'dashboards/tradeboard_watchlist': { tickers: WATCHLIST, trash: [], wl2: { follow: ['tradehub'], matchedOnce: 'test' } } });
 const WB = [
   { id: 11, name: 'Main', sort: 9, tickers: [{ symbol: 'NVDA', exchange: 'NASDAQ' }, { symbol: 'SNDK', exchange: 'NASDAQ' }, { symbol: 'AMD', exchange: 'NASDAQ' }] },
+  { id: 14, name: 'Trackers', sort: 8, tickers: ['VIX','DXY','SOXX'].map(symbol=>({symbol})) },
   { id: 12, name: 'My Positions', sort: 8, tickers: [] },
   { id: 13, name: 'Cryptos', sort: 7, tickers: [{ symbol: 'BTCUSD', exchange: 'CCC' }, { symbol: 'ETHUSD', exchange: 'CCC' }] },
 ];
@@ -92,6 +93,12 @@ const WB = [
   ok('the rail shows Webull\'s Main by default', await until(`[...document.querySelectorAll('[data-ch-rail] .ch-row')].map(function(e){return e.dataset.sym;}).join()==='NVDA,SNDK,AMD'`, 15000), await rail());
   ok('the picker lists Webull\'s lists and Mine (My Positions is empty: hidden)', await js(`var s=document.querySelector('[data-ch-list]'); var o=[...s.options].map(function(x){return x.textContent;}); return !s.hidden && o.some(function(t){return /^Main \\(3\\)/.test(t);}) && o.some(function(t){return /^Cryptos/.test(t);}) && o.some(function(t){return /^TradeHub/.test(t);}) && !o.some(function(t){return /My Positions/.test(t);});`));
   ok('Webull was read once for the visit', webullCalls === 1, webullCalls);
+  await pickRail('wb:14');
+  ok('Trackers retains all nine symbols in Webull app order', (await rail()) === 'US2Y,US10Y,CLMAIN,BZMAIN,VIX,DXY,SOXX,NQMAIN,HGMAIN', await rail());
+  await js(`document.querySelector('[data-ch-rail] [data-sym="US2Y"]').click(); 1`);
+  ok('Treasury yield opens a daily chart, with intraday choices disabled', await until(`document.querySelector('[data-charts]').__charts.active().get().symbol==='US2Y' && document.querySelector('[data-ch-tf]').value==='1d' && document.querySelector('[data-ch-tf] option[value="5m"]').disabled`));
+  await js(`document.querySelector('[data-ch-rail] [data-sym="VIX"]').click(); 1`);
+  ok('VIX opens the index chart', await until(`document.querySelector('[data-charts]').__charts.active().get().symbol==='VIX'`));
   await pickRail('tradehub');
   ok('picking TradeHub shows the TradeHub list in its order', (await rail()) === WATCHLIST.join(), await rail());
   ok('...and the pick is saved (wl2.selected)', await until(`${DOC}.wl2 && ${DOC}.wl2.selected==='tradehub'`, 4000), await js(`return JSON.stringify(${DOC}.wl2||null);`));

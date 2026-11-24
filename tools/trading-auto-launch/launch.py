@@ -1531,7 +1531,7 @@ def _analysis_window():
 
 
 def open_analysis_searches(brave: str, cfg: dict):
-    """The search tabs picked in TradeHub → Analysis, opened by the daily analysis
+    """Explicit links picked in TradeHub → Analysis, opened by the daily analysis
     just before the prompt goes out: INTO the Brave window already open (TradeHub's
     if there is one, else any browser window -- 2026-11-03, Tony: a window full of
     A1 tabs was open and they still went to a window of their own), else in one new
@@ -1540,9 +1540,10 @@ def open_analysis_searches(brave: str, cfg: dict):
     # A search that points at the AI destination itself is skipped: the daily
     # analysis opens that tab next, with the prompt in it.
     tabs = [u for u in (_resolve_search_url(q) for q in (cfg.get("searches") or []))
-            if u and not (_is_magi_url(u) if use_magi else _is_ai_url(u, ai_url))]
+            if u and not (_host_of(u) == 'google.com' and urllib.parse.urlparse(u).path == '/search')
+            and not (_is_magi_url(u) if use_magi else _is_ai_url(u, ai_url))]
     if not tabs:
-        log("Searches: none configured.")
+        log("Searches: news topics are available in Debrief; no extra links to open.")
         return
 
     target_hwnd = _analysis_window()

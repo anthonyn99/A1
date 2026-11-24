@@ -67,6 +67,8 @@
 import { CAPS, Ledger, day, readLatency, median } from './lib/ledger.js';
 import { getQuotes, getBars, parseSymbols } from './lib/data.js';
 import { getSplits } from './lib/splits.js';
+import { debriefSearch } from './lib/debrief-search.js';
+import { isTracker } from './providers/trackers.js';
 import { TFS, INTRADAY } from './lib/bars.js';
 import { marketHours, nyMonthStart, nyMidnight } from './lib/time.js';
 import * as alpaca from './providers/alpaca.js';
@@ -143,6 +145,7 @@ async function route(req, env, url, ctx) {
   await auth(req, env);
   if (m === 'GET' && p === '/whoami') return json({ ok: true });
   if (m === 'GET' && p === '/usage') return usage(env);
+  if (m === 'POST' && p === '/debrief/search') return debriefSearch(env, req);
   if (m === 'GET' && p === '/quotes') return quotes(env, url, ctx);
   if (m === 'GET' && p === '/bars') return bars(env, url, ctx);
   if (m === 'GET' && p === '/splits') {   // the page joins bars from different reads by these (lib/splits.js)
@@ -465,8 +468,8 @@ async function quotes(env, url, ctx) {
   const syms = parseSymbols(url.searchParams.get('symbols'));
   if (!syms.length) throw fail(400, 'symbols= is needed');
   const now = Date.now();
-  const ttl = marketHours(now) ? 2 : 60;
-  const key = 'https://quant-api.cache/quotes?s=' + [...syms].sort().join(',');
+  const ttl = syms.every(isTracker) ? 60 : marketHours(now) ? 2 : 60;
+  const key = 'https://quant-api.cache/quotes?v=2&s=' + [...syms].sort().join(',');
   const hit = await cacheGet(key);
   if (hit) return hit;
   const L = await Ledger.load(env, now);
