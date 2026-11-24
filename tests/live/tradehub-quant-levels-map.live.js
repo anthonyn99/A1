@@ -127,6 +127,29 @@ const ok = (name, cond, extra) => {
   await js(`document.querySelector('[data-ch-len="ema"]').focus(); 1`); await sleep(100);
   ok('...a text field still gets its focus ring', /3px/.test(await js(`return getComputedStyle(document.querySelector('[data-ch-len="ema"]')).boxShadow;`)));
 
+  console.log('\n3. Treasury yield series');
+  for (const sym of ['US2Y', 'US10Y', 'SOXX']) {
+    const got = await js(`return (async () => {
+      const { openLevelsMap } = await import('./TradeHub/ui/levels-map.js');
+      const isStock = ${JSON.stringify(sym)} === 'SOXX';
+      const t = Date.UTC(2026, 10, 20), c = 4.25;
+      const bars = [{ t, c }, { t: t + 3 * 86400000, c: 4.31 }];
+      if (isStock) for (const point of bars) Object.assign(point, { o: point.c - 0.01, h: point.c + 0.02, l: point.c - 0.02 });
+      const lv = { supports: [{ name: 'S1', kind: 'zone', lo: 4.22, hi: 4.25, rank: 'Medium', touches: 1, pts: [[t, c, 'low']] }] };
+      const map = openLevelsMap({ sym: ${JSON.stringify(sym)}, lv, price: 4.31, gateway: { bars: async () => ({ bars }) }, now: Date.UTC(2026, 10, 24) });
+      try {
+        await map.ready;
+        const series = map.chart()?.panes()[0].getSeries()[0];
+        const { lvmLines, lvmMarks, lvmZones } = map.el.querySelector('[data-levels-map]').dataset;
+        return { type: series?.seriesType(), values: series?.data().map(point => isStock ? point.close : point.value), lvmLines, lvmMarks, lvmZones };
+      } finally { map.close(); }
+    })();`);
+    ok(`${sym} full history uses ${sym === 'SOXX' ? 'candles' : 'a line'} and keeps both observations`,
+      got?.type === (sym === 'SOXX' ? 'Candlestick' : 'Line') && got.values?.join(',') === '4.25,4.31', JSON.stringify(got));
+    ok(`${sym} draws the support zone, touch marker and current value`,
+      got?.lvmLines === '3' && got.lvmMarks === '1' && got.lvmZones === '1', JSON.stringify(got));
+  }
+
   ok('no page errors', !errs.length, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   c.ws.close(); process.exit(fail ? 1 : 0);
