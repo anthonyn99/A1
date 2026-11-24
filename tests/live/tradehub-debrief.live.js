@@ -78,7 +78,7 @@ const RUN = {
     var host=document.getElementById('__dbr'); if(host&&host.__root){host.__root.unmount();host.remove();}
     host=document.createElement('div'); host.id='__dbr'; document.body.appendChild(host);
     host.__root=ReactDOM.createRoot(host);
-    host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){window.__closed=1;}, magi:false, promptText:''}));
+    host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){window.__closed=1;}, promptText:''}));
     1`);
   const geo = () => js(`
     var q=s=>document.querySelector(s), b=e=>{var r=e.getBoundingClientRect(); return [Math.round(r.top),Math.round(r.height),Math.round(r.width)];};
@@ -90,7 +90,7 @@ const RUN = {
   await c.send('Page.navigate', { url: ORIGIN + '/A1/Shared/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1b_disabled','1'); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10)); 1`);
 
-  for (const [w, h, tag] of [[1440, 1000, 'desktop'], [900, 1180, 'tablet'], [390, 844, 'mobile']]) {
+  for (const [w, h, tag] of [[1280, 1000, 'desktop'], [820, 1180, 'tablet'], [390, 844, 'mobile']]) {
     console.log(`\n${tag}`);
     await size(w, h);
     await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
@@ -143,6 +143,9 @@ const RUN = {
     await js(`[...document.querySelectorAll('.dbr-tabs button')].find(b=>/Catalysts/.test(b.textContent)).click(); 1`); await sleep(250);
     const g3 = await geo();
     ok('another tab: the dialog keeps its size and place', g3.card[0] === g1.card[0] && g3.card[1] === g1.card[1], JSON.stringify([g1.card, g3.card]));
+    await js(`document.querySelector('.dbr [data-dkey="magi"]')?.click(); 1`);
+    ok('Daily Report remains available with an empty report', await until("document.querySelector('.dbr .tbx-empty')?.textContent.includes('No answer from MAGI yet')", 3000));
+    ok('all five tabs fit the screen', !(await geo()).sideways);
 
     // The News overlay: the build time as mm/dd/'yy h:mm AM/PM and "x ago".
     await js(`var host=document.getElementById('__dbr'); host.__root.unmount(); host.remove();
@@ -159,12 +162,31 @@ const RUN = {
   // The morning opening (Trading Auto Launch's #tbdebrief) lands on Daily Report, whatever tab
   // the Debrief was last closed on (Tony, 2026-11-17). A request past the wait opens at once.
   console.log('\nthe morning opening');
-  await size(1440, 1000);
-  await js(`sessionStorage.setItem('tb_debrief_wait', String(Date.now() - 61 * 60 * 1000)); localStorage.setItem('tb_debrief_tab', 'movers'); 1`);
+  await size(1280, 1000);
+  const cfg = { aiSite: 'magi', magiMigrated: 1 };
+  await js(`
+    __fakeFs.remote('dashboards/tradeboard_analysis', {cfg:${JSON.stringify(cfg)}});
+    localStorage.setItem('td6_analysis_cfg', ${JSON.stringify(JSON.stringify(cfg))});
+    var prompt=JSON.parse(localStorage.getItem('tradeboard_prompts_v2')||'[]')[0];
+    var question=prompt?.text||'Macro & Long-Only Trading Dashboard';
+    if(!prompt) localStorage.setItem('tradeboard_prompts_v2', JSON.stringify([{id:'daily-test',name:'Daily Macro Report',text:question}]));
+    __fakeFs.remote('dashboards/magi/runs/morning-test', ${JSON.stringify(RUN)});
+    __fakeFs.remote('dashboards/magi', {runs:[{id:'morning-test',question:question.slice(0,300),created_at:new Date().toISOString()}]});
+    sessionStorage.setItem('tb_debrief_wait', String(Date.now() - 61 * 60 * 1000));
+    localStorage.setItem('tb_debrief_tab', 'movers'); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
   const opened = await until("document.querySelector('.dbr')", 30000);
   const on = await js(`var b=[...document.querySelectorAll('.dbr-tabs button')].find(function(x){ return x.classList.contains('on') || x.getAttribute('aria-selected')==='true'; }); return b ? b.textContent : '';`);
   ok('the morning Debrief opens on Daily Report, not the tab it was closed on (Today’s Movers)', opened && /Daily Report/.test(on), JSON.stringify({ opened, on }));
+  const dailyReport = `document.querySelector('.dbr [data-dkey="magi"][aria-selected="true"]') && document.querySelector('.dbr .dbr-magi')?.textContent.includes('softer CPI')`;
+  ok('the morning report renders from the saved MAGI run', await until(dailyReport, 6000));
+  await js(`__fakeFs.remote('dashboards/tradeboard_analysis', {cfg:${JSON.stringify({ ...cfg, aiSite: 'chatgpt' })}}); 1`);
+  ok('Analysis syncs the new ChatGPT destination', await until(`JSON.parse(localStorage.getItem('td6_analysis_cfg')).aiSite === 'chatgpt'`, 3000));
+  ok('the saved Daily Report stays selected after the destination changes', await until(dailyReport, 3000));
+  await js(`document.querySelector('.dbr button[aria-label="Close debrief"]').click(); 1`);
+  await until("!document.querySelector('.dbr')", 3000);
+  await js(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Debrief')?.click(); 1`);
+  ok('reopening Debrief restores the report while Analysis sends to ChatGPT', await until(dailyReport, 6000));
 
   // Analysis' Deploy button (2026-11-19): TradeHub is already open, so the launcher reuses it and
   // never loads #tbdebrief. Deploy arms the same wait on the page itself, and it opens with no reload.
