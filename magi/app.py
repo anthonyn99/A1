@@ -140,12 +140,11 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_AUTO_UPDATE"):
         from .code.agents import updates as _updates
         auto_update = asyncio.create_task(_updates.auto_loop())
-    # The daily Claude (Pro) kickstart (engine/kickstart.py): Tony's and Veda's
-    # engines, each on its own Pro account; without one it never sends.
-    kick = None
+    # Daily kickstarts on each profile's signed-in Code Mode accounts.
+    kicks = []
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_KICKSTART"):
         from .engine import kickstart as _kickstart
-        kick = asyncio.create_task(_kickstart.auto_loop())
+        kicks = [asyncio.create_task(_kickstart.auto_loop(agent)) for agent in _kickstart.AGENTS]
     # Claude and Codex reset times -> this profile's TaskHub.
     resets = []
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_RESETS_PUSH"):
@@ -178,8 +177,8 @@ async def lifespan(app: FastAPI):
             capwatch.cancel()
         if auto_update:
             auto_update.cancel()
-        if kick:
-            kick.cancel()
+        for task in kicks:
+            task.cancel()
         for task in resets:
             task.cancel()
         if autop:
@@ -2496,20 +2495,20 @@ async def units_check(provider_id: str):
             "message": rec["error"], "unit": await units.unit(settings.db_path, p)}
 
 
-# ── units: the daily Claude (Pro) kickstart ─────────────────────────────────
-def _kickstart_or_404():
+# ── units: daily Claude and Codex kickstarts ──────────────────────────────────
+def _kickstart_or_404(unit: str):
     from .engine import kickstart
-    if not kickstart.available():
-        raise HTTPException(404, "The daily kickstart needs a Claude Pro account "
+    agent = {"claude-pro": "claude", "chatgpt": "codex"}.get(unit)
+    if not agent or not kickstart.available(agent):
+        raise HTTPException(404, "The daily kickstart needs an eligible account "
                                  "signed in to this profile's Code Mode.")
-    return kickstart
+    return kickstart, agent
 
 
-@app.post("/api/units/claude-pro/kickstart")
-async def units_kickstart_save(request: Request):
-    """Save the kickstart's settings (any of enabled, message, not_before,
-    week_cap). Nothing is sent now; the next tick uses them."""
-    ks = _kickstart_or_404()
+@app.post("/api/units/{unit}/kickstart")
+async def units_kickstart_save(unit: str, request: Request):
+    """Save the settings and re-evaluate the schedule."""
+    ks, agent = _kickstart_or_404(unit)
     try:
         body = await request.json()
     except Exception:
@@ -2517,18 +2516,18 @@ async def units_kickstart_save(request: Request):
     body = body if isinstance(body, dict) else {}
     try:
         ks.save_config({k: body[k] for k in ("enabled", "message", "not_before", "week_cap")
-                        if k in body})
+                        if k in body}, agent)
     except ValueError as e:
         raise HTTPException(400, str(e)) from None
     # Re-decide at once, so the status line matches the new settings.
-    return {"ok": True, "kickstart": await ks.tick()}
+    return {"ok": True, "kickstart": await ks.tick(agent=agent)}
 
 
-@app.post("/api/units/claude-pro/kickstart/run")
-async def units_kickstart_run():
-    """Send the kickstart now. Still held by the weekly cap and by a limit."""
-    ks = _kickstart_or_404()
-    return {"ok": True, "kickstart": await ks.tick(force=True)}
+@app.post("/api/units/{unit}/kickstart/run")
+async def units_kickstart_run(unit: str):
+    """Send the kickstart now, subject to usage caps and limits."""
+    ks, agent = _kickstart_or_404(unit)
+    return {"ok": True, "kickstart": await ks.tick(force=True, agent=agent)}
 
 
 # ── units: Claude and Codex reset times -> TaskHub ──────────────────────────

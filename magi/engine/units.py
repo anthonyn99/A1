@@ -296,11 +296,11 @@ async def unit(db_path: str | Path, provider, *, checks: dict | None = None,
                     recent=recent, facts=f, check=checks.get(provider.id),
                     account=account if provider.id == PRO_UNIT else None)
     out.update(menu(provider))
-    if provider.id == PRO_UNIT:
-        # The daily kickstart's panel (absent without a Pro account in Code Mode).
+    if provider.id in (PRO_UNIT, "chatgpt"):
+        # Each kickstart uses the profile's corresponding Code Mode login.
         from . import kickstart
         try:
-            ks = kickstart.panel()
+            ks = kickstart.panel("codex" if provider.id == "chatgpt" else "claude")
         except Exception:  # noqa: BLE001 -- the Units sheet must still render
             ks = None
         if ks:
