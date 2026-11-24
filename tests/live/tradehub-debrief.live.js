@@ -127,6 +127,20 @@ const RUN = {
     if (tag === 'mobile') ok('phone: full-bleed, one screen tall', g1.card[2] === g1.vw && g1.card[1] === g1.vh, JSON.stringify(g1.card));
     else ok(tag + ': centred with a margin, inside the screen', g1.card[0] >= 8 && g1.card[0] + g1.card[1] <= g1.vh - 8, JSON.stringify(g1.card));
     await shot(`debrief-${tag}-brief`);
+    ok('the contents buttons jump to distinct chapters inside the dialog', await js(`
+      const root = document.querySelector('.dbr-magi > section .brief');
+      const pane = document.querySelector('.dbr-scroll');
+      const buttons = [...root.querySelectorAll('.br-toc-chip')];
+      const chapters = [buttons[1], buttons.at(-2), buttons.at(-1)];
+      const positions = chapters.map(button => {
+        button.click();
+        const target = document.getElementById(button.getAttribute('aria-controls'));
+        const offset = target.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+        return root.contains(target) && document.activeElement === target && offset >= 0 && offset < 110
+          ? Math.round(pane.scrollTop) : -1;
+      });
+      return positions[0] > 0 && positions[0] < positions[1] && positions[1] < positions[2] &&
+        buttons.at(-1).getAttribute('aria-current') === 'location';`));
     await js(`var s=document.querySelector('.dbr-scroll'); s.scrollTop=s.scrollHeight; 1`); await sleep(250);
     const g2 = await geo();
     ok('scrolled: the header and the dialog have not moved', g2.head[0] === g1.head[0] && g2.card[0] === g1.card[0] && g2.card[1] === g1.card[1], JSON.stringify([g1.head, g2.head, g1.card, g2.card]));
