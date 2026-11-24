@@ -3,8 +3,8 @@
 // MAGI's own renderer (A1 magibrief.js) in Brief, the Brief / Text switch
 // redraws all of them and is remembered; the dialog stays one size and in
 // place while only its body scrolls, the header never moving; the News
-// Summary tab and the News overlay show the build as mm/dd/'yy h:mm AM/PM and
-// "x ago". Desktop, tablet and phone, with screenshots.
+// Summary and the other tabs share one pinned build/date header. The standalone
+// News overlay uses the same date style. Desktop, tablet and phone.
 //
 // Run: node tests/live/tradehub-debrief.live.js
 'use strict';
@@ -24,6 +24,7 @@ const ok = (name, cond, extra) => {
 
 const VERDICT = [
   'ANSWER',
+  '**Thursday, November 12, 2026 | 1:48 PM MT**',
   'Stocks rose as softer CPI revived December cut bets. The Nasdaq led and breadth was strong.',
   '',
   '### What moved the market',
@@ -79,7 +80,9 @@ const RUN = {
   const shot = async (name) => { const r = await c.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(SHOTS, name + '.png'), Buffer.from(r.result.data, 'base64')); };
   const mount = (tab, searches = []) => js(`
     localStorage.setItem('tb_debrief_tab', ${JSON.stringify(tab)});
-    window._fbWatchDebriefAuto = function(cb){ cb(${JSON.stringify({ movers: RUN, weekly: null })}); return function(){}; };
+    window._fbWatchDebriefAuto = function(cb){ cb(${JSON.stringify({ movers: RUN, weekly: { ...RUN, for: '2026-11-21' } })}); return function(){}; };
+    window._fbLoadMarketCal=async()=>({events:[],generatedAt:new Date(2026,10,12,13,48).getTime()});
+    window._fbLoadTBNews=async()=>({events:[{aiAnalyzed:false}],generatedAt:new Date(2026,10,12,13,48).getTime()});
     var host=document.getElementById('__dbr'); if(host&&host.__root){host.__root.unmount();host.remove();}
     host=document.createElement('div'); host.id='__dbr'; document.body.appendChild(host);
     host.__root=ReactDOM.createRoot(host);
@@ -115,10 +118,16 @@ const RUN = {
     ok('Searches groups topics and a saved link into three cards', await until("document.querySelectorAll('.dbr-search-card').length===3 && document.querySelectorAll('.dbr-search-updates li').length===2"));
     ok('Searches shows publisher citations and no sideways overflow', await js(`return document.querySelector('.dbr-search-refs a')?.textContent==='Sample Wire' && document.querySelector('.dbr-scroll').scrollWidth<=document.querySelector('.dbr-scroll').clientWidth+1;`));
     ok('Searches requests only the two topics', await js("return window.__searchCalls.slice().sort().join(',')==='Copper market news,Hormuz shipping updates';"));
+    ok('Search timestamps appear in the pinned header only', await js(`return /Checked [A-Z][a-z]{2}, [A-Z][a-z]{2} \\d{1,2}, \\d{4}, \\d{1,2}:\\d{2} [AP]M/.test(document.querySelector('.dbr-head .dbr-dates').textContent) && !document.querySelector('.dbr-search-card header time');`));
     await shot(tag+'-searches');
     await mount('movers');
     ok('the Debrief opens on Today’s Movers', await until("document.querySelector('.dbr .br-headline')", 6000));
     await sleep(400);
+    ok('Movers shares the pinned date header and omits repeated body dates', await js(`var meta=document.querySelector('.dbr-head .dbr-dates').textContent; return meta.includes('Built ') && meta.includes('Next run ') && !document.querySelector('.dbr-scroll').textContent.includes('Thursday, November 12, 2026') && !document.querySelector('.dbr-scroll').textContent.includes('Next run ');`));
+    await js(`document.querySelector('.dbr [data-dkey="weekly"]').click();1`);
+    ok('Weekly coverage and next run are both in the pinned header', await until("document.querySelector('.dbr-head .dbr-dates').textContent.includes('Week of Mon, Nov 23, 2026') && document.querySelector('.dbr-head .dbr-dates').textContent.includes('Next run ')"));
+    await js(`document.querySelector('.dbr [data-dkey="movers"]').click();1`);
+    await until("document.querySelector('.dbr .br-headline')");
     const r = JSON.parse(await js(`
       var q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)];
       return JSON.stringify({
@@ -188,8 +197,11 @@ const RUN = {
 
     // Same size on another tab, and it starts at the top.
     await js(`[...document.querySelectorAll('.dbr-tabs button')].find(b=>/Catalysts/.test(b.textContent)).click(); 1`); await sleep(250);
+    ok('Catalysts uses the same header for its calendar build', await until("document.querySelector('.dbr-head .dbr-dates').textContent.includes('Built Thu, Nov 12, 2026, 1:48 PM')"));
     const g3 = await geo();
     ok('another tab: the dialog keeps its size and place', g3.card[0] === g1.card[0] && g3.card[1] === g1.card[1], JSON.stringify([g1.card, g3.card]));
+    await js(`document.querySelector('.dbr [data-dkey="summary"]')?.click(); 1`);
+    ok('Debrief News Summary places the build in the pinned header', await until("document.querySelector('.dbr-head .dbr-dates').textContent==='Built Thu, Nov 12, 2026, 1:48 PM'"));
     await js(`document.querySelector('.dbr [data-dkey="magi"]')?.click(); 1`);
     ok('Daily Report remains available with an empty report', await until("document.querySelector('.dbr .tbx-empty')?.textContent.includes('No answer from MAGI yet')", 3000));
     ok('the selected report tab is visible without widening the page', await js(`
@@ -198,13 +210,13 @@ const RUN = {
       var row=tab.parentElement.getBoundingClientRect(), box=tab.getBoundingClientRect();
       return box.left>=row.left-1 && box.right<=row.right+1 && document.documentElement.scrollWidth<=innerWidth+1;`));
 
-    // The News overlay: the build time as mm/dd/'yy h:mm AM/PM and "x ago".
+    // The News overlay uses the same header date as Debrief.
     await js(`var host=document.getElementById('__dbr'); host.__root.unmount(); host.remove();
       var h2=document.createElement('div'); h2.id='__sum'; document.body.appendChild(h2); h2.__root=ReactDOM.createRoot(h2);
       h2.__root.render(React.createElement(window.tbNewsSummary.Overlay,{onClose:function(){}, summary:null, loading:true, error:'', generatedAt:new Date(2026,10,12,13,48).getTime(), eventCount:42})); 1`);
     await sleep(300);
     const meta = await js(`return document.querySelector('.nhs-head .nhs-meta').textContent;`);
-    ok("News Summary: Built Thursday, November 12, 1:48 PM and how long ago, no event count", meta.includes("Built Thursday, November 12, 1:48 PM") && /(\d+[mhd] ago|now)/.test(meta) && !/events/.test(meta), meta);
+    ok('News Summary uses the shared timestamp style', meta === 'Built Thu, Nov 12, 2026, 1:48 PM', meta);
     await shot(`summary-${tag}-meta`);
     await js(`var h2=document.getElementById('__sum'); h2.__root.unmount(); h2.remove(); 1`);
     await js(`window.MagiBrief.setView('brief'); 1`);

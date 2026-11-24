@@ -1740,7 +1740,7 @@ window._docxOpenTrash = function(app) {
           // swapped for the SVG only on Veda's side — Tony's list keeps the
           // glyph it already renders.
           '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' <span class="docx-lock-badge" style="display:inline-flex;align-items:center;vertical-align:-.14em;opacity:.8">' + window.TNI.lock + '</span>' : '') + '</div>' +
-          '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
+          '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + esc((window.Notebook.displayDate && window.Notebook.displayDate(app, 'day', e.trashed)) || new Date(e.trashed).toLocaleDateString()) + ' · auto-deletes in ' + days + 'd</div></div>' +
           '<div class="b"><button class="res">Restore</button><button class="del">Delete forever</button></div>';
         row.querySelector('input').addEventListener('change', function() {
           if (this.checked) selected[e.id] = true; else delete selected[e.id];
@@ -3188,8 +3188,8 @@ function buildMenubar(ctx) {
     add(p, ['[id$="-pt-block"]'], mi('Code block', function() { exec(ctx, 'formatBlock', 'pre'); }));
     add(p, ['.docx-checklist-btn'], mi('Checklist', function() { insertChecklist(ctx); }));
     p.appendChild(msep());
-    p.appendChild(mi('Date', function() { exec(ctx, 'insertText', new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })); }));
-    p.appendChild(mi('Time', function() { exec(ctx, 'insertText', new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })); }));
+    p.appendChild(mi('Date', function() { exec(ctx, 'insertText', (window.Notebook.displayDate && window.Notebook.displayDate(app, 'day', Date.now())) || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })); }));
+    p.appendChild(mi('Time', function() { exec(ctx, 'insertText', (window.Notebook.displayDate && window.Notebook.displayDate(app, 'time', Date.now())) || new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })); }));
   });
   menu('Format', function(p) {
     add(p, ['.docx-fontfam-btn'], mi('Font…', function() { fontPop(ctx, ctx.tbEl); }));

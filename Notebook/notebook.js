@@ -437,7 +437,7 @@ function instanceCss(cfg) {
 // how a program drifts from the others: refuse it. A new setting is added
 // here, documented in docs/Notebook/README.md, and defaults so that every
 // other program keeps working unchanged.
-var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1, folder: 1 };
+var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1, folder: 1, displayDates: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
   // side is mount's own (Notebook.side of the profile), not a host's option.
@@ -559,12 +559,17 @@ window.Notebook = {
   //   onSave(entry), onReady()   hooks;
   //   done        { label, onClick, note } a Done button beside the title;
   //   sideNote    false: no "Editing in T's Notebook" beside the title.
+  //   displayDates { day(ms), time(ms) } optional display functions for this instance.
   //   folder      the folder on screen (see Notebook.folder); null: every page.
   // key is the DOM/CSS/localStorage prefix (bj, tj, pb, ...), store its
   // Firestore document under dashboards/. Returns a promise of the config.
   mounts: {},
   profiles: PROFILES,
   side: side,
+  displayDate: function (key, kind, ms) {
+    var cfg = this.mounts[key], format = cfg && cfg.displayDates && cfg.displayDates[kind];
+    return typeof format === 'function' ? format(ms) : '';
+  },
   mount: function (cfg) {
     cfg = resolveProfile(cfg);
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');

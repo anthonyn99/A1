@@ -48,8 +48,8 @@ const CARDS = ['regime', 'breadth', 'sectors', 'rotation', 'streaks', 'strength'
   ok('Control has the switch, unticked', await until(`document.querySelector('.ctl-quant input[type=checkbox]') && !document.querySelector('.ctl-quant input[type=checkbox]').checked`, 8000));
   ok('...and no data status card', await js(`return !document.querySelector('.ctl-status');`));
   await sleep(1500);
-  // Beacon's TradeHub/data/push.js loads on every open (alerts' devices, 2026-11-21); nothing else of TradeHub/.
-  const offMods = await js(`return performance.getEntriesByType('resource').map(function(r){return r.name;}).filter(function(n){return n.indexOf('/A1/TradeHub/') >= 0 && n.indexOf('/TradeHub/data/push.js') < 0;}).join(' ');`);
+  // Beacon's TradeHub/data/push.js loads on every open (alerts' devices, 2026-11-21); the shared date formatter also serves the legacy page.
+  const offMods = await js(`return performance.getEntriesByType('resource').map(function(r){return r.name;}).filter(function(n){return n.indexOf('/A1/TradeHub/') >= 0 && n.indexOf('/TradeHub/data/push.js') < 0 && n.indexOf('/TradeHub/core/when.js') < 0;}).join(' ');`);
   ok('no TradeHub module was fetched (but Beacon\'s push.js)', offMods === '', offMods);
   ok('no quant-api call was made', api.asked.length === 0, paths().join());
   ok('tabs change with no motion class on the app', await js(`return !document.querySelector('.tbq-on');`));

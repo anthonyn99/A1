@@ -210,6 +210,7 @@ Notebook.mount({
   templates: ['page'],                                    // template cards offered (default: all)
   features: { ourjournal: false, locks: false, sidebar: true },   // an instance's defaults
   pinned: [{ id: 'daily-reminder', title: 'Daily Reminder' }],
+  // displayDates: { day, time },   // optional host callbacks, each taking milliseconds
   onSave: (entry) => {},     // after the cloud confirms a save of `entry`
   onReady: () => {}          // after the first load from the server
 }).then(() => { /* mounted */ });

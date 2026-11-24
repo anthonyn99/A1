@@ -83,6 +83,7 @@ const worker = {
   await boot(true);
   console.log('\nFirst open: the old Playbook moves to Notebook, once');
   ok('the Playbook tab opens a Notebook instance inside its box', await openPlaybook());
+  ok('Playbook date and time commands use TradeHub formatting', await js(`var at=new Date(2026,10,24,9).getTime(); return Notebook.displayDate('pb','day',at)==='Tue, Nov 24, 2026' && Notebook.displayDate('pb','time',at)==='9:00 AM' && Notebook.displayDate('other','day',at)==='';`));
   let D = await docs();
   ok('the pages are in dashboards/tradehub_playbook, ids kept',
     D.n && D.n['e_daily-reminder'] && D.n.e_pb_rules && D.n.e_pb_old && JSON.stringify(D.n._order) === JSON.stringify(['daily-reminder', 'pb_rules', 'pb_old']), JSON.stringify(D.n && D.n._order));
