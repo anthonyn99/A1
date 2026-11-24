@@ -113,6 +113,49 @@ t('normal headings resume the report after notes or confidence',
   resumed.querySelector('.br-notes')?.textContent === 'Worth knowingShort caveat.' &&
   !!resumed.querySelector('.br-conf.high'));
 
+const interruptedReport = [
+  'ANSWER',
+  '## Executive Summary',
+  'The open looks weak.',
+  '',
+  'NOTES',
+  '- **Data limitations:** some quotes were delayed.',
+  '',
+  'CONFIDENCE',
+  '## Medium',
+  'Market drivers resume without a Markdown heading.',
+  '',
+  '1. Nvidia led the session.',
+  '',
+  '| Event | Date |',
+  '| --- | --- |',
+  '| Catalyst Calendar | Next week |',
+  '',
+  '**2. Earnings Watch**',
+  '',
+  'Low liquidity can exaggerate the first move.',
+].join('\n');
+for (const view of ['text', 'brief']) {
+  const report = MB.render(interruptedReport, view);
+  const body = report.querySelector(view === 'text' ? '.v-main' : '.br-sec');
+  const metadata = report.querySelector(view === 'text' ? '.v-aside' : '.br-notes');
+  const rating = report.querySelector(view === 'text' ? '.conf-tag.medium' : '.br-conf.medium');
+  t(view + ': a heading-form rating keeps the later report and table in the answer',
+    !!rating && !!body?.querySelector('.v-table') && /Data limitations/.test(metadata?.textContent || '') &&
+    !/Catalyst Calendar|Market drivers|Nvidia|Low liquidity/.test(metadata?.textContent || ''));
+  t(view + ': normal prose beginning with a rating word remains in the report',
+    /Low liquidity can exaggerate/.test(report.textContent) &&
+    !/Low liquidity can exaggerate/.test(report.querySelector(view === 'text' ? '.v-aside' : '.br-hero')?.textContent || ''));
+}
+
+const tableAfterNotes = MB.text('NOTES\n- Quotes were delayed.\n\n| Event | Time |\n| --- | --- |\n| CPI | 8:30 AM |');
+t('a table closes the notes even when the answer has no heading',
+  !!tableAfterNotes.querySelector('.v-main .v-table') && !tableAfterNotes.querySelector('.v-aside .v-table'));
+
+const looseConfidence = MB.text('CONFIDENCE\n## Forecast sensitivity\nThe forecast changes when yields move.');
+t('an answer without confirmed metadata uses its main column',
+  !looseConfidence.querySelector('.v-aside') && /Forecast sensitivity/.test(looseConfidence.querySelector('.v-main')?.textContent || ''));
+
 const codeSample = MB.brief('### Example\n~~~text\nReport.NOTES Keep this.\nCONFIDENCE HIGH\n~~~');
 t('ratings and note labels inside fenced examples remain verbatim',
   codeSample.querySelector('pre code')?.textContent.includes('Report.NOTES Keep this.\nCONFIDENCE HIGH') &&
