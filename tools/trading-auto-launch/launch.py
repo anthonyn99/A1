@@ -11,7 +11,7 @@ first makes you confirm your Daily Reminder, and only then opens:
   - TaskHub          →  right  panel  (Brave app shortcut)
 
 THE ANALYSIS TAB IS NOT PART OF THIS FLOW ANY MORE. The prompt you picked in
-TradeHub → Analysis (2026-11-01) and its search tabs (2026-11-02) go out ON THEIR
+TradeHub → Analysis (2026-11-01) and its saved links go out ON THEIR
 OWN, from a second scheduled task: `launch.py --analysis`, at 6 AM in this PC's
 own time zone (Mountain, Eastern, wherever it is; the same rule TradeHub builds
 its tabs by), or the first time the PC is opened after that. It never waits for
@@ -137,14 +137,13 @@ TRADEHUB_URL = "https://a1-priv.av1.workers.dev/tradehub.html"
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole AI analysis step
 TD_WORKER_URL            = "https://trade-dashboard.av1-2.workers.dev"
 
-# On the morning run the searches open as TABS in the existing TradeHub window, so
+# On the morning run saved links open as tabs in the existing TradeHub window, so
 # this position is only used when there is no TradeHub window to add them to.
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
 # ==============================================================================
 #  DAILY ANALYSIS  (its own scheduled task since 2026-11-01)
-#  The prompt goes to the AI, and the search tabs open, on their own: no Daily
-#  Reminder, no Trading Auto Launch.
+#  The prompt and saved links launch on their own. News topics stay in Debrief.
 #  `launch.py --analysis` runs from the TradingDailyAnalysis task on the same four
 #  triggers (6 AM daily, logon, unlock, wake) and sends it ONCE per market day,
 #  at the first trigger at or after ANALYSIS_HOUR in THIS PC'S OWN time zone, so
@@ -1305,7 +1304,7 @@ def _fetch_analysis_config(attempts: int = 5, delay: float = 3.0):
 
 
 def _resolve_search_url(query: str) -> str:
-    """Mirror TradeHub's tbResolveUrl: full URL passthrough, www. auto-scheme, else Google."""
+    """Resolve only standalone links. Debrief handles topic searches."""
     t = (query or "").strip()
     if re.match(r"^https?://", t, re.I):
         return t
@@ -1313,7 +1312,7 @@ def _resolve_search_url(query: str) -> str:
         return "https://" + t
     if "." in t and " " not in t and "?" not in t:
         return "https://" + t
-    return "https://www.google.com/search?q=" + urllib.parse.quote(t)
+    return ""
 
 
 def _host_of(u: str) -> str:
@@ -1580,7 +1579,7 @@ def _wait_for_magi_engine(timeout: int = MAGI_ENGINE_WAIT) -> bool:
 
 
 def open_ai_prompt() -> bool:
-    """Open the search tabs picked in TradeHub → Analysis, then send its prompt to
+    """Open the saved links picked in TradeHub → Analysis, then send its prompt to
     its AI destination. True once it is out (or there is deliberately nothing to
     send), False when it could not be, so the day stays unmarked and the next
     trigger tries again.
@@ -2471,7 +2470,7 @@ def setup():
         (TASK_NAME, "", 12,
          f"Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM local)."),
         (ANALYSIS_TASK_NAME, " --analysis", 1,
-         f"Opens the TradeHub Analysis searches and sends its prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
+         f"Opens saved TradeHub links and sends the Analysis prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
     ):
         _register_task(name, arg, limit, desc)
     print(f"\nInstalled '{TASK_FOLDER}{TASK_NAME}' and '{TASK_FOLDER}{ANALYSIS_TASK_NAME}'.")
