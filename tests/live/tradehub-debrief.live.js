@@ -46,7 +46,12 @@ const VERDICT = [
   '- PPI is tomorrow.',
   '',
   'CONFIDENCE',
-  'HIGH — the data was unambiguous.',
+  '## HIGH',
+  'The main report continues with the catalyst calendar.',
+  '',
+  '| Event | Time |',
+  '| --- | --- |',
+  '| CPI release | 8:30 AM |',
 ].join('\n');
 const long = (n) => Array.from({ length: n }, (_, i) => `### Section ${i + 1}\n- **Point:** detail ${i + 1} that runs on for a while to fill the line.\n- **Another:** more text here.`).join('\n\n');
 const RUN = {
@@ -135,6 +140,20 @@ const RUN = {
       return JSON.stringify({brief: qa('.dbr .verdict-body.brief').length, text: qa('.dbr .verdict-body:not(.brief)').length, aside: !!document.querySelector('.dbr .v-aside'),
         key: localStorage.getItem('magi.verdict.view')});`));
     ok('Text redraws the verdict and every unit', t.brief === 0 && t.text === 3 && t.aside, JSON.stringify(t));
+    ok('the catalyst calendar stays in the main report, with a compact confidence card', await js(`
+      const report = document.querySelector('.dbr-magi > section .verdict-body');
+      const main = report.querySelector('.v-main'), aside = report.querySelector('.v-aside');
+      return main.querySelector('table').textContent.includes('CPI release') &&
+        !!aside.querySelector('.conf-tag.high') && !aside.querySelector('table') &&
+        !aside.textContent.includes('catalyst calendar');`));
+    ok('Text adapts to the report pane and keeps the table inside it', await js(`
+      const report = document.querySelector('.dbr-magi > section .verdict-body');
+      const layout = report.querySelector('.v-layout');
+      const main = layout.querySelector('.v-main').getBoundingClientRect();
+      const aside = layout.querySelector('.v-aside').getBoundingClientRect();
+      const table = layout.querySelector('.v-tablewrap').getBoundingClientRect();
+      return (layout.clientWidth < 860 ? aside.top >= main.bottom : aside.left >= main.right) &&
+        table.right <= main.right + 1 && document.documentElement.scrollWidth <= innerWidth + 1;`));
     ok('the choice is remembered under MAGI’s key', t.key === 'text');
     await js(`document.querySelector('.dbr-scroll').scrollTop=0; 1`); await sleep(150);
     await shot(`debrief-${tag}-text`);

@@ -1797,7 +1797,7 @@ del.md-html { color: var(--txd); }
 .br-step-body { min-width: 0; line-height: 1.65; }
 .br-step-label { font-weight: 650; color: var(--tx); }
 
-.br-notes, .br-confidence {
+.br-notes {
   margin-top: 4px; padding: 14px 18px; border-radius: 12px;
   border: 1px solid var(--bd); background: var(--s1);
 }
@@ -1808,7 +1808,7 @@ del.md-html { color: var(--txd); }
 }
 .br-notes-ic { display: inline-flex; font-size: 14px; }
 .br-notes p, .br-notes .v-list li { font-size: 13px; color: var(--txd); }
-.br-notes > *:last-child, .br-confidence > *:last-child { margin-bottom: 0; }
+.br-notes > *:last-child { margin-bottom: 0; }
 .br-notes .br-point { background: transparent; border-left-color: var(--bdl); }
 
 /* ── what the blocks inside a card become ── */
@@ -2000,7 +2000,7 @@ del.md-html { color: var(--txd); }
   .br-sec { padding: 14px 14px 12px; border-radius: 11px; }
   .br-sec-title { font-size: 15.5px; }
   .br-points.two { grid-template-columns: minmax(0, 1fr); }
-  .br-notes, .br-confidence { padding: 12px 14px; }
+  .br-notes { padding: 12px 14px; }
   .br-seg-btn { height: 32px; padding: 0 13px; }
   .br-groups { grid-template-columns: minmax(0, 1fr); }
   .br-group-title { margin: 18px 2px 10px; }
@@ -9204,8 +9204,6 @@ function briefBody(text, opts = {}) {
     root.stopSpy = () => io.disconnect();
   }
 
-  /* Keep the notes and unrated confidence copy in their own sections. */
-  const confRest = g.conf.filter((b) => b.kind !== "conf");
   if (g.notes.length) {
     const notes = el("div", "br-notes");
     const hd = el("div", "br-notes-hd");
@@ -9213,12 +9211,6 @@ function briefBody(text, opts = {}) {
     notes.append(hd);
     briefBlocks(notes, g.notes);
     host.append(notes);
-  }
-  if (confRest.length) {
-    const box = el("div", "br-confidence");
-    box.append(el("div", "br-conf-k", "Confidence"));
-    briefBlocks(box, confRest);
-    host.append(box);
   }
   return root;
 }
