@@ -247,7 +247,8 @@ console.log('\nA verdict whose headings lost their line breaks');
 const PV = new Function([
   "const SECTION = /^\\s*(?:#{1,4}\\s*)?(ANSWER|NOTES|CONFIDENCE|VERDICT|AGREEMENTS|DISAGREEMENTS|CAVEATS)\\b\\s*:?\\s*$/i;",
   constLine('CONF'), constLine('CONF_LEAD'),
-  "const MD = { fence: /^(\\s*)(`{3,}|~{3,})\\s*([\\w+#.-]*)\\s*$/ };",
+  "const MD = { fence: /^(\\s*)(`{3,}|~{3,})\\s*([\\w+#.-]*)\\s*$/, heading: /^(#{1,6})\\s+(.+)$/, hr: /^---$/ };",
+  "const isTableRow = () => false;",
   // Paragraphs only: what is under test is which bucket each line lands in.
   "function mdParse(t) { return String(t).split(/\\n\\s*\\n/).map((p) => p.trim()).filter(Boolean).map((p) => ({ kind: 'p', text: p.replace(/\\n/g, ' ') })); }",
   lift('parseVerdict'), 'return parseVerdict;'].join('\n'))();

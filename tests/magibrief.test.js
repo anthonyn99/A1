@@ -155,6 +155,12 @@ t('a table closes the notes even when the answer has no heading',
 const looseConfidence = MB.text('CONFIDENCE\n## Forecast sensitivity\nThe forecast changes when yields move.');
 t('an answer without confirmed metadata uses its main column',
   !looseConfidence.querySelector('.v-aside') && /Forecast sensitivity/.test(looseConfidence.querySelector('.v-main')?.textContent || ''));
+const longNotes = MB.text('ANSWER\nMain report.\n\nNOTES\n' + 'Additional context for the forecast. '.repeat(30));
+t('long notes stay readable under the report and do not reserve an empty side column',
+  !longNotes.classList.contains('split') && longNotes.querySelector('.v-main .v-notes-wide')?.textContent.length > 900);
+const onlyNotes = MB.text('NOTES\n- One caveat.');
+t('notes alone have no blank answer column', !onlyNotes.querySelector('.v-aside') &&
+  /One caveat/.test(onlyNotes.querySelector('.v-main')?.textContent || ''));
 
 const codeSample = MB.brief('### Example\n~~~text\nReport.NOTES Keep this.\nCONFIDENCE HIGH\n~~~');
 t('ratings and note labels inside fenced examples remain verbatim',
