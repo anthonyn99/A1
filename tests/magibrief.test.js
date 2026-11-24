@@ -103,8 +103,9 @@ const mixed = MB.brief([
 t('a bare bold rating and a report section end the notes',
   /Data limitations/.test(mixed.querySelector('.br-notes')?.textContent || '') &&
   !/Market Drivers|Previous Session|Nvidia/.test(mixed.querySelector('.br-notes')?.textContent || '') &&
-  mixed.querySelector('.br-conf.medium') && /Nvidia/.test(mixed.querySelector('.br-intro')?.textContent || '') &&
-  /Previous Session/.test(mixed.querySelector('.br-sec')?.textContent || ''));
+  mixed.querySelector('.br-conf.medium') &&
+  [...mixed.querySelectorAll('.br-sec-title')].map(el => el.textContent).join(',') === 'Top 3 Market Drivers,Previous Session' &&
+  /Nvidia/.test(mixed.querySelector('.br-sec')?.textContent || ''));
 
 const resumed = MB.brief('ANSWER\nLead.\n\n### NOTES\n- Short caveat.\n\n## Sector check\nMain report.\n\n### CONFIDENCE\nHIGH — consistent data.\n\n## Appendix\nMore figures.');
 t('normal headings resume the report after notes or confidence',

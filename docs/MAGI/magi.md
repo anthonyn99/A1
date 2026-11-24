@@ -31,6 +31,19 @@ file replaces her `README.md`, `SETUP-FOR-TONY.md` and `magi-setup.md`.
 Every other program in this repo is a page. MAGI is a page **plus an engine on
 this PC**, and the engine cannot move.
 
+### Daily kickstart
+
+In **Units**, Claude (Pro) and ChatGPT show a kickstart for the corresponding
+signed-in Code Mode account. Tony and Veda each have their own settings.
+Claude and Codex share that profile's **Not before** time, 6 AM local by default.
+The toggles and usage caps are separate.
+
+Codex sends `k` by default in a single ephemeral CLI turn using an included
+lightweight model when available and its lowest supported effort. It waits
+out an open window, skips capped usage, and publishes the reset through the
+existing Codex-to-TaskHub sync. Accounts with only a monthly window wait for
+that window. An automatic send is claimed once per login per PC each day.
+
 It talks to the models through **browser automation of your own logged-in
 subscriptions**, not APIs — one real Chrome profile per unit, each holding a
 live session.

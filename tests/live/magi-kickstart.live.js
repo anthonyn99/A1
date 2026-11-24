@@ -3,7 +3,7 @@
 //
 // The daily Claude (Pro) kickstart section in the Units sheet. Sends nothing
 // unless RUN=1 (then one ~670-token Haiku message through "Send now").
-//   1. the section is on Claude (Pro) only, with a switch, a status line and Send now
+//   1. Claude (Pro) has a switch, a status line and Send now, alongside Codex when signed in
 //   2. Not before / the weekly cap / the message save to the engine and come back
 //   3. switching it off folds the options away; on brings them back
 //   4. at 390px it fits: no sideways scroll, 36px+ fields
@@ -38,16 +38,18 @@ const waitFor = async (c, expr, ms = 20000) => {
 const size = (c, w, h, phone) => c.send('Emulation.setDeviceMetricsOverride',
   { width: w, height: h, deviceScaleFactor: phone ? 2 : 1, mobile: phone });
 const BOX = `document.querySelector('.unit-kick[data-unit="claude-pro"]')`;
-const engineCfg = async () => {
+const enginePanels = async () => {
   const r = await fetch('http://127.0.0.1:8000/api/units/usage');
   const d = await r.json();
-  return (d.units.find((u) => u.id === 'claude-pro') || {}).kickstart;
+  return Object.fromEntries(d.units.filter((u) => u.kickstart).map((u) => [u.id, u.kickstart]));
 };
+const engineCfg = async () => (await enginePanels())['claude-pro'];
 const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON.stringify(sel)});
   i.value = ${JSON.stringify(value)}; i.dispatchEvent(new Event("change")); return 1; })()`;
 
 (async () => {
-  const before = await engineCfg();
+  const panels = await enginePanels();
+  const before = panels['claude-pro'];
   if (!before) { console.log('  no kickstart on this engine (no Claude Pro account in Code Mode)'); process.exit(1); }
   const c = await connect();
   await c.send('Page.enable'); await c.send('Runtime.enable');
@@ -66,7 +68,13 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
   await evalJs(c, 'openChairPicker(); return 1;');
   ok('the Units sheet opens', await waitFor(c, `document.querySelectorAll(".unit-row").length === S.providers.length`, 5000));
   const where = await evalJs(c, `JSON.stringify([...document.querySelectorAll(".unit-kick")].filter(b => b.children.length).map(b => b.dataset.unit))`);
-  ok('the section is on Claude (Pro) only', where === '["claude-pro"]', where);
+  ok('kickstart panels match the signed-in Code Mode accounts',
+    JSON.stringify(JSON.parse(where).sort()) === JSON.stringify(Object.keys(panels).sort()), where);
+  if (panels.chatgpt) {
+    ok('Codex is under ChatGPT with Claude’s start time', await evalJs(c, `
+      return document.querySelector('.unit-kick[data-unit="chatgpt"] .kick-title').textContent === 'Codex daily kickstart' &&
+        UNITS_USE.byId.chatgpt.kickstart.not_before === UNITS_USE.byId['claude-pro'].kickstart.not_before;`));
+  }
   const parts = await evalJs(c, `return JSON.stringify({ sw: !!${BOX}.querySelector(".kick-sw input"), st: (${BOX}.querySelector(".kick-st")||{}).textContent,
     now: (${BOX}.querySelector(".unit-lim-check")||{}).textContent })`);
   const p = JSON.parse(parts);
