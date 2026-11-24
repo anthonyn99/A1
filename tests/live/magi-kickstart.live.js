@@ -1,5 +1,6 @@
 // LIVE test -- the real console against the real engine (not run by run-all.js).
 // Run: node tests/live/magi-kickstart.live.js   Screenshots: %TEMP%/magi-live-shots
+// VERIFY_ONLY=1 checks the signed-in panels at desktop and phone without saving any settings.
 //
 // The daily Claude (Pro) kickstart section in the Units sheet. Sends nothing
 // unless RUN=1 (then one ~670-token Haiku message through "Send now").
@@ -81,6 +82,18 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
   ok('switch, status line and Send now', p.sw && !!p.st && p.now === 'Send now', p.st);
   await evalJs(c, `${BOX}.scrollIntoView(); return 1;`);
   await shot(c, 'kick-desktop');
+
+  if (process.env.VERIFY_ONLY === '1') {
+    await size(c, 390, 844, true);
+    await sleep(400);
+    ok('at 390px the kickstart panels fit inside the sheet', await evalJs(c, `
+      return [...document.querySelectorAll('.unit-kick')].filter(b => b.children.length).every(b =>
+        b.getBoundingClientRect().right <= b.closest('.sheet-box').getBoundingClientRect().right + 1) &&
+        document.documentElement.scrollWidth <= innerWidth + 1;`));
+    ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    console.log(`\n${pass} passed, ${fail} failed`);
+    process.exit(fail ? 1 : 0);
+  }
 
   // -- 2. settings save ------------------------------------------------------
   if (!before.enabled) {
