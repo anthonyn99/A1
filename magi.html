@@ -1789,7 +1789,7 @@ del.md-html { color: var(--txd); }
 .br-step-body { min-width: 0; line-height: 1.65; }
 .br-step-label { font-weight: 650; color: var(--tx); }
 
-.br-notes {
+.br-notes, .br-confidence {
   margin-top: 4px; padding: 14px 18px; border-radius: 12px;
   border: 1px solid var(--bd); background: var(--s1);
 }
@@ -1800,7 +1800,7 @@ del.md-html { color: var(--txd); }
 }
 .br-notes-ic { display: inline-flex; font-size: 14px; }
 .br-notes p, .br-notes .v-list li { font-size: 13px; color: var(--txd); }
-.br-notes > *:last-child { margin-bottom: 0; }
+.br-notes > *:last-child, .br-confidence > *:last-child { margin-bottom: 0; }
 .br-notes .br-point { background: transparent; border-left-color: var(--bdl); }
 
 /* ── what the blocks inside a card become ── */
@@ -1992,7 +1992,7 @@ del.md-html { color: var(--txd); }
   .br-sec { padding: 14px 14px 12px; border-radius: 11px; }
   .br-sec-title { font-size: 15.5px; }
   .br-points.two { grid-template-columns: minmax(0, 1fr); }
-  .br-notes { padding: 12px 14px; }
+  .br-notes, .br-confidence { padding: 12px 14px; }
   .br-seg-btn { height: 32px; padding: 0 13px; }
   .br-groups { grid-template-columns: minmax(0, 1fr); }
   .br-group-title { margin: 18px 2px 10px; }
@@ -7080,7 +7080,7 @@ const HOW = [
   {
     q: "Units \u2014 what ticking one does",
     a: [
-      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not the Doctor. (Two exceptions: <b>Refine</b> runs on your own Gemini API key whether Gemini is ticked or not &mdash; that box is for the Gemini browser unit; and the <b>Daily kickstart</b> below reaches the Claude Pro account through Claude Code, not the unit&rsquo;s browser, whether Claude (Pro) is ticked or not.)",
+      "The tick boxes under the question choose the browser units for the council, chairman, Studio, Brainstorm and Doctor. <b>Refine</b> uses your Gemini API key. <b>Daily kickstart</b> uses the signed-in Claude Code and Codex accounts, independently of the browser-unit ticks.",
       "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
       "<b>The council has seven members, and two of them are Claude.</b> One is signed in to the free account and one to the subscription, because they draw on different allowances &mdash; Code Mode spends the subscription, so pointing every deliberation at it means the two compete. Tick the free one for ordinary questions, the paid one when the answer is worth it, or both to get two independent answers.",
       "Copilot was a member until it was removed: it showed a sign-in wall with no reachable composer, so it took a browser and a timeout on every run and answered nothing.",
@@ -7091,7 +7091,7 @@ const HOW = [
       "<b>Each unit&rsquo;s limits are in the Units sheet</b> (tap <b>Units</b> above the chips): its model, and <b>OK</b>, <b>Limited until</b> a time with a countdown, <b>Near limit</b>, <b>Fell back</b> or <b>Signed out</b>, with when it was last in a run and last checked. A chip with a red or amber dot is one of those. It is all from what the site showed during your runs and Brainstorm rounds &mdash; no browser is opened for it, and nothing checks on a timer. <b>Check now</b> opens that one unit&rsquo;s site (signed in as you, nothing sent) to look. Only <b>Claude (Pro)</b> has real numbers: it shares its allowance with Code Mode&rsquo;s Claude account, so it shows the same 5-hour and weekly bars. The other sites show no count, so none is invented. The Doctor&rsquo;s limit section reads the same verdict, and each person&rsquo;s engine keeps its own.",
       "<b>Choose each unit&rsquo;s model in the Units sheet</b>: a <b>Model</b> dropdown under Claude, Claude (Pro), Gemini and Grok, the only sites with a picker your accounts can use (ChatGPT, Perplexity and DeepSeek answer on their default). <b>Site default</b> is first and means MAGI leaves the site&rsquo;s picker alone. A choice is per person, kept on your own engine, and used by every turn that unit takes &mdash; council, chairman, Brainstorm and Studio. Before typing, the unit opens the site&rsquo;s menu, picks the model and checks the menu&rsquo;s own tick (sites remember a pick, so after the first time nothing is clicked). If the model is locked, gone, or the site will not switch, the run is <b>never failed</b>: the unit answers on what the site gives and its card says <b>Asked for X, got Y</b>. <b>Refresh models</b> opens that site once (nothing sent) to read what your account is offered, locked ones marked.",
       "<b>Effort and thinking are part of the pick.</b> Under the Model dropdown, Claude and Claude (Pro) have <b>Effort</b> (Low, Medium, High, Extra, Max), Gemini has <b>Extended thinking</b>, ChatGPT <b>Think</b> and DeepSeek <b>DeepThink</b> (On or Off). The same rules as the model: <b>Site default</b> leaves it as the site has it, the choice is checked on the site&rsquo;s own control before typing, and one that does not take never fails the run &mdash; the card says <b>Asked for &hellip;, left as the site had it</b>. Claude&rsquo;s and Gemini&rsquo;s model chip shows the result (&ldquo;Sonnet 5.5 High&rdquo;, &ldquo;Flash Extended&rdquo;).",
-      "<b>Daily kickstart</b> (Claude (Pro) in the Units sheet, on Tony&rsquo;s and Veda&rsquo;s engines, each on their own Pro account signed in to Code Mode): Claude&rsquo;s 5-hour window starts at your first message, so once a day, at the first check after <b>Not before</b> (or when the engine comes online, if that is later), MAGI sends the smallest message it can on the Pro account &mdash; through Claude Code on Haiku, with no tools and a one-line prompt, about 670 tokens in and 4 out. It is silent: no browser, nothing in your claude.ai chats. It is <b>skipped</b> when the weekly usage is at or above <b>Skip at week &ge;</b> (80% by default). If a window is already open, it waits for that window to reset, and a window you opened yourself after Not before counts as done. <b>Send now</b> sends at once (the weekly cap still applies). When both engines run on one PC and share one Claude login, only one of them sends it each day.",
+      "<b>Daily kickstart</b> lives under <b>Claude (Pro)</b> and <b>ChatGPT</b> in Units. Each profile&rsquo;s signed-in Claude Code and Codex accounts share the <b>Not before</b> time (6 AM by default). At the first check after that time, the CLI sends the short message you set (<b>k</b> by default). An open window is allowed to reset first, and a window you opened yourself after that time counts as done. Usage caps apply to both the schedule and <b>Send now</b>. A login shared by both engines on one PC gets one automatic kickstart a day.",
       "<b>Reset times &rarr; TaskHub</b> (on the Claude row of the Units sheet, Tony&rsquo;s and Veda&rsquo;s engines): the engine reads Claude&rsquo;s next reset from your Code Mode sign-in and puts it on <b>your own</b> TaskHub &mdash; Tony&rsquo;s resets on Tony&rsquo;s, Veda&rsquo;s on Veda&rsquo;s &mdash; as an event in the week view, with a notification at the reset on your main devices. Each device shows it in its own time zone. When the next window opens, the old event and its notification are replaced; turning it off removes both. <b>Weekly reset too</b> adds the weekly limit&rsquo;s reset. It runs on the engine, so this page does not need to be open.",
     ],
   },
@@ -8588,7 +8588,9 @@ function parseVerdict(text) {
   fenced = false;
   for (const raw of lines) {
     if (MD.fence.test(raw)) fenced = !fenced;
-    const label = raw.trim().replace(/^#{1,6}\s+/, "").replace(/^(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/, "$1$2");
+    const heading = MD.heading.test(raw);
+    const bold = raw.trim().replace(/^#{1,6}\s+/, "").match(/^(?:\*\*|__)(.+?)(?:\*\*|__)(:?)$/);
+    const label = bold ? bold[1] + bold[2] : raw.trim();
     const sec = !fenced && label.match(SECTION);
     if (sec) {
       const s = sec[1].toUpperCase();
@@ -8604,18 +8606,18 @@ function parseVerdict(text) {
     if (!fenced && where !== "main") {
       // A new report heading closes a metadata section. Some captures put
       // the rating after NOTES without a CONFIDENCE heading.
-      if (where === "notes" && /^(HIGH|MEDIUM|LOW)(?:\s*[-—:.]\s*.*)?$/i.test(label)) {
+      const rating = label.replace(/^#{1,6}\s+/, "");
+      if (/^(HIGH|MEDIUM|LOW)(?:\s*[-—:.,]\s*.*)?$/i.test(rating)) {
         where = "conf";
-        buckets.conf.push(label);
+        buckets.conf.push(rating);
         continue;
       }
-      if (where === "conf" && CONF_LEAD.test(label) && raw.trim() !== label) {
-        buckets.conf.push(label);
+      if (bold && !heading && buckets[where].some((line) => line.trim())) {
+        where = "main";
+        buckets.main.push("", "### " + label, "");
         continue;
       }
-      if (MD.heading.test(raw) || MD.hr.test(raw) ||
-          (where === "conf" && raw.trim() !== label) ||
-          /^\s*(?:\*\*|__)\d+[.)]\s+\S/.test(raw)) where = "main";
+      if (heading || MD.hr.test(raw)) where = "main";
     }
     buckets[where].push(raw);
   }
@@ -9197,7 +9199,7 @@ function briefBody(text, opts = {}) {
     host.append(notes);
   }
   if (confRest.length) {
-    const box = el("div", "br-notes");
+    const box = el("div", "br-confidence");
     box.append(el("div", "br-conf-k", "Confidence"));
     briefBlocks(box, confRest);
     host.append(box);
@@ -19725,14 +19727,14 @@ function unitKickBox(id) {
     nb.append(tm);
 
     const cap = el("label", "kick-f kick-cap");
-    cap.append(el("span", "unit-pick-lbl", codex ? "Skip at plan usage ≥" : "Skip at week ≥"));
+    cap.append(el("span", "unit-pick-lbl", codex ? "Skip at week / month ≥" : "Skip at week ≥"));
     const rng = document.createElement("input");
     rng.type = "range";
     rng.className = "use-slider is-plain";
     rng.min = "50"; rng.max = "100"; rng.step = "5";
     rng.value = String(k.week_cap || 80);
     rng.disabled = off;
-    rng.setAttribute("aria-label", codex ? "Skip when plan usage is at or above" : "Skip when the weekly usage is at or above");
+    rng.setAttribute("aria-label", codex ? "Skip when weekly or monthly usage is at or above" : "Skip when the weekly usage is at or above");
     const val = el("span", "use-val");
     const show = () => {
       val.textContent = `${rng.value}%`;
