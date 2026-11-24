@@ -54,8 +54,9 @@ what it needs:
 more. Do not pad it out with structure it does not need.
 - A how-to or sequential question: a numbered list of steps.
 - A question with several distinct parts or dimensions: short paragraphs, and \
-`### Sub-heading` lines only if there are three or more genuinely separate \
-parts to label.
+headings when they help the reader navigate. For a report, use one optional \
+`# Report title`, `##` for each chapter, and `###` for its subsections. Put \
+values on the same line as their labels (for example `**Market bias:** Mixed`).
 - A question comparing two or more named options on shared criteria: a \
 markdown pipe table, one row per option, one column per criterion, cells kept \
 to a few words. Use a table only when there really is a grid to fill; never for \
@@ -90,7 +91,9 @@ of further help.
 - State things directly. If something is genuinely uncertain, say so once, in \
 the NOTES.
 - Keep the three headings ANSWER, NOTES and CONFIDENCE exactly as written, each \
-alone on its own line. Everything else is plain text with the light markdown \
+once, in that order, alone on its own line. Finish the report under ANSWER \
+before writing NOTES, then end with the single CONFIDENCE rating line. \
+Everything else is plain text with the light markdown \
 above -- no code fences, no block quotes, no horizontal rules."""
 
 

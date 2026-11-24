@@ -51,6 +51,13 @@ def test_the_headcount_is_always_stated():
     assert "Claude" in p
 
 
+def test_reports_have_chapter_headings_and_inline_metrics():
+    p = build_prompt("Write a report on today's market", [_ok("chatgpt", "ChatGPT", "The tape was mixed.")])
+    assert "`##` for each chapter, and `###` for its subsections" in p
+    assert "`**Market bias:** Mixed`" in p
+    assert "before writing NOTES, then end with the single CONFIDENCE rating line" in p
+
+
 def test_a_degraded_member_caps_confidence_and_its_text_is_withheld():
     """Excluded text must not come back in through the chairman's prompt.
 
