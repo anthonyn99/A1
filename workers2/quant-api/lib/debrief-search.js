@@ -43,11 +43,18 @@ export function readNewsRss(xml, now) {
   }), now);
 }
 
-async function fetchSources(L, query, now) {
+export async function fetchSources(L, query, now) {
   const p = new URLSearchParams({ q: query + ' when:3d', hl: 'en-US', gl: 'US', ceid: 'US:en' });
   let answered = false;
   try {
     const xml = await call(L, 'debrief-news', 'https://news.google.com/rss/search?' + p, { text: true, timeout: 8000 });
+    const rows = readNewsRss(xml, now);
+    if (rows.length) return rows;
+    answered = true;
+  } catch {}
+  try {
+    const p = new URLSearchParams({ q: query, format: 'rss' });
+    const xml = await call(L, 'debrief-bing', 'https://www.bing.com/news/search?' + p, { text: true, timeout: 8000 });
     const rows = readNewsRss(xml, now);
     if (rows.length) return rows;
     answered = true;

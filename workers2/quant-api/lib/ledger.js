@@ -16,6 +16,7 @@ export const CAPS = {
   'yahoo-crumb': 2000,   // R7's cookie + crumb routes (lib/stock.js): their own line, so a refusal there never skips the bars chain
   cboe: 500,
   'debrief-news': 500,
+  'debrief-bing': 500,
   'debrief-gdelt': 150,
   fred: 400,        // free: 1,000 a day
   sec: 2000,
