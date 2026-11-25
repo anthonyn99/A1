@@ -111,6 +111,24 @@ def make_site(**over) -> SiteSelectors:
 
 
 @pytest.mark.asyncio
+async def test_chatgpt_working_marker_outlasts_a_long_pause():
+    """A short preamble must not finish while the current shell says working."""
+    preamble = "Daily Macro & Long-Only Trading Report\nWednesday, November 25"
+    full = preamble + "\nNO-GO today. Full analysis and trade plan follow."
+    page = FakePage([
+        {"turns": [preamble], "streaming": True},
+        *[{"turns": [preamble], "streaming": True} for _ in range(25)],
+        {"turns": [full], "streaming": True},
+        *[{"turns": [full], "streaming": False} for _ in range(10)],
+    ])
+    site = make_site(streaming_marker=["STREAMING"], stop_button=[],
+                     stability_samples=2, confirm_samples=3)
+    result = await completion.wait_for_completion(page, site, turns_before=0)
+    assert result.text == full
+    assert result.reason == CompletionReason.STREAM_MARKER
+
+
+@pytest.mark.asyncio
 async def test_stop_button_is_clean_completion():
     page = FakePage([
         {"turns": ["old"], "stop": True},
