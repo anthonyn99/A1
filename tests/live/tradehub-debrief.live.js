@@ -263,6 +263,16 @@ const RUN = {
   // The real Deploy button on Analysis (headless Chrome ignores its tradingautolaunch:// link).
   await js(`var t=document.querySelector('.tb-navtab[data-navid="analysis"]'); if(t) t.click(); 1`);
   await until("[...document.querySelectorAll('button')].some(function(b){return /Deploy/.test(b.textContent);})", 10000);
+  await js(`__fakeFs.remote('dashboards/tradeboard_analysis', {cfg:${JSON.stringify({ ...cfg, aiSite: 'chatgpt', searches: ['Morning shipping topic'] })}}); 1`);
+  await until("JSON.parse(localStorage.getItem('td6_analysis_cfg')).searches?.[0]==='Morning shipping topic'", 5000);
+  await js(`window.__morningSearches=[]; window.tbDebriefSearch=async()=>({
+    searchEntry:s=>({id:s,query:s}),
+    refreshSearch:async e=>{window.__morningSearches.push(e.query); return {result:{at:Date.now(),sources:[],updates:[]},retryAt:Date.now()+1800000};}
+  });
+  [...document.querySelectorAll('button')].find(b=>/Deploy/.test(b.textContent)).click(); 1`);
+  ok('the morning run refreshes saved searches before Debrief opens',
+    await until("window.__morningSearches.includes('Morning shipping topic')", 5000) &&
+    !(await js(`return !!document.querySelector('.dbr');`)));
   // The press is made to happen "an hour ago" (Date.now shifted for the click only): the mock's morning
   // never counts as in, so the wait then runs out at once and opens the Debrief, as it would after an hour.
   const t0 = Date.now() - 61 * 60 * 1000;
