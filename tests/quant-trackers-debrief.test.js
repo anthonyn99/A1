@@ -54,6 +54,21 @@ test('news rejects stale and invalid sources, deduplicates and checks numbers ag
   assert.deepEqual(parseUpdates(update('Wire reports 3 sailors.', [2]), sources), []);
 });
 
+test('a failed Google News read falls back to Bing RSS before GDELT', async (t) => {
+  const { fetchSources } = await load('lib/debrief-search.js');
+  const called = [];
+  t.mock.method(globalThis, 'fetch', async (raw) => {
+    const host = new URL(raw).hostname;
+    called.push(host);
+    if (host === 'news.google.com') throw new Error('timeout');
+    assert.equal(host, 'www.bing.com');
+    return new Response('<rss>' + article('Morning shipping report - Wire', 'https://example.com/morning', new Date().toUTCString()) + '</rss>');
+  });
+  const rows = await fetchSources(ledger(), 'Morning shipping', Date.now());
+  assert.equal(rows.length, 1);
+  assert.deepEqual(called, ['news.google.com', 'www.bing.com']);
+});
+
 test('overlapping Debrief requests share one refresh and subsequent reads use the cache', async (t) => {
   const { debriefSearch } = await load('lib/debrief-search.js');
   const db = new DatabaseSync(':memory:');
