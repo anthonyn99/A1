@@ -32,7 +32,7 @@ const { quantApi, driver, PAGE_SETUP, CLOCK, FIXTURE } = require('./quant-mock.j
       assert.ok(await until(dock + ".querySelector('[data-nq-input]')", 10000), 'Neo opens');
       await send('What is the market regime and upcoming macros?');
       assert.ok(await until(answer + "?.dataset.state === 'done'", 13000), 'Neo answers from offscreen stores');
-      const asked = api.asked.filter((a) => a.p === '/ai/chat').at(-1);
+      const asked = api.posted.ai?.filter((a) => a.p === '/ai/chat').at(-1);
       assert.ok(asked?.body?.facts?.some((x) => /Market regime/i.test(x.text)), 'regime is in the fact sheet');
       assert.ok(asked.body.facts.some((x) => /Test CPI release/i.test(x.text)), 'macro event is in the same fact sheet');
       assert.ok(await js("var d=" + answer + ".querySelector('.nq-details'); return !!d && !d.open && !!d.querySelector('[data-nq-pieces]');"), 'answer evidence is collapsed');
