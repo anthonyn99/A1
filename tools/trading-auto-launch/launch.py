@@ -1880,18 +1880,30 @@ def _rd_render_markdown(t, md: str):
                 t.insert("end", stripped + "\n", "code")
             continue
 
-        m = re.match(r"^(\s*)[-*+]\s+(.*)$", line)
+        m = re.match(r"^([ \t]*)[-*+]\s+(.*)$", line)
         if m:
-            t.insert("end", "    " * (len(m.group(1)) // 2) + "   •  ", "bullet")
-            _rd_insert_inline(t, m.group(2), "body")
-            t.insert("end", "\n")
+            depth = len(m.group(1).expandtabs(4)) // 2
+            tag = f"list_{depth}"
+            if not t.tag_names().count(tag):
+                left = 8 + depth * 32
+                t.tag_configure(tag, lmargin1=left, lmargin2=left + 22,
+                                font=t.tag_cget("body", "font"), foreground=_RD_DIM)
+            t.insert("end", "•  ", (tag, "bullet"))
+            _rd_insert_inline(t, m.group(2), tag)
+            t.insert("end", "\n", tag)
             continue
 
-        m = re.match(r"^(\s*)(\d{1,9})[.)]\s+(.*)$", line)
+        m = re.match(r"^([ \t]*)(\d{1,9})[.)]\s+(.*)$", line)
         if m:
-            t.insert("end", "    " * (len(m.group(1)) // 2) + "   " + m.group(2) + ".  ", "bullet")
-            _rd_insert_inline(t, m.group(3), "body")
-            t.insert("end", "\n")
+            depth = len(m.group(1).expandtabs(4)) // 2
+            tag = f"list_{depth}"
+            if not t.tag_names().count(tag):
+                left = 8 + depth * 32
+                t.tag_configure(tag, lmargin1=left, lmargin2=left + 22,
+                                font=t.tag_cget("body", "font"), foreground=_RD_DIM)
+            t.insert("end", m.group(2) + ".  ", (tag, "bullet"))
+            _rd_insert_inline(t, m.group(3), tag)
+            t.insert("end", "\n", tag)
             continue
 
         _rd_insert_inline(t, stripped, "body")
@@ -2086,7 +2098,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     _rd_render_markdown(txt, markdown)
 
     # Read-only, but keep wheel/keyboard scrolling. Like a browser, scrolling is
-    # in pixels and eased: each notch adds a distance (~100px) to a pending
+    # in pixels and eased: each notch adds a short distance to a pending
     # total, and a ~120 Hz loop eats a fraction of what's left, so motion
     # glides in and settles instead of jumping a line at a time.
     # Time-based, not step-based: each frame advances by how much real time has
@@ -2104,7 +2116,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
         now = time.perf_counter()
         dt = min(0.05, now - sc["t"])
         sc["t"] = now
-        step = sc["pending"] * (1.0 - math.exp(-dt / 0.06))
+        step = sc["pending"] * (1.0 - math.exp(-dt / 0.09))
         if abs(sc["pending"]) < 2.0:                 # finish the last pixels
             step = sc["pending"]
         sc["pending"] -= step
@@ -2135,7 +2147,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     sbar.on_grab = stop_glide           # grabbing the thumb takes over from the glide
 
     def wheel(e):
-        nudge(-e.delta / 120 * 100)
+        nudge(-e.delta / 120 * 54)
         return "break"
 
     def key(px=None, page=None, to=None):
