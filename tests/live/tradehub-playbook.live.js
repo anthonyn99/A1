@@ -112,12 +112,15 @@ const worker = {
   ok('New Entry makes a page straight away (only a page is offered)', await js(`return !document.getElementById('pb-template-modal').classList.contains('open') && document.querySelectorAll('#pb-entries-list .entry-item').length === 3;`));
 
   console.log('\nThe launcher gets the Daily Reminder');
-  const nestedMd = await js(`return tbHtmlToMd('<ul><li>Parent</li><li style="margin-left:40px">Child</li><li style="margin-left:80px">Grandchild</li><li>Next parent</li></ul>');`);
-  ok('Notebook list indents survive the Markdown sent to the launcher',
-    nestedMd === '- Parent\n  - Child\n    - Grandchild\n- Next parent', JSON.stringify(nestedMd));
   await until('true', 2500); await sleep(2000);
   ok('it was pushed on open, as Markdown', posts.length >= 1 && /## Before I trade/.test(posts[0].body.markdown) && /\*\*discipline\*\*/.test(posts[0].body.markdown) && posts[0].body.title === 'Daily Reminder',
     JSON.stringify(posts));
+  await typeInto('daily-reminder');
+  await js(`var ed=document.getElementById('pb-page-editor'); ed.innerHTML='<ul><li>Parent</li><li style="margin-left:40px">Child</li><li style="margin-left:80px">Grandchild</li><li>Next parent</li></ul>'; ed.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+  await sleep(6000);
+  const nestedMd = posts.at(-1)?.body?.markdown;
+  ok('Notebook list indents survive the Markdown sent to the launcher',
+    nestedMd === '- Parent\n  - Child\n    - Grandchild\n- Next parent', JSON.stringify(nestedMd));
   const n0 = posts.length;
   await typeInto('daily-reminder');
   await c.send('Input.insertText', { text: ' Size small.' });
