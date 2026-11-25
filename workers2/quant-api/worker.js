@@ -345,18 +345,19 @@ function regimeLabel(r) {
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : null;
 }
 /** POST /snapshot/claim { day, slot }: may the caller build this slot? Granted
- *  when nobody claimed it in the last CLAIM_MS (meta row `claim:day:slot`), so
- *  several devices that find it missing do not all build it. One read, one write. */
+ *  only while it is absent and nobody holds an active claim. One bounded lease per slot. */
 async function claimSnapshot(env, req) {
   let body;
   try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
   const day = body && body.day, slot = body && body.slot;
   if (!DAY_RE.test(day || '') || !SLOT_NAMES.includes(slot)) throw fail(400, 'day and slot are needed');
-  const k = 'claim:' + day + ':' + slot, now = Date.now();
-  const row = await env.DB.prepare('SELECT at FROM meta WHERE k = ?').bind(k).first();
-  if (row && now - row.at < CLAIM_MS) return json({ ok: true, granted: false, until: row.at + CLAIM_MS });
-  await env.DB.prepare('INSERT INTO meta (k, v, at) VALUES (?, ?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at').bind(k, '1', now).run();
-  return json({ ok: true, granted: true });
+  const now = Date.now();
+  const row = await env.DB.prepare('INSERT INTO meta (k, v, at) SELECT ?, ?, ? '
+    + 'WHERE NOT EXISTS (SELECT 1 FROM snapshots WHERE day = ? AND slot = ?) '
+    + 'ON CONFLICT (k) DO UPDATE SET v = excluded.v, at = excluded.at '
+    + 'WHERE meta.v < excluded.v OR (meta.v = excluded.v AND meta.at <= ?) RETURNING at')
+    .bind('snapshot-lease:' + slot, day, now, day, slot, now - CLAIM_MS).first();
+  return json({ ok: true, granted: !!row });
 }
 /** POST /watchlist { symbols }: what the runner should include (meta row `watchlist`). */
 async function putWatchlist(env, req) {

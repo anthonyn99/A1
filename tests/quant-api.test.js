@@ -35,7 +35,13 @@ function fakeDb() {
       if (/FROM usage WHERE day = \? AND service = \?/.test(sql)) { const n = usage.get(args[0] + '|' + args[1]); return n == null ? null : { n }; }
       if (/FROM bars_meta/.test(sql)) return meta.get(args[0] + '|' + args[1]) || null;
       if (/FROM meta WHERE k = 'watchlist'/.test(sql)) return kv.has('watchlist') ? { v: kv.get('watchlist'), at: 1 } : null;
-      if (/SELECT at FROM meta WHERE k = \?/.test(sql)) return kv.has(args[0]) ? { at: kvAt.get(args[0]) } : null;
+      if (/^INSERT INTO meta.*RETURNING at/.test(sql)) {
+        const [key, value, at, day, slot, expired] = args;
+        const old = kv.get(key);
+        if (snapshots.has(day + '|' + slot) || (old && (old > value || (old === value && kvAt.get(key) > expired)))) return null;
+        kv.set(key, value); kvAt.set(key, at);
+        return { at };
+      }
       if (/FROM snapshots WHERE day = \? AND slot = \?/.test(sql)) return snapshots.get(args[0] + '|' + args[1]) || null;
       if (/FROM snapshots WHERE day <= \?/.test(sql)) return newest([...snapshots.values()].filter((x) => x.day <= args[0]));
       if (/FROM snapshots ORDER BY due DESC/.test(sql)) return newest([...snapshots.values()]);
@@ -511,10 +517,10 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
   ok('the first device to claim a missing slot may build it', r.status === 200 && r.body.granted === true);
   r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
-  ok('...a second one, within ten minutes, may not', r.body.granted === false && r.body.until > Date.now());
+  ok('...a second one, within ten minutes, may not', r.body.granted === false);
   r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'close' } });
   ok('...another slot is its own claim', r.body.granted === true);
-  env.DB.kvAt.set('claim:2026-11-12:midday', Date.now() - Wk.CLAIM_MS - 1);
+  env.DB.kvAt.set('snapshot-lease:midday', Date.now() - Wk.CLAIM_MS - 1);
   r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: '2026-11-12', slot: 'midday' } });
   ok('...and a claim older than ten minutes (a device that gave up) can be taken over', r.body.granted === true);
   r = await call(env, '/snapshot/claim', { key: GOOD, method: 'POST', body: { day: 'x', slot: 'midday' } });
