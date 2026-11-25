@@ -44,10 +44,16 @@ const { quantApi, driver, PAGE_SETUP, CLOCK, FIXTURE } = require('./quant-mock.j
       await tab('charts');
       const chart = "document.querySelector('[data-charts]')?.__charts?.active()";
       assert.ok(await until(chart + '?.info().bars > 0', 12000), 'chart bars load');
-      const bars = api.asked.filter((a) => a.p === '/bars').length;
+      const active = JSON.parse(await js('return JSON.stringify(' + chart + '.get());'));
+      const countBars = () => api.asked.filter((a) => {
+        if (a.p !== '/bars') return false;
+        const params = new URLSearchParams(a.q);
+        return params.get('symbol') === active.symbol && params.get('tf') === active.tf;
+      }).length;
+      const bars = countBars();
       await js(chart + ".set({indicators:[{type:'fvg'},{type:'candle'}]}); 1");
       assert.ok(await until("document.querySelector('[data-ch-candle]:not([hidden])')?.textContent.includes('% body')", 4000), 'candle readout renders');
-      assert.equal(api.asked.filter((a) => a.p === '/bars').length, bars, 'the indicators use loaded bars');
+      assert.equal(countBars(), bars, 'the indicators use loaded bars');
       if (width === 1044) assert.ok(await js("var a=document.querySelector('[data-ch-rail]'); return a.classList.contains('tb-scroll-thin') && getComputedStyle(a).overflowX === 'auto' && a.scrollWidth > a.clientWidth;"), 'desktop pointer can reach the horizontal scrollbar');
       await tab('market');
       assert.ok(await until("document.querySelector('[data-mk-score]') && !document.querySelector('[data-mk] .mk-empty')?.textContent.includes('Reading the market')", 4000), 'Market returns with cached figures');
