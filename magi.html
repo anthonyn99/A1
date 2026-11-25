@@ -11280,10 +11280,10 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
           state: p.state, text: p.text || "", chars: p.chars || 0,
           model: p.model || "", model_fallback: p.model_fallback || "",
         });
-        settleFromState(livePanels[livePanels.length - 1], "");
+        if (PROFILE.id === "tony") settleFromState(livePanels[livePanels.length - 1], "");
       }
       if (showingLive()) { renderGrid(); requestAnimationFrame(drawLinks); }
-    } else if (msg.type === "synthesis" || (msg.type === "state" && / is (synthesising|taking over) the verdict$/.test(msg.message || ""))) {
+    } else if (msg.type === "synthesis" || (PROFILE.id === "tony" && msg.type === "state" && / is (synthesising|taking over) the verdict$/.test(msg.message || ""))) {
       live.chair = liveById(msg.provider_id)?.display_name || msg.provider_id;
       if (showingLive()) updateCore();
     } else if (msg.type === "state") {

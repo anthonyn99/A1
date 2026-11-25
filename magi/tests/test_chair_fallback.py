@@ -70,7 +70,13 @@ def _run(orch, providers):
 def test_failed_chair_hands_the_verdict_to_the_next_unit():
     gemini = Stub("gemini", GOOD, "I encountered an error doing what you asked. Could you try again?", chair_ok=False)
     chatgpt = Stub("chatgpt", GOOD)
-    out = _run(_orch("gemini", ["chatgpt"]), [gemini, chatgpt])
+    events = []
+
+    async def record(event):
+        events.append(event)
+
+    out = asyncio.run(_orch("gemini", ["chatgpt"]).run("What moved the market?", [gemini, chatgpt], on_event=record))
+    assert [event.provider_id for event in events if event.synthesis] == ["gemini", "chatgpt"]
     assert out["synthesis_ok"]
     assert out["verdict"] == VERDICT
     assert out["chairman"] == "Chatgpt"

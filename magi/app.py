@@ -667,7 +667,7 @@ async def create_run(
 
     async def on_event(ev: ProviderEvent) -> None:
         prov = state["providers"].get(ev.provider_id)
-        if ev.synthesis:
+        if ev.synthesis and active_profile() == "tony":
             state["chair"] = prov["display_name"] if prov else ev.provider_id
             await state["queue"].put({"type": "synthesis", "provider_id": ev.provider_id})
             return
