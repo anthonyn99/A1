@@ -165,9 +165,11 @@ sites:
       - "button[aria-label='Stop generating']"
       - "button[data-testid='stop-button']"             # legacy shell
     streaming_marker:
-      # Best signal on this site: the turn carries data-message-streaming
-      # while generating and drops it when finished. VERIFIED: the attribute is
-      # present/absent rather than set to "true", so match on presence.
+      # 2026-11-25 live capture: the current shell marks the active sidebar
+      # conversation as working and the response as streaming-reveal. Both
+      # disappear when generation ends. Older shells use message-streaming.
+      - "[data-sidebar-indicator='working']"
+      - "[data-d-streaming-reveal]"
       - "[data-message-streaming]"
       - "[data-message-streaming='true']"
     copy_button:
