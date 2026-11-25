@@ -9755,7 +9755,7 @@ function updateCore() {
   // and one the user would have no way to correct from the display.
   const degraded = S.panels.filter((p) => p.degraded).length;
   const failed = S.panels.filter((p) => p.ok === false && !p.degraded).length;
-  const v = S.verdict;
+  const v = S.verdict, synthesis = S.running && S.live?.panels === S.panels && S.live.chair;
 
   // One unit is a legitimate way to run MAGI, and calling its answer a
   // CONSENSUS would be a claim about agreement that nothing was measured
@@ -9764,7 +9764,7 @@ function updateCore() {
   // the model as if it had synthesised anything.
   const solo = S.panels.length === 1;
   core.className = `core ${S.running ? "deliberating" : v ? (v.synthesis_ok ? "resolved" : "blocked") : ""}`;
-  core.children[1].textContent = S.running ? "DELIBERATING"
+  core.children[1].textContent = S.running ? (synthesis ? "WRITING VERDICT" : "DELIBERATING")
     : v ? (v.synthesis_ok ? (solo ? "SOLE UNIT" : "CONSENSUS") : "NO QUORUM")
     : "STANDBY";
   core.children[2].textContent =
@@ -9772,8 +9772,9 @@ function updateCore() {
     (degraded ? ` · ${degraded} unusable` : "") +
     (failed ? ` · ${failed} offline` : "");
   const chair = core.children[3];
-  const named = !!(v && v.chairman) && !solo;
-  chair.textContent = named ? `chair · ${v.chairman}` : "";
+  const name = synthesis || v?.chairman;
+  const named = !!name && !solo;
+  chair.textContent = named ? "chair · " + name : "";
   show(chair, named);
 }
 
@@ -11241,6 +11242,7 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
         sessionBackfill(sess, runId).then(() => { if (S.session === sess) renderThread(); });
       }
       if (msg.notes_open === false) live.notesOpen = false;
+      if (msg.chair) live.chair = msg.chair;
       if (msg.interrupted) live.interrupted = true;
       if (attachTo && Array.isArray(msg.notes) && !live.notes.length) {
         for (const x of msg.notes) {
@@ -11278,8 +11280,12 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
           state: p.state, text: p.text || "", chars: p.chars || 0,
           model: p.model || "", model_fallback: p.model_fallback || "",
         });
+        settleFromState(livePanels[livePanels.length - 1], "");
       }
       if (showingLive()) { renderGrid(); requestAnimationFrame(drawLinks); }
+    } else if (msg.type === "synthesis" || (msg.type === "state" && / is (synthesising|taking over) the verdict$/.test(msg.message || ""))) {
+      live.chair = liveById(msg.provider_id)?.display_name || msg.provider_id;
+      if (showingLive()) updateCore();
     } else if (msg.type === "state") {
       const p = liveById(msg.provider_id);
       if (!p) return;

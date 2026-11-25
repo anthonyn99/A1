@@ -65,6 +65,7 @@ class ProviderEvent:
     # and why it counts as a fallback, "" when it does not.
     model: str = ""
     model_fallback: str = ""
+    synthesis: bool = False
 
 
 @dataclass

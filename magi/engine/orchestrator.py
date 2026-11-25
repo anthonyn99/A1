@@ -632,6 +632,7 @@ class Orchestrator:
                         ProviderEvent(
                             provider_id=chair.id,
                             state=ProviderState.WAITING,
+                            synthesis=True,
                             message=(
                                 f"{chair.display_name} is synthesising the verdict"
                                 if not failures else

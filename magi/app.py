@@ -667,6 +667,10 @@ async def create_run(
 
     async def on_event(ev: ProviderEvent) -> None:
         prov = state["providers"].get(ev.provider_id)
+        if ev.synthesis:
+            state["chair"] = prov["display_name"] if prov else ev.provider_id
+            await state["queue"].put({"type": "synthesis", "provider_id": ev.provider_id})
+            return
         if prov is not None:
             prov["state"] = str(ev.state)
             if ev.partial_text:
@@ -882,6 +886,7 @@ async def stream_run(run_id: str):
             yield _sse({
                 "type": "init",
                 "providers": list(state["providers"].values()),
+                "chair": state.get("chair"),
                 **_session_of(state),
                 "notes": list(state.get("notes", [])),
                 # Whether those notes can still be edited, and whether
