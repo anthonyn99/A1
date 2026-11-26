@@ -24,8 +24,8 @@ are here in A1). The work is a plan with phases, handed back and forth between C
 - Unit: A1-Priv `npm test` (all suites must pass); A1 `node tests/run-all.js` (two Notebook suites,
   `journal-images` and `notebook-idle`, fail from other work: known, not yours).
 - Live (a real headless Chrome over CDP, the page against a mocked worker): from A1,
-  `CDP_PORT=93xx PHASES=TR5 node tests/live/tradehub-trading.live.js` (a fresh port per run; never leave a test page
-  running). Each phase adds its tagged checks (`ok('TR5', …)`) to that file, at 1280, 820 and 390 px. Screenshots:
+  `CDP_PORT=93xx PHASES=N1 node tests/live/tradehub-trading.live.js` (a fresh port per run; never leave a test page
+  running). Each phase adds its tagged checks (`ok('N1', …)`) to that file, at 1280, 820 and 390 px. Screenshots:
   set `SHOTS_DIR=<folder>` and call `shot('name')`. The other `tests/live/tradehub-*.live.js` cover older work: run the
   ones your change touches.
 - A code review of your own diff before you call a phase done (Claude uses its `/code-review`; do the equivalent), and
@@ -34,7 +34,7 @@ are here in A1). The work is a plan with phases, handed back and forth between C
 ## The plan page (artifact) and the Desktop copy
 
 The plan is also a page Tony reads: https://claude.ai/artifact/PhrgRdR8vw32JutAsgNgRR (section `#trading`, the block
-"Part 1 refinements · Batch 1"). Only Claude can publish to claude.ai. So: **edit the same HTML at
+"Part 2 · Neo Cortex", one chip per N-phase). Only Claude can publish to claude.ai. So: **edit the same HTML at
 `C:\Users\antho\Desktop\TradeHub Quant Plan.html`** (change the phase's chip `In progress` → `Done …` and add a
 `<p class="done">` with what was built and tested, in plain words for Tony), and write in the hand-off log
 "artifact: Desktop copy updated, not yet published". The next Claude session publishes that file to the artifact.
