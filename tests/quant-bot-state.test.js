@@ -15,7 +15,7 @@ async function fixture(t) {
   const conn = new DatabaseSync(':memory:');
   t.after(() => conn.close());
   const dir = path.join(__dirname, '..', 'workers3/quant-bot/migrations');
-  for (const sql of ['0001_lab.sql', '0002_bot_state.sql', '0002_bot_state.sql', '0004_kill_latch.sql']) conn.exec(fs.readFileSync(path.join(dir, sql), 'utf8'));
+  for (const sql of ['0001_lab.sql', '0002_bot_state.sql', '0002_bot_state.sql', '0004_kill_latch.sql', '0005_order_intents.sql']) conn.exec(fs.readFileSync(path.join(dir, sql), 'utf8'));
   function bind(sql, ...args) {
     const query = conn.prepare(sql);
     return {
@@ -190,4 +190,50 @@ test('kill latches before contacting Alpaca and reports every surviving order an
   assert.match((await readBotState(DB)).halted, /kill switch/);
   assert.equal((await putSettings({ DB }, resume, now + 120000)).status, 200);
   assert.equal((await readBotState(DB)).halted, null);
+});
+
+test('paper submissions use a stable id, reserve the symbol once and stop on the durable latch', async (t) => {
+  const { DB, conn } = await fixture(t);
+  const { submitEntry, clientId, liveIntents } = await import('../workers3/quant-bot/lib/orders.js');
+  const calls = [];
+  const venue = {
+    submit: async (order) => { calls.push(order); return { id: 'accepted', status: 'new', filled_qty: '0', legs: [] }; },
+  };
+  const plan = { strategy: 'amd-day', version: 1, symbol: 'AMD', price: 101, stop: 99, target: 105,
+    barTime: now - 360000, why: 'Fixture entry condition', thesis: 'Fixture', style: 'day', side: 'long' };
+  const row = { spec: { id: plan.strategy } };
+  const first = await submitEntry(DB, venue, plan, row, 3, now);
+  assert.deepEqual(first, { ok: true, why: null, id: clientId(plan) });
+  assert.equal((await submitEntry(DB, venue, plan, row, 3, now)).ok, false);
+  assert.equal((await submitEntry(DB, venue, { ...plan, strategy: 'another-day' }, row, 3, now)).ok, false);
+  assert.equal((await liveIntents(DB)).length, 1);
+  assert.deepEqual(calls[0], { symbol: 'AMD', qty: '3', side: 'buy', position_intent: 'buy_to_open',
+    type: 'limit', time_in_force: 'gtc', client_order_id: clientId(plan), limit_price: '101.00',
+    order_class: 'bracket', stop_loss: { stop_price: '99.00' }, take_profit: { limit_price: '105.00' } });
+  conn.exec("UPDATE bot_state SET halted = 'stopped' WHERE id = 1");
+  assert.equal((await submitEntry(DB, venue, { ...plan, symbol: 'NVDA' }, row, 3, now)).ok, false);
+  assert.equal(calls.length, 1);
+});
+
+test('reconciles a transport-uncertain entry and records one fill on repeat polling', async (t) => {
+  const { DB, request } = await fixture(t);
+  const { submitEntry, syncIntents, liveIntents } = await import('../workers3/quant-bot/lib/orders.js');
+  const plan = { strategy: 'amd-day', version: 1, symbol: 'AMD', price: 101, stop: 99, target: null,
+    barTime: now - 300000, why: 'Fixture entry', thesis: 'Fixture', style: 'day', side: 'long' };
+  let transportReady = false;
+  const venue = {
+    submit: async () => { throw new Error('The response was lost'); },
+    orderByClient: async () => transportReady ? { id: 'entry', status: 'filled', filled_qty: '1', filled_at: new Date(now).toISOString(), legs: [{ id: 'stop-id' }] } : null,
+    fills: async () => [{ id: 'fill-id', symbol: 'AMD', side: 'buy', qty: '1', price: '101', order_id: 'entry', transaction_time: new Date(now).toISOString() }],
+  };
+  assert.equal((await submitEntry(DB, venue, plan, { spec: { id: 'amd-day' } }, 1, now)).uncertain, true);
+  assert.equal((await liveIntents(DB))[0].status, 'reserved');
+  transportReady = true;
+  await syncIntents(DB, venue, await liveIntents(DB), [{ symbol: 'AMD' }], [], now + 30000);
+  await syncIntents(DB, venue, await liveIntents(DB), [{ symbol: 'AMD' }], [], now + 60000);
+  assert.equal((await liveIntents(DB))[0].status, 'held');
+  const { events } = await (await request('/today?day=2026-11-27')).json();
+  assert.equal(events.length, 1);
+  assert.equal(events[0].kind, 'entry');
+  assert.equal(events[0].price, 101);
 });
