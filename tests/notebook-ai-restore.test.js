@@ -42,7 +42,7 @@ t('a dropped link comes back in its own paragraph', R('<p>a</p>', [LINK]) === '<
 t('a duplicated token cannot double an image', R('[[IMG1]][[IMG1]]', [IMG]) === IMG.html);
 t('a token for another section restores to nothing here', R('[[IMG9]]<p>a</p>', [IMG]) === '<p>a</p>' + IMG.html);
 t('no images: the html is untouched', R('<p>a</p>', []) === '<p>a</p>');
-t('sections restore their own images (whole-doc run)', /aiRestoreImages\(m\[1\], chunks\[i\]\.imgs\)/.test(src));
+t('sections restore their own images (whole-doc run)', /aiRestoreImages\(h, multi \? chunks\[i\]\.imgs : allImgs\)/.test(src));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
