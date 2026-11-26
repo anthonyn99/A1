@@ -327,6 +327,18 @@
       "delete": false
     },
     {
+      "id": "tradehub-manual-backtest-local",
+      "store": "localStorage",
+      "program": "tradehub",
+      "origin": "a1-priv",
+      "category": "unused",
+      "capDays": 0,
+      "exact": ["tradehub_backtest_spec"],
+      "owner": "TradeHub Scanner Backtest builder, retired in N3",
+      "reason": "The retired builder held a draft in this key. Saved results stay in the history database.",
+      "delete": false
+    },
+    {
       "id": "moved-programs-old-origin",
       "store": "localStorage",
       "program": "index",

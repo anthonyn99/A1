@@ -403,11 +403,9 @@ function quantApi() {
       if (p === '/paper' && req.method === 'POST') { const s = JSON.parse(req.postData).signal; (posted.paper = posted.paper || []).push(s); if (!state.paper.some((x) => x.id === s.id)) state.paper.unshift({ ...s, followed: CLOCK, paper: true }); return { json: { ok: true, id: s.id } }; }
       if (p === '/paper' && req.method === 'DELETE') { const id = u.searchParams.get('id'); state.paper = state.paper.filter((x) => x.id !== id); return { json: { ok: true } }; }
       if (p === '/backtests' && req.method === 'GET') return { json: { ok: true, backtests: state.backtests.map(({ curve, ...x }) => x) } };
-      // Saved run ids from a running count (after a delete, the list's length would hand out an id twice).
-      if (p === '/backtests' && req.method === 'POST') { const b = JSON.parse(req.postData), id = 'b' + (1000 + (state.btSeq = (state.btSeq || 0) + 1)) + 'live'; (posted.backtests = posted.backtests || []).push(b); state.backtests.unshift({ id, name: b.name, created: CLOCK, spec: b.spec, summary: b.summary, curve: { equity: b.curve, bench: b.bench } }); return { json: { ok: true, id, created: CLOCK } }; }
       const bt = /^\/backtests\/(\w+)$/.exec(p);
       if (bt && req.method === 'GET') { const x = state.backtests.find((y) => y.id === bt[1]); return x ? { json: { ok: true, backtest: x } } : { status: 404, json: { ok: false } }; }
-      if (bt && req.method === 'DELETE') { state.backtests = state.backtests.filter((y) => y.id !== bt[1]); return { json: { ok: true } }; }
+      if (p === '/backtests' || bt) { (posted.backtests = posted.backtests || []).push(req.method); return { status: 404, json: { ok: false } }; }
       if (p === '/grades' && req.method === 'POST') { (posted.grades = posted.grades || []).push(JSON.parse(req.postData)); return { json: { ok: true } }; }
       if (p === '/quotes') {
         if (!state.quotes) return { status: 503, json: { ok: false, error: 'no provider answered', missing: {} } };
