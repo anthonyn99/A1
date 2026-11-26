@@ -123,7 +123,8 @@ test('a scheduled half-day shadow replay journals the signal and counts one comp
     .run(spec.id, spec.version, 'fixture', spec.name, 'gated', JSON.stringify(spec), '{}', '[]', now, now);
   const open = Date.parse('2026-11-27T14:30:00Z'), close = Date.parse('2026-11-27T18:00:00Z');
   const contextUpdate = { earnings: { AMD: { asOf: open, next: null } } };
-  assert.equal((await request('/market/context', { method: 'PUT', body: contextUpdate })).status, 200);
+  const { putMarketContext } = await import('../workers3/quant-bot/lib/context.js');
+  assert.equal((await putMarketContext({ DB }, contextUpdate, open)).status, 200);
   let stamp = open;
   const broker = {
     clock: async () => ({ timestamp: new Date(stamp).toISOString(), is_open: stamp < close }),
