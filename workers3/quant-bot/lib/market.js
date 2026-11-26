@@ -6,7 +6,14 @@ export const KEEP = { '5m': 120, '15m': 120, '1h': 120, '1d': 300 };
 export const BAR_MINUTES = { '5m': 5, '15m': 15, '1h': 60 };
 const START = 9 * 60 + 30;
 const CLOSE = 16 * 60, HALF = 13 * 60;
-const halfByYear = new Map();
+const halfByYear = new Map(), tradingDays = new Map();
+function tradingOn(date) {
+  if (!tradingDays.has(date)) {
+    if (tradingDays.size >= 2048) tradingDays.clear();
+    tradingDays.set(date, isTradingDay(date));
+  }
+  return tradingDays.get(date);
+}
 
 function closeOn(date) {
   const year = Number(date.slice(0, 4));
@@ -35,7 +42,7 @@ const mins = (time) => {
 
 export async function marketClock(broker, now, cache) {
   const date = nyClock(now).date;
-  if (!isTradingDay(date)) return { date, open: false, closedForDay: true };
+  if (!tradingOn(date)) return { date, open: false, closedForDay: true };
   const key = cacheKey('calendar/' + date);
   const [clock, saved] = await Promise.all([broker.clock(), read(cache, key)]);
   const session = saved || (await broker.calendar(date)).find((row) => row.date === date);
@@ -51,10 +58,10 @@ export async function marketClock(broker, now, cache) {
 
 function validBar(t, tf, now, session) {
   const c = nyClock(t);
-  if (tf === '1d') return c.date < session.date && isTradingDay(c.date);
+  if (tf === '1d') return c.date < session.date && tradingOn(c.date);
   const close = c.date === session.date ? session.closeMin : closeOn(c.date);
   const duration = Math.min(BAR_MINUTES[tf], close - c.minutes);
-  return isTradingDay(c.date) && c.minutes >= START && duration > 0 && t + duration * MIN <= now - 10_000;
+  return tradingOn(c.date) && c.minutes >= START && duration > 0 && t + duration * MIN <= now - 10_000;
 }
 
 const firstAt = {
@@ -76,7 +83,7 @@ export async function loadBars(broker, symbols, tf, now, session, cache) {
   const result = {};
   for (const symbol of group) {
     const byTime = new Map((cached?.bars?.[symbol] || []).map((b) => [b[0], b]));
-    for (const bar of fresh[symbol]) if (validBar(bar[0], tf, now, session)) byTime.set(bar[0], bar);
+    for (const bar of fresh[symbol] || []) if (validBar(bar[0], tf, now, session)) byTime.set(bar[0], bar);
     result[symbol] = [...byTime.values()].sort((a, b) => a[0] - b[0]).slice(-KEEP[tf]);
   }
   await put(cache, key, { end, bars: result }, 3 * 24 * 3600);
@@ -90,8 +97,45 @@ export function isFresh(bar, tf, now, session) {
   const date = nyClock(bar.t).date;
   if (tf === '1d') {
     let yesterday = nyMidnight(session.date) - MIN;
-    while (!isTradingDay(nyClock(yesterday).date)) yesterday -= DAY;
+    while (!tradingOn(nyClock(yesterday).date)) yesterday -= DAY;
     return date === nyClock(yesterday).date;
   }
   return date === session.date && now - bar.t <= (BAR_MINUTES[tf] + 3) * MIN;
+}
+
+/** Same-minute data for the nineteen previous closed bars that make a 20-session relative-volume ratio. */
+export function minuteVolume(history, before) {
+  const samples = new Map();
+  for (const [t, , , , , volume] of history) {
+    const { date, minutes } = nyClock(t);
+    if (date >= before || !tradingOn(date) || minutes < START || minutes + 5 > closeOn(date)) continue;
+    let values = samples.get(minutes);
+    if (!values) samples.set(minutes, values = []);
+    values.push(volume);
+    if (values.length > 19) values.shift();
+  }
+  return Object.fromEntries([...samples].filter(([, values]) => values.length === 19)
+    .map(([minute, values]) => [minute, values.reduce((sum, value) => sum + value, 0)]));
+}
+
+export async function loadVolume(broker, symbols, date, cache) {
+  const group = [...new Set(symbols)].sort();
+  if (!group.length) return {};
+  const key = cacheKey('volume/' + date + '/' + encodeURIComponent(group.join(',')));
+  const stored = await read(cache, key);
+  if (stored) return stored;
+  const before = nyMidnight(date);
+  const history = await broker.bars(group, '5m', before - 48 * DAY, before);
+  const result = Object.fromEntries(group.map((symbol) => [symbol, minuteVolume(history[symbol] || [], date)]));
+  await put(cache, key, result, 24 * 3600);
+  return result;
+}
+
+export function withVolume(bars, date, minuteSums) {
+  return bars.map((bar) => {
+    const t = nyClock(bar.t);
+    if (t.date !== date) return bar;
+    const past = minuteSums[t.minutes];
+    return { ...bar, closedRvol: Number.isFinite(past) && past + bar.v > 0 ? bar.v * 20 / (past + bar.v) : null };
+  });
 }
