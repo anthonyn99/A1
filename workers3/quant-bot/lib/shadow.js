@@ -1,7 +1,7 @@
 import { nyClock } from '../core/clock.js';
 import { isTradingDay } from '../core/holidays.js';
 import { liveStrategies, noteSlot } from './lifecycle.js';
-import { deployed } from '../core/risk-book.js';
+
 import { paperBroker } from './alpaca.js';
 import { candidate, checkCandidate, exitReason, shardsFor, usesDaySetup } from './evaluate.js';
 import { readMarketContext, earningsGuard } from './context.js';

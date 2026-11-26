@@ -1,4 +1,4 @@
-import { deployed, flattenDue } from '../core/risk-book.js';
+import { flattenDue } from '../core/risk-book.js';
 import { reconcile, deployedOf } from './reconcile.js';
 import { activeProtection, closeIntent, liveIntents, paperEntries, restoreProtection, syncIntents } from './orders.js';
 import { logEvent, readBotState, readSettings } from './state.js';
