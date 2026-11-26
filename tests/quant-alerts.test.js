@@ -593,6 +593,42 @@ globalThis.fetch = async (url, opts = {}) => {
     ok('C3: the trim keeps every alert of the last 45 days and at least the newest 500', left.r === 30 && left.n === 500, JSON.stringify(left));
   }
 
+  console.log('\nN8: Neo Cortex alerts from quant-bot (POST /alerts/cortex)');
+  {
+    const CX = await import(pathToFileURL(path.join(QA, 'lib', 'cortex-alerts.js')).href);
+    const e = { ...mkEnv(), CORTEX_SECRET: 'cx-secret' };
+    const post = async (body, secret = 'cx-secret', env = e) => {
+      const r = await Wk.fetch(new Request('https://quant-api.test/alerts/cortex', { method: 'POST', headers: { 'content-type': 'application/json', ...(secret ? { 'x-cortex-secret': secret } : {}) }, body: JSON.stringify(body) }), env, { waitUntil() {} });
+      return { status: r.status, body: await r.json() };
+    };
+    const it = (key, type, extra = {}) => ({ key, type, ts: MON_10, title: 'Neo Cortex: ' + key, body: 'why ' + key, route: 'cortex:today:1', ...extra });
+    ok('no secret header → 401, no Orca key needed or accepted', (await post({ items: [] }, null)).status === 401 && (await post({ items: [] }, 'wrong')).status === 401);
+    ok('not configured on quant-api → 503', (await post({ items: [] }, 'x', mkEnv())).status === 503);
+    const n0 = W.pushes.length;
+    let r = await post({ items: [it('ev:1', 'trades', { symbol: 'AMD' }), it('ev:2', 'changes'), it('run:a', 'research', { route: 'cortex:lab' }), it('bad', 'nope'), { key: 'x y', type: 'brief', title: 't', route: 'cortex:x' }] });
+    ok('valid items fire (bad ones dropped, never the batch)', r.status === 200 && r.body.fired.length === 3 && r.body.received === 3 && W.pushes.length === n0 + 3, JSON.stringify(r.body));
+    const last = W.pushes[W.pushes.length - 3];
+    ok('the push carries the title, the why and the deep link', last.body.title === 'Neo Cortex: ev:1' && last.body.body === 'why ev:1' && last.body.url === A.PAGE_URL + '#alert=cortex:today:1', JSON.stringify(last.body));
+    ok('they are in the bell as kind cortex', e.DB.sql.prepare("SELECT COUNT(*) AS n FROM alert_fires WHERE kind = 'cortex'").get().n === 3);
+    r = await post({ items: [it('ev:1', 'trades')] });
+    ok('the same key never pushes twice (a retried batch)', r.body.fired.length === 0 && W.pushes.length === n0 + 3);
+    const burst = [1, 2, 3, 4, 5].map((i) => it('ev:b' + i, 'trades', { ts: MON_10 + 5000 + i, title: 'Neo Cortex: Buy ' + i + ' AMD' }));
+    r = await post({ items: [...burst, it('ev:c1', 'trades', { ts: MON_10 + 120000 })] });
+    const titles = r.body.fired.map((f) => f.title);
+    ok('more than 3 trades in one minute = one summary push; a lone trade in another minute stays its own', r.body.fired.length === 2 && titles.includes('Neo Cortex: 5 trades at 8:00 AM') && titles.includes('Neo Cortex: ev:c1'), JSON.stringify(titles));
+    ok('fold keeps three in a minute as three', CX.fold(burst.slice(0, 3)).length === 3);
+    // The switches: Control ▸ Alerts ▸ Neo Cortex.
+    await call(e, 'PUT', '/alerts/config', { config: { cortex: { trades: false } } });
+    r = await post({ items: [it('ev:9', 'trades'), it('brief:2026-11-16', 'brief', { route: 'cortex:brief:2026-11-16' })] });
+    ok('trades switched off: only the brief is pushed', r.body.fired.length === 1 && r.body.fired[0].key === 'cx:brief:2026-11-16', JSON.stringify(r.body.fired));
+    ok('the config round-trips the cortex section (defaults on for the rest)', (await call(e, 'GET', '/alerts/config')).body.config.cortex.brief === true && (await call(e, 'GET', '/alerts/config')).body.config.cortex.trades === false);
+    await call(e, 'PUT', '/alerts/config', { config: { kinds: { cortex: false } } });
+    r = await post({ items: [it('ev:10', 'guards')] });
+    ok('the kind off: nothing at all', r.body.fired.length === 0 && /off/.test(r.body.skipped));
+    ok('a rule of kind cortex cannot be made (switches only)', (await call(e, 'PUT', '/alerts', { alert: { kind: 'cortex' } })).status === 400);
+    ok('Send every kind once has a Neo Cortex example', A.TEST_KINDS.some((t) => t.kind === 'cortex' && /^cortex:brief:/.test(t.url)));
+  }
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
