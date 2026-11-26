@@ -76,6 +76,9 @@ const ok = (ph, name, cond, extra) => {
       const alertsLook = await until("document.querySelector('[data-ctl-sub=alerts].is-on') && document.querySelector('.tal-sec') && getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')).backgroundColor==='rgb(192, 174, 234)'", 5000)
         && await js("const active=getComputedStyle(document.querySelector('[data-ctl-sub=alerts]')); const group=getComputedStyle(document.querySelector('.tal-sec')); return [active.backgroundImage, active.backgroundColor, group.borderRadius].join('|');");
       ok('TR5', 'Control uses a solid active tab and grouped Alerts settings', /^none\|/.test(alertsLook) && !alertsLook.includes('rgba(0, 0, 0, 0)') && alertsLook.endsWith('|10px'), alertsLook || await js("return document.querySelector('[data-ctl-pane=alerts]')?.innerText;"));
+      ok('TR5', 'Alerts shows every notification source in its own section', await until("document.querySelector('[data-tal-group=signals-and-trades] [data-tal-kind=graded]') && document.querySelector('[data-tal-group=market] [data-tal-kind=regime]')", 5000)
+        && await js("return ['price','signal','graded','regime','catalyst','data','order'].every(k=>document.querySelector('[data-tal-kind-on='+k+']')) && !!document.querySelector('[data-tal-devices]') && !!document.querySelector('[data-tal-all-off]');"));
+      ok('TR5', 'Alerts fits without horizontal clipping', await js("const e=document.querySelector('[data-tal-control]'), p=document.querySelector('[data-ctl-pane=alerts]'); return e && p && e.scrollWidth <= e.clientWidth+2 && p.scrollWidth <= p.clientWidth+2;"));
       const controlClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'); b.scrollIntoView({block:'nearest',inline:'nearest'});
         var r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,purple:getComputedStyle(document.querySelector('.ctl-subs .is-on')).backgroundColor};`);
       const { x, y, purple } = controlClick;
