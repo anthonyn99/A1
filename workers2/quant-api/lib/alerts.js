@@ -415,6 +415,7 @@ export const TEST_KINDS = [
   { kind: 'data', what: 'a data provider down', title: 'alpaca is down for 12 min', body: 'TradeHub Quant falls through to the next source.', url: 'status' },
   { kind: 'data', what: 'a budget past 70%', title: 'groq at 72% of today\'s budget', body: '72 of 100 calls', url: 'status' },
   { kind: 'order', what: 'a paper order filled (T7)', title: 'Filled: Buy 10 NVDA at 164.20', body: 'Alpaca paper · limit order', url: 'trading:alpaca' },
+  { kind: 'cortex', what: 'Neo Cortex brief ready (N8)', title: 'Neo Cortex brief ready', body: 'Up $84.20 (+1.68%) vs SPY +0.41% · 7 trades, 5 won.', url: 'cortex:brief:2026-11-30' },
 ];
 /** POST /alerts/test-all: B10's "Send every kind once" in Control ▸ Alerts. Each goes through the real push route to
  *  Tony's devices only (taskhub-reminders /quant-push), one notification each, with what quiet hours, "market hours
