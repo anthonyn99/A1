@@ -7,7 +7,7 @@
 //           style: 'day'|'swing'|'invest', strategy }] }   price = the latest price (or the entry before one)
 // Limits are Tony's (Control ▸ Neo Cortex, N6): any book and caps that pass checkLimits (LIMITS are only the defaults).
 // Claude and Neo chat can only tighten the current ones (tighten()).
-import { FLATTEN, FLATTEN_HALF, hhmm } from './strategy.js';
+import { FLATTEN, FLATTEN_HALF, hhmm, BOT_RISK_BAND } from './strategy.js';
 
 export const LIMITS = Object.freeze({
   book: 5000, maxDeployed: 3000, riskMinPct: 0.25, riskMaxPct: 1.25, maxPosition: 1500, maxPositions: 6,
@@ -18,9 +18,11 @@ export const LIMITS = Object.freeze({
 const CAPS = ['book', 'maxDeployed', 'riskMinPct', 'riskMaxPct', 'maxPosition', 'maxPositions', 'dailyLossPct', 'drawdownPct', 'maxShortExposure'];
 
 /** The plan's starting limits are DEFAULTS, not a ceiling (Tony 2026-11-26: "raise it to any amount or compress it to any
- *  amount"): Tony sets any book and caps; these keep them coherent (no leverage past the book, nothing negative). */
+ *  amount"): Tony sets any book and caps; these keep them coherent (no leverage past the book, nothing negative).
+ *  Risk per trade is a % of the book, so it already scales with any capital; it stays inside the band every bot strategy
+ *  is checked against (BOT_RISK_BAND), or the Gate's band (gate.js clampSpec) would be empty. */
 export const LIMIT_RANGES = Object.freeze({
-  book: [100, 100_000_000], maxDeployed: [50, 100_000_000], riskMinPct: [0.01, 5], riskMaxPct: [0.01, 5], maxPosition: [10, 100_000_000],
+  book: [100, 100_000_000], maxDeployed: [50, 100_000_000], riskMinPct: [BOT_RISK_BAND.min, BOT_RISK_BAND.max], riskMaxPct: [BOT_RISK_BAND.min, BOT_RISK_BAND.max], maxPosition: [10, 100_000_000],
   maxPositions: [1, 20], dailyLossPct: [0.1, 50], drawdownPct: [0.5, 90], maxShortExposure: [0, 100_000_000],
 });
 /** A full limits object → the reasons it is not usable ([] = fine). */

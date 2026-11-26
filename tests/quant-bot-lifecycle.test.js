@@ -316,6 +316,11 @@ test('any capital: the sizing scales with the book and a new book rebases the dr
   const L10 = scaleLimits(LIMITS, 50000);
   assert.deepEqual([L10.maxDeployed, L10.maxPosition, L10.maxShortExposure], [30000, 15000, 15000]);
   assert.deepEqual(checkLimits(L10), []);
+  assert.equal(checkLimits(scaleLimits(LIMITS, 100_000_000)).length, 0);           // any book, both ends
+  assert.equal(checkLimits(scaleLimits(LIMITS, 100)).length, 0);
+  // Risk % stays inside the band every strategy is checked against, or the Gate's band would be empty.
+  assert.ok(checkLimits({ ...LIMITS, riskMinPct: 2, riskMaxPct: 3 }).length > 0);
+  assert.ok(checkLimits({ ...LIMITS, riskMinPct: 0.1 }).length > 0);
   const order = { price: 100, stop: 98, style: 'day', side: 'long', riskPctOverride: 0.5 };
   assert.equal(size(order, { positions: [] }, LIMITS).shares, 12);                 // $25 risk / $2
   assert.equal(size(order, { positions: [] }, L10).shares, 125);                   // ten times the book, ten times the shares
