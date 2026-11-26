@@ -6,7 +6,7 @@
 import { nyClock } from '../core/clock.js';
 
 export const QUANT_API = 'https://quant-api.av1-2.workers.dev';
-export const MAX_ITEMS = 50, READ_MAX = 200;
+export const READ_MAX = 200, MAX_ITEMS = 200;   // quant-api folds a burst of trades into one push
 const clip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const px = (x) => (Number(x) >= 100 ? Number(x).toFixed(2) : String(Math.round(Number(x) * 10000) / 10000));
 

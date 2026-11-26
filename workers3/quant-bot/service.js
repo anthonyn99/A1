@@ -10,6 +10,7 @@ import { paperCycle } from './lib/paper-cycle.js';
 import { runPaper } from './lib/paper-tick.js';
 import { admit, review } from './lib/lifecycle.js';
 import { briefTick } from './lib/brief.js';
+import { flushOutbox } from './lib/outbox.js';
 import { nyClock } from './core/clock.js';
 import { isTradingDay } from './core/holidays.js';
 
@@ -71,5 +72,7 @@ export default {
     if (settings.mode !== 'off') {
       try { await briefTick(env, at); } catch (e) { console.warn('Neo Cortex brief:', e.message); }
     }
+    // N8: what happened this tick goes to quant-api as alerts (lib/outbox.js), in every mode (a kill while off too).
+    try { const out = await flushOutbox(env, at); if (out.error) console.warn('Neo Cortex alerts:', out.error); } catch (e) { console.warn('Neo Cortex alerts:', e.message); }
   },
 };
