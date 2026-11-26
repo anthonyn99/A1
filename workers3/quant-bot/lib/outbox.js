@@ -15,7 +15,7 @@ export function eventItem(e) {
   if (e.kind === 'entry' || e.kind === 'exit') {
     const verb = e.kind === 'entry' ? (e.side === 'short' ? 'Short' : 'Buy') : (e.side === 'short' ? 'Cover' : 'Sell');
     return { key: 'ev:' + e.id, type: 'trades', ts: e.ts, symbol: e.symbol || null,
-      title: clip(`Neo Cortex: ${verb} ${e.qty ?? ''} ${e.symbol || ''}${e.price ? ' at ' + px(e.price) : ''}`.replace(/\s+/g, ' '), 140), body: clip(e.why, 400), route: 'cortex:today:' + e.id };
+      title: clip(`Neo Cortex: ${verb} ${e.qty ?? ''} ${e.symbol || ''}${e.price ? ' at ' + px(e.price) : ''}`.replace(/\s+/g, ' '), 140), body: clip(e.why, 400), route: 'cortex:today:' + nyClock(e.ts).date + ':' + e.id };
   }
   if ((e.kind === 'stage' && !String(e.event_key).startsWith('conviction-')) || e.kind === 'edit') {
     const m = /^stage-.+-\d+-([a-z]+)-\d+$/.exec(e.event_key || ''), stage = e.kind === 'edit' ? 'edited' : m ? m[1] : 'changed';
