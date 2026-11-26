@@ -14,6 +14,7 @@
 import { withDefaults } from './core/strategy.js';
 import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest, claimRequest } from './lib/lab.js';
 import { getSettings, putSettings, getState, getToday, getBrief } from './lib/state.js';
+import { putMarketContext } from './lib/context.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
 
@@ -117,6 +118,7 @@ export async function keyOk(req, env) {
 }
 
 const ROUTES = {
+  'PUT /market/context': async (req, env) => putMarketContext(env, await req.json().catch(() => null)),
   'GET /settings': (req, env, url) => getSettings(env, url), 'PUT /settings': async (req, env) => putSettings(env, await req.json().catch(() => null)),
   'GET /state': (req, env) => getState(env), 'GET /today': getToday,
   'GET /lab/runs': (req, env, url) => getRuns(env, url), 'POST /lab/runs': async (req, env) => postRun(env, await req.json()),
