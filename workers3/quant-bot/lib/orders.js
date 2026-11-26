@@ -5,6 +5,7 @@ import { earningsGuard } from './context.js';
 
 const OPEN = "'reserved','working','held','closing'";
 const ENDED = new Set(['canceled', 'expired', 'rejected', 'suspended', 'done_for_day']);
+const WORKING = new Set(['accepted', 'new', 'partially_filled', 'pending_new', 'held', 'pending_cancel', 'pending_replace']);
 const OPEN_ACTION = { long: 'buy', short: 'sell' };
 const CLOSE_ACTION = { long: 'sell', short: 'buy' };
 const MIN = 60000;
@@ -104,12 +105,52 @@ export async function syncIntents(db, broker, rows, held, open, now) {
   return active;
 }
 
+export function activeProtection(row, orders) {
+  return orders.flatMap(legs).some((o) => isClose(o, row) && WORKING.has(o.status) && (o.type === 'stop' || o.type === 'stop_limit' || o.type === 'market'));
+}
+
+export async function restoreProtection(db, broker, row, at) {
+  const [position, orders] = await Promise.all([broker.position(row.symbol), broker.orders()]);
+  if (!position || activeProtection(row, orders)) return true;
+  const parent = orders.find((order) => order.client_order_id === row.client_id && Number(order.qty) > Number(order.filled_qty || 0));
+  if (parent) {
+    if (parent.status !== 'pending_cancel') await broker.cancel(parent.id);
+    return false;
+  }
+  const qty = Math.abs(Number(position.qty));
+  if (!(qty > 0)) return true;
+  const side = CLOSE_ACTION[row.side];
+  const cid = 'stop-' + row.client_id + '-' + Math.floor(at / MIN);
+  const placed = await broker.submit({ symbol: row.symbol, qty: String(qty), side, position_intent: side + '_to_close',
+    type: 'stop', time_in_force: 'gtc', stop_price: Number(row.stop).toFixed(2), client_order_id: cid });
+  if (!placed.id) throw new Error('Alpaca did not confirm the replacement stop');
+  const history = row.order_body ? JSON.parse(row.order_body) : {};
+  history.legs = [...(history.legs || []), placed];
+  await db.prepare('UPDATE bot_order_intents SET order_body = ? WHERE client_id = ?').bind(JSON.stringify(history), row.client_id).run();
+  await logEvent(db, { key: 'protect-' + placed.id, ts: at, kind: 'stop-move', symbol: row.symbol,
+    side: row.side, qty, price: row.stop, strategy: row.strategy, version: row.version, why: 'Replaced a missing broker stop at the original risk price.' });
+  return true;
+}
+
 export async function closeIntent(db, broker, row, reason, at, orders) {
   const live = orders.flatMap(legs);
   const workingClose = live.find((o) => isClose(o, row) && (o.id === row.close_id || o.type === 'market'));
   if (workingClose) return;
   try {
-    const result = await broker.close(row.symbol);
+    let result;
+    try { result = await broker.close(row.symbol); }
+    catch (error) {
+      if (error.status !== 403 || !/available|held|qty|quantity/i.test(error.message)) throw error;
+      const protection = live.filter((order) => isClose(order, row) && idsFor(row).has(order.id) && WORKING.has(order.status));
+      if (!protection.length) throw error;
+      await broker.cancel(protection[0].id);
+      try { result = await broker.close(row.symbol); }
+      catch (retry) {
+        try { await restoreProtection(db, broker, row, at); }
+        catch (protect) { throw new Error(retry.message + '. Could not restore the stop: ' + protect.message); }
+        throw retry;
+      }
+    }
     if (!result.id) throw new Error('Alpaca did not return the exit order ID');
     await db.prepare("UPDATE bot_order_intents SET status = 'closing', close_id = ? WHERE client_id = ?").bind(result.id, row.client_id).run();
     await logEvent(db, { key: 'close-' + result.id, ts: at, kind: 'exit', strategy: row.strategy, version: row.version,

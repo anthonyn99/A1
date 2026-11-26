@@ -14,6 +14,12 @@ export async function killBot(env, body, { now = Date.now(), broker: client } = 
       .bind('kill-' + stamp, now, nyClock(now).date, 'guard', HALTED),
   ]);
 
+  if (!client && env.EXECUTION) return env.EXECUTION.getByName('account').liquidate();
+  return flattenPaper(env, { broker: client });
+}
+
+export async function flattenPaper(env, { broker: client } = {}) {
+  const db = env.DB;
   let canceled = null, closing = null, positions = null, orders = null;
   const problems = [];
   try {

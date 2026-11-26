@@ -40,6 +40,10 @@ export function paperBroker(env, fetchFn = fetch) {
     submit: (body) => send(ALPACA_PAPER, '/v2/orders', { method: 'POST', body }),
     orderByClient: (id) => send(ALPACA_PAPER, '/v2/orders:by_client_order_id?client_order_id=' + encodeURIComponent(id)).catch((e) => { if (e.status === 404) return null; throw e; }),
     cancel: (id) => send(ALPACA_PAPER, '/v2/orders/' + encodeURIComponent(id), { method: 'DELETE' }),
+    position: (symbol) => {
+      if (!SYMBOL.test(symbol)) throw new Error('Invalid position symbol');
+      return send(ALPACA_PAPER, '/v2/positions/' + encodeURIComponent(symbol)).catch((e) => { if (e.status === 404) return null; throw e; });
+    },
     close: (symbol) => {
       if (!SYMBOL.test(symbol)) throw new Error('Invalid position symbol');
       return send(ALPACA_PAPER, '/v2/positions/' + encodeURIComponent(symbol), { method: 'DELETE' });

@@ -1,12 +1,10 @@
-import { nyClock } from '../core/clock.js';
 import { deployed, flattenDue } from '../core/risk-book.js';
 import { reconcile } from './reconcile.js';
-import { closeIntent, liveIntents, paperEntries, syncIntents } from './orders.js';
+import { activeProtection, closeIntent, liveIntents, paperEntries, restoreProtection, syncIntents } from './orders.js';
 import { logEvent, readBotState, readSettings } from './state.js';
 import { readMarketContext } from './context.js';
 
 const MIN = 60000;
-const DAY = 1440 * MIN;
 const bySymbol = (positions) => new Map(positions.map((row) => [row.symbol, row]));
 const isTimed = (row, session) => flattenDue(row, session.minutes, { half: session.half, flattenBy: JSON.parse(row.spec).flattenBy });
 
@@ -25,7 +23,7 @@ async function markRisk(db, session, status, book, at) {
     startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, guard: book.risk, buyingPower: book.buyingPower };
-  if (fresh || book.risk.state === 'halt' || status.errors || !status.peak || book.peak > status.peak) {
+  if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || !status.peak || book.peak > status.peak) {
     await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')
       .bind(at, JSON.stringify(state), book.risk.state === 'halt' ? book.risk.why : null).run();
   }
@@ -61,6 +59,7 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
     const book = reconcile(account, positions, orders, refreshed, status, config.settings.limits);
     const raw = bySymbol(positions), exitReasons = new Map(exits.map((row) => [row.id, row.why]));
     const working = new Map(orders.map((order) => [order.client_order_id, order]));
+    let protective = true;
     for (const row of refreshed) {
       const time = isTimed(row, session) || (session.closedForDay && row.style === 'day');
       const why = time ? 'The position reached its session flatten time' : exitReasons.get(row.client_id);
@@ -70,11 +69,14 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
         await broker.cancel(pending.id);
       }
       if (why && raw.has(row.symbol)) await closeIntent(db, broker, row, why, scheduledAt, orders);
+      else if (raw.has(row.symbol) && !activeProtection(row, orders)) {
+        protective = (await restoreProtection(db, broker, row, scheduledAt)) && protective;
+      }
     }
     await markRisk(db, session, status, book, scheduledAt);
     const marketCurrent = session.open && clock() - scheduledAt < MIN;
     const managed = new Set(refreshed.map((row) => row.symbol));
-    if (marketCurrent && !status.halted && !config.settings.paused && status.errors < 3 && book.risk.state === 'ok' &&
+    if (marketCurrent && protective && !status.halted && !config.settings.paused && status.errors < 3 && book.risk.state === 'ok' &&
         positions.every((row) => managed.has(row.symbol))) {
       await paperEntries(db, broker, outcomes, rows, { ...book, positions: [...book.positions, ...book.pending] }, calendar, session, scheduledAt);
     }
