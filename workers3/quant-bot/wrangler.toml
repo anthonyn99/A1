@@ -7,7 +7,7 @@ main = "service.js"
 compatibility_date = "2026-01-01"
 
 [triggers]
-crons = ["* 13-21 * * 1-5"]
+crons = ["* 13-21 * * 1-5", "*/5 22 * * 1-5"]   # N8: 22:xx UTC reaches the brief's 17:15 ET deadline in winter
 
 [[durable_objects.bindings]]
 name = "EXECUTION"

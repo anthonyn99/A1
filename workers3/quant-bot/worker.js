@@ -3,6 +3,7 @@
 // strategies (lib/lab.js). N4 adds the shadow cron, portfolio risk checks and journal.
 //   /settings, /state, /today, /brief/:date                     lib/state.js (Tony’s key)
 // N5 (n4-05.md): /lifecycle, /lifecycle/fires, /lifecycle/replay, /strategies/stage           lib/lifecycle.js
+// N8 (n4-08.md): GET /briefs (history), the brief written by the cron                          lib/brief.js
 //
 //   GET /health                       { ok, phase }
 //   /lab/runs, /strategies, /research/request, /research/claim   lib/lab.js (Tony's key)
@@ -17,6 +18,7 @@ import { getSettings, putSettings, getState, getToday, getBrief } from './lib/st
 import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
 import { getLifecycle, getFires, postReplay, postStage, getTrades } from './lib/lifecycle.js';
+import { getBriefs } from './lib/brief.js';
 import { ALPACA_PAPER, ALPACA_DATA } from './lib/alpaca.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
@@ -131,6 +133,7 @@ const ROUTES = {
   'GET /lifecycle': (req, env) => getLifecycle(env), 'GET /trades': (req, env, url) => getTrades(env, url), 'GET /lifecycle/fires': (req, env, url) => getFires(env, url),
   'POST /lifecycle/replay': async (req, env) => postReplay(env, await req.json().catch(() => null)),
   'POST /strategies/stage': async (req, env) => postStage(env, await req.json().catch(() => null)),
+  'GET /briefs': (req, env, url) => getBriefs(env, url),
 };
 
 // N6: TradeHub's page calls quant-bot directly (Control ▸ Neo Cortex, N7's tab); the same origins as quant-api.

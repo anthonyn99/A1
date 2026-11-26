@@ -9,6 +9,7 @@ import { flattenPaper } from './lib/kill.js';
 import { paperCycle } from './lib/paper-cycle.js';
 import { runPaper } from './lib/paper-tick.js';
 import { admit, review } from './lib/lifecycle.js';
+import { briefTick } from './lib/brief.js';
 import { nyClock } from './core/clock.js';
 import { isTradingDay } from './core/holidays.js';
 
@@ -66,5 +67,9 @@ export default {
       outcome = await runPaper(env, at, inspect, (input) => env.EXECUTION.getByName('account').cycle(input));
     }
     if (outcome?.reason) console.warn('Neo Cortex:', outcome.reason);
+    // N8: the daily brief after the close (lib/brief.js); never in the way of the trading tick.
+    if (settings.mode !== 'off') {
+      try { await briefTick(env, at); } catch (e) { console.warn('Neo Cortex brief:', e.message); }
+    }
   },
 };
