@@ -6,7 +6,7 @@
 import { nyClock } from '../core/clock.js';
 
 export const QUANT_API = 'https://quant-api.av1-2.workers.dev';
-export const MAX_ITEMS = 50;
+export const MAX_ITEMS = 50, READ_MAX = 200;
 const clip = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const px = (x) => (Number(x) >= 100 ? Number(x).toFixed(2) : String(Math.round(Number(x) * 10000) / 10000));
 
@@ -56,20 +56,19 @@ export async function flushOutbox(env, at, { fetchFn = fetch } = {}) {
     return { learned: true };
   }
   const [evs, runs, briefs] = await Promise.all([
-    db.prepare("SELECT id, event_key, ts, kind, symbol, side, qty, price, strategy, why FROM bot_events WHERE id > ? AND kind IN ('entry', 'exit', 'stage', 'edit', 'guard') ORDER BY id LIMIT ?").bind(cur.event_id, MAX_ITEMS).all(),
+    db.prepare('SELECT id, event_key, ts, kind, symbol, side, qty, price, strategy, why FROM bot_events WHERE id > ? ORDER BY id LIMIT ?').bind(cur.event_id, READ_MAX).all(),
     db.prepare("SELECT id, session, outcome, summary, results, ended FROM lab_runs WHERE ended > ? AND outcome != 'running' ORDER BY ended LIMIT 10").bind(cur.run_end).all(),
     db.prepare('SELECT day, body FROM bot_briefs WHERE day > ? ORDER BY day LIMIT 5').bind(cur.brief_day).all(),
   ]);
   const ready = (briefs.results || []).map((r) => JSON.parse(r.body)).filter((b) => b.ready);
+  // Every new journal row moves the cursor, also those that make no alert (shadow, skip); at most READ_MAX a tick.
   const evRows = evs.results || [], runRows = runs.results || [];
-  // The newest event id also moves past rows that make no alert (shadow, skip), read up to MAX_ITEMS at a time.
-  const tail = await db.prepare('SELECT MAX(id) AS id FROM bot_events WHERE id > ?').bind(cur.event_id).first();
   const next = {
-    event_id: evRows.length === MAX_ITEMS ? evRows[evRows.length - 1].id : Math.max(cur.event_id, tail?.id || 0),
+    event_id: evRows.length ? evRows[evRows.length - 1].id : cur.event_id,
     run_end: runRows.length ? runRows[runRows.length - 1].ended : cur.run_end,
     brief_day: ready.length ? ready[ready.length - 1].day : cur.brief_day,
   };
-  const items = [...evRows.map(eventItem), ...runRows.map(runItem), ...ready.map(briefItem)].filter(Boolean);
+  const items = [...evRows.map(eventItem), ...runRows.map(runItem), ...ready.map(briefItem)].filter(Boolean).slice(0, MAX_ITEMS);
   if (next.event_id === cur.event_id && next.run_end === cur.run_end && next.brief_day === cur.brief_day) return { sent: 0, items: 0 };
   if (!items.length) { await save(next); return { sent: 0, items: 0 }; }
   if (!env.CORTEX_SECRET) { await save(next); return { skipped: 'CORTEX_SECRET is not set on quant-bot', items: items.length }; }
