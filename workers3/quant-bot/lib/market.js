@@ -78,7 +78,16 @@ export async function loadBars(broker, symbols, tf, now, session, cache) {
   const interval = (BAR_MINUTES[tf] || 1440) * MIN;
   const end = Math.floor((now - 10000) / interval) * interval;
   if (cached?.end === end) return cached.bars;
-  const start = cached ? cached.end - interval : now - firstAt[tf];
+  let initial = now - firstAt[tf];
+  if (tf === '5m') {
+    let morning = nyMidnight(session.date);
+    for (let count = 0; count < 2;) {
+      morning = nyMidnight(nyClock(morning - MIN).date);
+      if (tradingOn(nyClock(morning).date)) count++;
+    }
+    initial = morning + START * MIN;
+  }
+  const start = cached ? cached.end - interval : initial;
   const fresh = await broker.bars(group, tf, start, Math.max(start + 1, now));
   const result = {};
   for (const symbol of group) {
@@ -125,7 +134,12 @@ export async function loadVolume(broker, symbols, date, cache) {
   const stored = await read(cache, key);
   if (stored) return stored;
   const before = nyMidnight(date);
-  const history = await broker.bars(group, '5m', before - 48 * DAY, before);
+  let first = before;
+  for (let days = 0; days < 25;) {
+    first = nyMidnight(nyClock(first - MIN).date);
+    if (tradingOn(nyClock(first).date)) days++;
+  }
+  const history = await broker.bars(group, '5m', first + START * MIN, before);
   const result = Object.fromEntries(group.map((symbol) => [symbol, minuteVolume(history[symbol] || [], date)]));
   await put(cache, key, result, 24 * 3600);
   return result;

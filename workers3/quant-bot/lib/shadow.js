@@ -37,7 +37,7 @@ const due = (session, tf) => {
 };
 
 /** Called as a named Worker entrypoint, with at most ten symbols and no broker writes. */
-export async function inspectShard(env, symbols, rows, now, session, { cache = globalThis.caches?.default, broker = paperBroker(env) } = {}) {
+export async function inspectShard(env, symbols, rows, now, session, { cache = globalThis.caches?.default, broker = paperBroker(env), volumeOf } = {}) {
   if (!symbols.length || symbols.length > 10) throw new Error('A shard needs one to ten symbols');
   const work = rows.filter(({ spec }) => due(session, spec.timeframe) && spec.universe.symbols.some((s) => symbols.includes(s)));
   if (!work.length) return [];
@@ -48,7 +48,7 @@ export async function inspectShard(env, symbols, rows, now, session, { cache = g
     return [frame, Object.fromEntries(Object.entries(bars).map(([symbol, values]) => [symbol, objects(values)]))];
   }));
   const volumeSymbols = symbols.filter((symbol) => work.some(({ spec }) => spec.universe.symbols.includes(symbol) && usesDaySetup(spec)));
-  const volume = await loadVolume(broker, volumeSymbols, session.date, cache);
+  const volume = volumeOf ? Object.assign({}, ...(await Promise.all(volumeSymbols.map((symbol) => volumeOf(symbol, session.date))))) : await loadVolume(broker, volumeSymbols, session.date, cache);
   const data = { bars: Object.fromEntries(groups), volume };
   const outcomes = [];
   for (const row of work) {
