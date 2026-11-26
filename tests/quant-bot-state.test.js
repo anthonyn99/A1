@@ -107,3 +107,45 @@ test('journal deduplicates events, filters by time and honors ETags', async (t) 
   assert.equal(next.status, 200);
   assert.deepEqual((await next.json()).events.map((e) => e.sym), ['AMD', 'NVDA']);
 });
+
+
+test('a scheduled half-day shadow replay journals the signal and counts one completed session', async (t) => {
+  const { DB, conn, request } = await fixture(t);
+  conn.exec(fs.readFileSync(path.join(__dirname, '../workers3/quant-bot/migrations/0003_market_context.sql'), 'utf8'));
+  const { withDefaults } = await import('../workers3/quant-bot/core/strategy.js');
+  const { runShadow } = await import('../workers3/quant-bot/lib/shadow.js');
+  const spec = withDefaults({ v: 2, id: 'amd-swing', version: 1, name: 'AMD swing', thesis: 'Fixture thesis',
+    horizon: 'swing', timeframe: '1d', side: 'long', universe: { symbols: ['AMD'] },
+    entry: { all: [{ ind: 'close', op: '>', than: 100 }] },
+    exit: { any: [{ stop: 'percent', value: 2 }, { target: 'r', value: 2 }, { bars: 3 }] },
+    sizing: { kind: 'fixedRisk', value: 0.25 } }, { today: '2026-11-27' }).spec;
+  conn.prepare('INSERT INTO strategies (id, version, hash, name, stage, spec, gate, edits, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(spec.id, spec.version, 'fixture', spec.name, 'gated', JSON.stringify(spec), '{}', '[]', now, now);
+  const open = Date.parse('2026-11-27T14:30:00Z'), close = Date.parse('2026-11-27T18:00:00Z');
+  const contextUpdate = { earnings: { AMD: { asOf: open, next: null } } };
+  assert.equal((await request('/market/context', { method: 'PUT', body: contextUpdate })).status, 200);
+  let stamp = open;
+  const broker = {
+    clock: async () => ({ timestamp: new Date(stamp).toISOString(), is_open: stamp < close }),
+    calendar: async () => [{ date: '2026-11-27', open: '09:30', close: '13:00' }],
+    account: async () => ({ equity: '100000', last_equity: '100000', buying_power: '100000' }),
+    positions: async () => [], orders: async () => [],
+  };
+  const dispatch = async () => stamp === open + 60000 ? [{ symbol: 'AMD', strategy: spec.id, version: spec.version,
+    side: 'long', style: 'swing', stage: 'gated', maxPositions: spec.maxPositions, price: 101, stop: 99,
+    why: 'Close above 100 (observed 101).', thesis: spec.thesis, barTime: open - 2 * 86400000 }] : [];
+  const replay = (at) => { stamp = at; return runShadow({ DB }, at, dispatch, { broker }); };
+  for (let minute = 1; minute < 210; minute += 15) await replay(open + minute * 60000);
+  await replay(close);
+  await replay(close + 60000);
+  const final = await (await request('/state')).json();
+  assert.equal(final.mode, 'shadow');
+  assert.equal(final.market, 'closed');
+  assert.equal(final.equity, 5000);
+  assert.equal(final.shadowSessions, 1);
+  const { events } = await (await request('/today?day=2026-11-27')).json();
+  assert.equal(events.length, 1);
+  assert.equal(events[0].kind, 'shadow');
+  assert.equal(events[0].qty, 6);
+  assert.match(events[0].why, /observed 101/);
+});

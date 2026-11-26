@@ -33,7 +33,7 @@ const due = (session, tf) => {
   if (tf === '1d') return session.minutes === session.openMin + 1;
   if (tf === '1h') return session.minutes % 60 === 1;
   const width = tf === '15m' ? 15 : 5;
-  return session.minutes > session.openMin && (session.minutes - session.openMin) % width === 1;
+  return session.minutes > session.openMin && (session.minutes - session.openMin) > width && (session.minutes - session.openMin) % width === 1;
 };
 
 /** Called as a named Worker entrypoint, with at most ten symbols and no broker writes. */
@@ -96,7 +96,7 @@ async function finishSession(db, at, session, previous) {
 
 /** Serial portfolio checks for one scheduled shadow tick. Shards never touch broker orders. */
 export async function runShadow(env, at, dispatch, { cache = globalThis.caches?.default, broker: client } = {}) {
-  const now = at + 16_000; // Allow for the provider’s recent bar to close and publish.
+  const now = at;
   const local = nyClock(at);
   if (!isTradingDay(local.date) || local.minutes < REGULAR_OPEN || local.minutes > REGULAR_CLOSE + 10) return { skipped: 'outside-session' };
   const db = env.DB;
