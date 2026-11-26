@@ -11,7 +11,7 @@
 //   POST /strategies/stage             pause, resume, retire, kill (Tony any; Claude retire; Neo pause)
 import { nyClock, nyMidnight } from '../core/clock.js';
 import { isTradingDay, nyseHalfDays } from '../core/holidays.js';
-import { checkStrategy, rulesOf } from '../core/strategy.js';
+import { BOT_MAX_SYMBOLS, checkStrategy, rulesOf } from '../core/strategy.js';
 import { json } from './lab.js';
 import { logEvent, readSettings } from './state.js';
 import { lifeSettings } from './life-rules.js';
@@ -111,6 +111,7 @@ async function move(db, row, stage, why, at, life) {
 export async function admit(env, at) {
   const db = env.DB, day = nyClock(at).date;
   const { settings } = await readSettings(db);
+  if (!['shadow', 'paper'].includes(settings.mode)) return [];   // nothing runs today: no shadow session to admit to
   const life = lifeSettings(settings.lifecycle);
   const rows = await rowsOf(db);
   const latest = new Map();
@@ -122,10 +123,14 @@ export async function admit(env, at) {
     if (await move(db, r, 'retired', `Superseded by version ${latest.get(r.id).version} before it ran`, at)) moved.push([r.id, r.version, 'retired']);
   }
   const holding = new Set(rows.filter((r) => HOLDS_SLOT.includes(r.stage)).map((r) => r.id));
+  const symbolsOf = (ids) => new Set(rows.filter((r) => ids.has(r.id) && HOLDS_SLOT.includes(r.stage)).flatMap((r) => r.spec.universe?.symbols || []));
   const waiting = [...latest.values()].filter((r) => r.stage === 'gated' && checkStrategy(r.spec, { bot: true }).ok);
   for (const r of waiting) {
     const older = rows.filter((o) => o.id === r.id && o.version < r.version && HOLDS_SLOT.includes(o.stage));
     if (!older.length && holding.size >= life.maxLive) break;
+    // The bot evaluates at most 40 symbols a tick (4 shards of 10): a strategy that would push the union past it waits.
+    const others = new Set([...holding].filter((id) => id !== r.id));
+    if (new Set([...symbolsOf(others), ...(r.spec.universe?.symbols || [])]).size > BOT_MAX_SYMBOLS) continue;
     for (const o of older) {
       if (await move(db, o, 'retired', `Replaced by version ${r.version}; its open positions keep their own stop and exits`, at)) moved.push([o.id, o.version, 'retired']);
     }
@@ -133,23 +138,26 @@ export async function admit(env, at) {
       holding.add(r.id); moved.push([r.id, r.version, 'shadow']);
     }
   }
-  // A shadow day that ended without a verdict (the PC was off) shadows again today.
+  // Another shadow session: one more was needed after a verdict (shadow_day cleared), or the day had no usable check
+  // (the PC was off, or the bot did not evaluate the whole session).
   for (const r of rows) {
-    if (r.stage !== 'shadow' || !r.shadow_day || r.shadow_day >= day || latest.get(r.id) !== r) continue;
+    if (r.stage !== 'shadow' || (r.shadow_day && r.shadow_day >= day)) continue;
     await db.prepare('UPDATE strategy_life SET shadow_day = ?, updated = ? WHERE id = ? AND version = ?').bind(day, at, r.id, r.version).run();
     await logEvent(db, { key: ['stage', r.id, r.version, 'reshadow', day].join('-'), ts: at, kind: 'stage', strategy: r.id, version: r.version,
-      why: `No decision check arrived for ${r.shadow_day}, so it shadows the ${day} session too` });
+      why: r.shadow_day ? `No usable decision check for ${r.shadow_day} (the PC was off or the session was not fully evaluated), so it shadows the ${day} session too`
+        : `It shadows the ${day} session: another shadow session is needed before its paper trial` });
     moved.push([r.id, r.version, 'shadow again']);
   }
   return moved;
 }
 
-/** What the bot evaluates: the newest version of each shadow, paper or active strategy, with its conviction. */
+/** What the bot evaluates: per strategy, the newest version that is shadow, paper or active (a newer gated version does
+ *  not stop it: it keeps running until its successor is admitted), with its conviction. */
 export async function liveStrategies(db, limit = 6) {
   const { results } = await db.prepare(
-    "SELECT s.id, s.version, s.stage, s.spec, l.conviction FROM strategies s JOIN (SELECT id, MAX(version) AS version FROM strategies GROUP BY id) latest " +
+    "SELECT s.id, s.version, s.stage, s.spec, l.conviction FROM strategies s JOIN (SELECT id, MAX(version) AS version FROM strategies WHERE stage IN ('shadow','paper','active') GROUP BY id) latest " +
     "ON latest.id = s.id AND latest.version = s.version LEFT JOIN strategy_life l ON l.id = s.id AND l.version = s.version " +
-    "WHERE s.stage IN ('shadow','paper','active') ORDER BY s.updated DESC, s.id LIMIT 6").all();
+    "ORDER BY s.updated DESC, s.id LIMIT 50").all();
   const out = [];
   for (const row of results) {
     const spec = JSON.parse(row.spec);
@@ -239,7 +247,21 @@ export async function getFires({ DB }, url) {
   return json({ ok: true, day, fires: results });
 }
 
-/** The PC's decision check for one day (tools/strat/replay.mjs). Applied once per strategy version and day. */
+/** Did the bot evaluate (almost) the whole session of `day`? Checkpoints are noted every 15 minutes while strategies
+ *  were actually evaluated (lib/shadow.js, lib/paper-cycle.js); one miss is tolerated. → { ok, slots, need } */
+export async function sessionCovered(db, day) {
+  const need = Math.max(1, Math.ceil((closeOf(day) - 570) / 15) - 1);
+  const row = await db.prepare('SELECT COUNT(*) AS n FROM bot_session_slots WHERE day = ?').bind(day).first();
+  return { ok: Number(row?.n) >= need, slots: Number(row?.n) || 0, need };
+}
+
+/** Note one evaluated 15-minute checkpoint (idempotent: one row per slot). */
+export function noteSlot(db, day, slot) {
+  return db.prepare('INSERT OR IGNORE INTO bot_session_slots (day, slot) VALUES (?, ?)').bind(day, slot).run();
+}
+
+/** The PC's decision check for one day (tools/strat/replay.mjs). Applied once per strategy version and day; a day the
+ *  bot did not fully evaluate (off, paused, halted, a guard) is recorded but judges nothing. */
 export async function postReplay(env, body, at = Date.now()) {
   const db = env.DB;
   if (!body || !DAY.test(String(body.day || '')) || !Array.isArray(body.results) || body.results.length > 12) return bad('a replay needs a day and up to 12 results');
@@ -252,6 +274,7 @@ export async function postReplay(env, body, at = Date.now()) {
   const { settings } = await readSettings(db);
   const life = lifeSettings(settings.lifecycle);
   const errored = await db.prepare("SELECT 1 AS x FROM bot_events WHERE day = ? AND kind = 'guard' AND (event_key LIKE 'broker-guard-%' OR event_key LIKE 'paper-broker-guard-%') LIMIT 1").bind(body.day).first();
+  const covered = await sessionCovered(db, body.day);
   const rows = await rowsOf(db);
   const out = [];
   for (const r of body.results) {
@@ -260,6 +283,7 @@ export async function postReplay(env, body, at = Date.now()) {
     if (add.meta.changes !== 1) { out.push({ id: r.id, version: r.version, already: true }); continue; }
     const row = rows.find((x) => x.id === r.id && x.version === r.version);
     if (!row) { out.push({ id: r.id, version: r.version, stage: null }); continue; }
+    if (!covered.ok) { out.push({ id: r.id, version: r.version, stage: row.stage, unjudged: `the bot evaluated ${covered.slots} of ${covered.need} checkpoints` }); continue; }
     const agree = r.signals === 0 || r.matched / r.signals * 100 >= life.matchMin;
     const nums = r.signals ? `${r.matched} of ${r.signals} signals matched (${Math.round(r.matched / r.signals * 100)}%; ${r.missedLive} missed live, ${r.extraLive} extra)` : 'neither side fired';
     if (row.stage === 'shadow' && row.shadow_day === body.day) {
@@ -269,12 +293,17 @@ export async function postReplay(env, body, at = Date.now()) {
         if (Number(done?.n) >= life.shadowSessions) {
           await move(db, row, 'paper', `Shadow session ${body.day} passed: ${nums}. Paper trial starts`, at, { shadow_day: null });
           out.push({ id: r.id, version: r.version, stage: 'paper' });
-        } else out.push({ id: r.id, version: r.version, stage: 'shadow', passed: Number(done?.n) });
+        } else {
+          await db.prepare('UPDATE strategy_life SET shadow_day = NULL, updated = ? WHERE id = ? AND version = ?').bind(at, r.id, r.version).run();
+          await logEvent(db, { key: ['stage', r.id, r.version, 'shadowpass', body.day].join('-'), ts: at, kind: 'stage', strategy: r.id, version: r.version,
+            why: `Shadow ${body.day} passed (${nums}): ${done?.n} of ${life.shadowSessions} sessions` });
+          out.push({ id: r.id, version: r.version, stage: 'shadow', passed: Number(done?.n) });
+        }
       } else {
         const fails = (Number(row.shadow_fails) || 0) + 1, why = errored ? `the ${body.day} session had a data or broker error` : `decisions disagreed: ${nums}`;
         if (fails >= 2) { await move(db, row, 'retired', `Retired after two failed shadow sessions: ${why}`, at); out.push({ id: r.id, version: r.version, stage: 'retired' }); }
         else {
-          await db.prepare('UPDATE strategy_life SET shadow_fails = ?, updated = ? WHERE id = ? AND version = ?').bind(fails, at, r.id, r.version).run();
+          await db.prepare('UPDATE strategy_life SET shadow_fails = ?, shadow_passes = 0, shadow_day = NULL, updated = ? WHERE id = ? AND version = ?').bind(fails, at, r.id, r.version).run();
           await logEvent(db, { key: ['stage', r.id, r.version, 'shadowfail', body.day].join('-'), ts: at, kind: 'stage', strategy: r.id, version: r.version, why: `Shadow ${body.day} did not pass (${why}); it shadows one more session` });
           out.push({ id: r.id, version: r.version, stage: 'shadow', failed: fails });
         }
@@ -303,8 +332,12 @@ export async function postStage(env, body, at = Date.now()) {
   const allowed = WHO[body?.author];
   if (!allowed || !ID.test(String(body.id || '')) || typeof body.why !== 'string' || !body.why.trim()) return bad('id, stage, why and author (tony, claude or neo) are needed');
   if (!allowed.includes(body.stage)) return bad(`${body.author} may only ${allowed.join(' or ')} a strategy`, 403);
-  const rows = (await rowsOf(db)).filter((r) => r.id === body.id && (body.version == null || r.version === body.version) && HOLDS_SLOT.concat('gated').includes(r.stage));
-  const row = rows.sort((a, b) => b.version - a.version)[0];
+  const version = body.version == null ? null : Number(body.version);
+  if (version != null && !Number.isInteger(version)) return bad('version must be a whole number');
+  // Without a version: the running (or paused) version first, a waiting gated one only when nothing runs.
+  const rank = (r) => (HOLDS_SLOT.includes(r.stage) ? 1e6 : 0) + r.version;
+  const rows = (await rowsOf(db)).filter((r) => r.id === body.id && (version == null || r.version === version) && HOLDS_SLOT.concat('gated').includes(r.stage));
+  const row = rows.sort((a, b) => rank(b) - rank(a))[0];
   if (!row) return bad('no running or waiting strategy ' + body.id, 404);
   const who = { tony: 'Tony', claude: 'Claude', neo: 'Neo Quant' }[body.author], why = `${who}: ${body.why.trim().slice(0, 300)}`;
   let ok;
@@ -324,16 +357,25 @@ export async function postStage(env, body, at = Date.now()) {
 export async function getLifecycle({ DB }) {
   const { results } = await DB.prepare(
     "SELECT s.id, s.version, s.name, s.stage, s.spec, s.report, s.updated, l.since, l.shadow_day, l.shadow_fails, l.paper_days, l.trades, l.wins, l.gross_win, l.gross_loss, " +
-    "l.sum_r, l.r_trades, l.pnl, l.peak, l.signals, l.matched, l.conviction, l.why FROM strategies s JOIN (SELECT id, MAX(version) AS version FROM strategies GROUP BY id) m " +
-    "ON m.id = s.id AND m.version = s.version LEFT JOIN strategy_life l ON l.id = s.id AND l.version = s.version ORDER BY s.updated DESC LIMIT 100").all();
-  const strategies = results.map((r) => {
+    "l.sum_r, l.r_trades, l.pnl, l.peak, l.signals, l.matched, l.conviction, l.why FROM strategies s " +
+    "LEFT JOIN strategy_life l ON l.id = s.id AND l.version = s.version ORDER BY s.updated DESC LIMIT 300").all();
+  // One row per strategy: its running (or paused) version, else its newest; a waiting newer version is named in `next`.
+  const pick = new Map(), newest = new Map();
+  const rank = (r) => (HOLDS_SLOT.includes(r.stage) ? 1e6 : 0) + r.version;
+  for (const r of results) {
+    if (!pick.has(r.id) || rank(r) > rank(pick.get(r.id))) pick.set(r.id, r);
+    if (!newest.has(r.id) || r.version > newest.get(r.id).version) newest.set(r.id, r);
+  }
+  const strategies = [...pick.values()].slice(0, 100).map((r) => {
+    const nx = newest.get(r.id);
     const spec = JSON.parse(r.spec), report = r.report ? JSON.parse(r.report) : null, n = r.trades || 0;
     return { id: r.id, version: r.version, name: r.name, stage: r.stage, style: spec.horizon, side: spec.side, timeframe: spec.timeframe, symbols: spec.universe?.symbols || [],
       since: r.since ?? r.updated, shadowDay: r.shadow_day, paperDays: r.paper_days || 0, trades: n, winRate: n ? r.wins / n : null,
       pf: r.gross_loss > 0 ? r.gross_win / r.gross_loss : null, pnl: r.pnl || 0, expectancyR: r.r_trades ? r.sum_r / r.r_trades : null,
       backtest: report && { trades: report.trades, winRate: report.winRate, pf: report.profitFactor, expectancyR: report.expectancyR },
       replay: { signals: r.signals || 0, matched: r.matched || 0 }, conviction: r.conviction || 0, why: r.why || null,
-      setups: [...new Set(rulesOf(spec).map((x) => x.setup).filter(Boolean))] };
+      setups: [...new Set(rulesOf(spec).map((x) => x.setup).filter(Boolean))],
+      next: nx.version > r.version ? { version: nx.version, stage: nx.stage } : null };
   });
   const by = new Map();
   for (const s of strategies) for (const k of s.setups.length ? s.setups : ['rules']) {
