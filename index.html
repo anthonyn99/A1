@@ -20340,9 +20340,6 @@ function buildCalItem(b,a){
   it.category=(a.category&&VALID_CATS.indexOf(a.category)>=0)?a.category:'other';  // always categorise
   if(a.time){it.time=fixTime(a.time);it.tz=tzName();}
   if(a.notify)setNotify(it,a.notify,b);
-  if(Array.isArray(a.altSeqTitles)&&a.altSeqTitles.filter(Boolean).length>=2){
-    it.altSeqId=b.uid();it.altSeqTitles=a.altSeqTitles.filter(Boolean);it.title=it.altSeqTitles[0];
-  }
   if(a.repeat&&a.repeat!=='none'){
     if(a.repeat==='daily'){it.repeat='daily';it.repeatDays=[0,1,2,3,4,5,6];}
     else if(a.repeat==='weekdays'){it.repeat='weekly';it.repeatDays=[0,1,2,3,4];}

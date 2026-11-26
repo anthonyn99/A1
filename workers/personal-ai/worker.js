@@ -1591,7 +1591,7 @@ const CATEGORIES = ['work', 'personal', 'health', 'urgent', 'study', 'finance', 
 // days nearest to TODAY first, and stop cleanly at a character budget. What the
 // model sees is always valid JSON, and the days it is most likely to be asked
 // about are the ones that survive.
-const TASK_ITEM_FIELDS = ['title', 'type', 'done', 'time', 'category', 'repeat', 'repeatDays', 'notifyAt', 'altSeqTitles'];
+const TASK_ITEM_FIELDS = ['title', 'type', 'done', 'time', 'category', 'repeat', 'repeatDays', 'notifyAt'];
 // Veda's items also show AI prep, so Neo can answer "which tasks have prep?" and
 // knows what prep_open can start. Tony's projection is exactly as before.
 const VEDA_ITEM_FIELDS = TASK_ITEM_FIELDS.concat(['aiPrep', 'aiSite', 'notifyRepeat']);
@@ -1695,7 +1695,7 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, o
     `state.week lists the dates of the currently-shown week as [{date,weekday}] — use it to map weekday names ("check off Exercise on Wednesday") to the exact date.`,
     ``,
     `ACTIONS:`,
-    `- {type:"add_task", box, date?, title, kind?, category, time?, notify?, repeat?, repeatDays?, repeatEndDate?, altSeqTitles?, done?}`,
+    `- {type:"add_task", box, date?, title, kind?, category, time?, notify?, repeat?, repeatDays?, repeatEndDate?, done?}`,
     `- {type:"edit_task", match, set:{ any of: title, kind, category, time, date, notify, repeat, repeatDays, done }}`,
     `- {type:"remove_task", match}`,
     `- {type:"toggle_task", match, date?, done?}   (tick off / mark done. Works on calendar tasks, goals, AND daily habits. For a daily habit, set match.box:"dailyHabits", match.title (the habit name), and "date" = the day to check it off (YYYY-MM-DD, default today). done:false unchecks.)`,
@@ -1718,7 +1718,6 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, o
     `- time: the EVENT's clock time, 24h "HH:MM" (5pm→"17:00", noon→"12:00", "7:30 in the morning"→"07:30").`,
     `- notify: a REMINDER/notification, as {date:"YYYY-MM-DD", time:"HH:MM"}. Set it whenever the user says remind / reminder / notify / notification / alert / alarm / "ping me" / "let me know". An item can have BOTH a "time" (when it happens) AND a "notify" (when to be reminded). "remind me 15 minutes before" → notify 15 min before the event time. If the user calls it an event and gives ONE time (e.g. "an event with a notification at 3pm"), use that time for BOTH "time" and "notify".`,
     `- repeat: "none"|"daily"|"weekly"|"weekdays"|"custom"; repeatDays: weekday indexes 0=Mon..6=Sun for weekly/custom.`,
-    `- altSeqTitles: 2+ titles for an alternating-sequence task ("alternate push and pull days") — use instead of title.`,
     ``,
     `MATCHING: "match"/"first"/"second"/"relativeTo" = {box?, date?, title}. "title" is the user's words for an EXISTING item (matched loosely). Include box and (for calendar) date when known. Resolve "it/that/this/the task" to the most recently referenced or just-added item.`,
     ``,
@@ -1907,7 +1906,6 @@ const ACTION_SCHEMA = {
             type: 'OBJECT',
             properties: { year: { type: 'INTEGER' }, month: { type: 'INTEGER' }, day: { type: 'INTEGER' } },
           },
-          altSeqTitles: { type: 'ARRAY', items: { type: 'STRING' } },
           done: { type: 'BOOLEAN' },
           set: {
             type: 'OBJECT',
