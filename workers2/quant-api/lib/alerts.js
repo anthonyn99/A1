@@ -32,20 +32,22 @@ import { isTradingDay } from './holidays.js';
 import { Ledger, CAPS, day as utcDay } from './ledger.js';
 import { getQuotes } from './data.js';
 
-export const KINDS = ['price', 'signal', 'graded', 'regime', 'catalyst', 'data', 'order'];   // T7: order = a paper order filled, partly filled, cancelled or rejected (lib/order-watch.js)
+export const KINDS = ['price', 'signal', 'graded', 'regime', 'catalyst', 'data', 'order', 'cortex'];   // N8: cortex = Neo Cortex (quant-bot's outbox, lib/cortex-alerts.js). T7: order = a paper order filled, partly filled, cancelled or rejected (lib/order-watch.js)
 export const DIRS = ['above', 'below', 'cross', 'enter'];
 export const ALERTS_MAX = 200, COOLDOWN_MIN = 30, HYST_ATR = 0.3, ATR_GUESS = 0.01, FIRES_MAX = 200;
 export const PUSH_URL = 'https://taskhub-reminders.av1.workers.dev';
 export const PAGE_URL = 'https://a1-priv.av1.workers.dev/tradehub.html';
 export const DEFAULT_CFG = Object.freeze({
-  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true, order: true },
+  kinds: { price: true, signal: true, graded: true, regime: true, catalyst: true, data: true, order: true, cortex: true },
   quiet: { on: false, from: '22:00', to: '07:00', tz: 'America/Denver' },
   // "Market hours only": outside a New York session the alert is listed in the bell, not pushed.
-  marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true, order: false },
+  marketOnly: { price: true, signal: false, graded: false, regime: false, catalyst: false, data: true, order: false, cortex: false },
   mute: {},                              // { SYM: until ms (0 = until unmuted) }
-  cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false, order: false },
+  cards: { price: false, signal: false, graded: true, regime: false, catalyst: true, data: false, order: false, cortex: false },
   // T7: which order events and which brokers alert (Control ▸ Alerts ▸ Trading). His own cancels stay quiet by default.
   trading: { filled: true, partial: true, canceled: false, rejected: true, alpaca: true, webull: true },
+  // N8: which Neo Cortex alerts are pushed (Control ▸ Alerts ▸ Neo Cortex); all on by default.
+  cortex: { trades: true, changes: true, guards: true, research: true, brief: true },
   speak: true,                           // the page speaks a new alert when voice allows it
 });
 const ID_RE = /^[\w-]{1,64}$/, HHMM = /^([01]\d|2[0-3]):[0-5]\d$/, SETUP_RE = /^[a-z][a-z-]{1,23}$/;
@@ -103,6 +105,7 @@ export function configOf(raw) {
     mute,
     cards: bools(c.cards, DEFAULT_CFG.cards),
     trading: bools(c.trading, DEFAULT_CFG.trading),
+    cortex: bools(c.cortex, DEFAULT_CFG.cortex),
     speak: typeof c.speak === 'boolean' ? c.speak : DEFAULT_CFG.speak,
   };
 }
@@ -232,7 +235,7 @@ export function checkRule(a) {
 }
 
 /* ── routes ─────────────────────────────────────────────────────────────── */
-async function readCfg(env) {
+export async function readCfg(env) {
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'alert_cfg'").first();
   return configOf(row ? parse(row.v, {}) : {});
 }
@@ -507,7 +510,7 @@ async function retry(env, rules, now, send) {
 // "On" and no rules (Tony's screen) no signal, graded, regime, catalyst or data alert could ever reach him. Now a kind
 // that is On and has no rule of Tony's gets a standing one, for every ticker, with the defaults. It lives only in the
 // run (never written to the table); its fires are kept under its own id (`std:<kind>`), so each event still pushes once.
-export const STANDING = { signal: null, graded: null, regime: null, catalyst: { minutes: 15 }, data: { downMin: 10, budgetPct: 70 }, order: null };
+export const STANDING = { signal: null, graded: null, regime: null, catalyst: { minutes: 15 }, data: { downMin: 10, budgetPct: 70 }, order: null, cortex: null };
 export function standingRules(cfg, rules, kinds = Object.keys(STANDING)) {
   const have = new Set(rules.map((r) => r.kind));
   return kinds.filter((k) => k in STANDING && cfg.kinds[k] !== false && !have.has(k))
