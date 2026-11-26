@@ -409,7 +409,15 @@ const tagOnly = (a, b) => a.steps.every((s, i) => { const x = new Set(s.snap.vis
 const rowsTrimmed = (a, b) => a.steps.every((s, i) => s.snap.rows.every((r, j) => { const t = ((b.steps[i] || {}).snap || { rows: [] }).rows[j];
   return t && (t.text === r.text || r.text.startsWith(t.text + ' · ')); }));
 const stepIs = (n, name) => (a) => !!a.steps[n] && a.steps[n].name === name;
+// AI Format keeps the author's words (2026-11-26, docs/Notebook/README.md): the
+// mock answers "Formatted body", so the entry now keeps "Charlie keeps italics"
+// in the mock's layout, and the request carries the existing <em>.
+const wordsKept = (a, b) => [a, b].some((j) => j.steps.some((s) => s.name === 'ai-format' &&
+  />Charlie<\/h3><p[^>]*>keeps <strong>italics\.<\/strong><\/p>$/.test(s.snap.html || '') &&
+  (s.reqs || []).some((r) => r.body && r.body.text === 'Charlie keeps <em>italics</em>.')));
 const EXPECTED = [
+  { phase: 'W', why: 'AI Format puts back the author\'s words and sends existing inline formatting', check: wordsKept,
+    path: /^(tj|bj)\.(steps\[\d+\]\.(snap\.html|writes\[\d+\]\.data\.e_e_ID3\.data\.html|reqs\[\d+\]\.body\.text)|store\.(fs\.dashboards\/\w+\.e_e_ID3\.data\.html|cache\.entries\[\d+\]\.data\.html))$/ },
   { phase: 'T', why: 'MyJournal: no tag row, tag chips or tag box (and the toolbar/sidebar close the gap)', check: tagOnly,
     path: /^tj\.steps\[\d+\]\.snap\.(visibleIds\[\d+\]|tags(\[\d+\])?|box\.(tags-row|entries-list\.[yh]|entry-title-input\.w|btn-edit\.x|btn-lock\.x))$/ },
   { phase: 'T', why: 'MyJournal: sidebar rows no longer list tags', check: rowsTrimmed, path: /^tj\.steps\[\d+\]\.snap\.rows\[\d+\]\.text$/ },
