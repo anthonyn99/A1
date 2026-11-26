@@ -109,7 +109,8 @@ export async function getState({ DB }) {
   const [status, settings, shadow] = await Promise.all([
     readBotState(DB), readSettings(DB), DB.prepare('SELECT COUNT(*) AS count FROM bot_shadow_sessions').first(),
   ]);
-  return json({ ok: true, ...status, mode: settings.settings.mode, paused: settings.settings.paused, settingsVersion: settings.version, shadowSessions: shadow.count });
+  return json({ ok: true, ...status, mode: settings.settings.mode, paused: settings.settings.paused, settingsVersion: settings.version, shadowSessions: shadow.count,
+    limits: { book: settings.settings.limits.book, maxDeployed: settings.settings.limits.maxDeployed } });
 }
 
 export async function getToday(req, { DB }, url, now = Date.now()) {
