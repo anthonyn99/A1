@@ -1,13 +1,17 @@
 // Neo Cortex's bot worker (A1-Priv docs/TradeHub/quant-trading.md §N4), account 3.
-// N0 (docs/TradeHub/quant/n4-00.md): PROBES ONLY. No cron, no order route; every
-// route is read-only. The bot itself (cron, risk book, journal, kill switch) is N4.
+// N0 (docs/TradeHub/quant/n4-00.md): the probes. N3 (n4-03.md): the strategist's lab and
+// strategies (lib/lab.js). No cron and no order route yet: the bot itself (cron, risk book,
+// journal, kill switch) is N4.
 //
 //   GET /health                       { ok, phase }
+//   /lab/runs, /strategies, /research/request, /research/claim   lib/lab.js (Tony's key)
 //   GET /probe/cpu?n=40&keep=400&stage=full  one bot tick on synthetic 5-min bars (CPU is read from Cloudflare's analytics)
 //   GET /probe/d1                     the quantbot database answers
 //   GET /probe/alpaca?symbols=A,B     the bot's Alpaca paper account: account, clock, calendar, IEX 5-min bars, shortable
-// Auth: Authorization: Bearer <PROBE_KEY> (a secret set by the session; N4 replaces it with ALLOWED_KEYS).
+// Auth: Authorization: Bearer <Tony's Orca key>; the worker holds only its SHA-256 (secret ALLOWED_KEYS, as
+// quant-api). The probes also take PROBE_KEY (N0's session key).
 import { withDefaults } from './core/strategy.js';
+import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest, claimRequest } from './lib/lab.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
 
@@ -95,11 +99,39 @@ async function probeAlpaca(env, url) {
   });
 }
 
+export async function sha256Hex(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+/** Tony's key? Compared by hash, every allowed hash checked (no early stop). */
+export async function keyOk(req, env) {
+  const allowed = String(env.ALLOWED_KEYS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const key = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!allowed.length || !/^orca_sk_[\w-]{8,}$/.test(key)) return false;
+  const h = await sha256Hex(key);
+  let ok = 0;
+  for (const a of allowed) ok |= a.length === h.length && [...a].every((c, i) => c === h[i]) ? 1 : 0;
+  return ok === 1;
+}
+
+const LAB = {
+  'GET /lab/runs': (req, env, url) => getRuns(env, url), 'POST /lab/runs': async (req, env) => postRun(env, await req.json()),
+  'GET /strategies': (req, env, url) => getStrategies(env, url), 'POST /strategies': async (req, env) => postStrategy(env, await req.json()),
+  'GET /research/request': (req, env) => getRequest(env), 'POST /research/request': async (req, env) => postRequest(env, await req.json().catch(() => ({}))),
+  'POST /research/claim': async (req, env) => claimRequest(env, await req.json()),
+};
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N0 probes' });
-    if (!env.PROBE_KEY || req.headers.get('authorization') !== 'Bearer ' + env.PROBE_KEY) return json({ error: 'unauthorized' }, 401);
+    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N3 lab' });
+    const tony = await keyOk(req, env);
+    const route = LAB[`${req.method} ${url.pathname}`];
+    if (route) {
+      if (!tony) return json({ error: 'unauthorized' }, 401);
+      try { return await route(req, env, url); } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
+    }
+    if (!tony && !(env.PROBE_KEY && req.headers.get('authorization') === 'Bearer ' + env.PROBE_KEY)) return json({ error: 'unauthorized' }, 401);
     if (req.method !== 'GET') return json({ error: 'read-only' }, 405);
     try {
       if (url.pathname === '/probe/cpu') {
