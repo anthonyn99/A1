@@ -85,7 +85,7 @@ function fakeBot() {
     await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
     ok('...Escape closes it', await until(`!document.querySelector('[data-ncx-drawer]')`, 3000));
     await js(`document.querySelector('[data-ncx-strat="semis-orb"]').click(); 1`);
-    ok('a strategy opens its drawer: rules in words, paper against backtest, the replay match', await until(`(function(){ var d=document.querySelector('[data-ncx-drawer]'); return d && /opening-range/i.test(d.querySelector('.ncx-section').innerText) && /87/.test(d.innerText) && /19 of 20 signals/.test(d.innerText); })()`, 6000),
+    ok('a strategy opens its drawer: rules in words, paper against backtest, the replay match', await until(`(function(){ var d=document.querySelector('[data-ncx-drawer]'); return d && /orb setup fires/.test(d.querySelector('.ncx-section').innerText) && !/undefined|NaN/.test(d.innerText) && /87/.test(d.innerText) && /19 of 20 signals/.test(d.innerText); })()`, 6000),
       await js(`var d=document.querySelector('[data-ncx-drawer]'); return d ? d.innerText : 'none';`));
     await js(`document.querySelector('[data-ncx="stage-paused"]').click(); 1`);
     ok('...Pause sends the stage change as Tony and closes', await until(`!document.querySelector('[data-ncx-drawer]')`, 5000) && bot.calls.some((x) => x.p === '/strategies/stage'));
@@ -107,9 +107,9 @@ function fakeBot() {
     ok('...Lab lists a run with each proposal refused and why', /premarket/.test(labHtml) && /Refused/.test(labHtml) && /under the 30 trades/.test(labHtml), labHtml);
     await tab('cortex');
     await until(`!!${card('status')}`, 6000);
-    await js(`window.tbSetDisplayMode(true); 1`);
+    await js(`[...document.querySelectorAll('[aria-label="Display mode"]')].find(function(x){return x.offsetParent;}).click(); 1`);
     ok('P2-21: in Display Mode the tab leaves the sidebar and the page goes to Portfolio', await until(`!document.querySelector('[data-cortex-tab]')`, 5000) && !(await navHas()));
-    await js(`window.tbSetDisplayMode(false); 1`);
+    await js(`[...document.querySelectorAll('[aria-label="Display mode"]')].find(function(x){return x.offsetParent;}).click(); 1`);
     ok('...and comes back when Display Mode is off', await until(`!![...document.querySelectorAll('.tb-navtab[data-navid="cortex"]')].find(function(b){return b.offsetParent;})`, 5000));
 
     console.log('\n5. Tablet and phone');
