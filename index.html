@@ -15442,6 +15442,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     const typeChanged=initial?.id&&wasRepeating&&repeat!=="none"&&type!==(initial.type||"task");
     if(wasRepeating&&nowCancelled){onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");}
     else if(typeChanged){onSave(startDateKey,item,"titleEditChoice");}
+    else if(repeat==="span"&&initial?.id&&(!wasRepeating||initial.repeatSpanDays!==Number(spanDays))){onSave(startDateKey,{...item,_originalId:wasRepeating?undefined:initial.id},{mode:"daily",days:[],endDate:repeatEnd,replaceSeries:wasRepeating});}
     else if(repeat==="none"||!endDate||initial?.id){onSave(startDateKey,item,null);}
     else{onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd});}
     // A flagged task is prepped as soon as it is saved, whatever its date; the
@@ -16921,6 +16922,8 @@ function App(){
       else if(!ri){const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);if(idx>=0)items[idx]=item;else items.push(item);next[dk2]=items;}
       else if(ri.mode==="altSeq"){const seqId=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);const titles=ri.titles;let dayCount=0;const c=new Date(sd);while(c<=ed){const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());const seqIdx=dayCount%titles.length;const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),title:titles[seqIdx],altSeqId:seqId,altSeqIdx:seqIdx,altSeqTitles:titles,altSeqEndDate:ri.endDate,done:false,_originalId:undefined,repeat:"none"});next[ck]=arr;c.setDate(c.getDate()+1);dayCount++;}}
       else{const rid=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
+        if(ri.replaceSeries&&item.repeatId){Object.keys(next).forEach(k=>{if(k>=dk2){next[k]=(next[k]||[]).filter(t=>t.repeatId!==item.repeatId);if(!next[k].length)delete next[k];}});}
+        if(item._originalId){const old=(next[dk2]||[]).filter(t=>t.id!==item._originalId);if(old.length)next[dk2]=old;else delete next[dk2];}
         // The FIRST occurrence carries the REPEATING notification (item already
         // inherited the task's cadence in the modal), so the push engine pre-expands
         // a cloud reminder for every future date and the local poll re-arms it —
