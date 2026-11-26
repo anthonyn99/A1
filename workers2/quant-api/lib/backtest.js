@@ -10,14 +10,11 @@
 //   DELETE /paper?id=             stop following one
 //   GET  /backtests               { backtests }    saved runs, newest first, without their curves
 //   GET  /backtests/:id           { backtest }     one run, with its curve
-//   POST /backtests               { name, spec, summary, curve }  save a run (one write)
-//   DELETE /backtests/:id         remove one
 import { fail, json } from './http.js';
 import { checkSignal } from './signals.js';
 import { bodyOf } from './charts.js';
 
 export const CAL_BYTES = 400_000, CAL_KEEP = 12, PAPER_MAX = 500, BACKTESTS_MAX = 200;
-export const SPEC_BYTES = 8_000, SUMMARY_BYTES = 24_000, CURVE_POINTS = 500;
 const RUN_ID_RE = /^b[0-9a-z]{6,20}$/, SIG_ID_RE = /^s[0-9a-z]{4,16}$/;
 
 /** A D1 error that means "this table is not there yet" (the migration is not applied). */
@@ -95,29 +92,4 @@ export async function getBacktest(env, id) {
   const r = await guarded(env.DB.prepare('SELECT * FROM backtests WHERE id = ?').bind(id).first(), null);
   if (!r) throw fail(404, 'no such run');
   return json({ ok: true, backtest: runOut(r, true) });
-}
-/** POST /backtests { name, spec, summary, curve: [[t, v]] ≤ 500, bench?: [[t, v]] ≤ 500 }: one write. */
-export async function postBacktest(env, req) {
-  const b = await bodyOf(req, SPEC_BYTES + SUMMARY_BYTES + 60_000);
-  const name = String((b && b.name) || '').trim().slice(0, 80);
-  if (!name) throw fail(400, 'a name is needed');
-  const spec = JSON.stringify((b && b.spec) || null), summary = JSON.stringify((b && b.summary) || null);
-  if (!b || !b.spec || typeof b.spec !== 'object') throw fail(400, 'spec is needed');
-  if (!b.summary || typeof b.summary !== 'object') throw fail(400, 'summary is needed');
-  if (spec.length > SPEC_BYTES) throw fail(413, 'a spec may be at most ' + SPEC_BYTES + ' bytes');
-  if (summary.length > SUMMARY_BYTES) throw fail(413, 'a summary may be at most ' + SUMMARY_BYTES + ' bytes');
-  const okCurve = (c) => Array.isArray(c) && c.length <= CURVE_POINTS && c.every((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite));
-  if (!okCurve(b.curve) || (b.bench != null && !okCurve(b.bench))) throw fail(400, 'curve (and bench) must be up to ' + CURVE_POINTS + ' [time, value] points');
-  const n = await guarded(env.DB.prepare('SELECT COUNT(*) AS n FROM backtests').first());
-  if (n && n.n >= BACKTESTS_MAX) throw fail(429, 'at most ' + BACKTESTS_MAX + ' saved runs: delete one first');
-  const now = Date.now(), id = 'b' + now.toString(36) + Math.floor(Math.random() * 46656).toString(36).padStart(3, '0');
-  await guarded(env.DB.prepare('INSERT INTO backtests (id, name, created, spec, summary, curve) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, name, now, spec, summary, JSON.stringify({ equity: b.curve, bench: b.bench || null })).run());
-  return json({ ok: true, id, created: now });
-}
-/** DELETE /backtests/:id: one write. */
-export async function deleteBacktest(env, id) {
-  if (!RUN_ID_RE.test(id)) throw fail(400, 'not a run id');
-  await guarded(env.DB.prepare('DELETE FROM backtests WHERE id = ?').bind(id).run());
-  return json({ ok: true });
 }

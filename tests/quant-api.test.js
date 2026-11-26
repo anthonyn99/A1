@@ -29,7 +29,6 @@ function fakeDb() {
       six(sql);
       if (/^SELECT at, body FROM calibration ORDER BY at DESC/.test(sql)) return calibration.slice().sort((a, b) => b.at - a.at || b.id - a.id)[0] || null;
       if (/^SELECT COUNT\(\*\) AS n FROM paper/.test(sql)) return { n: paper.size };
-      if (/^SELECT COUNT\(\*\) AS n FROM backtests/.test(sql)) return { n: backtests.size };
       if (/^SELECT \* FROM backtests WHERE id = \?/.test(sql)) return backtests.get(args[0]) || null;
       if (/^SELECT 1/.test(sql)) return { one: 1 };
       if (/FROM usage WHERE day = \? AND service = \?/.test(sql)) { const n = usage.get(args[0] + '|' + args[1]); return n == null ? null : { n }; }
@@ -78,8 +77,6 @@ function fakeDb() {
       if (/^DELETE FROM calibration WHERE id NOT IN/.test(sql)) { const keep = new Set(calibration.slice().sort((a, b) => b.at - a.at || b.id - a.id).slice(0, args[0]).map((x) => x.id)); for (let i = calibration.length - 1; i >= 0; i--) if (!keep.has(calibration[i].id)) calibration.splice(i, 1); return {}; }
       if (/^INSERT INTO paper/.test(sql)) { if (!/ON CONFLICT \(id\) DO NOTHING/.test(sql)) throw new Error('paper insert must not overwrite'); if (!paper.has(args[0])) { paper.set(args[0], { id: args[0], signal: args[1], created: args[2] }); db.writes++; } return {}; }
       if (/^DELETE FROM paper WHERE id = \?/.test(sql)) { paper.delete(args[0]); return {}; }
-      if (/^INSERT INTO backtests/.test(sql)) { const [id, name, created, spec, summary, curve] = args; backtests.set(id, { id, name, created, spec, summary, curve }); db.writes++; return {}; }
-      if (/^DELETE FROM backtests WHERE id = \?/.test(sql)) { backtests.delete(args[0]); return {}; }
       if (/^INSERT INTO usage/.test(sql)) { const k = args[0] + '|' + args[1]; usage.set(k, (usage.get(k) || 0) + args[2]); return {}; }
       // The cap row: only the skip window and the reason change.
       if (/^INSERT INTO provider_health/.test(sql) && /SET skip_until = excluded\.skip_until, detail/.test(sql)) {
@@ -650,8 +647,6 @@ globalThis.fetch = async (url, init = {}) => {
   ok('before migration 0006: the calibration reads as none', r.status === 200 && r.body.calibration === null);
   r = await call(e6, '/backtests', { key: GOOD });
   ok('...saved runs read as none', r.status === 200 && r.body.backtests.length === 0);
-  r = await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: [] } });
-  ok('...and a write says which migration is missing (503)', r.status === 503 && /0006_backtest/.test(r.body.error), JSON.stringify(r.body));
   e6 = { DB: fakeDb(), ALLOWED_KEYS: hash };
   ok('the routes need the key', (await call(e6, '/calibration')).status === 401 && (await call(e6, '/backtests')).status === 401 && (await call(e6, '/paper')).status === 401);
   const cal = (n) => ({ v: 1, setups: { orb: { all: { n, wins: 10 } } }, weights: {}, fittedAt: n });
@@ -676,24 +671,17 @@ globalThis.fetch = async (url, init = {}) => {
   r = await call(e6, '/paper?id=spaper1', { key: GOOD, method: 'DELETE' });
   ok('DELETE stops following it', r.status === 200 && e6.DB.paper.size === 0);
   const curve = Array.from({ length: 500 }, (_, i) => [i, 100 + i]);
-  r = await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'RSI dip', spec: { v: 1, name: 'RSI dip' }, summary: { cagr: 0.1, trades: 40 }, curve, bench: curve } });
-  const runId = r.body && r.body.id;
-  ok('a saved run is one write', r.status === 200 && /^b[0-9a-z]+$/.test(runId) && e6.DB.backtests.size === 1);
+  const runId = 'bfixture1';
+  e6.DB.backtests.set(runId, { id: runId, name: 'RSI dip', created: 1, spec: JSON.stringify({ v: 1, name: 'RSI dip' }),
+    summary: JSON.stringify({ cagr: 0.1, trades: 40 }), curve: JSON.stringify({ equity: curve, bench: curve }) });
   r = await call(e6, '/backtests', { key: GOOD });
   ok('the list has its headline numbers, not its curve', r.body.backtests.length === 1 && r.body.backtests[0].summary.cagr === 0.1 && !('curve' in r.body.backtests[0]));
   r = await call(e6, '/backtests/' + runId, { key: GOOD });
   ok('one run comes with its curve and benchmark', r.status === 200 && r.body.backtest.curve.equity.length === 500 && r.body.backtest.curve.bench.length === 500 && r.body.backtest.spec.name === 'RSI dip');
-  const bad7 = [];
-  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: '', spec: { v: 1 }, summary: {}, curve: [] } })).status);
-  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: Array.from({ length: 501 }, (_, i) => [i, 1]) } })).status);
-  bad7.push((await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1, pad: 'p'.repeat(9000) }, summary: {}, curve: [] } })).status);
-  bad7.push((await call(e6, '/backtests/nope', { key: GOOD })).status);
-  bad7.push((await call(e6, '/backtests/bzzzzzzzz', { key: GOOD })).status);
-  ok('refused: no name, over 500 points, a spec over 8 KB, a bad id; a missing run is 404', bad7.join() === '400,400,413,400,404', bad7.join());
-  for (let i = 0; i < 199; i++) e6.DB.backtests.set('bfill' + i, { id: 'bfill' + i, name: 'f', created: 1, spec: '{}', summary: '{}', curve: '{}' });
-  ok('at most 200 saved runs', (await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'x', spec: { v: 1 }, summary: {}, curve: [] } })).status === 429);
-  r = await call(e6, '/backtests/' + runId, { key: GOOD, method: 'DELETE' });
-  ok('DELETE removes a run', r.status === 200 && !e6.DB.backtests.has(runId));
+  ok('an invalid or missing history id is refused', (await call(e6, '/backtests/nope', { key: GOOD })).status === 400 && (await call(e6, '/backtests/bzzzzzzzz', { key: GOOD })).status === 404);
+  const create = await call(e6, '/backtests', { key: GOOD, method: 'POST', body: { name: 'another' } });
+  const remove = await call(e6, '/backtests/' + runId, { key: GOOD, method: 'DELETE' });
+  ok('backtest history is read-only', create.status === 404 && remove.status === 404 && e6.DB.backtests.size === 1 && e6.DB.backtests.has(runId));
 
   console.log('\nRead-only toward the broker');
   const fs = require('fs');

@@ -36,7 +36,7 @@
 //   GET/PUT /calibration           the setups' measured table (lib/backtest.js)
 //   GET/POST/DELETE /paper         signals followed on paper (watched ideas)
 //   /paper/…                       paper trading on Alpaca's PAPER account (lib/paper.js: the only order code)
-//   GET/POST /backtests, GET/DELETE /backtests/:id   saved strategy backtests
+//   GET /backtests, GET /backtests/:id   read-only strategy backtest history
 //   GET  /dossier?symbol&cik       the ticker dossier's parts (lib/dossier.js; at most 6 provider calls)
 //   GET  /fundamentals?symbols     basic financials for the nightly ideas (at most 25 symbols)
 //   GET/POST /ideas                the nightly ideas
@@ -75,7 +75,7 @@ import * as alpaca from './providers/alpaca.js';
 import { finnhub, publicCom, tiingo } from './providers/others.js';
 import { fail, json } from './lib/http.js';
 import { getSignals, postSignals, postGrades } from './lib/signals.js';
-import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listBacktests, getBacktest, postBacktest, deleteBacktest } from './lib/backtest.js';
+import { getCalibration, putCalibration, getPaper, postPaper, deletePaper, listBacktests, getBacktest } from './lib/backtest.js';
 import { getDossier, getFundamentals, getIdeas, postIdeas, postShortVolume } from './lib/dossier.js';
 import * as drive from './lib/drive.js';
 import * as mem from './lib/memory.js';
@@ -193,7 +193,6 @@ async function route(req, env, url, ctx) {
   // Webull SANDBOX probe (Batch 4 T0): read-only; no order is placed (lib/webull-probe.js).
   if (m === 'GET' && p === '/webull/probe') return json(await webullProbe.probe(env));
   if (p === '/backtests' && m === 'GET') return listBacktests(env);
-  if (p === '/backtests' && m === 'POST') return postBacktest(env, req);
   if (p === '/dossier' && m === 'GET') return getDossier(env, url, ctx, later);
   if (p === '/fundamentals' && m === 'GET') return getFundamentals(env, url, ctx, later);
   if (p === '/ideas' && m === 'GET') return getIdeas(env);
@@ -252,7 +251,6 @@ async function route(req, env, url, ctx) {
   if (p === '/brief' && m === 'POST') return postBrief(env, req);
   const bt = /^\/backtests\/([\w-]+)$/.exec(p);
   if (bt && m === 'GET') return getBacktest(env, bt[1]);
-  if (bt && m === 'DELETE') return deleteBacktest(env, bt[1]);
   throw fail(404, 'no such route');
 }
 
