@@ -43,7 +43,7 @@ export function tally(trades) {
     if (!worst || t.pnl < worst.pnl) worst = t;
   }
   const n = trades.length, pick = (t) => t && { symbol: t.symbol, strategy: t.strategy, side: t.side, pnl: t.pnl, r: t.r };
-  return { trades: n, wins, winRate: n ? wins / n : null, pf: gl > 0 ? r2(gw / gl) : gw > 0 ? null : null, grossWin: r2(gw), grossLoss: r2(gl),
+  return { trades: n, wins, winRate: n ? wins / n : null, pf: gl > 0 ? r2(gw / gl) : null, grossWin: r2(gw), grossLoss: r2(gl),
     best: n ? pick(best) : null, worst: n > 1 ? pick(worst) : null };
 }
 
@@ -71,7 +71,7 @@ export function headline(b) {
   if (b.mode === 'shadow') return `Shadow day: ${b.shadow.decisions} decision${b.shadow.decisions === 1 ? '' : 's'} logged, no orders sent.`;
   if (b.mode === 'off') return 'Neo Cortex was off today.';
   const parts = [];
-  if (b.pnl != null) parts.push(`${b.pnl >= 0 ? 'Up' : 'Down'} ${money(Math.abs(b.pnl)).replace('-', '')} (${pct(b.pnlPct)})` + (b.spyPct != null ? ` vs SPY ${pct(b.spyPct)}` : ''));
+  if (b.pnl != null) parts.push(`${b.pnl >= 0 ? 'Up' : 'Down'} ${money(Math.abs(b.pnl))} (${pct(b.pnlPct)})` + (b.spyPct != null ? ` vs SPY ${pct(b.spyPct)}` : ''));
   parts.push(b.trades ? `${b.trades} trade${b.trades === 1 ? '' : 's'}, ${b.wins} won` : 'no trades closed');
   return parts.join(' · ') + '.';
 }
@@ -187,4 +187,3 @@ export async function getBriefs({ DB }, url) {
   const { results } = await DB.prepare('SELECT day, at, body FROM bot_briefs ORDER BY day DESC LIMIT ?').bind(limit).all();
   return json({ ok: true, briefs: results.map((r) => { const b = JSON.parse(r.body); return { day: r.day, at: r.at, headline: b.headline, pnl: b.pnl, mode: b.mode, ready: !!b.ready, week: !!b.week }; }) });
 }
-export { DAY as BRIEF_DAY };
