@@ -147,8 +147,9 @@ test('a scheduled half-day shadow replay journals the signal and counts one comp
   assert.equal(final.market, 'closed');
   assert.equal(final.equity, 5000);
   assert.equal(final.shadowSessions, 1);
-  const { events } = await (await request('/today?day=2026-11-27')).json();
-  assert.equal(events.length, 1);
+  const all = (await (await request('/today?day=2026-11-27')).json()).events;
+  assert.deepEqual(all.map((e) => e.kind), ['shadow', 'stage']);
+  const events = all.filter((e) => e.kind === 'shadow');
   assert.equal(events[0].kind, 'shadow');
   assert.equal(events[0].qty, 6);
   assert.match(events[0].why, /observed 101/);
