@@ -15377,6 +15377,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
   const[time,setTime]=useState("");const[repeat,setRepeat]=useState("none");
   const[repeatDays,setRepeatDays]=useState([]);const[endDate,setEndDate]=useState(null);
+  const[spanDays,setSpanDays]=useState(7);
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
   const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
@@ -15385,7 +15386,8 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   // the window first drew with the last tab it showed (Task) and switched to
   // Plan a beat later, and the other way round (Tony, 2026-11-06).
   React.useLayoutEffect(()=>{if(open){setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
-    setRepeat(initial?.altSeqId?"altSeq":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
+    setRepeat(initial?.repeatSpanDays?"span":initial?.altSeqId?"none":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
+    setSpanDays(initial?.repeatSpanDays||7);
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
     if(startDateKey){const p=startDateKey.split("-");const sd=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));sd.setDate(sd.getDate()+14);setEndDate(initial?.repeatEndDate||initial?.altSeqEndDate||{month:sd.getMonth(),day:sd.getDate(),year:sd.getFullYear()});}
@@ -15399,6 +15401,9 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5};
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
+    if(repeat==="span"&&(!Number.isInteger(Number(spanDays))||Number(spanDays)<2||Number(spanDays)>730)){alert("Choose 2 to 730 days.");return;}
+    const repeatMode=repeat==="span"?"daily":repeat;
+    const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
     // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
     const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
     if(repeat==="altSeq"){
@@ -15416,7 +15421,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       }
       return;
     }
-    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),...aiF};
+    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat:repeatMode,repeatDays,repeatEndDate:repeatEnd,repeatId:initial?.repeatId||uid(),...(repeat==="span"?{repeatSpanDays:Number(spanDays)}:{})}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),...aiF};
     // A repeating task must keep its reminder on EVERY future occurrence. If the
     // user didn't set an explicit notify repeat, the reminder inherits the task's
     // own cadence so the push series is pre-expanded for every date (and each
@@ -15424,7 +15429,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     if(repeat!=="none"&&item.notifyAt){
       const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";
       const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
-      const _nr=_userSet?item.notifyRepeat:(_map[repeat]||"none");
+      const _nr=_userSet?item.notifyRepeat:(_map[repeatMode]||"none");
       if(_nr!=="none"){item.notifyRepeat=_nr;item.notifyRepeatDays=_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(repeatDays||[])):[];item.notifyRepeatId=item.notifyRepeatId||findSeriesNotifyIdFor("td_data",initial)||uid();}
     }
     const wasAltSeq=!!(initial?.altSeqId);
@@ -15435,7 +15440,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     if(wasRepeating&&nowCancelled){onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");}
     else if(typeChanged){onSave(startDateKey,item,"titleEditChoice");}
     else if(repeat==="none"||!endDate||initial?.id){onSave(startDateKey,item,null);}
-    else{onSave(startDateKey,item,{mode:repeat,days:repeatDays,endDate});}
+    else{onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd});}
     // A flagged task is prepped as soon as it is saved, whatever its date; the
     // background run only covers today and tomorrow. Skipped when the kit is
     // already current, so re-saving an unchanged task costs nothing.
