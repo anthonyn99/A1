@@ -53,6 +53,8 @@ export async function cortexAlerts(env, req, now = Date.now(), { send = push } =
   const cfg = await readCfg(env);
   if (cfg.kinds.cortex === false) return json({ ok: true, skipped: 'Neo Cortex alerts are off', fired: [] });
   const wanted = fold(items.filter((x) => cfg.cortex[x.type] !== false), cfg.quiet.tz);
+  // { dry: true }: quant-bot's probe (GET /alerts/probe there): the secret, the items and the switches, nothing pushed or kept.
+  if (body.dry === true) return json({ ok: true, dry: true, received: items.length, would: wanted.map((x) => x.title) });
   if (!wanted.length) return json({ ok: true, fired: [], received: items.length });
   const rule = standingRules(cfg, [], ['cortex'])[0];
   const fired = await fire(env, wanted.map((x) => ({ rule, key: 'cx:' + x.key, kind: 'cortex', symbol: x.symbol, title: x.title, body: x.body, url: pageUrl(x.route) })), cfg, now, { send });

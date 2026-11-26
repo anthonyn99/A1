@@ -43,6 +43,15 @@ export function runItem(r) {
 
 export const briefItem = (b) => ({ key: 'brief:' + b.day, type: 'brief', ts: b.readyAt || b.at, title: 'Neo Cortex brief ready', body: clip(b.headline, 400), route: 'cortex:brief:' + b.day });
 
+/** GET /alerts/probe (Tony's key): a dry batch through the real path to quant-api; nothing is pushed or kept. */
+export async function probeAlerts(env, { fetchFn = fetch } = {}) {
+  if (!env.CORTEX_SECRET) return new Response(JSON.stringify({ ok: false, error: 'CORTEX_SECRET is not set on quant-bot' }), { status: 503, headers: { 'content-type': 'application/json' } });
+  const items = [{ key: 'probe:' + Date.now(), type: 'brief', ts: Date.now(), title: 'Neo Cortex brief ready', body: 'probe', route: 'cortex:status' }];
+  const r = await fetchFn((env.QUANT_API_URL || QUANT_API) + '/alerts/cortex', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cortex-secret': env.CORTEX_SECRET }, body: JSON.stringify({ items, dry: true }) });
+  const text = await r.text();
+  return new Response(JSON.stringify({ ok: r.ok, status: r.status, quantApi: (() => { try { return JSON.parse(text); } catch (e) { return text.slice(0, 200); } })() }), { status: r.ok ? 200 : 502, headers: { 'content-type': 'application/json' } });
+}
+
 /** The cron's outbox step. → { learned } | { sent, items } | { skipped } | { error }. */
 export async function flushOutbox(env, at, { fetchFn = fetch } = {}) {
   const db = env.DB;

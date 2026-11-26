@@ -626,6 +626,9 @@ globalThis.fetch = async (url, opts = {}) => {
     r = await post({ items: [it('ev:10', 'guards')] });
     ok('the kind off: nothing at all', r.body.fired.length === 0 && /off/.test(r.body.skipped));
     ok('a rule of kind cortex cannot be made (switches only)', (await call(e, 'POST', '/alerts', { alert: { kind: 'cortex' } })).status === 400);
+    const e3 = { ...mkEnv(), CORTEX_SECRET: 'cx-secret' }, p0 = W.pushes.length;
+    r = await post({ items: [it('ev:d1', 'trades')], dry: true }, 'cx-secret', e3);
+    ok('a dry batch (quant-bot\'s probe) says what would fire and pushes or keeps nothing', r.body.dry === true && r.body.would[0] === 'Neo Cortex: ev:d1' && W.pushes.length === p0 && e3.DB.sql.prepare('SELECT COUNT(*) AS n FROM alert_fires').get().n === 0);
     ok('Send every kind once has a Neo Cortex example', A.TEST_KINDS.some((t) => t.kind === 'cortex' && /^cortex:brief:/.test(t.url)));
   }
 
