@@ -89,7 +89,7 @@ const DESK_W = 1280 + 224;
   ok('390 px: each sub-tab is big enough for a finger (32 px)', await js(`return [...document.querySelectorAll('[data-ctl-sub]')].every(function(b){ return b.getBoundingClientRect().height >= 32; });`));
   await size(DESK_W, 900);
   await boot({ quant: false }); await tab('prompt');
-  ok('Quant off: three sub-tabs (Watchlists, Prompts, Quant)', await until(`[...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|') === 'Watchlists|Prompts|Quant'`, 10000),
+  ok('Quant off: Watchlists, Prompts, Quant and Alerts (no Neo Quant, no Neo Cortex)', await until(`[...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|') === 'Watchlists|Prompts|Quant|Alerts'`, 10000),
     await js(`return [...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|');`));
 
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
