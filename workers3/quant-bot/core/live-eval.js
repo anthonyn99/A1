@@ -5,7 +5,7 @@
 // the backtest (simulate.js entrySeries) runs on a window just long enough for every
 // indicator to have converged, and the test proves it agrees with the full series. Pure.
 //
-//   warmupOf(spec)                      bars the window needs (before session alignment): indicators at most 400;
+//   warmupOf(spec)                      bars the window needs (before session alignment): the longest look-back + 2;
 //                                       day setups 21 whole sessions (their volume baseline)
 //   windowStart(bars, need, intraday)   where the window starts: `need` bars back, moved to a session's first bar
 //                                       and never later than the previous session's first bar (VWAP, gaps)
@@ -16,7 +16,7 @@ import { buildContexts, entrySeries } from './simulate.js';
 import { nyClock } from './clock.js';
 import { DAY_SETUPS } from './detect-day.js';
 
-export const MIN_WINDOW = 30, MAX_WINDOW = 400, SWING_SETUP_WINDOW = 260;
+export const MIN_WINDOW = 30, SWING_SETUP_WINDOW = 260;   // no upper cap: a cut window would change the answer
 // Day setups rate volume against the same minute of the last 20 sessions (indicators.js relVolumeIntraday), so they
 // need 21 whole sessions. N4 carries that baseline from a once-a-day computation instead (n4-01.md); until then the
 // window is honest and long.
@@ -40,7 +40,7 @@ export function warmupOf(spec) {
   let need = 14 * 4;   // the ATR(14) every stop and size reads
   let setupNeed = 0;
   for (const r of rulesOf(spec)) { const x = needOf(r, spec.timeframe); if (r.setup != null) setupNeed = Math.max(setupNeed, x); else need = Math.max(need, x); }
-  return Math.max(setupNeed, Math.min(MAX_WINDOW, Math.max(MIN_WINDOW, need + 2)));
+  return Math.max(setupNeed, MIN_WINDOW, need + 2);
 }
 
 export function windowStart(bars, need, intraday) {
