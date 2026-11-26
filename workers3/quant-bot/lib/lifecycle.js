@@ -386,3 +386,24 @@ export async function getLifecycle({ DB }) {
   const last = await DB.prepare('SELECT day, at, body FROM bot_reviews ORDER BY day DESC LIMIT 1').first();
   return json({ ok: true, strategies, setups, review: last ? { day: last.day, at: last.at, ...JSON.parse(last.body) } : null });
 }
+
+/** Closed paper trades of every strategy (N7 Scorecard): symbol, side, open and close time, P&L and R. */
+export async function getTrades({ DB }, url) {
+  const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 30, 1), 365), since = Date.now() - days * 86_400_000;
+  const { results } = await DB.prepare(
+    "SELECT o.client_id, o.strategy, o.version, o.symbol, o.side, o.entry_price, o.stop, o.opened, f.side AS fside, f.qty, f.price, f.ts FROM bot_order_intents o JOIN bot_fills f ON f.client_id = o.client_id " +
+    "WHERE o.status = 'closed' AND f.ts >= ? ORDER BY f.ts LIMIT 5000").bind(since).all();
+  const by = new Map();
+  for (const r of results) {
+    const t = by.get(r.client_id) || { id: r.client_id, strategy: r.strategy, version: r.version, symbol: r.symbol, side: r.side, entry: r.entry_price, stop: r.stop, opened: r.opened, qty: 0, cash: 0, closed: 0 };
+    if ((r.side === 'long') === (r.fside === 'buy')) t.qty += r.qty;
+    t.cash += (r.fside === 'sell' ? 1 : -1) * r.qty * r.price;
+    t.closed = Math.max(t.closed, r.ts);
+    by.set(r.client_id, t);
+  }
+  const trades = [...by.values()].filter((t) => t.qty > 0).map((t) => {
+    const risk = Math.abs(t.entry - t.stop) * t.qty;
+    return { id: t.id, strategy: t.strategy, version: t.version, symbol: t.symbol, side: t.side, opened: t.opened, closed: t.closed, pnl: Math.round(t.cash * 100) / 100, r: risk > 0 ? t.cash / risk : null };
+  });
+  return json({ ok: true, days, trades });
+}

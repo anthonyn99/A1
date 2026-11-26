@@ -16,7 +16,7 @@ import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest,
 import { getSettings, putSettings, getState, getToday, getBrief } from './lib/state.js';
 import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
-import { getLifecycle, getFires, postReplay, postStage } from './lib/lifecycle.js';
+import { getLifecycle, getFires, postReplay, postStage, getTrades } from './lib/lifecycle.js';
 import { ALPACA_PAPER, ALPACA_DATA } from './lib/alpaca.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
@@ -128,7 +128,7 @@ const ROUTES = {
   'GET /strategies': (req, env, url) => getStrategies(env, url), 'POST /strategies': async (req, env) => postStrategy(env, await req.json()),
   'GET /research/request': (req, env) => getRequest(env), 'POST /research/request': async (req, env) => postRequest(env, await req.json().catch(() => ({}))),
   'POST /research/claim': async (req, env) => claimRequest(env, await req.json()),
-  'GET /lifecycle': (req, env) => getLifecycle(env), 'GET /lifecycle/fires': (req, env, url) => getFires(env, url),
+  'GET /lifecycle': (req, env) => getLifecycle(env), 'GET /trades': (req, env, url) => getTrades(env, url), 'GET /lifecycle/fires': (req, env, url) => getFires(env, url),
   'POST /lifecycle/replay': async (req, env) => postReplay(env, await req.json().catch(() => null)),
   'POST /strategies/stage': async (req, env) => postStage(env, await req.json().catch(() => null)),
 };

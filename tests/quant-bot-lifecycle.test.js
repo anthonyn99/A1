@@ -274,3 +274,12 @@ test('N6: TradeHub origins get CORS (preflight included); other origins do not',
   assert.equal(bad.headers.get('access-control-allow-origin'), null);
   assert.equal((await app.fetch(new Request('https://x/state', { headers: { origin: 'https://a1-priv.av1.workers.dev' } }), {})).status, 401);
 });
+
+test('N7: /trades lists closed paper trades with P&L and R for the Scorecard', async (t) => {
+  const { conn, request } = await fixture(t);
+  addTrade(conn, 'keeper', 0, 10, { at: Date.now() - 3600000 });
+  addTrade(conn, 'keeper', 1, -5, { at: Date.now() - 3500000 });
+  const r = await request('/trades?days=7');
+  assert.equal(r.trades.length, 2);
+  assert.deepEqual(r.trades.map((x) => [x.symbol, x.pnl, x.r]), [['AMD', 10, 1], ['AMD', -5, -0.5]]);
+});
