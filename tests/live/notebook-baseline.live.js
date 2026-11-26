@@ -417,6 +417,7 @@ const wordsKept = (a, b) => [a, b].some((j) => j.steps.some((s) => s.name === 'a
   (s.reqs || []).some((r) => r.body && r.body.text === 'Charlie keeps <em>italics</em>.')));
 const EXPECTED = [
   { phase: 'W', why: 'AI Format puts back the author\'s words and sends existing inline formatting', check: wordsKept,
+    shots: /-(tj|bj)-(ai-format|reload)\.png$/,
     path: /^(tj|bj)\.(steps\[\d+\]\.(snap\.html|writes\[\d+\]\.data\.e_e_ID3\.data\.html|reqs\[\d+\]\.body\.text)|store\.(fs\.dashboards\/\w+\.e_e_ID3\.data\.html|cache\.entries\[\d+\]\.data\.html))$/ },
   { phase: 'T', why: 'MyJournal: no tag row, tag chips or tag box (and the toolbar/sidebar close the gap)', check: tagOnly,
     path: /^tj\.steps\[\d+\]\.snap\.(visibleIds\[\d+\]|tags(\[\d+\])?|box\.(tags-row|entries-list\.[yh]|entry-title-input\.w|btn-edit\.x|btn-lock\.x))$/ },
