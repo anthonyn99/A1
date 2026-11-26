@@ -168,7 +168,7 @@ export async function liveStrategies(db, limit = 6) {
   return out;
 }
 
-const closeOf = (day) => (nyseHalfDays(Number(day.slice(0, 4))).has(day) ? 13 * 60 : 16 * 60);
+export const closeOf = (day) => (nyseHalfDays(Number(day.slice(0, 4))).has(day) ? 13 * 60 : 16 * 60);
 
 /** The kill rules on a paper record → the reason, or null. */
 export function killReason(st, row, life, limits) {
