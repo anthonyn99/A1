@@ -33,6 +33,12 @@ export function reconcile(account, held, open, managed, previous, limits) {
     pending.push({ sym: row.symbol, qty, price, side: side(row), style: strategy?.style ?? null,
       stop: strategy?.stop ?? null, strategy: strategy?.strategy ?? null, id: row.id, order: row.client_order_id });
   }
+  const reserved = new Set(pending.map((row) => row.order));
+  for (const row of managed) {
+    if (row.status !== 'reserved' || reserved.has(row.client_id) || brokerPositions.has(row.symbol)) continue;
+    pending.push({ sym: row.symbol, price: row.entry_price, qty: row.qty, side: row.side,
+      style: row.style, stop: row.stop, strategy: row.strategy, order: row.client_id, id: null });
+  }
   const startingEquity = previous.startingEquity ?? equity;
   const bookEquity = limits.book + equity - startingEquity;
   const peak = Math.max(previous.peak ?? limits.book, bookEquity);

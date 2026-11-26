@@ -16,6 +16,9 @@ export async function runPaper(env, now, inspect, execute, { broker = paperBroke
   }));
   const active = rows.filter((row) => ['paper', 'active'].includes(row.stage));
   const groups = shardsFor(active, held).slice(0, 4);
-  const outcomes = session.open ? (await Promise.all(groups.map((group) => inspect(group, active, now, session, held)))).flat() : [];
-  return execute({ now, session, rows: active, outcomes: outcomes.filter((result) => !result.exit), exits: outcomes.filter((result) => result.exit) });
+  const inspected = session.open ? await Promise.allSettled(groups.map((group) => inspect(group, active, now, session, held))) : [];
+  const outcomes = inspected.flatMap((part) => part.status === 'fulfilled' ? part.value : []);
+  const failed = inspected.find((part) => part.status === 'rejected');
+  return execute({ now, session, rows: active, dataError: failed ? String(failed.reason?.message || failed.reason) : null,
+    outcomes: failed ? [] : outcomes.filter((result) => !result.exit), exits: outcomes.filter((result) => result.exit) });
 }

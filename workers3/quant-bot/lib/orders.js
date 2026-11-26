@@ -108,7 +108,7 @@ export async function syncIntents(db, broker, rows, held, open, now) {
 }
 
 export function activeProtection(row, orders) {
-  return orders.flatMap(legs).some((o) => isClose(o, row) && WORKING.has(o.status) && (o.type === 'stop' || o.type === 'stop_limit' || o.type === 'market'));
+  return orders.flatMap(legs).some((o) => isClose(o, row) && WORKING.has(o.status) && !['held','pending_cancel'].includes(o.status) && (o.type === 'stop' || o.type === 'stop_limit' || o.type === 'market'));
 }
 
 export async function restoreProtection(db, broker, row, at) {
@@ -119,6 +119,7 @@ export async function restoreProtection(db, broker, row, at) {
     if (parent.status !== 'pending_cancel') await broker.cancel(parent.id);
     return false;
   }
+  if (orders.flatMap(legs).some((o) => isClose(o, row) && ['held','pending_cancel'].includes(o.status))) return false;
   const qty = Math.abs(Number(position.qty));
   if (!(qty > 0)) return true;
   const side = CLOSE_ACTION[row.side];

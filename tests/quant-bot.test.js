@@ -89,10 +89,10 @@ const j = async (r) => ({ status: r.status, ...(await r.json()) });
   ok('then nothing is pending', (await j(await call(W, e, 'GET', '/research/request'))).request === null);
 
   console.log('\nOrder hosts (rule 2)');
-  const src = fs.readFileSync(path.join(WDIR, 'worker.js'), 'utf8') + fs.readFileSync(path.join(WDIR, 'lib', 'lab.js'), 'utf8');
+  const src = fs.readFileSync(path.join(WDIR, 'worker.js'), 'utf8') + fs.readFileSync(path.join(WDIR, 'lib', 'alpaca.js'), 'utf8');
   const hosts = [...new Set((src.match(/https:\/\/[a-z0-9.-]+/g) || []))];
   ok('only Alpaca paper and data hosts, never a live trading host', hosts.every((h) => ['https://paper-api.alpaca.markets', 'https://data.alpaca.markets'].includes(h)) && !/api\.alpaca\.markets(?!\.)/.test(src.replace(/paper-api\.alpaca|data\.alpaca/g, '')), hosts.join(' '));
-  ok('no route places an order yet (N4)', !/\/v2\/orders['"`]\s*,\s*\{\s*method:\s*['"]POST/.test(src) && !/method:\s*['"](POST|DELETE)['"][^\n]*alpaca/i.test(src));
+  ok('the public Worker API has no submit-order route', !/\/v2\/orders['"`]\s*,\s*\{\s*method:\s*['"]POST/.test(src) && !/method:\s*['"](POST|DELETE)['"][^\n]*alpaca/i.test(src));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

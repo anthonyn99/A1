@@ -47,7 +47,7 @@ async function markRisk(db, session, status, book, at) {
 }
 
 export async function paperCycle(env, input, broker, clock = Date.now) {
-  const { now: scheduledAt, session, outcomes, exits, rows } = input;
+  const { now: scheduledAt, session, outcomes, exits, rows, dataError } = input;
   const db = env.DB, config = await readSettings(db);
   const status = await readBotState(db);
   if (config.settings.mode !== 'paper' || status.killPending) return { skipped: 'mode-or-kill' };
@@ -72,6 +72,10 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
       else if (raw.has(row.symbol) && !activeProtection(row, orders)) {
         protective = (await restoreProtection(db, broker, row, scheduledAt)) && protective;
       }
+    }
+    if (dataError) {
+      await failure(db, status, scheduledAt, dataError);
+      return { skipped: 'stale-data', reason: dataError };
     }
     await markRisk(db, session, status, book, scheduledAt);
     const marketCurrent = session.open && clock() - scheduledAt < MIN;
