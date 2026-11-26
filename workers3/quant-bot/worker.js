@@ -2,6 +2,7 @@
 // N0 (docs/TradeHub/quant/n4-00.md): the probes. N3 (n4-03.md): the strategist's lab and
 // strategies (lib/lab.js). N4 adds the shadow cron, portfolio risk checks and journal.
 //   /settings, /state, /today, /brief/:date                     lib/state.js (Tony’s key)
+// N5 (n4-05.md): /lifecycle, /lifecycle/fires, /lifecycle/replay, /strategies/stage           lib/lifecycle.js
 //
 //   GET /health                       { ok, phase }
 //   /lab/runs, /strategies, /research/request, /research/claim   lib/lab.js (Tony's key)
@@ -15,6 +16,7 @@ import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest,
 import { getSettings, putSettings, getState, getToday, getBrief } from './lib/state.js';
 import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
+import { getLifecycle, getFires, postReplay, postStage } from './lib/lifecycle.js';
 import { ALPACA_PAPER, ALPACA_DATA } from './lib/alpaca.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
@@ -126,12 +128,15 @@ const ROUTES = {
   'GET /strategies': (req, env, url) => getStrategies(env, url), 'POST /strategies': async (req, env) => postStrategy(env, await req.json()),
   'GET /research/request': (req, env) => getRequest(env), 'POST /research/request': async (req, env) => postRequest(env, await req.json().catch(() => ({}))),
   'POST /research/claim': async (req, env) => claimRequest(env, await req.json()),
+  'GET /lifecycle': (req, env) => getLifecycle(env), 'GET /lifecycle/fires': (req, env, url) => getFires(env, url),
+  'POST /lifecycle/replay': async (req, env) => postReplay(env, await req.json().catch(() => null)),
+  'POST /strategies/stage': async (req, env) => postStage(env, await req.json().catch(() => null)),
 };
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N4 shadow' });
+    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N5 lifecycle' });
     const tony = await keyOk(req, env);
     const brief = req.method === 'GET' && /^\/brief\/([^\/]+)$/.exec(url.pathname);
     const route = (brief && ((_req, bindings) => getBrief(bindings, brief[1]))) || ROUTES[`${req.method} ${url.pathname}`];

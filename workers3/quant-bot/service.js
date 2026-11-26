@@ -8,6 +8,9 @@ import { readSettings } from './lib/state.js';
 import { flattenPaper } from './lib/kill.js';
 import { paperCycle } from './lib/paper-cycle.js';
 import { runPaper } from './lib/paper-tick.js';
+import { admit, review } from './lib/lifecycle.js';
+import { nyClock } from './core/clock.js';
+import { isTradingDay } from './core/holidays.js';
 
 export class CortexShard extends WorkerEntrypoint {
   inspect(symbols, strategies, now, session, managed) {
@@ -39,12 +42,24 @@ export class CortexExecution extends DurableObject {
   }
 }
 
+/** N5: admit waiting strategies to shadow before the open; review the day once after the close (lib/lifecycle.js).
+ *  A failure here is logged and never stops the trading tick. */
+async function lifecycle(env, at) {
+  const { date, minutes } = nyClock(at);
+  if (!isTradingDay(date)) return;
+  try {
+    if (minutes >= 9 * 60 && minutes <= 9 * 60 + 30) await admit(env, at);
+    else if (minutes >= 13 * 60 + 5) await review(env, at);
+  } catch (e) { console.warn('Neo Cortex lifecycle:', e.message); }
+}
+
 export default {
   ...api,
   async scheduled(controller, env, ctx) {
+    const at = controller.scheduledTime;
+    await lifecycle(env, at);
     const { settings } = await readSettings(env.DB);
     const inspect = (symbols, strategies, now, session, managed = []) => ctx.exports.CortexShard.inspect(symbols, strategies, now, session, managed);
-    const at = controller.scheduledTime;
     let outcome;
     if (settings.mode === 'shadow') outcome = await runShadow(env, at, inspect);
     else if (settings.mode === 'paper') {
