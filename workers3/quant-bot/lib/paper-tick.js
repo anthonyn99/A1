@@ -21,7 +21,7 @@ export async function runPaper(env, now, inspect, execute, { broker = paperBroke
   const held = intents.filter((row) => ['held', 'closing'].includes(row.status)).map((row) => ({
     id: row.client_id, sym: row.symbol, side: row.side, style: row.style, opened: row.opened || row.requested, spec: JSON.parse(row.spec),
   }));
-  const active = rows.filter((row) => ['paper', 'active'].includes(row.stage));
+  const active = rows.filter((row) => ['shadow', 'paper', 'active'].includes(row.stage));
   const groups = shardsFor(active, held).slice(0, 4);
   const inspected = session.open ? await Promise.allSettled(groups.map((group) => inspect(group, active, now, session, held))) : [];
   const outcomes = inspected.flatMap((part) => part.status === 'fulfilled' ? part.value : []);

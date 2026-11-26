@@ -1,6 +1,6 @@
 import { nyClock } from '../core/clock.js';
 import { isTradingDay } from '../core/holidays.js';
-import { checkStrategy } from '../core/strategy.js';
+import { liveStrategies } from './lifecycle.js';
 import { deployed } from '../core/risk-book.js';
 import { paperBroker } from './alpaca.js';
 import { candidate, checkCandidate, exitReason, shardsFor, usesDaySetup } from './evaluate.js';
@@ -12,22 +12,8 @@ import { logEvent, readBotState, readSettings } from './state.js';
 const MIN = 60000;
 const REGULAR_OPEN = 570;
 const REGULAR_CLOSE = 960;
-const MODES = ['gated', 'shadow', 'paper', 'active'];
-
-export async function stagedStrategies(db) {
-  const { results } = await db.prepare(
-    "SELECT s.id, s.version, s.stage, s.spec FROM strategies s JOIN (SELECT id, MAX(version) AS version FROM strategies GROUP BY id) latest ON latest.id = s.id AND latest.version = s.version WHERE s.stage IN ('gated','shadow','paper','active') ORDER BY s.updated DESC, s.id LIMIT 6"
-  ).all();
-  const seen = new Set(), selected = [];
-  for (const row of results) {
-    const spec = JSON.parse(row.spec);
-    if (seen.has(row.id) || !checkStrategy(spec, { bot: true }).ok || !MODES.includes(row.stage)) continue;
-    seen.add(row.id);
-    selected.push({ ...row, spec });
-    if (selected.length >= 6) break;
-  }
-  return selected;
-}
+/** What the bot evaluates (N5): the newest shadow, paper or active version of each strategy (lib/lifecycle.js). */
+export const stagedStrategies = (db) => liveStrategies(db);
 
 const due = (session, tf) => {
   if (tf === '1d') return session.minutes === session.openMin + 1;
@@ -159,7 +145,7 @@ export async function runShadow(env, at, dispatch, { cache = globalThis.caches?.
     if (!skip) exposure.positions.push({ sym: symbol, qty: signal.qty, price: outcome.price, stop: outcome.stop, side: outcome.side,
       style: outcome.style, strategy });
     await logEvent(db, { key, ts: at, kind: skip ? 'skip' : 'shadow', symbol, side: outcome.side, qty: skip ? null : signal.qty,
-      price: outcome.price, strategy, version, thesis: outcome.thesis, why: skip || outcome.why });
+      price: outcome.price, strategy, version, thesis: outcome.thesis, why: skip || outcome.why, barTime: outcome.barTime, fired: !outcome.skip });
   }
   return { evaluated: outcomes.length };
 }

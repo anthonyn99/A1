@@ -166,14 +166,23 @@ export async function closeIntent(db, broker, row, reason, at, orders) {
 }
 
 export async function paperEntries(db, broker, outcomes, rows, exposure, calendar, session, now) {
-  const byId = new Map(rows.filter((row) => ['paper', 'active'].includes(row.stage)).map((row) => [row.id, row]));
+  const byId = new Map(rows.filter((row) => ['shadow', 'paper', 'active'].includes(row.stage)).map((row) => [row.id, row]));
   for (const p of outcomes) {
     const row = byId.get(p.strategy);
     if (!row || p.version !== row.version) continue;
     if (p.skip) {
       const bar = p.barTime || Math.floor(now / (15 * MIN));
       await logEvent(db, { key: 'skip-' + clientId({ ...p, barTime: bar }), ts: now, kind: 'skip', symbol: p.symbol,
-        strategy: p.strategy, version: p.version, why: p.skip });
+        strategy: p.strategy, version: p.version, why: p.skip, barTime: p.barTime, fired: false });
+      continue;
+    }
+    if (row.stage === 'shadow') {
+      // N5: a strategy's shadow session in paper mode: the same checks, logged, never ordered.
+      const earnings = earningsGuard(calendar, p.symbol, session.date, now);
+      const verdict = checkCandidate(p, exposure, (await readSettings(db)).settings.limits, { session, earningsSoon: earnings.soon });
+      const skip = !earnings.known ? 'Earnings coverage is unavailable' : verdict.ok ? null : verdict.why;
+      await logEvent(db, { key: 'shadow-' + clientId(p), ts: now, kind: skip ? 'skip' : 'shadow', symbol: p.symbol, side: p.side,
+        qty: skip ? null : verdict.qty, price: p.price, strategy: p.strategy, version: p.version, thesis: p.thesis, why: skip || p.why, barTime: p.barTime, fired: true });
       continue;
     }
     const [settings, status] = await Promise.all([readSettings(db), readBotState(db)]);
@@ -197,6 +206,6 @@ export async function paperEntries(db, broker, outcomes, rows, exposure, calenda
       if (!placed.ok) skip = placed.why;
     }
     if (skip) await logEvent(db, { key: 'skip-' + clientId(p), ts: now, kind: 'skip', symbol: p.symbol, side: p.side,
-      strategy: p.strategy, version: p.version, why: skip });
+      strategy: p.strategy, version: p.version, why: skip, barTime: p.barTime, fired: true });
   }
 }

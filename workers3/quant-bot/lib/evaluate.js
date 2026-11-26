@@ -3,7 +3,7 @@ import { DAY_SETUPS } from '../core/detect-day.js';
 import { evalLast, warmupOf } from '../core/live-eval.js';
 import { entryPrices } from '../core/pilot.js';
 import { checkEntry, flattenDue, size, LIMITS } from '../core/risk-book.js';
-import { isStop, isTarget, isTime, ruleText, rulesOf } from '../core/strategy.js';
+import { isStop, isTarget, isTime, riskValueOf, ruleText, rulesOf } from '../core/strategy.js';
 import { evalRule, series } from '../core/strategy-rules.js';
 import { isFresh, withVolume } from './market.js';
 
@@ -67,13 +67,22 @@ export function candidate(row, sym, data, { now, session }) {
     (target == null ? '' : ', target $' + target.toFixed(2)) + '.';
   return { symbol: sym, strategy: row.id, version: row.version, stage: row.stage, side: spec.side, style: spec.horizon,
     price, stop, target, why, thesis: spec.thesis || null, barTime: bar.t, window: spec.window, flattenBy: spec.flattenBy,
-    maxPositions: spec.maxPositions };
+    maxPositions: spec.maxPositions, riskPct: riskPctOf(spec, row.conviction) };
+}
+
+/** The % of the book this trade risks (N5): a conviction sizing reads the strategy's measured conviction inside the
+ *  spec's own band; risk-book.size then keeps it inside Tony's band and every cap. */
+export function riskPctOf(spec, conviction) {
+  const sizing = spec.sizing || {};
+  if (sizing.kind !== 'conviction' && sizing.kind !== 'fixedRisk') return null;
+  const value = riskValueOf({ ...sizing, conviction: Number.isFinite(conviction) ? conviction : 0 });
+  return Number.isFinite(value) ? value : null;
 }
 
 export function checkCandidate(p, exposure, limits = LIMITS, { session, earningsSoon = false } = {}) {
   const count = exposure.positions.filter((pos) => pos.strategy === p.strategy).length;
   if (count >= p.maxPositions) return { ok: false, why: 'Strategy position cap of ' + p.maxPositions };
-  const qty = size(p, exposure, limits).shares;
+  const qty = size({ ...p, riskPctOverride: Number.isFinite(p.riskPct) ? p.riskPct : null }, exposure, limits).shares;
   const result = checkEntry({ ...p, sym: p.symbol, qty }, exposure, limits, {
     nyMinutes: session.minutes, half: session.half, window: p.window, flattenBy: p.flattenBy, earningsSoon,
   });
