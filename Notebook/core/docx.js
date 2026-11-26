@@ -1843,24 +1843,28 @@ function aiOverlay(tool) {
 }
 
 // The user-editable default AI Format prompt (per-journal copies live in localStorage).
+// AI Format changes how the document LOOKS, never what it SAYS: every word stays
+// exactly as written. aiKeepWording() enforces that on the answer as well, so
+// even an edited prompt or a model that slips can't change the author's words.
 var AI_DEFAULT_PROMPT = [
-  'You are an expert document formatter.',
+  'You are an expert document formatter. You change how a document LOOKS, never what it SAYS.',
   '',
-  'Your task is to intelligently reformat the provided document without changing its meaning, tone, facts, wording, or intent in ANY way.',
+  'Your task is to format the provided document for readability while keeping every word exactly as the author wrote it.',
   '',
-  'Rules:',
-  '- Preserve ALL content. Never summarize, remove, invent, or rewrite information except for minor grammar, punctuation, spacing, capitalization, and formatting improvements.',
-  '- Choose the best presentation automatically:',
-  '  - Plain clean paragraphs if the document is primarily narrative.',
-  '  - Markdown headings, lists, tables, quotes, code blocks, callouts, etc. only when they genuinely improve readability.',
-  '  - Mix paragraphs and Markdown naturally when appropriate.',
-  '- Create a logical document structure with clear sections where beneficial.',
-  '- Merge broken lines into proper paragraphs.',
-  '- Fix spacing, indentation, numbering, bullet consistency, and overall layout.',
-  '- Preserve code, URLs, equations, and special formatting.',
-  '- Format ALL mathematics as Markdown math: inline math wrapped in single dollar signs like $E = mc^2$, and block/display equations wrapped in double dollar signs on their own lines like $$ ... $$. Convert any plain-text math (e.g. "E = mc^2", "integral from 0 to infinity", "x^2 + y^2 = z^2") into proper LaTeX inside those delimiters. Never leave math unformatted.',
-  '- If tables communicate information better, convert suitable content into Markdown tables.',
-  '- Do not over-format. Simplicity is preferred.',
+  'The words are locked:',
+  '- Keep every word, number and punctuation mark exactly as written, in the same order. Do not fix spelling, grammar, punctuation or capitalization. Do not rephrase, reword, shorten, expand, summarize, translate or reorder anything.',
+  '- Do not add words of your own: no new titles, headings, labels, introductions or closing lines. A heading may only be made from a line that is already in the document.',
+  '- Do not remove anything, including repeated text, filler words and typos.',
+  '',
+  'What you may change (layout only):',
+  '- Turn existing lines that act as titles into headings.',
+  '- Turn existing lists (lines starting with -, *, 1., a) and so on) into proper bulleted, numbered or check lists; the list marker itself may be dropped because the list shows it.',
+  '- Turn existing tabular text into a table, with the same words in the cells.',
+  '- Merge lines that were broken mid-sentence back into paragraphs, and split paragraphs only where there is already a clear break.',
+  '- Keep any bold, italic, underline, strikethrough or code the document already has, on the same words.',
+  '- Wrap math that is already written in the document in Markdown math delimiters (inline $ ... $, display $$ ... $$) without changing its symbols.',
+  '- Preserve code, URLs and special formatting exactly.',
+  '- Do not over-format. Simplicity is preferred; plain clean paragraphs are right for narrative writing.',
   '- Never wrap the entire document in a code block.',
   '',
   'Images:',
@@ -1870,8 +1874,47 @@ var AI_DEFAULT_PROMPT = [
   '- Output reasonable display sizes based on importance (large for primary images, medium for supporting images, small for icons or references).',
   '- Do not remove, duplicate, or describe images.',
   '',
-  'Output only the fully formatted document.'
+  'Output only the formatted document, with the author\'s words untouched.'
 ].join('\n');
+// Earlier shipped AI Format defaults. They let the model "fix" grammar,
+// punctuation and capitalization, which rewrote people's wording. A saved prompt
+// that is still word-for-word one of these (Reset to default stored it) counts
+// as "on the default" and moves to the new one; an edited prompt is kept.
+var AI_FORMAT_OLD_DEFAULTS = (function() {
+  var head = [
+    'You are an expert document formatter.', '',
+    'Your task is to intelligently reformat the provided document without changing its meaning, tone, facts, wording, or intent in ANY way.', '',
+    'Rules:',
+    '- Preserve ALL content. Never summarize, remove, invent, or rewrite information except for minor grammar, punctuation, spacing, capitalization, and formatting improvements.',
+    '- Choose the best presentation automatically:',
+    '  - Plain clean paragraphs if the document is primarily narrative.',
+    '  - Markdown headings, lists, tables, quotes, code blocks, callouts, etc. only when they genuinely improve readability.',
+    '  - Mix paragraphs and Markdown naturally when appropriate.',
+    '- Create a logical document structure with clear sections where beneficial.',
+    '- Merge broken lines into proper paragraphs.',
+    '- Fix spacing, indentation, numbering, bullet consistency, and overall layout.',
+    '- Preserve code, URLs, equations, and special formatting.'
+  ];
+  var math = '- Format ALL mathematics as Markdown math: inline math wrapped in single dollar signs like $E = mc^2$, and block/display equations wrapped in double dollar signs on their own lines like $$ ... $$. Convert any plain-text math (e.g. "E = mc^2", "integral from 0 to infinity", "x^2 + y^2 = z^2") into proper LaTeX inside those delimiters. Never leave math unformatted.';
+  var tail = [
+    '- If tables communicate information better, convert suitable content into Markdown tables.',
+    '- Do not over-format. Simplicity is preferred.',
+    '- Never wrap the entire document in a code block.', '',
+    'Images:',
+    '- Preserve every image.',
+    '- Move images only if doing so improves document flow.',
+    '- Place each image near the most relevant content.',
+    '- Output reasonable display sizes based on importance (large for primary images, medium for supporting images, small for icons or references).',
+    '- Do not remove, duplicate, or describe images.', '',
+    'Output only the fully formatted document.'
+  ];
+  return [head.concat(tail).join('\n'), head.concat([math], tail).join('\n')];
+})();
+function _aiNormPrompt(p) { return String(p || '').replace(/\s+/g, ' ').trim(); }
+function _aiIsOldFormatDefault(p) {
+  var n = _aiNormPrompt(p);
+  return AI_FORMAT_OLD_DEFAULTS.some(function(d) { return _aiNormPrompt(d) === n; });
+}
 // The built-in AI Refine default prompt. Where AI Format only restructures,
 // Refine is allowed to rewrite the prose itself — while the meaning, facts and
 // intent stay locked.
@@ -1966,6 +2009,7 @@ function aiToolsStore(app) {
     var legacy = lsGet('docx_aiprompt_' + app, null);
     if (typeof legacy === 'string' && legacy.trim()) s.prompts.format = legacy;
   }
+  if (typeof s.prompts.format === 'string' && _aiIsOldFormatDefault(s.prompts.format)) delete s.prompts.format;
   s.custom = s.custom.filter(function(t) { return t && t.id; }).map(function(t) {
     return {
       id: String(t.id),
