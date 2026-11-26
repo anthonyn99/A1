@@ -2173,6 +2173,16 @@ function aiExtractFragment(container, counter) {
     ph.textContent = '[[IMG' + counter.n + ']]';
     if (el.parentNode) el.parentNode.replaceChild(ph, el);
   });
+  // innerText drops inline formatting, so every AI run used to come back with
+  // the person's bold/italic/underline gone. Carry it as literal inline tags the
+  // model can see and keep (the output contract says so); code inside a <pre>
+  // block already survives as its own block.
+  Array.prototype.slice.call(container.querySelectorAll('b, strong, i, em, u, s, strike, del, code')).forEach(function(el) {
+    if (!/\S/.test(el.textContent || '') || (el.closest && el.closest('pre'))) return;
+    var t = _AI_INLINE_TAGS[el.tagName];
+    el.insertBefore(document.createTextNode('<' + t + '>'), el.firstChild);
+    el.appendChild(document.createTextNode('</' + t + '>'));
+  });
   container.style.cssText = 'position:absolute;left:-99999px;top:0;width:700px;white-space:pre-wrap;';
   document.body.appendChild(container);
   var text = container.innerText;
@@ -2252,9 +2262,9 @@ function _aiFinish(ctx, app, ed, overlay, wasEditable) {
   }, 0);
 }
 
-var AI_SECTION_NOTE = '\n\nIMPORTANT — SECTION MARKERS: the document below is split into independent sections, each wrapped exactly like [[SEC0S]] ... [[SEC0E]], [[SEC1S]] ... [[SEC1E]], etc. Treat every section as its own separate document and format it using the rules above. Reproduce EVERY marker EXACTLY ONCE, in the same order, with only that section\'s formatted output between its own start/end marker — nothing outside any marker, nothing between one section\'s end marker and the next section\'s start marker.';
-var AI_PARTIAL_NOTE = '\n\nIMPORTANT — PARTIAL DOCUMENT: what follows is ONLY the newly-added or edited content that still needs formatting; everything already formatted has been deliberately left out and is not shown to you. Do not reference, summarize, or recreate anything from the rest of the document — just format exactly what is shown, as it will be reinserted in place.';
-var AI_EXCERPT_NOTE = '\n\nIMPORTANT — SELECTION: what follows is only a SELECTED EXCERPT copied out of a larger document, not the whole thing. Format only this excerpt using the rules above; do not add an introduction, summary, or any remark about it being an excerpt.';
+var AI_SECTION_NOTE = '\n\nIMPORTANT — SECTION MARKERS: the document below is split into independent sections, each wrapped exactly like [[SEC0S]] ... [[SEC0E]], [[SEC1S]] ... [[SEC1E]], etc. Treat every section as its own separate document and apply the rules above to it. Reproduce EVERY marker EXACTLY ONCE, in the same order, with only that section\'s result between its own start/end marker — nothing outside any marker, nothing between one section\'s end marker and the next section\'s start marker.';
+var AI_PARTIAL_NOTE = '\n\nIMPORTANT — PARTIAL DOCUMENT: what follows is ONLY the newly-added or edited content that still needs processing; everything this tool already processed has been deliberately left out and is not shown to you. Do not mention or recreate anything from the rest of the document — apply the rules above to exactly what is shown, as it will be reinserted in place.';
+var AI_EXCERPT_NOTE = '\n\nIMPORTANT — SELECTION: what follows is only a SELECTED EXCERPT copied out of a larger document, not the whole thing. Apply the rules above to this excerpt only; do not add an introduction or any remark about it being an excerpt.';
 
 /* Single entry point for EVERY AI tool — the two built-ins and every custom
    tool run through here and differ only by the prompt in `tool`. */
