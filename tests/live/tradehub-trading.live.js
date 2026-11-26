@@ -79,6 +79,17 @@ const ok = (ph, name, cond, extra) => {
       ok('TR5', 'Alerts shows every notification source in its own section', await until("document.querySelector('[data-tal-group=signals-and-trades] [data-tal-kind=graded]') && document.querySelector('[data-tal-group=market] [data-tal-kind=regime]')", 5000)
         && await js("return ['price','signal','graded','regime','catalyst','data','order'].every(k=>document.querySelector('[data-tal-kind-on='+k+']')) && !!document.querySelector('[data-tal-devices]') && !!document.querySelector('[data-tal-all-off]');"));
       ok('TR5', 'Alerts fits without horizontal clipping', await js("const e=document.querySelector('[data-tal-control]'), p=document.querySelector('[data-ctl-pane=alerts]'); return e && p && e.scrollWidth <= e.clientWidth+2 && p.scrollWidth <= p.clientWidth+2;"));
+      const alertBefore = await js(`var e=document.querySelector('[data-tal-kind-on=regime]'); e.scrollIntoView({block:'center'});
+        window.__alertToggleOld=e;
+        var scrolls=[document.scrollingElement,...(function*(n){while(n){if(n.scrollHeight>n.clientHeight+2)yield n;n=n.parentElement;}})(e.parentElement)];
+        return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop)};`);
+      await js("window.__alertToggleOld.click(); 1");
+      await until("document.querySelector('[data-tal-kind-on=regime]') !== window.__alertToggleOld", 5000);
+      const alertAfter = await js(`var e=document.querySelector('[data-tal-kind-on=regime]');
+        var scrolls=[document.scrollingElement,...(function*(n){while(n){if(n.scrollHeight>n.clientHeight+2)yield n;n=n.parentElement;}})(e.parentElement)];
+        return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop)};`);
+      ok('TR5', 'switching a notification keeps the viewport still', Math.abs(alertAfter.top-alertBefore.top)<=2 && alertBefore.scrolls.length===alertAfter.scrolls.length && alertBefore.scrolls.every((v,i)=>Math.abs(v-alertAfter.scrolls[i])<=2), {before:alertBefore,after:alertAfter});
+      await js("document.querySelector('[data-tal-kind-on=regime]').click(); 1");
       const controlClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'); b.scrollIntoView({block:'nearest',inline:'nearest'});
         var r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,purple:getComputedStyle(document.querySelector('.ctl-subs .is-on')).backgroundColor};`);
       const { x, y, purple } = controlClick;
