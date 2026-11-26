@@ -625,7 +625,7 @@ globalThis.fetch = async (url, opts = {}) => {
     await call(e, 'PUT', '/alerts/config', { config: { kinds: { cortex: false } } });
     r = await post({ items: [it('ev:10', 'guards')] });
     ok('the kind off: nothing at all', r.body.fired.length === 0 && /off/.test(r.body.skipped));
-    ok('a rule of kind cortex cannot be made (switches only)', (await call(e, 'PUT', '/alerts', { alert: { kind: 'cortex' } })).status === 400);
+    ok('a rule of kind cortex cannot be made (switches only)', (await call(e, 'POST', '/alerts', { alert: { kind: 'cortex' } })).status === 400);
     ok('Send every kind once has a Neo Cortex example', A.TEST_KINDS.some((t) => t.kind === 'cortex' && /^cortex:brief:/.test(t.url)));
   }
 
