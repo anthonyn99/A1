@@ -44,7 +44,7 @@ export function paperBroker(env, fetchFn = fetch) {
       return send(ALPACA_PAPER, '/v2/assets/' + encodeURIComponent(symbol));
     },
     async bars(symbols, tf, start, end) {
-      if (!symbols.length || symbols.length > 40 || symbols.some((symbol) => !SYMBOL.test(symbol)) || !(tf in BROKER_TF) || start >= end) throw new Error('Invalid bars request');
+      if (!symbols.length || symbols.length > 40 || symbols.some((symbol) => !SYMBOL.test(symbol)) || !Object.hasOwn(BROKER_TF, tf) || start >= end) throw new Error('Invalid bars request');
       const q = new URLSearchParams({
         symbols: symbols.join(','), timeframe: BROKER_TF[tf], start: new Date(start).toISOString(), end: new Date(end).toISOString(),
         feed: 'iex', adjustment: 'split', limit: '10000',
