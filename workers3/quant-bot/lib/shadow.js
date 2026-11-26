@@ -16,7 +16,7 @@ const MODES = ['gated', 'shadow', 'paper', 'active'];
 
 export async function stagedStrategies(db) {
   const { results } = await db.prepare(
-    "SELECT id, version, stage, spec FROM strategies WHERE stage IN ('gated','shadow','paper','active') ORDER BY updated DESC, id LIMIT 24"
+    "SELECT s.id, s.version, s.stage, s.spec FROM strategies s JOIN (SELECT id, MAX(version) AS version FROM strategies GROUP BY id) latest ON latest.id = s.id AND latest.version = s.version WHERE s.stage IN ('gated','shadow','paper','active') ORDER BY s.updated DESC, s.id LIMIT 6"
   ).all();
   const seen = new Set(), selected = [];
   for (const row of results) {

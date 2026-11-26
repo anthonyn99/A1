@@ -5,7 +5,7 @@ import { entryPrices } from '../core/pilot.js';
 import { checkEntry, flattenDue, size, LIMITS } from '../core/risk-book.js';
 import { isStop, isTarget, isTime, ruleText, rulesOf } from '../core/strategy.js';
 import { evalRule, series } from '../core/strategy-rules.js';
-import { BAR_MINUTES, isFresh, withVolume } from './market.js';
+import { isFresh, withVolume } from './market.js';
 
 const SHARD = 10;
 const r2 = (value) => Math.round(value * 100) / 100;
