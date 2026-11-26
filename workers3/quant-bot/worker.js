@@ -28,7 +28,7 @@ export const PROBE_SPEC = {
  *  last session on `lastOpen` (a Wednesday 14:30 UTC = 09:30 EST). */
 export function synthBars(n, keep, lastOpen = Date.UTC(2026, 10, 25, 14, 30)) {
   const opens = [];
-  for (let d = 0, back = 0; opens.length * 78 < keep; back++) { const t = lastOpen - back * 86_400_000, wd = new Date(t).getUTCDay(); if (wd !== 0 && wd !== 6) opens.push(t); d++; }
+  for (let back = 0; opens.length * 78 < keep; back++) { const t = lastOpen - back * 86_400_000, wd = new Date(t).getUTCDay(); if (wd !== 0 && wd !== 6) opens.push(t); }
   const out = {};
   for (let k = 0; k < n; k++) {
     let s = 7 + k, p = 50 + k * 9;
