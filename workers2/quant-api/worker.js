@@ -28,6 +28,7 @@
 //                                  (it also marks the drawings of symbols that left it; 30 days gone = deleted)
 //   GET  /drawings?symbol=X        { symbol, drawings, at }   Tony's drawings on that chart
 //   PUT  /drawings                 { symbol, drawings }       replace them (at most 200, 64 KB)
+//   POST /alerts/cortex            N8: Neo Cortex alerts from quant-bot (x-cortex-secret, no Orca key)   lib/cortex-alerts.js
 //   /alerts, /alerts/…             alert rules of every kind, the fires (the bell), config, catalysts,
 //                                  a test push, the check on demand (lib/alerts.js; Phase 14)
 //   GET  /signals?since&status&symbol&limit   { signals }   the scanner's ledger, newest first (lib/signals.js)
