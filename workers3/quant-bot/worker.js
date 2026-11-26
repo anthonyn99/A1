@@ -19,6 +19,7 @@ import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
 import { getLifecycle, getFires, postReplay, postStage, getTrades } from './lib/lifecycle.js';
 import { getBriefs } from './lib/brief.js';
+import { flushOutbox } from './lib/outbox.js';
 import { ALPACA_PAPER, ALPACA_DATA } from './lib/alpaca.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
@@ -121,12 +122,18 @@ export async function keyOk(req, env) {
   return ok === 1;
 }
 
+/** N8: a kill or a finished research run can come outside the cron's hours: hand its alert over at once. */
+async function alertNow(env, res) {
+  if (res.ok) { try { await flushOutbox(env, Date.now()); } catch (e) { console.warn('Neo Cortex alerts:', e.message); } }
+  return res;
+}
+
 const ROUTES = {
-  'POST /bot/kill': async (req, env) => killBot(env, await req.json().catch(() => null)),
+  'POST /bot/kill': async (req, env) => alertNow(env, await killBot(env, await req.json().catch(() => null))),
   'PUT /market/context': async (req, env) => putMarketContext(env, await req.json().catch(() => null)),
   'GET /settings': (req, env, url) => getSettings(env, url), 'PUT /settings': async (req, env) => putSettings(env, await req.json().catch(() => null)),
   'GET /state': (req, env) => getState(env), 'GET /today': getToday,
-  'GET /lab/runs': (req, env, url) => getRuns(env, url), 'POST /lab/runs': async (req, env) => postRun(env, await req.json()),
+  'GET /lab/runs': (req, env, url) => getRuns(env, url), 'POST /lab/runs': async (req, env) => alertNow(env, await postRun(env, await req.json())),
   'GET /strategies': (req, env, url) => getStrategies(env, url), 'POST /strategies': async (req, env) => postStrategy(env, await req.json()),
   'GET /research/request': (req, env) => getRequest(env), 'POST /research/request': async (req, env) => postRequest(env, await req.json().catch(() => ({}))),
   'POST /research/claim': async (req, env) => claimRequest(env, await req.json()),
