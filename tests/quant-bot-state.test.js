@@ -192,6 +192,11 @@ test('kill latches before contacting Alpaca and reports every surviving order an
   assert.equal((await readBotState(DB)).halted, null);
 });
 
+async function enableFixturePaper(conn, at) {
+  const { DEFAULTS } = await state;
+  conn.prepare('INSERT INTO bot_settings (version, at, author, reason, body) VALUES (1, ?, ?, ?, ?)').run(at, 'tony', 'Fixture paper mode', JSON.stringify({ ...DEFAULTS, mode: 'paper' }));
+}
+
 test('paper submissions use a stable id, reserve the symbol once and stop on the durable latch', async (t) => {
   const { DB, conn } = await fixture(t);
   const { submitEntry, clientId, liveIntents } = await import('../workers3/quant-bot/lib/orders.js');
@@ -202,6 +207,9 @@ test('paper submissions use a stable id, reserve the symbol once and stop on the
   const plan = { strategy: 'amd-day', version: 1, symbol: 'AMD', price: 101, stop: 99, target: 105,
     barTime: now - 360000, why: 'Fixture entry condition', thesis: 'Fixture', style: 'day', side: 'long' };
   const row = { spec: { id: plan.strategy } };
+  assert.equal((await submitEntry(DB, venue, plan, row, 3, now)).ok, false);
+  assert.equal(calls.length, 0);
+  await enableFixturePaper(conn, now);
   const first = await submitEntry(DB, venue, plan, row, 3, now);
   assert.deepEqual(first, { ok: true, why: null, id: clientId(plan) });
   assert.equal((await submitEntry(DB, venue, plan, row, 3, now)).ok, false);
@@ -216,7 +224,8 @@ test('paper submissions use a stable id, reserve the symbol once and stop on the
 });
 
 test('reconciles a transport-uncertain entry and records one fill on repeat polling', async (t) => {
-  const { DB, request } = await fixture(t);
+  const { DB, conn, request } = await fixture(t);
+  await enableFixturePaper(conn, now);
   const { submitEntry, syncIntents, liveIntents } = await import('../workers3/quant-bot/lib/orders.js');
   const plan = { strategy: 'amd-day', version: 1, symbol: 'AMD', price: 101, stop: 99, target: null,
     barTime: now - 300000, why: 'Fixture entry', thesis: 'Fixture', style: 'day', side: 'long' };
@@ -247,9 +256,8 @@ test('a half-day short flattens at 12:50 even when an evaluation shard fails', a
   const plan = { strategy: 'amd-short', version: 1, symbol: 'AMD', price: 101, stop: 104, target: null,
     barTime: at - 30 * 60000, why: 'Fixture short', thesis: 'Fixture', style: 'day', side: 'short' };
   const spec = { id: plan.strategy, horizon: 'day', side: 'short' };
+  await enableFixturePaper(conn, at);
   await submitEntry(DB, { submit: async () => ({ id: 'parent', status: 'filled', filled_qty: '3', filled_at: new Date(at - 20 * 60000).toISOString(), legs: [] }) }, plan, { spec }, 3, at - 25 * 60000);
-  const { DEFAULTS } = await state;
-  conn.prepare('INSERT INTO bot_settings (version, at, author, reason, body) VALUES (1, ?, ?, ?, ?)').run(at, 'tony', 'Fixture paper mode', JSON.stringify({ ...DEFAULTS, mode: 'paper' }));
   const calls = [];
   const broker = {
     account: async () => ({ equity: '100010', last_equity: '100000', buying_power: '100000' }),

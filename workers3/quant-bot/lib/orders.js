@@ -41,7 +41,7 @@ export async function submitEntry(db, broker, p, row, qty, now) {
   const id = clientId(p), order = limitOrder(p, qty, id);
   const add = await db.prepare(
     "INSERT OR IGNORE INTO bot_order_intents (client_id,symbol,strategy,version,side,style,qty,entry_price,stop,target,bar_time,requested,status,why,thesis,spec) " +
-    "SELECT ?,?,?,?,?,?,?,?,?,?,?,?,'reserved',?,?,? WHERE EXISTS (SELECT 1 FROM bot_state WHERE id = 1 AND halted IS NULL AND kill_pending = 0)"
+    "SELECT ?,?,?,?,?,?,?,?,?,?,?,?,'reserved',?,?,? WHERE EXISTS (SELECT 1 FROM bot_state WHERE id = 1 AND halted IS NULL AND kill_pending = 0) AND EXISTS (SELECT 1 FROM (SELECT body FROM bot_settings ORDER BY version DESC LIMIT 1) WHERE json_extract(body, '$.mode') = 'paper' AND json_extract(body, '$.paused') = 0)"
   ).bind(id, p.symbol, p.strategy, p.version, p.side, p.style, qty, p.price, p.stop, p.target, p.barTime, now, p.why, p.thesis ?? null, JSON.stringify(row.spec)).run();
   if (!add.meta.changes) return { ok: false, why: 'The signal already has an order, the symbol is reserved, or the bot is halted' };
   const saved = { client_id: id, requested: now };
