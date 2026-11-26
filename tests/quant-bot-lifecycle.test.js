@@ -283,3 +283,15 @@ test('N7: /trades lists closed paper trades with P&L and R for the Scorecard', a
   assert.equal(r.trades.length, 2);
   assert.deepEqual(r.trades.map((x) => [x.symbol, x.pnl, x.r]), [['AMD', 10, 1], ['AMD', -5, -0.5]]);
 });
+
+test('N7 review: /trades keeps a trade whose entry is older than the window (the window picks trades by their exit)', async (t) => {
+  const { conn, request } = await fixture(t);
+  const old = Date.now() - 70 * 86_400_000;
+  const cid = 'nc-swing-1-AMD-x';
+  conn.prepare("INSERT INTO bot_order_intents (client_id,symbol,strategy,version,side,style,qty,entry_price,stop,target,bar_time,requested,status,why,spec) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(cid, 'AMD', 'swing', 1, 'long', 'swing', 2, 100, 90, 130, old, old, 'closed', 'fixture', '{}');
+  conn.prepare('INSERT INTO bot_fills (id,client_id,ts,qty,price,side) VALUES (?,?,?,?,?,?)').run('o1', cid, old, 2, 100, 'buy');
+  conn.prepare('INSERT INTO bot_fills (id,client_id,ts,qty,price,side) VALUES (?,?,?,?,?,?)').run('c1', cid, Date.now() - 86_400_000, 2, 110, 'sell');
+  const r = await request('/trades?days=60');
+  assert.deepEqual(r.trades.map((x) => [x.strategy, x.pnl]), [['swing', 20]]);
+});
