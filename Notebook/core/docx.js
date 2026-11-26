@@ -2331,7 +2331,10 @@ function aiKeepWording(sentText, html) {
   var touched = [];
   for (var h = hunks.length - 1; h >= 0; h--) {
     var hk = hunks[h];
-    var del = hk.out.filter(function(i) { return !_AI_SYM_MARK.test(toks[i].k) && !_AI_START_MARK.test(toks[i].k) || hk.ins.length; });
+    // A stray list marker the model added mid-paragraph ("... end. 2. Next") is
+    // layout, not a word: only drop it when it stands in for a changed word.
+    var del = hk.ins.length ? hk.out.slice()
+      : hk.out.filter(function(i) { return !_AI_SYM_MARK.test(toks[i].k) && !_AI_START_MARK.test(toks[i].k); });
     var text = hk.ins.join(' ');
     for (var j = del.length - 1; j >= (text ? 1 : 0); j--) { touched.push(toks[del[j]].node); _aiCutToken(toks[del[j]]); }
     if (!text) continue;
@@ -2356,7 +2359,7 @@ function aiKeepWording(sentText, html) {
     var el = node.parentNode;
     while (el && el !== root && el.nodeType === 1) {
       var up = el.parentNode;
-      if (!/\S/.test(el.textContent || '') && !el.querySelector('input, br, hr, img') && /^(?:P|H[1-6]|LI|UL|OL|BLOCKQUOTE|STRONG|EM|U|S|CODE|SPAN|TD|TH|TR)$/.test(el.tagName) && !/^(?:TD|TH|TR)$/.test(el.tagName)) { up.removeChild(el); el = up; }
+      if (!/\S/.test(el.textContent || '') && !el.querySelector('input, br, hr, img') && /^(?:P|H[1-6]|LI|UL|OL|BLOCKQUOTE|STRONG|EM|U|S|CODE|SPAN)$/.test(el.tagName)) { up.removeChild(el); el = up; }
       else break;
     }
   });
