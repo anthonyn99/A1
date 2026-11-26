@@ -7000,12 +7000,12 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
       onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");onClose();
     } else if(isNowRepeating&&wasNotRepeating&&initial?.id){
       onSave(startDateKey,{...item,_originalId:initial.id},{mode:repeatMode,days:repeatDays,endDate:repeatEnd});onClose();
-    } else if(titleChanged||typeChanged||notifyChanged){
-      onSave(startDateKey,notifyChanged?{...item,_notifyEdit:true}:item,"titleEditChoice");
-    } else if(!isNowRepeating||!endDate){
-      onSave(startDateKey,item,null);onClose();
     } else if(initial?.id&&wasRepeating&&((repeat==="span"&&initial.repeatSpanDays!==Number(spanDays))||(initial.repeatSpanDays&&repeat!=="span"))){
       onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd,replaceSeries:true});onClose();
+    } else if(titleChanged||typeChanged||notifyChanged){
+      onSave(startDateKey,notifyChanged?{...item,_notifyEdit:true}:item,"titleEditChoice");
+    } else if(!isNowRepeating||!repeatEnd){
+      onSave(startDateKey,item,null);onClose();
     } else if(initial?.id&&wasRepeating){
       onSave(startDateKey,item,null);onClose();
     } else {
