@@ -60,7 +60,7 @@ test('numbers wait for the close + 20 and come from code: P&L, SPY, trades, best
   assert.equal(await briefTick(env, ny(MON, '16:20'), opts), 'numbers');
   const b = read(conn, MON);
   assert.equal(b.pnl, 84.2); assert.equal(b.pnlPct, 1.68); assert.equal(b.spyPct, 0.41); assert.equal(b.vsSpy, 1.27);
-  assert.equal(b.trades, 3); assert.equal(b.wins, 2); assert.equal(b.pf, 3.5);
+  assert.equal(b.trades, 3); assert.equal(b.wins, 2); assert.equal(b.pf, 3.54);
   assert.equal(b.best.symbol, 'AMD'); assert.equal(b.worst.symbol, 'NVDA');
   assert.equal(b.deployedPeak, 1940); assert.equal(b.riskUsedPct, 64.67);
   assert.deepEqual(b.changes, [{ id: 'gap-fade', stage: 'killed', why: 'Killed: best case 38% won' }]);   // conviction updates are not changes
