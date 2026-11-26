@@ -150,3 +150,44 @@ test('a scheduled half-day shadow replay journals the signal and counts one comp
   assert.equal(events[0].qty, 6);
   assert.match(events[0].why, /observed 101/);
 });
+
+
+test('kill latches before contacting Alpaca and reports every surviving order and position', async (t) => {
+  const { DB, request } = await fixture(t);
+  const { killBot } = await import('../workers3/quant-bot/lib/kill.js');
+  const { putSettings, readBotState } = await state;
+  assert.equal((await request('/bot/kill', { method: 'POST', body: { confirm: true }, secret: 'no' })).status, 401);
+  assert.equal((await request('/bot/kill', { method: 'POST', body: {} })).status, 400);
+  const calls = [];
+  let retry = false;
+  const broker = {
+    cancelAll: async () => {
+      calls.push('cancel');
+      assert.equal((await readBotState(DB)).killPending, true);
+      return [{ status: 200, id: 'canceled' }];
+    },
+    closeAll: async () => {
+      calls.push('close');
+      return retry ? [{ status: 200, symbol: 'AMD' }] : [{ status: 500, symbol: 'AMD' }];
+    },
+    positions: async () => retry ? [] : [{ symbol: 'AMD', qty: '2', side: 'long' }],
+    orders: async () => retry ? [] : [{ id: 'still-open', symbol: 'AMD', status: 'accepted' }],
+  };
+  const failed = await killBot({ DB }, { confirm: true }, { now, broker });
+  assert.equal(failed.status, 502);
+  const partial = await failed.json();
+  assert.deepEqual(calls, ['cancel', 'close']);
+  assert.equal(partial.halted, true);
+  assert.deepEqual(partial.positions, [{ symbol: 'AMD', qty: '2', side: 'long' }]);
+  assert.equal(partial.orders[0].id, 'still-open');
+  assert.match(partial.problems[0], /Closing AMD returned 500/);
+  const resume = { version: 0, author: 'tony', reason: 'Fixture resume', settings: {}, resume: true };
+  assert.equal((await putSettings({ DB }, resume, now)).status, 409);
+  retry = true;
+  const recovered = await killBot({ DB }, { confirm: true }, { now: now + 60000, broker });
+  assert.equal(recovered.status, 200);
+  assert.equal((await readBotState(DB)).killPending, false);
+  assert.match((await readBotState(DB)).halted, /kill switch/);
+  assert.equal((await putSettings({ DB }, resume, now + 120000)).status, 200);
+  assert.equal((await readBotState(DB)).halted, null);
+});
