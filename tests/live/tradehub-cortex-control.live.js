@@ -56,6 +56,8 @@ function fakeBot() {
   const mock = Object.assign(Object.create(Object.getPrototypeOf(api.mock)), api.mock, { patterns: [...api.mock.patterns, BOT + '/*'], handle: (req) => (req.url.startsWith(BOT) ? bot.handle(req) : base(req)) });
   const c = await connect({ mock });
   const errs = [];
+  // The shared test profile's disk cache has been seen corrupt (ERR_CACHE_READ_FAILURE on cdnjs): start clean.
+  await c.send('Network.enable'); await c.send('Network.clearBrowserCache');
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); });
