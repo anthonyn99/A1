@@ -6629,6 +6629,11 @@ function thSeriesNotifyEdit(data,rid,cutoffKey,item){
 // doc (1 MiB limit) — 3yr of daily risks overflow. Weekly/monthly (few hundred /
 // few dozen rows) → 5yr; annual (≤10 rows) → 10yr.
 function thRepeatMaxYears(mode){return mode==="annually"?10:(mode==="weekly"||mode==="monthly")?5:mode==="daily"?2:1;}
+function thSpanEndDate(startKey,days){
+  const p=startKey.split("-").map(Number),d=new Date(p[0],p[1]-1,p[2]);
+  d.setDate(d.getDate()+days-1);
+  return{year:d.getFullYear(),month:d.getMonth(),day:d.getDate()};
+}
 function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo=dow===0?-6:1-dow;d.setDate(d.getDate()+mo);return dkey(d.getFullYear(),d.getMonth(),d.getDate());}
 
 const T_SK={data:"td6_data",habits:"td6_habits",hc:"td6_hc",goals:"td6_goals",mgoals:"td6_mgoals_monthly",seeded:"td6_seeded",weekKey:"td6_week",goalPrefs:"td6_goalprefs"};
