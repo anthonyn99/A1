@@ -149,8 +149,12 @@ if (jsdom) {
   // on the context object, so the function has to be exported explicitly.
   // `const` at the top of a vm script is a lexical binding and never appears
   // on the context object, so the function has to be exported explicitly.
+  // Since 11f940fa both extractors try the string fast path first, so its
+  // helpers (_jUnesc ... _jExtractImgs) come along.
+  const helpersAt = HTML.indexOf('const _jUnesc = ');
+  const fastPath = HTML.slice(helpersAt, HTML.indexOf('const _jExtractImgs = ', helpersAt)) + grab('const _jExtractImgs = async (');
   vm.runInContext(
-    bjExtract + '; ' + bjRehydrate + '; globalThis.__extract = _bjExtractHtmlImages;',
+    fastPath + '; ' + bjExtract + '; ' + bjRehydrate + '; globalThis.__extract = _bjExtractHtmlImages;',
     sandbox);
 
   const extract = sandbox.__extract;
