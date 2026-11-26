@@ -70,7 +70,7 @@ function fakeBot() {
     ok('the sidebar has Neo Cortex', await until(`!![...document.querySelectorAll('.tb-navtab[data-navid="cortex"]')].find(function(b){return b.offsetParent;})`, 10000));
     await tab('cortex');
     ok('four cards by default: Status, Today, Daily brief, Strategies', await until(`${card('status')} && ${card('today')} && ${card('brief')} && ${card('strategies')} && !${card('lab')}`, 10000));
-    ok('Status: the pill, today\'s P&L and the deployed meter', await until(`/Running · paper/.test(${card('status')}.innerText) && /\\+\\$84\\.20/.test(${card('status')}.innerText) && /\\$1,940\\.00/.test(${card('status')}.innerText)`, 8000), await js(`return ${card('status')}.innerText;`));
+    ok('Status: the pill, today\'s P&L and the deployed meter', await until(`/running · paper/i.test(${card('status')}.innerText) && /\\+\\$84\\.20/.test(${card('status')}.innerText) && /\\$1,940\\.00/.test(${card('status')}.innerText)`, 8000), await js(`return ${card('status')}.innerText;`));
     ok('Today: three moves, newest first, chips Sell / Shadow / Buy, the shadow dimmed', await until(`document.querySelectorAll('[data-ncx-event]').length === 3`, 8000) &&
       await js(`var r=[...document.querySelectorAll('[data-ncx-event]')]; return r.map(function(e){return e.querySelector('.ncx-chip').textContent;}).join() === 'Sell,Shadow,Buy' && r[1].classList.contains('is-faint');`),
       await js(`return [...document.querySelectorAll('[data-ncx-event]')].map(function(e){return e.innerText.split('\\n').join(' ');}).join(' | ');`));
