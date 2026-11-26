@@ -121,6 +121,9 @@ test('a scheduled half-day shadow replay journals the signal and counts one comp
     sizing: { kind: 'fixedRisk', value: 0.25 } }, { today: '2026-11-27' }).spec;
   conn.prepare('INSERT INTO strategies (id, version, hash, name, stage, spec, gate, edits, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(spec.id, spec.version, 'fixture', spec.name, 'gated', JSON.stringify(spec), '{}', '[]', now, now);
+  // N5: a gated strategy is admitted to shadow before the open (09:00-09:30 New York), then evaluated.
+  const { admit } = await import('../workers3/quant-bot/lib/lifecycle.js');
+  assert.deepEqual(await admit({ DB }, Date.parse('2026-11-27T14:10:00Z')), [['amd-swing', 1, 'shadow']]);
   const open = Date.parse('2026-11-27T14:30:00Z'), close = Date.parse('2026-11-27T18:00:00Z');
   const contextUpdate = { earnings: { AMD: { asOf: open, next: null } } };
   const { putMarketContext } = await import('../workers3/quant-bot/lib/context.js');

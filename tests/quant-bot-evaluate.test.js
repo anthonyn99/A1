@@ -51,7 +51,13 @@ test('batches up to ten symbols and sizes a fresh signal against the common risk
   assert.match(signal.why, /observed 51.*stop \$49\.98/);
   assert.deepEqual(shardsFor([{ spec: { universe: { symbols: Array.from({ length: 29 }, (_, i) => 'S' + i) } } }]).map((s) => s.length), [10, 10, 9]);
   const risk = { equity: 5000, peak: 5000, dayPnl: 0, positions: [] };
-  assert.equal(checkCandidate(signal, risk, undefined, { session }).qty, 12);
+  // N5: a fixed-risk spec risks its own value (1% here, capped by the $1,500 position cap); a conviction spec risks
+  // its band by the strategy's measured conviction (0 = the floor).
+  assert.equal(checkCandidate(signal, risk, undefined, { session }).qty, 29);
+  const band = { ...spec, sizing: { kind: 'conviction', min: 0.25, max: 1 } };
+  assert.equal(checkCandidate(candidate({ ...row, spec: band, conviction: 0 }, 'AMD', input, { now, session }), risk, undefined, { session }).qty, 12);
+  assert.equal(checkCandidate(candidate({ ...row, spec: band, conviction: 0.5 }, 'AMD', input, { now, session }), risk, undefined, { session }).qty, 29);
+  assert.equal(candidate({ ...row, spec: band, conviction: 0.5 }, 'AMD', input, { now, session }).riskPct, 0.625);
   assert.equal(checkCandidate(signal, risk, undefined, { session, earningsSoon: true }).ok, false);
   assert.match(checkCandidate(signal, { ...risk, positions: [{ sym: 'AMD', strategy: 'someone-else', qty: 1, price: 51, style: 'day', side: 'long' }] }, undefined, { session }).why, /one strategy per symbol/);
   assert.match(candidate(row, 'AMD', input, { now: now + 15 * 60000, session }).skip, /No fresh/);
