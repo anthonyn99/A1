@@ -54,7 +54,7 @@ function fakeBot() {
     { id: 'claude_code/fable', backend_type: 'cli', resolved_label: 'Fable 5.2', needs_credits: true, routable: true }];
   const base = api.mock.handle.bind(api.mock);
   const mock = Object.assign(Object.create(Object.getPrototypeOf(api.mock)), api.mock, { patterns: [...api.mock.patterns, BOT + '/*'], handle: (req) => (req.url.startsWith(BOT) ? bot.handle(req) : base(req)) });
-  const c = await connect({ mock: process.env.RAW ? api.mock : mock });
+  const c = await connect({ mock });
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
