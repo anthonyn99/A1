@@ -50,6 +50,8 @@ function addStrategy(conn, id, { version = 1, stage = 'gated', at = 1, report = 
   conn.prepare('INSERT INTO strategies (id, version, hash, name, stage, spec, gate, edits, report, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
     .run(id, version, 'h-' + id + version, id, stage, JSON.stringify(s), '{"pass":true}', '[]', JSON.stringify(report), at, at);
 }
+/** The bot evaluated every 15-minute checkpoint of `day` (lib/lifecycle.js sessionCovered). */
+const cover = (conn, day, slots = 26) => { for (let i = 0; i < slots; i++) conn.prepare('INSERT OR IGNORE INTO bot_session_slots (day, slot) VALUES (?, ?)').run(day, i); };
 const stageOf = (conn, id, version = 1) => conn.prepare('SELECT stage FROM strategies WHERE id = ? AND version = ?').get(id, version).stage;
 /** One closed paper trade: risk $10 a share x 1 share, P&L `pnl`. */
 function addTrade(conn, id, n, pnl, { version = 1, at = ny(FRI, '10:00') } = {}) {
@@ -110,6 +112,13 @@ test('replay: a matching shadow day goes to paper, a disagreement shadows again,
   const { admit } = await life;
   for (const id of ['good-one', 'bad-one', 'err-one']) addStrategy(conn, id);
   await admit(env, ny(FRI, '09:05'));
+  // a day the bot did not fully evaluate (paused at noon) judges nothing
+  cover(conn, FRI, 5);
+  const unjudged = await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [{ id: 'bad-one', version: 1, signals: 3, matched: 0, missedLive: 3, extraLive: 0 }] } });
+  assert.match(unjudged.results[0].unjudged, /evaluated 5 of 12 checkpoints/);
+  assert.equal(conn.prepare("SELECT shadow_fails FROM strategy_life WHERE id = 'bad-one'").get().shadow_fails, 0);
+  conn.prepare("DELETE FROM bot_replays").run();
+  cover(conn, FRI, 12);
   const res = await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [
     { id: 'good-one', version: 1, signals: 10, matched: 9, missedLive: 1, extraLive: 0 },
     { id: 'bad-one', version: 1, signals: 10, matched: 5, missedLive: 3, extraLive: 2 },
@@ -118,7 +127,10 @@ test('replay: a matching shadow day goes to paper, a disagreement shadows again,
   assert.equal(stageOf(conn, 'good-one'), 'paper');
   assert.equal(stageOf(conn, 'bad-one'), 'shadow');
   assert.equal((await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [{ id: 'good-one', version: 1, signals: 0, matched: 0, missedLive: 0, extraLive: 0 }] } })).results[0].already, true);
-  await admit(env, ny(MON, '09:05'));
+  const again = await admit(env, ny(MON, '09:05'));
+  assert.ok(again.some((m) => m[0] === 'bad-one' && m[2] === 'shadow again'));
+  assert.equal(conn.prepare("SELECT shadow_day FROM strategy_life WHERE id = 'bad-one'").get().shadow_day, MON);
+  cover(conn, MON);
   await request('/lifecycle/replay', { method: 'POST', body: { day: MON, results: [{ id: 'bad-one', version: 1, signals: 4, matched: 1, missedLive: 3, extraLive: 0 }] } });
   assert.equal(stageOf(conn, 'bad-one'), 'retired');
   // a broker error that day fails the shadow even when the decisions agree
@@ -156,6 +168,7 @@ test('review: keep, retire, three kill rules, conviction logged, once a day and 
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'coldhand'").get().why, /90% upper bound 30\.1%/);
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'deepdd'").get().why, /\$135\.00 from its peak, over 8% of its \$1500 sleeve/);
   // the drift rule: an active strategy whose live decisions disagree on over 25% of 10+ signals
+  cover(conn, FRI, 12);
   await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [{ id: 'drifter', version: 1, signals: 12, matched: 8, missedLive: 4, extraLive: 0 }] } });
   assert.equal(stageOf(conn, 'drifter'), 'killed');
   const view = await request('/lifecycle');
@@ -211,4 +224,40 @@ test('fires: shadow and post-fire skip events and paper intents, by bar, for the
   const { fires } = await request('/lifecycle/fires?day=' + FRI);
   assert.deepEqual(fires.map((f) => f.strategy + ':' + f.symbol).sort(), ['s-one:AMD', 's-one:NVDA', 's-two:AMD']);
   assert.equal((await request('/lifecycle/fires?day=nope')).status, 400);
+});
+
+test('a newer gated version never hides the running one; Claude retires the running version; admission needs a running bot', async (t) => {
+  const { conn, env, request } = await fixture(t);
+  const { liveStrategies, admit, getLifecycle } = await life;
+  addStrategy(conn, 'runner', { stage: 'paper', at: 10 });
+  addStrategy(conn, 'runner', { version: 2, stage: 'gated', at: 20 });
+  assert.deepEqual((await liveStrategies(env.DB)).map((r) => [r.id, r.version]), [['runner', 1]]);
+  const view = await (await getLifecycle(env)).json();
+  assert.deepEqual(view.strategies.map((s) => [s.id, s.version, s.next]), [['runner', 1, { version: 2, stage: 'gated' }]]);
+  const res = await request('/strategies/stage', { method: 'POST', body: { id: 'runner', stage: 'retired', why: 'edge gone', author: 'claude' } });
+  assert.equal(res.version, 1);
+  assert.equal(stageOf(conn, 'runner', 1), 'retired');
+  assert.equal(stageOf(conn, 'runner', 2), 'gated');
+  assert.equal((await request('/strategies/stage', { method: 'POST', body: { id: 'runner', version: '2', stage: 'paused', why: 'x', author: 'tony' } })).status, 409);
+  await request('/settings', { method: 'PUT', body: { version: 0, author: 'tony', reason: 'off for the day', settings: { mode: 'off' } } });
+  assert.deepEqual(await admit(env, ny(MON, '09:05')), []);
+  assert.equal(stageOf(conn, 'runner', 2), 'gated');
+});
+
+test('admission keeps the union of symbols inside the 40 a tick can evaluate; held symbols shard first', async (t) => {
+  const { conn, env } = await fixture(t);
+  const { admit } = await life;
+  const { shardsFor } = await import('../workers3/quant-bot/lib/evaluate.js');
+  const syms = (from, n) => Array.from({ length: n }, (_, i) => 'S' + String(from + i).padStart(2, '0'));
+  const put = (id, symbols, at) => {
+    const s = spec(id, 1, { universe: { symbols } });
+    conn.prepare("INSERT INTO strategies (id, version, hash, name, stage, spec, gate, edits, report, created, updated) VALUES (?,1,?,?, 'gated', ?, '{}', '[]', '{}', ?, ?)").run(id, 'h' + id, id, JSON.stringify(s), at, at);
+  };
+  put('wide-a', syms(0, 30), 30); put('wide-b', syms(30, 20), 20); put('small-c', syms(30, 5), 10);
+  const moved = await admit(env, ny(FRI, '09:05'));
+  assert.deepEqual(moved.map((m) => m[0]).sort(), ['small-c', 'wide-a']);   // wide-b would make 50 symbols
+  assert.equal(stageOf(conn, 'wide-b'), 'gated');
+  const shards = shardsFor([{ spec: { universe: { symbols: syms(0, 45) } } }], [{ sym: 'ZZZ' }]);
+  assert.equal(shards[0][0], 'ZZZ');
+  assert.ok(shards.slice(0, 4).flat().includes('ZZZ'));
 });
