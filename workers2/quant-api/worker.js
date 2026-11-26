@@ -93,6 +93,7 @@ import { getOptions, getMacro, getMacroDates, getEarnings, postEarningsFetch } f
 import { DRAWINGS_KEEP_MS, getDrawings, putDrawings } from './lib/charts.js';
 import * as alerts from './lib/alerts.js';
 import * as orderWatch from './lib/order-watch.js';
+import { cortexAlerts } from './lib/cortex-alerts.js';
 import { getSummary, getHeatmap } from './lib/stock.js';
 
 export { DRAWINGS_MAX, DRAWINGS_BYTES, DRAWINGS_KEEP_MS } from './lib/charts.js';
@@ -142,6 +143,8 @@ async function route(req, env, url, ctx) {
   }
   // Google sends the browser back here after the consent page: no Orca key on that request (its state is signed instead).
   if (m === 'GET' && p === '/drive/callback') return drive.callback(env, url);
+  // N8: Neo Cortex's alerts from quant-bot's outbox, authorised by the shared CORTEX_SECRET (quant-bot holds no Orca key).
+  if (m === 'POST' && p === '/alerts/cortex') return cortexAlerts(env, req, Date.now());
   await auth(req, env);
   if (m === 'GET' && p === '/whoami') return json({ ok: true });
   if (m === 'GET' && p === '/usage') return usage(env);
