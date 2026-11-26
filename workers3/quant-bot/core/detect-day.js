@@ -67,6 +67,7 @@ export function prepDay(bars) {
     piv: pivots(rb, PIVOT_W, PIVOT_W),
     memo: new Map(),
   };
+  if (rb.length && Object.hasOwn(rb[rb.length - 1], 'closedRvol')) p.rvol[p.rvol.length - 1] = rb[rb.length - 1].closedRvol;
   // VWAP starts again at each open (the regular bars carry no pre-market).
   {
     let pv = 0, vol = 0;

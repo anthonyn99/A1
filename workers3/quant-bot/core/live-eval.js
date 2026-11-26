@@ -26,8 +26,8 @@ export const DAY_SETUP_SESSIONS = 21, BARS_PER_SESSION = { '5m': 78, '15m': 26, 
 const SMOOTHED = new Set(['ema', 'rsi', 'atr', 'adx']);
 
 /** The look-back one rule reference needs. */
-function needOf(r, tf) {
-  if (r.setup != null) return DAY_SETUPS.includes(r.setup) && tf !== '1d' ? DAY_SETUP_SESSIONS * (BARS_PER_SESSION[tf] || 78) : SWING_SETUP_WINDOW;
+function needOf(r, tf, dayVolume) {
+  if (r.setup != null) return DAY_SETUPS.includes(r.setup) && tf !== '1d' ? (dayVolume ? 82 : DAY_SETUP_SESSIONS * (BARS_PER_SESSION[tf] || 78)) : SWING_SETUP_WINDOW;
   if (!r.ind) return 0;
   if (r.ind === 'streak') return Infinity;   // a run of up or down closes has no fixed length
   const a = argsOf(r.ind, r.args);
@@ -39,10 +39,10 @@ function needOf(r, tf) {
 }
 
 /** Bars the window needs for every rule of `spec` to read as it would on the full history. */
-export function warmupOf(spec) {
+export function warmupOf(spec, { dayVolume = false } = {}) {
   let need = 14 * 4;   // the ATR(14) every stop and size reads
   let setupNeed = 0;
-  for (const r of rulesOf(spec)) { const x = needOf(r, spec.timeframe); if (r.setup != null) setupNeed = Math.max(setupNeed, x); else need = Math.max(need, x); }
+  for (const r of rulesOf(spec)) { const x = needOf(r, spec.timeframe, dayVolume); if (r.setup != null) setupNeed = Math.max(setupNeed, x); else need = Math.max(need, x); }
   return Math.max(setupNeed, MIN_WINDOW, need + 2);
 }
 
@@ -59,13 +59,13 @@ export function windowStart(bars, need, intraday) {
 }
 
 /** Does the spec's entry (or its exit rules) fire on the last bar of `bars`? */
-export function evalLast(spec, bars, { daily = null, bench = null, regime = null, side = 'long', rules = 'entry', mirror = false } = {}) {
+export function evalLast(spec, bars, { daily = null, bench = null, regime = null, side = 'long', rules = 'entry', mirror = false, dayVolume = false, withContext = false } = {}) {
   const n = bars.length;
   if (!n) return { fire: false, i: -1, from: 0 };
   const intraday = spec.timeframe !== '1d';
-  const from = windowStart(bars, warmupOf(spec), intraday), win = from ? bars.slice(from) : bars;
-  const ctx = buildContexts(spec, { bars: { X: win }, daily: daily ? { X: daily } : {}, bench, regime }).X;
+  const from = windowStart(bars, warmupOf(spec, { dayVolume }), intraday), win = from ? bars.slice(from) : bars;
+  const ctx = buildContexts(spec, { bars: { X: win }, daily: daily ? { X: daily } : {}, bench, regime, lastSetupOnly: true }).X;
   const block = rules === 'exit' ? { any: ((spec.exit && spec.exit.any) || []).filter((x) => !isStop(x) && !isTarget(x) && !isTime(x)) } : spec.entry || {};
   const s = entrySeries(ctx, block, side, mirror);
-  return { fire: !!s[win.length - 1], i: n - 1, from };
+  return { fire: !!s[win.length - 1], i: n - 1, from, ...(withContext ? { context: ctx } : {}) };
 }

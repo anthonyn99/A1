@@ -64,7 +64,7 @@ export function decide(spec, { contexts = {}, run = 'r0000', held = {}, equity =
 }
 
 /** Stop, target and size for an entry at the close of bar i: simulate.js's formulas (it uses the next open). */
-export function planEntry(spec, S, i, side, { stopX, targetX, equity, limits = {} }) {
+export function entryPrices(S, i, side, { stopX, targetX }) {
   const b = S.bars[i], px = b.c, a = atr(S.bars, 14)[i], long = side === 'long', sgn = long ? 1 : -1;
   let stop = null;
   if (stopX) {
@@ -80,6 +80,11 @@ export function planEntry(spec, S, i, side, { stopX, targetX, equity, limits = {
     else if (targetX.target === 'percent') target = px * (1 + sgn * targetX.value / 100);
     else if (targetX.target === 'level') { const lv = long ? series(S, 'level.nearestResistance')[i] : series(S, 'level.nearestSupport')[i]; if (lv != null && (long ? lv > px : lv < px)) target = lv; }
   }
+  return { price: px, stop, target, riskPS };
+}
+
+export function planEntry(spec, S, i, side, { stopX, targetX, equity, limits = {} }) {
+  const { price: px, stop, target, riskPS } = entryPrices(S, i, side, { stopX, targetX });
   const k = spec.sizing.kind, v = riskValueOf(spec.sizing);
   let sh = k === 'equal' ? equity / spec.maxPositions / px : k === 'percent' ? equity * v / 100 / px : riskPS > 0 ? equity * v / 100 / riskPS : 0;
   sh = Math.min(sh, equity / px);

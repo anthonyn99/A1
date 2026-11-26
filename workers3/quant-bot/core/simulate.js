@@ -80,7 +80,7 @@ function closesOn(bars, ref) {
  *   breadth    { t, above50 } on daily bars
  *   earnings   { SYM: ['YYYY-MM-DD'] }; rank3m (SYM) → (i) → rank (rs-leader)
  */
-export function buildContexts(spec, { bars = {}, daily = {}, bench = null, sectorBars = {}, sectorOf = {}, regime = null, breadth = null, earnings = {}, rank3m = null } = {}) {
+export function buildContexts(spec, { bars = {}, daily = {}, bench = null, sectorBars = {}, sectorOf = {}, regime = null, breadth = null, earnings = {}, rank3m = null, lastSetupOnly = false } = {}) {
   const tf = spec.timeframe, intraday = tf !== '1d', out = {};
   const regDaily = regime ? regime.t.map((t) => ({ t })) : null;
   for (const sym of Object.keys(bars)) {
@@ -90,7 +90,7 @@ export function buildContexts(spec, { bars = {}, daily = {}, bench = null, secto
       tf, symbol: sym, bench: closesOn(b, bench), sector: sectorOf[sym] && sectorBars[sectorOf[sym]] ? closesOn(b, sectorBars[sectorOf[sym]]) : null,
       regime: regime ? { score: lineUp(b, regDaily, regime.score, intraday), label: lineUp(b, regDaily, regime.label, intraday) } : null,
       breadth: breadth ? lineUp(b, breadth.t.map((t) => ({ t })), breadth.above50, intraday) : null,
-      earnings: earnings[sym] || null, daily: intraday ? daily[sym] || null : b,
+      earnings: earnings[sym] || null, daily: intraday ? daily[sym] || null : b, lastSetupOnly,
     });
     if (rank3m) S.rank3m = rank3m(sym);
     out[sym] = S;

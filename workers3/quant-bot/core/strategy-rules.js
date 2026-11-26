@@ -79,11 +79,11 @@ export const LEVEL_STEP = 5;   // daily levels for level.* are worked out again 
  * earnings = a Set of 'YYYY-MM-DD'; daily = the symbol's daily bars (for an
  * intraday run's levels and setups; the bars themselves on a daily run).
  */
-export function seriesContext(bars, { tf = '1d', symbol = '', bench = null, sector = null, regime = null, breadth = null, earnings = null, daily = null } = {}) {
+export function seriesContext(bars, { tf = '1d', symbol = '', bench = null, sector = null, regime = null, breadth = null, earnings = null, daily = null, lastSetupOnly = false } = {}) {
   return {
     bars, tf, symbol, t: bars.map((b) => b.t), o: bars.map((b) => b.o), h: bars.map((b) => b.h), l: bars.map((b) => b.l), c: bars.map((b) => b.c), v: bars.map((b) => b.v),
     bench, sector, regime, breadth, earnings: earnings ? new Set(earnings) : null,
-    daily: DAILY.has(tf) ? bars : daily, cache: new Map(),
+    daily: DAILY.has(tf) ? bars : daily, lastSetupOnly, cache: new Map(),
   };
 }
 
@@ -107,10 +107,10 @@ export function setupSeries(S, name, dir = 'long') {
   const out = new Uint8Array(S.bars.length);
   if (SWING_SETUPS.includes(name) && DAILY.has(S.tf)) {
     const earnings = S.earnings || null;
-    for (let i = 1; i < S.bars.length; i++) for (const c of detectSwing({ symbol: S.symbol, bars: { '1d': S.bars }, i, earnings, rs: S.rank3m ? { rank3m: S.rank3m } : null })) if (c.setup === name && c.dir === dir) out[i] = 1;
+    for (let i = S.lastSetupOnly ? Math.max(1, S.bars.length - 1) : 1; i < S.bars.length; i++) for (const c of detectSwing({ symbol: S.symbol, bars: { '1d': S.bars }, i, earnings, rs: S.rank3m ? { rank3m: S.rank3m } : null })) if (c.setup === name && c.dir === dir) out[i] = 1;
   } else if (DAY_SETUPS.includes(name) && S.tf === '5m') {
     const lv = dayLevels(S);
-    for (let i = 0; i < S.bars.length; i++) for (const c of detectDay({ symbol: S.symbol, bars: { '5m': S.bars }, i, levels: lv(i) })) if (c.setup === name && c.dir === dir) out[i] = 1;
+    for (let i = S.lastSetupOnly ? S.bars.length - 1 : 0; i < S.bars.length; i++) for (const c of detectDay({ symbol: S.symbol, bars: { '5m': S.bars }, i, levels: lv(i) })) if (c.setup === name && c.dir === dir) out[i] = 1;
   }
   S.cache.set(key, out);
   return out;
