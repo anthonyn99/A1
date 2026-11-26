@@ -150,6 +150,34 @@ def test_codex_uses_its_own_usage_and_settings(profile, tmp_path, monkeypatch):
     assert cr.state() == {} and cr.config() == cr.DEFAULTS
 
 
+@pytest.mark.parametrize("profile", ["tony", "veda"])
+def test_paid_codex_ignores_old_free_window_and_reads_five_hour(profile, tmp_path, monkeypatch):
+    from magi.code.agents import limits
+
+    monkeypatch.setattr(cr, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(cr, "active_profile", lambda: profile)
+    monkeypatch.setattr(cr, "api_token", lambda: "tok")
+    monkeypatch.setattr(cr, "account_slot", lambda agent: "account")
+    monkeypatch.setattr(cr, "plan_of", lambda slot, agent: "plus")
+    monkeypatch.setattr(cr.time, "time", lambda: NOW)
+    windows = {"30d": {"utilization": 0, "resets_at": NOW + 20 * 86400},
+               "5h": {"utilization": 0, "resets_at": None}}
+    monkeypatch.setattr(limits, "usage", lambda agent, slot: windows)
+    reads, posts = [], []
+
+    def read(slot, agent):
+        reads.append((slot, agent))
+        windows["5h"] = {"utilization": 1, "resets_at": NOW + 3600}
+
+    monkeypatch.setattr(cr, "read_windows", read)
+    monkeypatch.setattr(cr, "post", lambda *args: posts.append(args) or {"ok": True, "detail": ""})
+    asyncio.run(cr.tick(agent="codex"))
+    assert reads == [("account", "codex")]
+    assert posts[0][0] == profile
+    assert posts[0][3] == [{"kind": "five_hour", "at": NOW + 3600}]
+    assert cr.state("codex")["items"] == [{"kind": "five_hour", "at": NOW + 3600}]
+
+
 def test_a_failed_post_is_retried_next_tick(engine, monkeypatch):
     monkeypatch.setattr(cr, "post", lambda *a: {"ok": False, "detail": "down"})
     asyncio.run(cr.tick())
