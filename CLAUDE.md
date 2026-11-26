@@ -100,8 +100,8 @@
   [docs/A1-Priv/a1-priv-move-plan.md](docs/A1-Priv/a1-priv-move-plan.md), section "Moving
   another program later".
 - **"continue TradeHub Quant" (Claude or Codex; the two hand off to each other):** read
-  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-trading-refine-1.md` §0 (Trading Refinements Batch 1, TR1-TR8:
-  the NEXT phase, the hand-off protocol and log) and build from there. Codex reads [AGENTS.md](AGENTS.md). Claude also
+  `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-trading.md` §0 (Part 2, Neo Cortex N0-N10: the NEXT
+  phase, the Part 2 hand-off block and log; TR1-TR8 are complete) and build from there, updating §0 after every step. Codex reads [AGENTS.md](AGENTS.md). Claude also
   publishes `Desktop\TradeHub Quant Plan.html` to the plan artifact when the log says Codex updated it.
 - **TradeHub Quant / Neo Quant** ("continue Quant", "next Quant phase", the
   AI quant, Market / Charts / Scanner / Neo Quant tabs): TradeHub is in
