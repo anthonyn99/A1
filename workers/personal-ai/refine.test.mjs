@@ -161,7 +161,7 @@ await t('Workers AI gets a lowercase JSON schema', async () => {
 
 console.log('\nNotebook AI tools (/journal/format)');
 const DOC = 'woke up at 6:15, ran 3.2 miles\n[[IMG1]]\nbuy eggs and spinach\n[[IMG2]]';
-const HTML = '<p>Woke up at 6:15, ran 3.2 miles.</p>[[IMG1|large]]<ul><li>Buy eggs and spinach</li></ul>[[IMG2]]';
+const HTML = '<p>woke up at 6:15, ran 3.2 miles</p>[[IMG1|large]]<ul><li>buy eggs and spinach</li></ul>[[IMG2]]';
 const html = (h, ms = 0) => () => ({ ms, text: JSON.stringify({ html: h }) });
 await t('formatKeepsContent: every image token and section marker must survive', () => {
   ok(W.formatKeepsContent(DOC, HTML, 'format'));
@@ -172,6 +172,32 @@ await t('formatKeepsContent: AI Format may not shrink the text; Refine may', () 
   const long = 'This is a long paragraph about my day and what I did in it. '.repeat(5);
   ok(!W.formatKeepsContent(long, '<p>A day.</p>', 'format'));
   ok(W.formatKeepsContent(long, '<p>A day.</p>', 'refine'));
+});
+await t('AI Format may not change the wording; Refine may', () => {
+  const reworded = '<p>Woke up at 6:15 and ran 3.2 miles.</p>[[IMG1]]<ul><li>Buy eggs and spinach.</li></ul>[[IMG2]]';
+  ok(!W.formatKeepsContent(DOC, reworded, 'format'), 'a reworded answer passed as AI Format');
+  ok(W.formatKeepsContent(DOC, reworded, 'refine'), 'Refine was held to the words');
+});
+await t('formatWordDrift: layout, list markers, entities and existing inline tags are free', () => {
+  const sent = 'Groceries
+- eggs & milk
+1. call <strong>mom</strong>
+E=mc^2 is neat';
+  eq(W.formatWordDrift(sent, '<h2>Groceries</h2><ul><li>eggs &amp; milk</li></ul><ol><li>call <strong>mom</strong></li></ol><p>$E=mc^2$ is neat</p>'), 0);
+  ok(W.formatWordDrift(sent, '<h2>Shopping list</h2><ul><li>Eggs and milk.</li></ul><ol><li>Call mom.</li></ol><p>$E=mc^2$ is neat</p>') > 0.3);
+});
+await t('an AI Format answer that reworded loses to one that kept the words', async () => {
+  GEMINI = (m) => (m === 'gemini-3.5-flash' ? html('<p>Woke up at 6:15 and ran 3.2 miles.</p>[[IMG1]]<p>Buy eggs and spinach.</p>[[IMG2]]')() : html(HTML)());
+  const r = await post('/journal/format', { profile: 'tony', text: DOC, tool: 'format' });
+  eq(r.body.html, HTML);
+});
+await t('AI Format always carries the format-only rule; other tools never do', async () => {
+  GEMINI = html(HTML);
+  await post('/journal/format', { profile: 'tony', text: DOC, tool: 'format', prompt: 'Make it nice.' });
+  await post('/journal/format', { profile: 'tony', text: DOC, tool: 'refine', prompt: 'Rewrite it.' });
+  ok(CALLS[0].prompt.includes('FORMAT ONLY'), 'format lacks the lock');
+  ok(!CALLS[1].prompt.includes('FORMAT ONLY'), 'refine got the lock');
+  ok(CALLS[1].prompt.startsWith('Rewrite it.'), 'custom prompt not used');
 });
 await t("Tony's tools use his key; Veda's use hers", async () => {
   GEMINI = html(HTML);
