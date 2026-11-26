@@ -67,7 +67,8 @@ test('audits each valid settings version and rejects a stale update or unsafe li
   assert.equal((await putSettings({ DB }, update(0, { limits: { maxDeployed: 2500 } }), now)).status, 200);
   assert.equal((await putSettings({ DB }, update(0, { paused: true }), now)).status, 409);
   assert.equal((await putSettings({ DB }, update(1, { limits: { maxDeployed: 2800 } }, 'claude'), now)).status, 403);
-  assert.equal((await putSettings({ DB }, update(1, { limits: { maxDeployed: 3100 } }), now)).status, 400);
+  // Tony 2026-11-26: the plan's numbers are defaults, not a ceiling; only incoherent limits are refused.
+  assert.equal((await putSettings({ DB }, update(1, { limits: { maxDeployed: 6000 } }), now)).status, 400);   // over the $5,000 book
   assert.equal((await putSettings({ DB }, update(1, { limits: { styleShare: { day: -0.2 } } }), now)).status, 400);
   assert.equal((await putSettings({ DB }, update(1, { strategist: { premarket: 'claude_code/haiku' } }), now)).status, 200);
   const read = await (await request('/settings?history=1')).json();

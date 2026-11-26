@@ -295,3 +295,38 @@ test('N7 review: /trades keeps a trade whose entry is older than the window (the
   const r = await request('/trades?days=60');
   assert.deepEqual(r.trades.map((x) => [x.strategy, x.pnl]), [['swing', 20]]);
 });
+
+test('any capital: Tony raises or lowers the book and every cap; incoherent limits are refused; Claude still only tightens', async (t) => {
+  const { request } = await fixture(t);
+  const put = (author, limits, version) => request('/settings', { method: 'PUT', body: { version, author, reason: 'fixture', settings: { limits } } });
+  const big = await put('tony', { book: 250000, maxDeployed: 150000, maxPosition: 40000, maxShortExposure: 60000, maxPositions: 12, riskMaxPct: 2 }, 0);
+  assert.equal(big.status, 200, JSON.stringify(big));
+  assert.equal(big.settings.limits.book, 250000);
+  const small = await put('tony', { book: 800, maxDeployed: 600, maxPosition: 300, maxShortExposure: 200 }, 1);
+  assert.equal(small.status, 200, JSON.stringify(small));
+  assert.equal((await put('tony', { maxPosition: 700 }, 2)).status, 400);           // a position over the deployed cap
+  assert.equal((await put('tony', { riskMinPct: 3, riskMaxPct: 1 }, 2)).status, 400);
+  assert.equal((await put('claude', { book: 900 }, 2)).status, 403);                // Claude cannot raise
+  assert.equal((await put('claude', { maxDeployed: 500 }, 2)).status, 200);         // ...but can tighten
+});
+
+test('any capital: the sizing scales with the book and a new book rebases the drawdown peak (no false halt)', async () => {
+  const { size, scaleLimits, checkLimits, LIMITS } = await import('../workers3/quant-bot/core/risk-book.js');
+  const { reconcile } = await import('../workers3/quant-bot/lib/reconcile.js');
+  const L10 = scaleLimits(LIMITS, 50000);
+  assert.deepEqual([L10.maxDeployed, L10.maxPosition, L10.maxShortExposure], [30000, 15000, 15000]);
+  assert.deepEqual(checkLimits(L10), []);
+  const order = { price: 100, stop: 98, style: 'day', side: 'long', riskPctOverride: 0.5 };
+  assert.equal(size(order, { positions: [] }, LIMITS).shares, 12);                 // $25 risk / $2
+  assert.equal(size(order, { positions: [] }, L10).shares, 125);                   // ten times the book, ten times the shares
+  assert.equal(size(order, { positions: [] }, scaleLimits(LIMITS, 500)).shares, 1); // a tiny book still sizes (floor of one share)
+  const acct = { equity: '100000', last_equity: '100000', buying_power: '400000' };
+  const before = reconcile(acct, [], [], [], { startingEquity: 100000, peak: 5000, book: 5000 }, LIMITS);
+  assert.equal(before.risk.state, 'ok');
+  const lower = { ...LIMITS, book: 2000, maxDeployed: 1200, maxPosition: 600, maxShortExposure: 600 };
+  const after = reconcile(acct, [], [], [], { startingEquity: 100000, peak: 5000, book: 5000 }, lower);
+  assert.equal(after.peak, 2000);
+  assert.equal(after.equity, 2000);
+  assert.equal(after.risk.state, 'ok');                                            // not a 60% "drawdown"
+  assert.equal(after.book, 2000);
+});
