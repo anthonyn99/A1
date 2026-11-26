@@ -148,7 +148,8 @@ def stored_windows(slot: str, agent: str = "claude") -> dict:
         # A slot can keep an old Free-plan 30-day reading after upgrading to
         # Plus/Pro. That old future timestamp must not suppress fresh 5-hour
         # reads or put a reset card on the wrong day.
-        if plan_of(slot, agent) != "free":
+        plan = plan_of(slot, agent)
+        if (plan and plan != "free") or (not plan and "5h" in wins):
             wins.pop("30d", None)
         return {kind: wins[key] for key, kind in CODEX_WINDOWS.items() if key in wins}
     return wins
