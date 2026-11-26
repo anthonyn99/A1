@@ -176,7 +176,7 @@ test('outbox: the first flush only learns; then new moves, changes, guards, runs
     ['trades', 'Neo Cortex: Short 5 NVDA at 168.60'], ['trades', 'Neo Cortex: Cover 5 NVDA at 166.10'],
     ['changes', 'Neo Cortex: gap-fade → killed'], ['guards', 'Neo Cortex: kill switch pressed'],
     ['research', 'Neo Cortex research ready'], ['brief', 'Neo Cortex brief ready']]);
-  assert.match(items[0].route, /^cortex:today:\d+$/);
+  assert.match(items[0].route, /^cortex:today:2026-11-30:\d+$/);
   assert.equal(items[0].body, 'Rejected at VWAP');
   assert.equal(items[4].body, 'After the close: 1 passed, 1 refused, 1 retired.');
   assert.equal(items[5].route, 'cortex:brief:' + MON);
