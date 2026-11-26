@@ -155,7 +155,8 @@ export const FLATTEN = { long: '15:55', short: '15:50' }, FLATTEN_HALF = { long:
 export const DAY_WINDOW = { start: '09:35', end: '15:30' };
 export const BOT_MAX_SYMBOLS = 40, BOT_MAX_POSITIONS = 6, BOT_RISK_BAND = { min: 0.25, max: 1.25 };
 /** Indicators and setups the bot cannot compute every minute (n4-01.md). */
-export const BOT_UNSUPPORTED = { 'level.nearestSupport': 'levels', 'level.nearestResistance': 'levels', daysToEarnings: 'earnings (the earnings blackout covers it)', 'breadth.above50': 'breadth' };
+export const BOT_UNSUPPORTED = { 'level.nearestSupport': 'levels', 'level.nearestResistance': 'levels', daysToEarnings: 'earnings (the earnings blackout covers it)', 'breadth.above50': 'breadth',
+  'regime.score': 'the regime per bar (choose strategies by the dossier's regime instead)', 'regime.label': 'the regime per bar (choose strategies by the dossier's regime instead)' };
 export const BOT_UNSUPPORTED_SETUPS = ['earnings-drift'];
 /** The % risked per trade for a fixed-risk or conviction sizing (the band's floor when no conviction is measured;
  *  N5 sets sizing.conviction 0..1), else the plain value. */
