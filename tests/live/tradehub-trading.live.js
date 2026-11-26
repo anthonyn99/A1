@@ -81,7 +81,7 @@ const ok = (ph, name, cond, extra) => {
       ok('TR5', 'Alerts fits without horizontal clipping', await js("const e=document.querySelector('[data-tal-control]'), p=document.querySelector('[data-ctl-pane=alerts]'); return e && p && e.scrollWidth <= e.clientWidth+2 && p.scrollWidth <= p.clientWidth+2;"));
       for (const kind of ['regime', 'order']) {
         const sel = `[data-tal-kind-on=${kind}]`;
-        const alertBefore = await js(`var e=document.querySelector('${sel}'); e.scrollIntoView({block:'center'});
+        const alertBefore = await js(`var e=document.querySelector('${sel}'); e.scrollIntoView({block:'${kind === 'order' ? 'end' : 'center'}'}); e.focus({preventScroll:true});
           window.__alertToggleOld=e;
           var scrolls=[document.scrollingElement,...(function*(n){while(n){if(n.scrollHeight>n.clientHeight+2)yield n;n=n.parentElement;}})(e.parentElement)];
           return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop)};`);
@@ -90,8 +90,8 @@ const ok = (ph, name, cond, extra) => {
         await sleep(200);
         const alertAfter = await js(`var e=document.querySelector('${sel}');
           var scrolls=[document.scrollingElement,...(function*(n){while(n){if(n.scrollHeight>n.clientHeight+2)yield n;n=n.parentElement;}})(e.parentElement)];
-          return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop)};`);
-        ok('TR5', `switching ${kind} notifications keeps the viewport still`, Math.abs(alertAfter.top-alertBefore.top)<=2 && alertBefore.scrolls.length===alertAfter.scrolls.length && alertBefore.scrolls.every((v,i)=>Math.abs(v-alertAfter.scrolls[i])<=2), {before:alertBefore,after:alertAfter});
+          return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop),focused:document.activeElement===e};`);
+        ok('TR5', `switching ${kind} notifications keeps the viewport and focus still`, alertAfter.focused && Math.abs(alertAfter.top-alertBefore.top)<=2 && alertBefore.scrolls.length===alertAfter.scrolls.length && alertBefore.scrolls.every((v,i)=>Math.abs(v-alertAfter.scrolls[i])<=2), {before:alertBefore,after:alertAfter});
         await js(`window.__alertToggleOld=document.querySelector('${sel}'); window.__alertToggleOld.click(); 1`);
         await until(`document.querySelector('${sel}') !== window.__alertToggleOld && document.querySelector('${sel}').checked`, 5000);
       }
