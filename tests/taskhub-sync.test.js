@@ -307,6 +307,27 @@ async function open(dev, profile) {
     for (let i = 0; i < 60 && !has(back, want); i++) { await sleep(150); back = ids(get('dashboards/vedasdash'), today); }
     ok(has(back, want), 'an up-to-date device saves the real state back over it: ' + back);
     ok(typeof get('dashboards/vedasdash').rev === 'number' && get('dashboards/vedasdash').rev > before.rev, 'with a new version');
+
+    console.log('\n4. A finite repeat through each task dialog');
+    for (const [profile, width, docPath, inputId] of [
+      ['tony', 1280, 'dashboards/main', 'th-span-days'],
+      ['veda', 390, 'dashboards/vedasdash', 'vd-span-days']
+    ]) {
+      ok(await open(A, profile), profile + ' opens for finite repeat');
+      await A.send('Emulation.setDeviceMetricsOverride', { width, height: 820, deviceScaleFactor: 1, mobile: width === 390 });
+      ok(await A.evalJs(`(() => { const b=[...document.querySelectorAll('button[aria-label="Add a task or event"]')].find(x=>x.getClientRects().length); if(!b)return false;b.click();return true;})()`), profile + ' add control is visible at ' + width + 'px');
+      ok(await A.until(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Next X days'&&b.getClientRects().length)`, 30), profile + ' offers Next X days');
+      await A.evalJs(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Next X days'&&x.getClientRects().length);b.click();return true;})()`);
+      ok(await A.until(`!!document.getElementById(${JSON.stringify(inputId)})`, 30), profile + ' shows the day count');
+      const title = 'Finite repeat ' + profile;
+      await A.evalJs(`(() => { const title=document.querySelector('textarea[placeholder="Enter title..."]'); const count=document.getElementById(${JSON.stringify(inputId)}); if(!title||!count)return false; const ta=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;ta.call(title,${JSON.stringify(title)});title.dispatchEvent(new Event('input',{bubbles:true}));const num=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;num.call(count,'4');count.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`);
+      await A.evalJs(`(() => { let p=document.getElementById(${JSON.stringify(inputId)});while(p&&getComputedStyle(p).position!=='fixed')p=p.parentElement;const b=[...p.querySelectorAll('button')].find(x=>x.textContent.trim()==='Save');b.click();return true;})()`);
+      let series=[];
+      for (let i=0;i<80;i++) { const d=get(docPath); series=Object.entries((d&&d.data)||{}).flatMap(([day,items])=>items.filter(x=>x.title===title).map(x=>({day,...x}))); if(series.length>=4)break; await sleep(150); }
+      series.sort((x,y)=>x.day.localeCompare(y.day));
+      ok(series.length===4&&series.every(x=>x.repeat==='daily'&&x.repeatSpanDays===4&&x.repeatId===series[0].repeatId), profile + ' saves exactly four linked occurrences to the mock cloud');
+      if(series.length===4){const end=series[3].repeatEndDate;ok(end&&dk(new Date(end.year,end.month,end.day))===series[3].day, profile + ' stores the last day as the end date');}
+    }
   } catch (e) {
     fails++; console.log('  FAIL  ' + (e && e.message || e));
   } finally {
