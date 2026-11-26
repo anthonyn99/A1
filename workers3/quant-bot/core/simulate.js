@@ -17,7 +17,7 @@ import { atr } from './indicators.js';
 import { feesOf } from './costs.js';
 import { nyClock } from './clock.js';
 import { mondayOf } from './weekly.js';
-import { CAPITAL, isStop, isTarget, isTime } from './strategy.js';
+import { CAPITAL, isStop, isTarget, isTime, riskValueOf } from './strategy.js';
 
 export const STOP_PAD_ATR = 0.25, FALLBACK_STOP_ATR = 2;
 
@@ -155,7 +155,7 @@ export function simulate(spec, { contexts, from = -Infinity, to = Infinity, sect
     pendOut.delete(sym);
   }
   function targetShares(px, riskPS, eq) {
-    const k = spec.sizing.kind, v = spec.sizing.value;
+    const k = spec.sizing.kind, v = riskValueOf(spec.sizing);
     let sh = k === 'equal' ? eq / spec.maxPositions / px : k === 'percent' ? eq * v / 100 / px : riskPS > 0 ? eq * v / 100 / riskPS : 0;
     sh = Math.min(sh, eq / px);   // no leverage
     return Math.floor(sh);

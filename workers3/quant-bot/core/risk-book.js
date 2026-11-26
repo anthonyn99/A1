@@ -25,7 +25,8 @@ export function tighten(hard = LIMITS, proposed = {}) {
     if (Number.isFinite(v) && v >= 0 && v <= hard[k]) out[k] = v; else loosened.push(k);
   }
   if (proposed.shortsAllowed != null) { if (proposed.shortsAllowed === false) out.shortsAllowed = false; else if (!hard.shortsAllowed) loosened.push('shortsAllowed'); }
-  if (proposed.stopRequired === false && hard.stopRequired) loosened.push('stopRequired');
+  if (proposed.stopRequired === true) out.stopRequired = true;
+  else if (proposed.stopRequired === false && hard.stopRequired) loosened.push('stopRequired');
   for (const [s, v] of Object.entries(proposed.styleShare || {})) {
     if (!(s in out.styleShare)) continue;
     if (Number.isFinite(+v) && +v >= 0 && +v <= hard.styleShare[s]) out.styleShare[s] = +v; else loosened.push('styleShare.' + s);
@@ -106,6 +107,7 @@ export function checkEntry(o, state, L = LIMITS, ctx = {}) {
   const no = (why) => ({ ok: false, why });
   const g = guard(state, L);
   if (g.state !== 'ok') return no(g.why);
+  if (o.side !== 'long' && o.side !== 'short') return no(`the side must be long or short, not ${o.side}`);
   if (!(o.qty >= 1) || !Number.isInteger(o.qty)) return no('the size is not a whole number of shares');
   if (!(o.price > 0)) return no('no price');
   const long = o.side === 'long';

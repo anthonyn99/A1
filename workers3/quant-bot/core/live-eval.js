@@ -9,7 +9,8 @@
 //                                       day setups 21 whole sessions (their volume baseline)
 //   windowStart(bars, need, intraday)   where the window starts: `need` bars back, moved to a session's first bar
 //                                       and never later than the previous session's first bar (VWAP, gaps)
-//   evalLast(spec, bars, { daily, side, rules }) → { fire: bool, i, from }   rules: 'entry' | 'exit'
+//   evalLast(spec, bars, { daily, bench, regime, side, rules }) → { fire: bool, i, from }   rules: 'entry' | 'exit'
+//                                       bench = SPY's bars (relative strength), regime = { t, score, label } (daily)
 import { rulesOf, isStop, isTarget, isTime } from './strategy.js';
 import { argsOf } from './strategy-rules.js';
 import { buildContexts, entrySeries } from './simulate.js';
@@ -28,6 +29,7 @@ const SMOOTHED = new Set(['ema', 'rsi', 'atr', 'adx']);
 function needOf(r, tf) {
   if (r.setup != null) return DAY_SETUPS.includes(r.setup) && tf !== '1d' ? DAY_SETUP_SESSIONS * (BARS_PER_SESSION[tf] || 78) : SWING_SETUP_WINDOW;
   if (!r.ind) return 0;
+  if (r.ind === 'streak') return Infinity;   // a run of up or down closes has no fixed length
   const a = argsOf(r.ind, r.args);
   if (r.ind.startsWith('macd')) return ((a[1] || 26) + (a[2] || 9)) * 4;
   if (r.ind === 'adx') return (a[0] || 14) * 8;   // smoothed twice
@@ -57,12 +59,12 @@ export function windowStart(bars, need, intraday) {
 }
 
 /** Does the spec's entry (or its exit rules) fire on the last bar of `bars`? */
-export function evalLast(spec, bars, { daily = null, side = 'long', rules = 'entry', mirror = false } = {}) {
+export function evalLast(spec, bars, { daily = null, bench = null, regime = null, side = 'long', rules = 'entry', mirror = false } = {}) {
   const n = bars.length;
   if (!n) return { fire: false, i: -1, from: 0 };
   const intraday = spec.timeframe !== '1d';
   const from = windowStart(bars, warmupOf(spec), intraday), win = from ? bars.slice(from) : bars;
-  const ctx = buildContexts(spec, { bars: { X: win }, daily: daily ? { X: daily } : {} }).X;
+  const ctx = buildContexts(spec, { bars: { X: win }, daily: daily ? { X: daily } : {}, bench, regime }).X;
   const block = rules === 'exit' ? { any: ((spec.exit && spec.exit.any) || []).filter((x) => !isStop(x) && !isTarget(x) && !isTime(x)) } : spec.entry || {};
   const s = entrySeries(ctx, block, side, mirror);
   return { fire: !!s[win.length - 1], i: n - 1, from };

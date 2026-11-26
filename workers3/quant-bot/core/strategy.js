@@ -157,6 +157,14 @@ export const BOT_MAX_SYMBOLS = 40, BOT_MAX_POSITIONS = 6, BOT_RISK_BAND = { min:
 /** Indicators and setups the bot cannot compute every minute (n4-01.md). */
 export const BOT_UNSUPPORTED = { 'level.nearestSupport': 'levels', 'level.nearestResistance': 'levels', daysToEarnings: 'earnings (the earnings blackout covers it)', 'breadth.above50': 'breadth' };
 export const BOT_UNSUPPORTED_SETUPS = ['earnings-drift'];
+/** The % risked per trade for a fixed-risk or conviction sizing (the band's floor when no conviction is measured;
+ *  N5 sets sizing.conviction 0..1), else the plain value. */
+export function riskValueOf(sizing = {}) {
+  if (sizing.kind !== 'conviction') return sizing.value;
+  const c = Number.isFinite(sizing.conviction) ? Math.min(1, Math.max(0, sizing.conviction)) : 0;
+  return sizing.min + (sizing.max - sizing.min) * c;
+}
+
 /** 'HH:MM' → minutes after midnight, or null when it is not HH:MM. */
 export const hhmm = (s) => (HHMM_RE.test(String(s || '')) ? +s.slice(0, 2) * 60 + +s.slice(3) : null);
 
@@ -182,10 +190,11 @@ function checkV2(spec, e) {
 
 /** Every rule of the spec (entry, nested groups, exit rules), and the references inside them. */
 export function rulesOf(spec) {
-  const out = [], add = (r) => { if (!r) return; if (r.any || r.all) (r.any || r.all).forEach(add); else { out.push(r); if (r.than && typeof r.than === 'object' && !Array.isArray(r.than)) out.push(r.than); } };
-  const en = spec.entry || {};
-  (en.all || []).forEach(add); (en.any || []).forEach(add);
-  ((spec.exit && spec.exit.any) || []).filter((x) => !isStop(x) && !isTarget(x) && !isTime(x)).forEach(add);
+  const list = (x) => (Array.isArray(x) ? x : []);
+  const out = [], add = (r) => { if (!r || typeof r !== 'object') return; if (r.any || r.all) list(r.any || r.all).forEach(add); else { out.push(r); if (r.than && typeof r.than === 'object' && !Array.isArray(r.than)) out.push(r.than); } };
+  const en = spec.entry && typeof spec.entry === 'object' ? spec.entry : {};
+  list(en.all).forEach(add); list(en.any).forEach(add);
+  list(spec.exit && spec.exit.any).filter((x) => !isStop(x) && !isTarget(x) && !isTime(x)).forEach(add);
   return out;
 }
 
@@ -194,12 +203,12 @@ function checkBot(spec, e) {
   if (!ID_RE.test(String(spec.id || '')) || !(Number.isInteger(spec.version) && spec.version >= 1)) e.push('the bot needs an id and a version');
   if (spec.side === 'both') e.push('the bot books one side per strategy: write a long and a short strategy');
   if (spec.side === 'short' && spec.horizon !== 'day') e.push('a short is a day trade only (Tony\'s rule): set horizon day');
-  const ex = (spec.exit && spec.exit.any) || [];
+  const ex = spec.exit && Array.isArray(spec.exit.any) ? spec.exit.any : [];
   if (!ex.some(isStop)) e.push('every bot position needs a stop resting at the broker');
   if (spec.horizon === 'swing' && !ex.some(isTime)) e.push('a swing strategy needs a time exit (its longest hold)');
-  const u = spec.universe || {};
+  const u = spec.universe && typeof spec.universe === 'object' ? spec.universe : {};
   if ((u.lists && u.lists.length) || (u.sectors && u.sectors.length)) e.push('the bot trades named symbols only (publishing resolves the watchlist)');
-  if (!(u.symbols && u.symbols.length)) e.push('the bot needs symbols');
+  if (!(Array.isArray(u.symbols) && u.symbols.length)) e.push('the bot needs symbols');
   else if (u.symbols.length > BOT_MAX_SYMBOLS) e.push(`the bot trades at most ${BOT_MAX_SYMBOLS} symbols per strategy`);
   if (Number.isInteger(spec.maxPositions) && spec.maxPositions > BOT_MAX_POSITIONS) e.push(`at most ${BOT_MAX_POSITIONS} positions (the risk book's cap)`);
   const s = spec.sizing || {};

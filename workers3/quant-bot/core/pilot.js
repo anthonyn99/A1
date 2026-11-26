@@ -19,7 +19,7 @@
 import { entrySeries, STOP_PAD_ATR, FALLBACK_STOP_ATR } from './simulate.js';
 import { series } from './strategy-rules.js';
 import { atr } from './indicators.js';
-import { isStop, isTarget, isTime } from './strategy.js';
+import { isStop, isTarget, isTime, riskValueOf } from './strategy.js';
 import { clientId, entryOrder, MAX_ORDER_SHARE } from './venue.js';
 
 const fmt = (x) => (Number.isFinite(x) ? x.toFixed(2) : '?');
@@ -80,7 +80,7 @@ export function planEntry(spec, S, i, side, { stopX, targetX, equity, limits = {
     else if (targetX.target === 'percent') target = px * (1 + sgn * targetX.value / 100);
     else if (targetX.target === 'level') { const lv = long ? series(S, 'level.nearestResistance')[i] : series(S, 'level.nearestSupport')[i]; if (lv != null && (long ? lv > px : lv < px)) target = lv; }
   }
-  const k = spec.sizing.kind, v = spec.sizing.value;
+  const k = spec.sizing.kind, v = riskValueOf(spec.sizing);
   let sh = k === 'equal' ? equity / spec.maxPositions / px : k === 'percent' ? equity * v / 100 / px : riskPS > 0 ? equity * v / 100 / riskPS : 0;
   sh = Math.min(sh, equity / px);
   // The run's own cap and the account-wide 25% (both checked again by quant-api).
