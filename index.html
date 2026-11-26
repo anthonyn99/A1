@@ -6934,8 +6934,6 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const[spanDays,setSpanDays]=useState(7);
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
-  // Alternating sequence state
-  const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
   // AI prep (the TH-PREP block): same fields as Veda's, on the item itself.
   const[aiPrep,setAiPrep]=useState(false);const[aiNote,setAiNote]=useState("");const[aiSite,setAiSite]=useState("");
 
@@ -6948,8 +6946,6 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
     setRepeat(initial?.repeatSpanDays?"span":initial?.altSeqId?"none":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
     setSpanDays(initial?.repeatSpanDays||7);
-    if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
-    else setAltSeqTitles(["","",""]);
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
     setAiPrep(!!initial?.aiPrep);setAiNote(initial?.aiNote||"");setAiSite(initial?.aiSite||"");
 
@@ -6973,7 +6969,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   useScrollLock(open);
   if(!open)return null;
   const save=()=>{
-    if(!title.trim()&&repeat!=="altSeq")return;
+    if(!title.trim())return;
     if(repeat==="span"&&(!Number.isInteger(Number(spanDays))||Number(spanDays)<2||Number(spanDays)>730)){alert("Choose 2 to 730 days.");return;}
     const repeatMode=repeat==="span"?"daily":repeat;
     const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
@@ -9971,24 +9967,6 @@ function App(){
         // Simple update (no repeat involved)
         const arr=[...(next[dk2]||[])];const idx=arr.findIndex(t=>t.id===item.id);
         if(idx>=0)arr[idx]=item;else arr.push(item);next[dk2]=arr;
-      } else if(ri.mode==="altSeq"){
-        // Expand alternating sequence
-        const seqId=uid();
-        const parts=dk2.split("-");
-        const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
-        const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
-        const titles=ri.titles;
-        let dayCount=0;
-        const c=new Date(sd);
-        while(c<=ed){
-          const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());
-          const seqIdx=dayCount%titles.length;
-          const arr=[...(next[ck]||[])];
-          arr.push({...item,id:uid(),title:titles[seqIdx],altSeqId:seqId,altSeqIdx:seqIdx,altSeqTitles:titles,altSeqEndDate:ri.endDate,done:false,_originalId:undefined,repeat:"none"});
-          next[ck]=arr;
-          c.setDate(c.getDate()+1);
-          dayCount++;
-        }
       } else {
         // ri is a repeat spec object — expand across all matching dates
         const rid=uid();
@@ -15341,7 +15319,6 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[spanDays,setSpanDays]=useState(7);
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
-  const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
   const[aiPrep,setAiPrep]=useState(false);const[aiNote,setAiNote]=useState("");const[aiSite,setAiSite]=useState("");
   // Seeded in a LAYOUT effect, before the browser paints: as a plain effect
   // the window first drew with the last tab it showed (Task) and switched to
@@ -15349,8 +15326,6 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   React.useLayoutEffect(()=>{if(open){setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
     setRepeat(initial?.repeatSpanDays?"span":initial?.altSeqId?"none":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
     setSpanDays(initial?.repeatSpanDays||7);
-    if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
-    else setAltSeqTitles(["","",""]);
     if(startDateKey){const p=startDateKey.split("-");const sd=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));sd.setDate(sd.getDate()+14);setEndDate(initial?.repeatEndDate||initial?.altSeqEndDate||{month:sd.getMonth(),day:sd.getDate(),year:sd.getFullYear()});}
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}
     setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
@@ -15361,7 +15336,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const tb=(active,danger)=>({fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:active?(danger?"#f85149":A):BG,color:active?BG:TXD,border:active?"1px solid "+(danger?"#f85149":A):"1px solid "+BDL,...(active?{boxShadow:GLOW(danger?"#f85149":A)}:{}),transition:"all .15s"});
   const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5};
   const save=()=>{
-    if(!title.trim()&&repeat!=="altSeq")return;
+    if(!title.trim())return;
     if(repeat==="span"&&(!Number.isInteger(Number(spanDays))||Number(spanDays)<2||Number(spanDays)>730)){alert("Choose 2 to 730 days.");return;}
     const repeatMode=repeat==="span"?"daily":repeat;
     const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
@@ -16848,7 +16823,6 @@ function App(){
     setData(prev=>{const next={...prev};
       if(ri==="cancelRepeat"){const rid=item.repeatId||item.altSeqId;const cutoff=new Date(dk2);Object.keys(next).forEach(k=>{const kd=new Date(k);if(rid&&kd>=cutoff){next[k]=(next[k]||[]).filter(t=>(t.repeatId!==rid&&t.altSeqId!==rid)||t.id===item.id);}});const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);const cleaned={...item,repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined,altSeqId:undefined,altSeqTitles:undefined,altSeqIdx:undefined,altSeqEndDate:undefined};if(idx>=0)items[idx]=cleaned;else items.push(cleaned);next[dk2]=items.filter(Boolean);}
       else if(!ri){const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);if(idx>=0)items[idx]=item;else items.push(item);next[dk2]=items;}
-      else if(ri.mode==="altSeq"){const seqId=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);const titles=ri.titles;let dayCount=0;const c=new Date(sd);while(c<=ed){const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());const seqIdx=dayCount%titles.length;const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),title:titles[seqIdx],altSeqId:seqId,altSeqIdx:seqIdx,altSeqTitles:titles,altSeqEndDate:ri.endDate,done:false,_originalId:undefined,repeat:"none"});next[ck]=arr;c.setDate(c.getDate()+1);dayCount++;}}
       else{const rid=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
         if(ri.replaceSeries&&item.repeatId){Object.keys(next).forEach(k=>{if(k>=dk2){next[k]=(next[k]||[]).filter(t=>t.repeatId!==item.repeatId);if(!next[k].length)delete next[k];}});}
         if(item._originalId){const old=(next[dk2]||[]).filter(t=>t.id!==item._originalId);if(old.length)next[dk2]=old;else delete next[dk2];}
