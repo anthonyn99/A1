@@ -255,6 +255,7 @@ async function open(dev, profile) {
   put('dashboards/vedasdash', seedVeda);
   const A = await device('A'), B = await device('B');
   try {
+    if (!process.env.TH_SPAN_ONLY) {
     console.log('1. The 2026-10-19 reset (Tony)');
     ok(await open(A, 'tony'), 'device A opens Tony\u2019s TaskHub');
     ok(await A.until(`(window._thVoice.getState().data[${JSON.stringify(today)}] || []).some(x => x.id === 't2')`, 60), 'A shows the cloud copy');
@@ -307,6 +308,7 @@ async function open(dev, profile) {
     for (let i = 0; i < 60 && !has(back, want); i++) { await sleep(150); back = ids(get('dashboards/vedasdash'), today); }
     ok(has(back, want), 'an up-to-date device saves the real state back over it: ' + back);
     ok(typeof get('dashboards/vedasdash').rev === 'number' && get('dashboards/vedasdash').rev > before.rev, 'with a new version');
+    }
 
     console.log('\n4. A finite repeat through each task dialog');
     for (const [profile, width, docPath, inputId] of [
@@ -317,6 +319,7 @@ async function open(dev, profile) {
       await A.evalJs(`window.${profile==='tony'?'_profileGoTony':'_profileGoVeda'}(); const p=document.getElementById(${JSON.stringify(profile==='tony'?'root':'task-view')});if(p)p.style.display=''; const o=document.getElementById('profile-overlay');if(o)o.style.display='none'; 1`);
       await A.send('Emulation.setDeviceMetricsOverride', { width, height: 820, deviceScaleFactor: 1, mobile: width === 390 });
       await A.evalJs(`window.${profile==='tony'?'_thVoice':'_vdVoice'}.setEdit(true); window.${profile==='tony'?'_thVoice':'_vdVoice'}.weekView(false); ${profile==='tony'?'window._thVoice.nav("taskhub");':''} 1`);
+      console.log('        add controls: ' + await A.evalJs(`(() => { const a=[...document.querySelectorAll('button[aria-label="Add a task or event"]')];const x=a[0];const parents=[];for(let p=x;p&&parents.length<8;p=p.parentElement)parents.push([p.id,p.className, getComputedStyle(p).display]);return JSON.stringify({all:a.length,visible:a.filter(x=>x.getClientRects().length).length,profile:window._activeProfile,root:document.getElementById('root')?.style.display,parents});})()`));
       ok(await A.evalJs(`(() => { const b=[...document.querySelectorAll('button[aria-label="Add a task or event"]')].find(x=>x.getClientRects().length); if(!b)return false;b.click();return true;})()`), profile + ' add control is visible at ' + width + 'px');
       ok(await A.until(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Next X days'&&b.getClientRects().length)`, 30), profile + ' offers Next X days');
       await A.evalJs(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Next X days'&&x.getClientRects().length);b.click();return true;})()`);
