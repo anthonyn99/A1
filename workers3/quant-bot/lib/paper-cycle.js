@@ -1,5 +1,5 @@
 import { deployed, flattenDue } from '../core/risk-book.js';
-import { reconcile } from './reconcile.js';
+import { reconcile, deployedOf } from './reconcile.js';
 import { activeProtection, closeIntent, liveIntents, paperEntries, restoreProtection, syncIntents } from './orders.js';
 import { logEvent, readBotState, readSettings } from './state.js';
 import { readMarketContext } from './context.js';
@@ -27,7 +27,7 @@ async function markRisk(db, session, status, book, limits, at) {
   const pauseDay = status.pauseDay === session.date || book.dayPnl <= -limits.book * limits.dailyLossPct / 100 ? session.date : null;
   const state = { pauseDay, ...(status.killReport ? { killReport: status.killReport } : {}), date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
     startingEquity: book.startingEquity, book: book.book, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
-    deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
+    ...deployedOf(book, status, session.date), positions: book.positions,
     pending: book.pending, guard: book.risk, buyingPower: book.buyingPower };
   if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || pauseDay !== (status.pauseDay || null) || !status.peak || book.peak > status.peak || status.book !== book.book) {
     await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')

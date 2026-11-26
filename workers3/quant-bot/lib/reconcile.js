@@ -1,4 +1,10 @@
-import { guard } from '../core/risk-book.js';
+import { guard, deployed } from '../core/risk-book.js';
+
+/** The snapshot's deployed $ now and the day's peak (N8's "risk used"; sampled at each snapshot write). */
+export function deployedOf(book, previous, date) {
+  const now = deployed({ positions: [...book.positions, ...book.pending] });
+  return { deployed: now, deployedPeak: Math.max(previous && previous.date === date ? Number(previous.deployedPeak) || 0 : 0, now) };
+}
 
 const n = (value) => value === null || value === '' || value === undefined ? null : Number(value);
 const number = (value) => Number.isFinite(n(value)) ? n(value) : null;

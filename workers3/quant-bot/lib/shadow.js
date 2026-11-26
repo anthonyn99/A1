@@ -6,7 +6,7 @@ import { paperBroker } from './alpaca.js';
 import { candidate, checkCandidate, exitReason, shardsFor, usesDaySetup } from './evaluate.js';
 import { readMarketContext, earningsGuard } from './context.js';
 import { loadBars, loadVolume, marketClock, objects } from './market.js';
-import { reconcile } from './reconcile.js';
+import { reconcile, deployedOf } from './reconcile.js';
 import { logEvent, readBotState, readSettings } from './state.js';
 
 const MIN = 60000;
@@ -71,7 +71,7 @@ async function markCheckpoint(db, at, session, previous, book, count) {
   const shadowSlots = [...new Set([...snapshots, ...(count > 0 && book.risk.state === 'ok' ? [slot] : [])])];
   const next = { ...(previous.killReport ? { killReport: previous.killReport } : {}), date: session.date, market: 'open', half: session.half, shadowSlots,
     startingEquity: book.startingEquity, book: book.book, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
-    deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
+    ...deployedOf(book, previous, session.date), positions: book.positions,
     pending: book.pending, strategies: count, guard: book.risk, buyingPower: book.buyingPower };
   await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')
     .bind(at, JSON.stringify(next), book.risk.state === 'halt' ? book.risk.why : null).run();
