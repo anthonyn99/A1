@@ -39,7 +39,9 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 400) : '')); }
 };
-const text = (html) => { const d = win.document.createElement('div'); d.innerHTML = html; return d.textContent.replace(/\s+/g, ' ').trim(); };
+const text = (html) => { const d = win.document.createElement('div'); d.innerHTML = html.replace(/<\/(h\d|p|li)>/g, ' $&'); return d.textContent.replace(/\s+/g, ' ').trim(); };
+// jsdom has no innerText (layout-free); textContent is enough for these fixtures.
+Object.defineProperty(win.HTMLElement.prototype, 'innerText', { get() { return this.textContent; }, configurable: true });
 
 console.log('\nAI Format keeps your words');
 {
