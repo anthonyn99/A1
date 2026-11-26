@@ -24,15 +24,18 @@ export const PROBE_SPEC = {
   sizing: { kind: 'fixedRisk', value: 1 }, maxPositions: 6,
 };
 
-/** Synthetic 5-min sessions: a seeded random walk per symbol, 78 bars a day, ending now. */
-export function synthBars(n, keep, now = Date.UTC(2026, 10, 25, 20, 0)) {
+/** Synthetic 5-min sessions: a seeded random walk per symbol, 78 bars a weekday (09:30-15:55 New York, EST), the
+ *  last session on `lastOpen` (a Wednesday 14:30 UTC = 09:30 EST). */
+export function synthBars(n, keep, lastOpen = Date.UTC(2026, 10, 25, 14, 30)) {
+  const opens = [];
+  for (let d = 0, back = 0; opens.length * 78 < keep; back++) { const t = lastOpen - back * 86_400_000, wd = new Date(t).getUTCDay(); if (wd !== 0 && wd !== 6) opens.push(t); d++; }
   const out = {};
   for (let k = 0; k < n; k++) {
     let s = 7 + k, p = 50 + k * 9;
     const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
     const bars = [];
     for (let i = keep - 1; i >= 0; i--) {
-      const day = Math.floor(i / 78), slot = 77 - (i % 78), t = now - day * 86_400_000 - (77 - slot) * 300_000;
+      const day = Math.floor(i / 78), slot = 77 - (i % 78), t = opens[day] + slot * 300_000;
       const o = p, c = o * (1 + (rnd() - 0.5) * 0.004), h = Math.max(o, c) * (1 + rnd() * 0.001), l = Math.min(o, c) * (1 - rnd() * 0.001);
       bars.push({ t, o, h, l, c, v: Math.round(5000 + rnd() * 20000) });
       p = c;
@@ -72,14 +75,15 @@ async function alpaca(env, base, p) {
 
 async function probeAlpaca(env, url) {
   if (!env.BOT_ALPACA_KEY || !env.BOT_ALPACA_SECRET) return json({ ok: false, error: 'BOT_ALPACA_KEY / BOT_ALPACA_SECRET are not set on quant-bot' }, 503);
-  const syms = (url.searchParams.get('symbols') || 'SPY,QQQ,NVDA,AMD,TSLA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 40);
+  const syms = (url.searchParams.get('symbols') || 'SPY,QQQ,NVDA,AMD,TSLA').split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9][A-Z0-9.\-]{0,9}$/.test(s)).slice(0, 40);
+  if (!syms.length) return json({ ok: false, error: 'no valid symbols' }, 400);
   const today = new Date().toISOString().slice(0, 10), until = new Date(Date.now() + 40 * 86_400_000).toISOString().slice(0, 10);
   const [acct, clock, cal, bars] = await Promise.all([
     alpaca(env, ALPACA_PAPER, '/v2/account'), alpaca(env, ALPACA_PAPER, '/v2/clock'),
     alpaca(env, ALPACA_PAPER, `/v2/calendar?start=${today}&end=${until}`),
-    alpaca(env, ALPACA_DATA, `/v2/stocks/bars?symbols=${syms.join(',')}&timeframe=5Min&feed=iex&limit=10000&start=${new Date(Date.now() - 3 * 86_400_000).toISOString()}`),
+    alpaca(env, ALPACA_DATA, `/v2/stocks/bars?symbols=${encodeURIComponent(syms.join(','))}&timeframe=5Min&feed=iex&limit=10000&start=${encodeURIComponent(new Date(Date.now() - 3 * 86_400_000).toISOString())}`),
   ]);
-  const assets = await Promise.all(syms.slice(0, 20).map((s) => alpaca(env, ALPACA_PAPER, '/v2/assets/' + s)));
+  const assets = await Promise.all(syms.slice(0, 20).map((s) => alpaca(env, ALPACA_PAPER, '/v2/assets/' + encodeURIComponent(s))));
   const a = acct.body || {};
   return json({
     ok: acct.status === 200,
