@@ -144,3 +144,65 @@ test('the snapshot keeps the day\'s deployed peak and resets it on a new day', a
   assert.deepEqual(deployedOf(book(1200), { date: MON, deployedPeak: 900 }, MON), { deployed: 1200, deployedPeak: 1200 });
   assert.deepEqual(deployedOf(book(0), { date: MON, deployedPeak: 900 }, TUE), { deployed: 0, deployedPeak: 0 });
 });
+
+test('outbox: the first flush only learns; then new moves, changes, guards, runs and a ready brief go in one request', async (t) => {
+  const { flushOutbox } = await import('../workers3/quant-bot/lib/outbox.js');
+  const { conn, env } = await fixture(t);
+  const ev = (k, kind, extra = {}) => conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, symbol, side, qty, price, strategy, why) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(k, ny(MON, '10:00'), MON, kind, extra.symbol ?? null, extra.side ?? null, extra.qty ?? null, extra.price ?? null, extra.strategy ?? null, extra.why || 'why ' + k);
+  ev('old', 'entry', { symbol: 'AMD', side: 'long', qty: 6, price: 162.4 });
+  const sent = [];
+  const fetchFn = async (url, init) => { sent.push({ url, init, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ ok: true, fired: [{}] }), { status: 200 }); };
+  env.CORTEX_SECRET = 's3cret';
+  assert.deepEqual(await flushOutbox(env, ny(MON, '10:01'), { fetchFn }), { learned: true });
+  assert.equal(sent.length, 0);   // the old entry never alerts
+  assert.deepEqual(await flushOutbox(env, ny(MON, '10:02'), { fetchFn }), { sent: 0, items: 0 });
+  ev('e1', 'entry', { symbol: 'NVDA', side: 'short', qty: 5, price: 168.6, why: 'Rejected at VWAP' });
+  ev('e2', 'exit', { symbol: 'NVDA', side: 'short', qty: 5, price: 166.1 });
+  ev('s1', 'shadow', { symbol: 'MSFT' });
+  ev('conviction-orb-1-x', 'stage', { strategy: 'orb' });
+  ev('stage-gap-fade-1-killed-9', 'stage', { strategy: 'gap-fade', why: 'Killed: 38%' });
+  ev('kill-1', 'guard', { why: 'Tony pressed the kill switch' });
+  conn.prepare("INSERT INTO lab_runs (id, session, day, started, ended, outcome, summary, results) VALUES (?,?,?,?,?,?,?,?)").run('r1', 'postclose', MON, 1, ny(MON, '16:31'), 'ok', 's', JSON.stringify([{ pass: true }, { pass: false }, { retire: 'x' }]));
+  conn.prepare('INSERT INTO bot_briefs (day, at, body) VALUES (?,?,?)').run(MON, 1, JSON.stringify({ day: MON, ready: true, readyAt: ny(MON, '16:32'), headline: 'Up $84.20' }));
+  conn.prepare('INSERT INTO bot_briefs (day, at, body) VALUES (?,?,?)').run(TUE, 1, JSON.stringify({ day: TUE, ready: false, headline: 'not yet' }));
+  const out = await flushOutbox(env, ny(MON, '16:33'), { fetchFn });
+  assert.deepEqual(out, { sent: 1, items: 6 });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].url, 'https://quant-api.av1-2.workers.dev/alerts/cortex');
+  assert.equal(sent[0].init.headers['x-cortex-secret'], 's3cret');
+  const items = sent[0].body.items;
+  assert.deepEqual(items.map((i) => [i.type, i.title]), [
+    ['trades', 'Neo Cortex: Short 5 NVDA at 168.60'], ['trades', 'Neo Cortex: Cover 5 NVDA at 166.10'],
+    ['changes', 'Neo Cortex: gap-fade → killed'], ['guards', 'Neo Cortex: kill switch pressed'],
+    ['research', 'Neo Cortex research ready'], ['brief', 'Neo Cortex brief ready']]);
+  assert.match(items[0].route, /^cortex:today:\d+$/);
+  assert.equal(items[0].body, 'Rejected at VWAP');
+  assert.equal(items[4].body, 'After the close: 1 passed, 1 refused, 1 retired.');
+  assert.equal(items[5].route, 'cortex:brief:' + MON);
+  assert.deepEqual(await flushOutbox(env, ny(MON, '16:34'), { fetchFn }), { sent: 0, items: 0 });   // nothing twice
+  assert.equal(sent.length, 1);
+});
+
+test('outbox: a 5xx or a network error keeps the cursor (tried again), a 4xx moves on; no secret = nothing sent', async (t) => {
+  const { flushOutbox } = await import('../workers3/quant-bot/lib/outbox.js');
+  const { conn, env } = await fixture(t);
+  await flushOutbox(env, 1);   // learn the empty journal
+  conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, why) VALUES (?,?,?,?,?)').run('g1', ny(MON, '11:00'), MON, 'guard', 'three broker errors');
+  assert.match((await flushOutbox(env, 2)).skipped, /CORTEX_SECRET/);   // no secret: the cursor moves, nothing piles up
+  env.CORTEX_SECRET = 'x';
+  conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, why) VALUES (?,?,?,?,?)').run('g2', ny(MON, '11:05'), MON, 'guard', 'drawdown');
+  let calls = 0;
+  const down = async () => { calls++; return new Response('{}', { status: 503 }); };
+  assert.equal((await flushOutbox(env, 3, { fetchFn: down })).error, 'quant-api 503');
+  assert.equal((await flushOutbox(env, 4, { fetchFn: async () => { throw new Error('offline'); } })).error, 'offline');
+  const seen = [];
+  const ok = async (u, init) => { seen.push(JSON.parse(init.body).items.map((i) => i.body)); return new Response('{"ok":true,"fired":[]}', { status: 200 }); };
+  await flushOutbox(env, 5, { fetchFn: ok });
+  assert.deepEqual(seen, [['drawdown']]);   // the same item, once, after the outage
+  conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, why) VALUES (?,?,?,?,?)').run('g3', ny(MON, '11:10'), MON, 'guard', 'stale');
+  assert.match((await flushOutbox(env, 6, { fetchFn: async () => new Response('{"ok":false,"error":"bad secret"}', { status: 401 }) })).error, /401: bad secret/);
+  await flushOutbox(env, 7, { fetchFn: ok });
+  assert.equal(seen.length, 1);   // the 4xx batch is not resent
+  assert.equal(calls, 1);
+});
