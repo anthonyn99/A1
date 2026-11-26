@@ -174,8 +174,9 @@ def test_paid_codex_ignores_old_free_window_and_reads_five_hour(profile, tmp_pat
     asyncio.run(cr.tick(agent="codex"))
     assert reads == [("account", "codex")]
     assert posts[0][0] == profile
-    assert posts[0][3] == [{"kind": "five_hour", "at": NOW + 3600}]
-    assert cr.state("codex")["items"] == [{"kind": "five_hour", "at": NOW + 3600}]
+    expected = [{"kind": "five_hour", "at": round((NOW + 3600) / 60) * 60}]
+    assert posts[0][3] == expected
+    assert cr.state("codex")["items"] == expected
 
 
 def test_a_failed_post_is_retried_next_tick(engine, monkeypatch):
