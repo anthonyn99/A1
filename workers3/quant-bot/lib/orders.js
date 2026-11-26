@@ -81,7 +81,8 @@ export async function syncIntents(db, broker, rows, held, open, now) {
       await db.prepare("UPDATE bot_order_intents SET status = 'closed' WHERE client_id = ?").bind(row.client_id).run();
     }
   }
-  const updated = [...rows, ...await liveIntents(db)];
+  const active = await liveIntents(db);
+  const updated = [...rows, ...active];
   const unique = [...new Map(updated.map((row) => [row.client_id, row])).values()];
   for (const row of unique) {
     const exact = idsFor(row);
@@ -100,6 +101,7 @@ export async function syncIntents(db, broker, rows, held, open, now) {
       ]);
     }
   }
+  return active;
 }
 
 export async function closeIntent(db, broker, row, reason, at, orders) {
