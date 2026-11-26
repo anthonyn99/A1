@@ -2318,7 +2318,7 @@ function aiKeepWording(sentText, html) {
   var root = tpl.content;
   var sent = _aiSentWords(sentText), toks = _aiAnswerWords(root);
   var ops = _aiWordDiff(sent.map(function(x) { return x.k; }), toks.map(function(x) { return x.k; }),
-                        Math.min(4000, sent.length + toks.length));
+                        Math.min(3000, sent.length + toks.length));
   if (!ops) return null;
   // Group the edits into hunks between matching words.
   var hunks = [], cur = null, lastB = -1;
