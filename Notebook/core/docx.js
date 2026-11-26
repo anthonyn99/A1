@@ -2336,14 +2336,21 @@ function aiKeepWording(sentText, html) {
     var del = hk.ins.length ? hk.out.slice()
       : hk.out.filter(function(i) { return !_AI_SYM_MARK.test(toks[i].k) && !_AI_START_MARK.test(toks[i].k); });
     var text = hk.ins.join(' ');
-    for (var j = del.length - 1; j >= (text ? 1 : 0); j--) { touched.push(toks[del[j]].node); _aiCutToken(toks[del[j]]); }
+    // Word for word: the i-th changed word goes back where the model put its
+    // i-th word, so a fix inside a heading stays in the heading; extra words
+    // ride on the last pair, extra answer words go.
+    var pairs = text ? Math.min(hk.ins.length, del.length) : 0;
+    for (var j = del.length - 1; j >= pairs; j--) { touched.push(toks[del[j]].node); _aiCutToken(toks[del[j]]); }
     if (!text) continue;
-    if (del.length) {
-      var t0 = toks[del[0]], lastW = toks[del[del.length - 1]].w;
-      var lead = /^\$/.test(text) ? '' : (t0.w.match(/^\$+/) || [''])[0];
-      var trail = /\$$/.test(text) ? '' : (lastW.match(/\$+$/) || [''])[0];
-      var keep = (t0.w.match(_AI_TOKEN_RE) || []).join('');
-      t0.node.data = t0.node.data.slice(0, t0.s) + lead + text + trail + keep + t0.node.data.slice(t0.e);
+    if (pairs) {
+      for (var q = pairs - 1; q >= 0; q--) {
+        var tq = toks[del[q]];
+        var words = q === pairs - 1 ? hk.ins.slice(q).join(' ') : hk.ins[q];
+        var lead = /^\$/.test(words) ? '' : (tq.w.replace(_AI_TOKEN_RE, '').match(/^\$+/) || [''])[0];
+        var trail = /\$$/.test(words) ? '' : (tq.w.replace(_AI_TOKEN_RE, '').match(/\$+$/) || [''])[0];
+        var keep = (tq.w.match(_AI_TOKEN_RE) || []).join('');
+        tq.node.data = tq.node.data.slice(0, tq.s) + lead + words + trail + keep + tq.node.data.slice(tq.e);
+      }
     } else if (hk.prevB >= 0) {
       var p = toks[hk.prevB];
       p.node.data = p.node.data.slice(0, p.e) + ' ' + text + p.node.data.slice(p.e);
@@ -2359,6 +2366,7 @@ function aiKeepWording(sentText, html) {
     var el = node.parentNode;
     while (el && el !== root && el.nodeType === 1) {
       var up = el.parentNode;
+      if (!up) break;                                // already dropped with an ancestor
       if (!/\S/.test(el.textContent || '') && !el.querySelector('input, br, hr, img') && /^(?:P|H[1-6]|LI|UL|OL|BLOCKQUOTE|STRONG|EM|U|S|CODE|SPAN)$/.test(el.tagName)) { up.removeChild(el); el = up; }
       else break;
     }
