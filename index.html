@@ -7004,8 +7004,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
       onSave(startDateKey,notifyChanged?{...item,_notifyEdit:true}:item,"titleEditChoice");
     } else if(!isNowRepeating||!endDate){
       onSave(startDateKey,item,null);onClose();
-    } else if(initial?.id&&wasRepeating&&repeat==="span"&&initial.repeatSpanDays!==Number(spanDays)){
-      onSave(startDateKey,item,{mode:"daily",days:[],endDate:repeatEnd,replaceSeries:true});onClose();
+    } else if(initial?.id&&wasRepeating&&((repeat==="span"&&initial.repeatSpanDays!==Number(spanDays))||(initial.repeatSpanDays&&repeat!=="span"))){
+      onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd,replaceSeries:true});onClose();
     } else if(initial?.id&&wasRepeating){
       onSave(startDateKey,item,null);onClose();
     } else {
@@ -15360,7 +15360,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     const typeChanged=initial?.id&&wasRepeating&&repeat!=="none"&&type!==(initial.type||"task");
     if(wasRepeating&&nowCancelled){onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");}
     else if(typeChanged){onSave(startDateKey,item,"titleEditChoice");}
-    else if(repeat==="span"&&initial?.id&&(!wasRepeating||initial.repeatSpanDays!==Number(spanDays))){onSave(startDateKey,{...item,_originalId:wasRepeating?undefined:initial.id},{mode:"daily",days:[],endDate:repeatEnd,replaceSeries:wasRepeating});}
+    else if(initial?.id&&((repeat==="span"&&(!wasRepeating||initial.repeatSpanDays!==Number(spanDays)))||(initial.repeatSpanDays&&repeat!=="span"&&repeat!=="none"))){onSave(startDateKey,{...item,_originalId:wasRepeating?undefined:initial.id},{mode:repeatMode,days:repeatDays,endDate:repeatEnd,replaceSeries:wasRepeating});}
     else if(repeat==="none"||!endDate||initial?.id){onSave(startDateKey,item,null);}
     else{onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd});}
     // A flagged task is prepped as soon as it is saved, whatever its date; the
