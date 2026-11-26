@@ -365,8 +365,21 @@ uses). Since 2026-10-28 the worker races its chain (`MODELS`: Gemini Flash
 models, Workers AI's Llama 4 Scout and Mistral Small behind them) and prefers
 an answer that kept every `[[IMGn]]` token and section marker, and for AI Format
 its length (`formatKeepsContent`); if a token is still lost, `aiRestoreImages`
-puts that image, file or link back at the end of its piece. Tests:
-`workers/personal-ai/refine.test.mjs`, `tests/notebook-ai-restore.test.js`.
+puts that image, file or link back at the end of its piece.
+
+**AI Format never changes wording** (since 2026-11-26). It changes layout only:
+headings from existing lines, lists, tables, paragraphs, math delimiters. Three
+layers hold that: its prompt locks the words; the worker adds `FORMAT_ONLY_RULE`
+to every Format run whatever its saved prompt says, and prefers the answer with
+no word drift (`formatWordDrift`); and the editor diffs the answer's words
+against what was sent and puts back every changed, added or dropped word
+(`aiKeepWording` in `core/docx.js`). **AI Refine** may rewrite but adds and drops
+nothing: the worker prefers an answer that kept every number, URL and quote and
+is not padded far past the original's length. Every tool sends existing
+bold/italic/underline/strikethrough/code as inline tags so they survive. A saved
+prompt that is word for word an old default moves to the new default; an edited
+one is kept. Tests: `workers/personal-ai/refine.test.mjs`,
+`tests/notebook-ai-restore.test.js`, `tests/notebook-ai-format-words.test.js`.
 
 ## Plans
 
