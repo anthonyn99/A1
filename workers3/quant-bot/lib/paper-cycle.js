@@ -26,10 +26,10 @@ async function markRisk(db, session, status, book, limits, at) {
   const fresh = frame !== Math.floor((status.lastCheck || 0) / (15 * MIN));
   const pauseDay = status.pauseDay === session.date || book.dayPnl <= -limits.book * limits.dailyLossPct / 100 ? session.date : null;
   const state = { pauseDay, ...(status.killReport ? { killReport: status.killReport } : {}), date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
-    startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
+    startingEquity: book.startingEquity, book: book.book, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, guard: book.risk, buyingPower: book.buyingPower };
-  if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || pauseDay !== (status.pauseDay || null) || !status.peak || book.peak > status.peak) {
+  if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || pauseDay !== (status.pauseDay || null) || !status.peak || book.peak > status.peak || status.book !== book.book) {
     await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')
       .bind(at, JSON.stringify(state), book.risk.state === 'halt' ? book.risk.why : null).run();
   }

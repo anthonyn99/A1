@@ -77,7 +77,8 @@ export async function postStrategy(env, b, now = Date.now()) {
   if (b.spec.id !== b.id || b.spec.version !== b.version) return bad('the spec\'s id and version must match');
   const hash = specHash(b.spec);
   if (b.hash && b.hash !== hash) return bad('the hash does not match the spec');
-  const why = regate(b.spec, b.gate);
+  const { readSettings } = await import('./state.js');
+  const why = regate(b.spec, b.gate, (await readSettings(env.DB)).settings.limits);
   if (why.length) return json({ ok: false, error: 'refused by the Gate on receipt', reasons: why }, 422);
   const have = await env.DB.prepare('SELECT hash FROM strategies WHERE id = ? AND version = ?').bind(b.id, b.version).first();
   if (have) return have.hash === hash ? json({ ok: true, id: b.id, version: b.version, same: true }) : bad(`version ${b.version} of ${b.id} is already stored with other rules: publish version ${b.version + 1}`, 409);

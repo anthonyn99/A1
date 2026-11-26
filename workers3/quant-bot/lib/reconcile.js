@@ -41,9 +41,12 @@ export function reconcile(account, held, open, managed, previous, limits) {
   }
   const startingEquity = previous.startingEquity ?? equity;
   const bookEquity = limits.book + equity - startingEquity;
-  const peak = Math.max(previous.peak ?? limits.book, bookEquity);
+  // Tony may change the book at any time (Control): the drawdown peak starts again from the new book, or a smaller book
+  // would read as a drawdown and halt the bot (and a bigger one would hide a real one). P&L since the start is kept.
+  const rebase = previous.book != null && previous.book !== limits.book;
+  const peak = rebase ? Math.max(limits.book, bookEquity) : Math.max(previous.peak ?? limits.book, bookEquity);
   const dayPnl = equity - lastEquity;
   const state = { equity: bookEquity, peak, dayPnl, halted: previous.halted, paused: account.trading_blocked === true || previous.dayPaused === true,
     positions: [...positions, ...pending], buyingPower, startingEquity };
-  return { ...state, positions, pending, risk: guard(state, limits) };
+  return { ...state, book: limits.book, positions, pending, risk: guard(state, limits) };
 }

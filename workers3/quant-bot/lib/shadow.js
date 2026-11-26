@@ -70,7 +70,7 @@ async function markCheckpoint(db, at, session, previous, book, count) {
   const snapshots = previous.date === session.date ? previous.shadowSlots || [] : [];
   const shadowSlots = [...new Set([...snapshots, ...(count > 0 && book.risk.state === 'ok' ? [slot] : [])])];
   const next = { ...(previous.killReport ? { killReport: previous.killReport } : {}), date: session.date, market: 'open', half: session.half, shadowSlots,
-    startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
+    startingEquity: book.startingEquity, book: book.book, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, strategies: count, guard: book.risk, buyingPower: book.buyingPower };
   await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')
