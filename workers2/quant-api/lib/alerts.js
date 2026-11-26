@@ -191,6 +191,7 @@ export function checkRule(a) {
   // 'level' stays as Phase 4 stored it (a ranked level's bell); it reads as a price rule.
   const kind = a.kind == null ? 'price' : String(a.kind);
   if (kind !== 'level' && !KINDS.includes(kind)) throw fail(400, 'kind must be one of ' + KINDS.join(' '));
+  if (kind === 'cortex') throw fail(400, 'Neo Cortex alerts have no rules: they are switched in Control ▸ Alerts ▸ Neo Cortex');
   const p0 = a.params && typeof a.params === 'object' && !Array.isArray(a.params) ? a.params : {};
   const params = {};
   let symbol = '*', price = null, lo = null, hi = null;
