@@ -1161,8 +1161,8 @@ function runStaggered(models, key, o) {
   return new Promise((resolve, reject) => {
     const finish = (val) => {
       if (done) return; done = true; clearTimeout(timer);
-      if (val) return resolve({ ...val, tried: tried.slice() });
-      if (soft) return resolve({ ...soft, tried: tried.slice() });
+      if (val) return resolve({ ...val, tried: tried.slice(), errs: errs.slice() });
+      if (soft) return resolve({ ...soft, tried: tried.slice(), errs: errs.slice() });
       const err = new Error(errs.slice(-3).join(' | ') || 'all models failed');
       err.tried = tried.slice();
       reject(err);
@@ -2580,7 +2580,7 @@ async function handleFormat(body, env) {
     // Staggered, not sequential: the leader runs alone for half its timeout,
     // then the next model races it -- a Gemini slow spell (20 s+ on one page)
     // no longer stacks timeout on timeout. A 503/429 starts the next at once.
-    const { value, model, tried, soft } = await runStaggered(MODELS, key, {
+    const { value, model, tried, soft, errs } = await runStaggered(MODELS, key, {
       prompt,
       env,
       schema: FORMAT_SCHEMA,
@@ -2596,7 +2596,8 @@ async function handleFormat(body, env) {
       salvage: salvageHtml,
       validate: v => formatKeepsContent(clipped, v && v.html, tool),
     });
-    return json({ ok: true, html: value.html, model, tool, tried, salvaged: !!soft });
+    // errors: why the models that lost did (quota, timeout, lossy answer).
+    return json({ ok: true, html: value.html, model, tool, tried, salvaged: !!soft, errors: (errs || []).map((x) => String(x).slice(0, 160)) });
   } catch (e) {
     const err = (e && e.message) || 'all models failed';
     const quota = /\b429\b|quota|resource_exhausted|exhaust/i.test(err);
