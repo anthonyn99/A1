@@ -11,7 +11,8 @@ are here in A1). The work is a plan with phases, handed back and forth between C
 
 1. `git pull` in both `C:\Users\antho\Desktop\A1` and `C:\Users\antho\Desktop\A1-Priv` (Tony and Veda both push).
 2. Read `C:\Users\antho\Desktop\A1-Priv\AGENTS.md`, then **§0 of the plan named there** (today:
-   `A1-Priv\docs\TradeHub\quant-trading-refine-1.md`). §0 names the NEXT phase; §2b has its spec; §3 has Tony's asks
+   `A1-Priv\docs\TradeHub\quant-trading.md`, Part 2 Neo Cortex N0-N10). §0 names the NEXT phase; its spec is
+   `quant/n4-NN.md` (Progress checklist = where the last agent stopped); §3 has Tony's asks
    word for word; the "Hand-off log" says who did what last.
 3. Build the phase it names, exactly as specified; keep going phase after phase until the batch is done (Tony's word),
    unless a phase needs Tony (then stop and say what).
