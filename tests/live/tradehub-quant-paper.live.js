@@ -9,7 +9,7 @@
 //      it back (PAPER · Alpaca) before it goes; it lands as Tony's
 //   3. a working order: a new price, Cancel
 //   4. a Scanner signal's "Place on paper": the ticket with its bracket prefilled
-//   5. the Backtest view's "Start on paper" → a run on the Paper tab; pause; live vs backtest
+//   5. an existing run on the Paper tab; pause; live vs backtest
 //   6. the kill switch: every order cancelled, every run paused, new orders refused
 //   7. 1280, 820, 390 px: no sideways scroll; no task over 50 ms; no uncaught error
 //
@@ -32,6 +32,9 @@ const MIN = 60000;
     backtested: false, regime: 'Constructive', status: 'open', done: false, created: CLOCK - 60 * MIN }];
   api.state.pp.closed = [{ id: 'old1', symbol: 'AMD', side: 'buy', qty: '5', type: 'market', status: 'filled', filled_avg_price: '140.20', submitted_at: new Date(CLOCK - 86400000).toISOString() }];
   api.state.pp.log = [{ id: 'cold1', at: CLOCK - 86400000, who: 'run', reason: 'Dip: entry fired on the 2026-11-12 bar', symbol: 'AMD', side: 'buy', type: 'market', qty: 5, body: { symbol: 'AMD', side: 'buy', type: 'market', time_in_force: 'day', qty: '5' }, status: 'filled', alpaca_id: 'old1', run: null }];
+  api.state.pp.runs = [{ id: 'rlegacy01', name: 'Live paper dip', created: CLOCK - 30 * 86400000, state: 'running', capital: 25000, by: 'tony',
+    spec: { v: 1, name: 'Live paper dip', horizon: 'swing', universe: { symbols: ['NVDA', 'AMD'] }, from: '2023-06-01', entry: { all: [{ ind: 'rsi', args: [14], op: '<', than: 45 }] }, exit: { any: [{ stop: 'atr', value: 2 }, { target: 'r', value: 2 }] } },
+    limits: { maxPositions: 5, maxPositionPct: 20, maxOrdersDay: 20, dailyLossPct: 3, maxDrawdownPct: 15 }, equity: [], stats: null }];
   const c = await connect({ mock: api.mock });
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable');
@@ -108,13 +111,7 @@ const MIN = 60000;
   ok('...the ticket opens with the signal\'s bracket: entry 164.03, stop 163.60, target 164.70', await until(`${T} && ${T}.querySelector('[data-ot-limit]') && ${T}.querySelector('[data-ot-limit]').value==='164.03' && ${T}.querySelector('[data-ot-slPrice]').value==='163.6' && ${T}.querySelector('[data-ot-tpPrice]').value==='164.7'`, 8000), await js(`return ${T} ? ${T}.innerText.slice(0,300) : 'no ticket';`));
   await js(`${T}.querySelector('[data-ot-cancel]').click(); 1`);
 
-  console.log('\nStart on paper, live vs backtest');
-  await js(`document.querySelector('[data-sc-view="backtest"]').click(); 1`);
-  await until(`document.querySelector('[data-backtest] [data-bt-form]')`, 15000);
-  await js(`document.querySelector('[data-backtest]').__backtest.builder.set({ v: 1, name: 'Live paper dip', horizon: 'swing', universe: { symbols: ['NVDA', 'AMD'] }, from: '2023-06-01', entry: { all: [{ ind: 'rsi', args: [14], op: '<', than: 45 }] }, exit: { any: [{ stop: 'atr', value: 2 }, { target: 'r', value: 2 }, { bars: 10 }] } }); document.querySelector('[data-bt-run]').click(); 1`);
-  ok('a backtest\'s results offer "Start on paper"', await until(`document.querySelector('[data-bt-paper]')`, 60000));
-  await js(`window.__promptAnswer='25000'; document.querySelector('[data-bt-paper]').click(); 1`);
-  ok('...it starts a run with that capital and the spec', await until(`/On paper/.test(document.querySelector('[data-bt-paper]').textContent)`, 8000) && posts('/paper/runs').length === 1 && posts('/paper/runs')[0][2].capital === 25000 && posts('/paper/runs')[0][2].spec.name === 'Live paper dip');
+  console.log('\nSaved paper strategy, live vs backtest');
   await tab('trading');
   ok('the Paper tab lists it, running, with its limits', await until(`(function(){var r=document.querySelector('[data-pp-run]'); return r && r.dataset.state==='running' && /Live paper dip/.test(r.innerText) && /Limits: 5 positions/.test(r.innerText);})()`, 8000));
   await js(`document.querySelector('[data-pp-run] [data-pp-pause]').click(); 1`);

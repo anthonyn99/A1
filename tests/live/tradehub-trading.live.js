@@ -60,6 +60,16 @@ const ok = (ph, name, cond, extra) => {
     }];
     await boot({ quant: true, ls: want('TR7') ? { tradehub_control_sub: 'rules' } : {} });
 
+    if (want('N3')) {
+      await js("localStorage.setItem('tradehub_scanner_view', JSON.stringify({view:'backtest',horizon:'swing'})); 1");
+      await tab('scanner');
+      ok('N3', 'a saved Backtest view falls back to the Scanner Board', await until("document.querySelector('[data-sc-view=board].is-on') && document.querySelector('[data-sc-horizon=swing].is-on')"));
+      ok('N3', 'Scanner’s manual Backtest view is gone', await js("return !document.querySelector('[data-sc-view=backtest], [data-backtest]') && !!document.querySelector('[data-sc-view=ledger]') && !!document.querySelector('[data-sc-view=score]');"));
+      await js("document.querySelector('[data-sc-horizon=invest]').click(); 1");
+      ok('N3', 'Invest is still reachable', await until("document.querySelector('[data-sc-horizon=invest].is-on') && document.querySelector('[data-invest]')"));
+      if (ONLY.length === 1) continue;
+    }
+
     if (want('TR5')) {
       await tab('catalysts');
       const toggle = "document.querySelector('.tbx-actions [aria-expanded][title*=\"MAGI\"]').click(); 1";

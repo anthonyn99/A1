@@ -250,7 +250,6 @@ const ok = (name, cond, extra) => {
     ['Charts', async () => { await tab('charts'); }, '[data-charts]', 3],
     ['Scanner board', async () => { await tab('scanner'); await js(`var b=document.querySelector('[data-sc-view="board"]'); if(b) b.click(); 1`); }, '.sc-board', 3],
     ['Scanner ▸ Invest', async () => { await js(`document.querySelector('[data-sc-horizon="invest"]').click(); 1`); }, '[data-sc-horizon] ~ * .lay-grid, .sc-iv', 3],
-    ['Scanner ▸ Backtest', async () => { await js(`var i=document.querySelector('[data-sc-horizon="swing"]'); if(i) i.click(); var b=document.querySelector('[data-sc-view="backtest"]'); if(b) b.click(); 1`); }, '[data-backtest]', 13],
     ['Neo', async () => { await tab('neo'); }, '[data-lay="neo"]', 3],
     ['Control ▸ Memory', async () => { await tab('prompt'); }, '[data-memory]', 4],
     ['Paper', async () => { await tab('trading'); }, '[data-lay="paper"]', 7],
