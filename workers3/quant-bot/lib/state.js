@@ -63,6 +63,7 @@ export async function putSettings({ DB }, body, now = Date.now()) {
   if (!object(body?.settings) || !Number.isInteger(body.version) || !['tony', 'claude'].includes(body.author) ||
       typeof body.reason !== 'string' || !body.reason.trim()) return error('settings, version, author and reason are needed');
   const current = await readSettings(DB);
+  if (body.resume === true && (await readBotState(DB)).killPending) return error('the account still has unresolved orders or positions after the kill', 409);
   if (body.version !== current.version) return error('the settings changed, reload and retry', 409);
   let next;
   try { next = updatedSettings(current.settings, body.settings); } catch (e) { return error(e.message); }
@@ -76,7 +77,8 @@ export async function putSettings({ DB }, body, now = Date.now()) {
   }
   const version = current.version + 1;
   const author = body.author, reason = body.reason.trim().slice(0, 500), stamp = JSON.stringify(next);
-  const insert = DB.prepare('INSERT OR IGNORE INTO bot_settings (version, at, author, reason, body) VALUES (?, ?, ?, ?, ?)').bind(version, now, author, reason, stamp);
+  const allowed = body.resume === true ? ' WHERE (SELECT kill_pending FROM bot_state WHERE id = 1) = 0' : '';
+  const insert = DB.prepare('INSERT OR IGNORE INTO bot_settings (version, at, author, reason, body) SELECT ?, ?, ?, ?, ?' + allowed).bind(version, now, author, reason, stamp);
   const audit = DB.prepare('INSERT OR IGNORE INTO bot_events (event_key, ts, day, kind, why) SELECT ?, ?, ?, ?, ? WHERE changes() = 1')
     .bind('settings-' + version, now, nyClock(now).date, 'edit', reason);
   const resume = DB.prepare('UPDATE bot_state SET halted = NULL, errors = 0 WHERE id = 1 AND changes() = 1');
@@ -92,8 +94,8 @@ export async function logEvent(db, e) {
 }
 
 export async function readBotState(db) {
-  const row = await db.prepare('SELECT halted, last_check, snapshot, errors FROM bot_state WHERE id = 1').first();
-  return { ...(row.snapshot ? JSON.parse(row.snapshot) : {}), halted: row.halted, lastCheck: row.last_check, errors: row.errors };
+  const row = await db.prepare('SELECT halted, last_check, snapshot, errors, kill_pending FROM bot_state WHERE id = 1').first();
+  return { ...(row.snapshot ? JSON.parse(row.snapshot) : {}), halted: row.halted, lastCheck: row.last_check, errors: row.errors, killPending: row.kill_pending === 1 };
 }
 
 export async function getState({ DB }) {

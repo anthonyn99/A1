@@ -18,8 +18,10 @@ export function paperBroker(env, fetchFn = fetch) {
     'APCA-API-SECRET-KEY': env.BOT_ALPACA_SECRET,
     'content-type': 'application/json',
   };
-  async function send(base, path) {
-    const response = await fetchFn(base + path, { headers, redirect: 'error', signal: AbortSignal.timeout(8000) });
+  async function send(base, path, { method = 'GET', body: input } = {}) {
+    const response = await fetchFn(base + path, { method, headers, redirect: 'error', signal: AbortSignal.timeout(8000),
+      ...(input ? { body: JSON.stringify(input) } : {}) });
+    if (response.status === 204) return [];
     const body = await response.json().catch(() => null);
     if (!response.ok) throw new AlpacaError(response.status, typeof body?.message === 'string' ? body.message.slice(0, 180) : '');
     if (body == null) throw new Error('Alpaca returned no JSON for ' + path.split('?')[0]);
@@ -35,6 +37,8 @@ export function paperBroker(env, fetchFn = fetch) {
     account: () => send(ALPACA_PAPER, '/v2/account'),
     positions: () => send(ALPACA_PAPER, '/v2/positions'),
     orders: () => send(ALPACA_PAPER, '/v2/orders?status=open&nested=true&limit=500'),
+    cancelAll: () => send(ALPACA_PAPER, '/v2/orders', { method: 'DELETE' }),
+    closeAll: () => send(ALPACA_PAPER, '/v2/positions?cancel_orders=true', { method: 'DELETE' }),
     fills: (after) => {
       const q = new URLSearchParams({ after: new Date(after).toISOString(), direction: 'asc', page_size: '100' });
       return send(ALPACA_PAPER, '/v2/account/activities/FILL?' + q);
