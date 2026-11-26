@@ -114,6 +114,18 @@ console.log('\nA fresh device’s sample week (2026-10-29)');
   ok(syncMerge(null, clone(both), clone(both)).goals.some((g) => g.id === 'd1'), 'a demo item the cloud already holds stays');
 }
 
+console.log('\nFinite daily repeat sync');
+{
+  const before = clone(base), mine = clone(base), theirs = clone(base);
+  mine.data['2026-10-17'].push({ id: 'span-1', title: 'Practice', repeat: 'daily', repeatId: 'span-a', repeatSpanDays: 3, repeatEndDate: { year: 2026, month: 9, day: 19 } });
+  mine.data['2026-10-18'].push({ id: 'span-2', title: 'Practice', repeat: 'daily', repeatId: 'span-a', repeatSpanDays: 3, repeatEndDate: { year: 2026, month: 9, day: 19 } });
+  mine.data['2026-10-19'] = [{ id: 'span-3', title: 'Practice', repeat: 'daily', repeatId: 'span-a', repeatSpanDays: 3, repeatEndDate: { year: 2026, month: 9, day: 19 } }];
+  theirs.data['2026-10-18'][0].done = true;
+  const r = syncMerge(before, mine, theirs);
+  ok(['2026-10-17', '2026-10-18', '2026-10-19'].every((day) => (r.data[day] || []).some((item) => item.repeatId === 'span-a' && item.repeatSpanDays === 3)), 'finite repeat occurrences and their end date survive a concurrent cloud edit');
+  ok(r.data['2026-10-18'].some((item) => item.id === 'c' && item.done), 'the other device\'s unrelated tick survives the repeat save');
+}
+
 console.log('\nBookkeeping');
 {
   const mine = clone(base), theirs = clone(base);
