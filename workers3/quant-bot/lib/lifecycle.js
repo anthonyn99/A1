@@ -123,19 +123,19 @@ export async function admit(env, at) {
     if (await move(db, r, 'retired', `Superseded by version ${latest.get(r.id).version} before it ran`, at)) moved.push([r.id, r.version, 'retired']);
   }
   const holding = new Set(rows.filter((r) => HOLDS_SLOT.includes(r.stage)).map((r) => r.id));
-  const symbolsOf = (ids) => new Set(rows.filter((r) => ids.has(r.id) && HOLDS_SLOT.includes(r.stage)).flatMap((r) => r.spec.universe?.symbols || []));
+  const symbolsBy = new Map(rows.filter((r) => HOLDS_SLOT.includes(r.stage)).map((r) => [r.id, r.spec.universe?.symbols || []]));
   const waiting = [...latest.values()].filter((r) => r.stage === 'gated' && checkStrategy(r.spec, { bot: true }).ok);
   for (const r of waiting) {
     const older = rows.filter((o) => o.id === r.id && o.version < r.version && HOLDS_SLOT.includes(o.stage));
     if (!older.length && holding.size >= life.maxLive) break;
     // The bot evaluates at most 40 symbols a tick (4 shards of 10): a strategy that would push the union past it waits.
-    const others = new Set([...holding].filter((id) => id !== r.id));
-    if (new Set([...symbolsOf(others), ...(r.spec.universe?.symbols || [])]).size > BOT_MAX_SYMBOLS) continue;
+    const union = new Set([...symbolsBy].filter(([id]) => id !== r.id).flatMap(([, list]) => list).concat(r.spec.universe?.symbols || []));
+    if (union.size > BOT_MAX_SYMBOLS) continue;
     for (const o of older) {
       if (await move(db, o, 'retired', `Replaced by version ${r.version}; its open positions keep their own stop and exits`, at)) moved.push([o.id, o.version, 'retired']);
     }
     if (await move(db, r, 'shadow', `Admitted to shadow for the ${day} session: it is evaluated and logged, never ordered`, at, { shadow_day: day, conviction: 0 })) {
-      holding.add(r.id); moved.push([r.id, r.version, 'shadow']);
+      holding.add(r.id); symbolsBy.set(r.id, r.spec.universe?.symbols || []); moved.push([r.id, r.version, 'shadow']);
     }
   }
   // Another shadow session: one more was needed after a verdict (shadow_day cleared), or the day had no usable check
