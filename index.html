@@ -19569,7 +19569,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         var ok=false;
         if(repeat==='daily'){ok=true;}
         else{var days=entry.repeatDays||[];for(var i=0;i<days.length;i++){if(days[i]===toMon(cur.getDay())){ok=true;break;}}}
-        if(ok){return cur.toISOString();}
+        if(ok){if(entry.repeatEndAt&&cur.getTime()>entry.repeatEndAt)return null;return cur.toISOString();}
         cur.setDate(cur.getDate()+1);
       }
       return null;
@@ -19747,7 +19747,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         var nxt=nextOcc(entry,due);
         if(nxt){
           var nid='rp_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
-          next.push({id:nid,baseId:entry.baseId||entry.id,title:entry.title,notifyAt:nxt,anchorAt:entry.anchorAt||entry.notifyAt,repeat:entry.repeat,repeatDays:entry.repeatDays||[],repeatId:entry.repeatId||null,dash:entry.dash});
+      next.push({id:nid,baseId:entry.baseId||entry.id,title:entry.title,notifyAt:nxt,anchorAt:entry.anchorAt||entry.notifyAt,repeat:entry.repeat,repeatDays:entry.repeatDays||[],repeatId:entry.repeatId||null,repeatEndAt:entry.repeatEndAt||null,dash:entry.dash});
         }
       } else {next.push(entry);}
     }
@@ -19768,14 +19768,14 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     var due=new Date(notifyAt).getTime();
     if(due<nowMs-WIN_MS){
       if(repeat==='none')return;
-      var fake={notifyAt:notifyAt,repeat:repeat,repeatDays:repDays};
+      var fake={notifyAt:notifyAt,repeat:repeat,repeatDays:repDays,repeatEndAt:item.repeatSpanDays&&item.repeatEndDate?new Date(item.repeatEndDate.year,item.repeatEndDate.month,item.repeatEndDate.day,23,59,59,999).getTime():null};
       var nxt=nextOcc(fake,nowMs);
       if(!nxt)return;
       notifyAt=nxt;regId='scan_'+item.id+'_'+notifyAt;
     }
     if(repeat==='none'&&hasFired(regId))return;
     var existing=getReg();for(var j=0;j<existing.length;j++){if(existing[j].id===regId)return;}
-    regUpsert({id:regId,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:notifyAt,anchorAt:item.notifyAt,repeat:repeat,repeatDays:repDays,repeatId:item.notifyRepeatId||null,dash:dash});
+    regUpsert({id:regId,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:notifyAt,anchorAt:item.notifyAt,repeat:repeat,repeatDays:repDays,repeatId:item.notifyRepeatId||null,repeatEndAt:item.repeatSpanDays&&item.repeatEndDate?new Date(item.repeatEndDate.year,item.repeatEndDate.month,item.repeatEndDate.day,23,59,59,999).getTime():null,dash:dash});
   }
 
   // Daily-habit reminders live in the habits array, not the day-keyed data map,
