@@ -57,7 +57,7 @@ export function tick({ n = 40, keep = 400, stage = 'full' } = {}) {
     const back = JSON.parse(body).bars; bars = Object.fromEntries(Object.entries(back).map(([s, b]) => [s, b.map((x) => ({ ...x, t: Date.parse(x.t) }))]));
     if (stage === 'parse') return { n, keep, stage, bytes: body.length };
   }
-  const spec = withDefaults({ ...PROBE_SPEC }, { today: '2026-11-25' });
+  const { spec } = withDefaults({ ...PROBE_SPEC }, { today: '2026-11-25' });
   const r = decide(spec, { contexts: buildContexts(spec, { bars, daily: {} }), capital: 5000, equity: 5000, at: Date.now() });
   return { n, keep, stage, orders: r.orders.length, notes: r.notes.length };
 }
