@@ -60,3 +60,20 @@ test('the calendar refuses unknown inputs and skips weekends between earnings an
   assert.equal(earningsGuard(rows, 'META', friday, now).known, false);
   assert.equal(earningsGuard(rows, 'AMD', friday, now + 37 * 3600000).known, false);
 });
+
+
+test('the cached opening-range decision agrees with the full evaluator across 25 prior sessions', async () => {
+  const { minuteVolume, withVolume } = await market;
+  const { synthBars } = await worker;
+  const { evalLast } = await import('../workers3/quant-bot/core/live-eval.js');
+  const historical = synthBars(1, 78 * 25, ny('2026-11-25', '09:30')).S00;
+  const opening = [0, 1, 2, 3].map((i) => ({ t: ny(friday, '09:30') + i * 300000, o: 100, h: i < 3 ? 101 : 106, l: 99,
+    c: i < 3 ? 100 : 105, v: i < 3 ? 10000 : 100000 }));
+  const data = [...historical, ...opening];
+  const volume = minuteVolume(historical.map((b) => [b.t, b.o, b.h, b.l, b.c, b.v]), friday);
+  const spec = { timeframe: '5m', side: 'long', entry: { all: [{ setup: 'orb' }] } };
+  const full = evalLast(spec, data, { side: 'long' });
+  const increment = evalLast(spec, withVolume(data.slice(-120), friday, volume), { side: 'long', dayVolume: true });
+  assert.equal(full.fire, true);
+  assert.equal(increment.fire, full.fire);
+});
