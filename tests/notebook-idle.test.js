@@ -43,9 +43,10 @@ async function settle(narrow, editing, noentry) {
   const frames = (n) => new Promise((res) => { let i = 0; const f = () => (++i >= n ? res() : w.requestAnimationFrame(f)); w.requestAnimationFrame(f); });
   await frames(10);   // the first passes may set things up
   const seen = [];
-  new w.MutationObserver((l) => l.forEach((m) => seen.push(m.type + ':' + (m.attributeName || '') + ' ' + (m.target.id || m.target.className || m.target.tagName))))
-    .observe(w.document.documentElement, { subtree: true, attributes: true, childList: true, characterData: true });
+  const mo = new w.MutationObserver((l) => l.forEach((m) => seen.push(m.type + ':' + (m.attributeName || '') + ' ' + (m.target.id || m.target.className || m.target.tagName))))
+  mo.observe(w.document.documentElement, { subtree: true, attributes: true, childList: true, characterData: true });
   await frames(30);
+  mo.disconnect();   // w.close() empties the document: its records are teardown, not idle work
   w.close();
   return seen;
 }
