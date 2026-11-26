@@ -99,10 +99,11 @@
   private repo"): follow
   [docs/A1-Priv/a1-priv-move-plan.md](docs/A1-Priv/a1-priv-move-plan.md), section "Moving
   another program later".
-- **"continue TradeHub Quant" (Claude or Codex; the two hand off to each other):** read
+- **"continue TradeHub Quant" (Claude, Codex or Antigravity; the three hand off to each other):** read
   `C:\Users\antho\Desktop\A1-Priv\docs\TradeHub\quant-trading.md` §0 (Part 2, Neo Cortex N0-N10: the NEXT
-  phase, the Part 2 hand-off block and log; TR1-TR8 are complete) and build from there, updating §0 after every step. Codex reads [AGENTS.md](AGENTS.md). Claude also
-  publishes `Desktop\TradeHub Quant Plan.html` to the plan artifact when the log says Codex updated it.
+  phase, the Part 2 hand-off block and log; TR1-TR8 are complete) and build from there, updating §0 after every step. Codex reads [AGENTS.md](AGENTS.md), Antigravity
+  [GEMINI.md](GEMINI.md). Claude also publishes `Desktop\TradeHub Quant Plan.html` to the plan artifact when the log says
+  Codex or Antigravity updated it.
 - **TradeHub Quant / Neo Quant** ("continue Quant", "next Quant phase", the
   AI quant, Market / Charts / Scanner / Neo Quant tabs): TradeHub is in
   A1-Priv, and so is the plan. **All phases built; Phase 15 (the final test)

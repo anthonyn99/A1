@@ -6,6 +6,7 @@
       "firebase-messaging-sw.js": "Push service worker. Its scope must cover index.html, so it sits beside it.",
       "CLAUDE.md": "Claude Code reads it from the repo root.",
       "AGENTS.md": "Codex (and any other agent) reads it from the repo root; it points back at CLAUDE.md.",
+      "GEMINI.md": "Google Antigravity (Gemini) reads it from the repo root; it points at AGENTS.md.",
       "README.md": "GitHub shows it on the repo's front page.",
       "package.json": "npm (test tooling) runs from the root.",
       ".gitignore": "git",

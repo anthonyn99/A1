@@ -1,13 +1,14 @@
 # AGENTS.md (Codex and any other coding agent)
 
-Codex reads this file; Claude Code reads `CLAUDE.md`. **Both agents follow the same rules: read `CLAUDE.md` in this repo
+Codex and Google Antigravity read this file (Antigravity through `GEMINI.md`); Claude Code reads `CLAUDE.md`. **Both agents follow the same rules: read `CLAUDE.md` in this repo
 in full, it applies to you exactly as written** (where a file goes, the shared modules, the theme rules, never changing
 Veda's side, and so on). This file only adds what an agent that is not Claude Code needs.
 
 ## "continue TradeHub Quant" (also "continue Quant", "next Trading phase", "continue")
 
-TradeHub lives in the private repo `C:\Users\antho\Desktop\A1-Priv` (its worker `workers2/quant-api` and the live tests
-are here in A1). The work is a plan with phases, handed back and forth between Claude Code and Codex.
+TradeHub lives in the private repo `C:\Users\antho\Desktop\A1-Priv` (its worker `workers2/quant-api`, the bot worker
+`workers3/quant-bot` and the live tests are here in A1; the Claude Code lane is in `C:\Users\antho\Desktop\ORCA`). The work
+is a plan with phases, handed back and forth between Claude Code, Codex and Google Antigravity.
 
 1. `git pull` in both `C:\Users\antho\Desktop\A1` and `C:\Users\antho\Desktop\A1-Priv` (Tony and Veda both push).
 2. Read `C:\Users\antho\Desktop\A1-Priv\AGENTS.md`, then **§0 of the plan named there** (today:
@@ -38,6 +39,15 @@ The plan is also a page Tony reads: https://claude.ai/artifact/PhrgRdR8vw32JutAs
 `C:\Users\antho\Desktop\TradeHub Quant Plan.html`** (change the phase's chip `In progress` → `Done …` and add a
 `<p class="done">` with what was built and tested, in plain words for Tony), and write in the hand-off log
 "artifact: Desktop copy updated, not yet published". The next Claude session publishes that file to the artifact.
+
+## ORCA (the Claude Code lane, N2) and the bot worker
+
+- ORCA (`C:\Users\antho\Desktop\ORCA`, branch `accounts`, Veda's repo) has NO auto-commit watcher and its self-updater
+  skips Tony's PC while tracked files are uncommitted: commit and push only a tested set (`.venv\Scripts\python.exe -m
+  pytest -q -p no:cacheprovider`, and in `worker/` `npm test` + `npm run typecheck`). ORCA's files are CRLF.
+- The bot worker `workers3/quant-bot` (Cloudflare account 3) deploys by hand:
+  `CLOUDFLARE_ACCOUNT_ID=c7a5d105aef82380269d238c32868407 npx wrangler deploy` in its folder. Its `core/` is a copy made by
+  A1-Priv `node tools/sync-core.mjs` (never edit the copy).
 
 ## Tony's standing preferences (Claude keeps them in its memory; they apply to you)
 
