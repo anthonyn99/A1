@@ -157,6 +157,7 @@ export const BOT_MAX_SYMBOLS = 40, BOT_MAX_POSITIONS = 6, BOT_RISK_BAND = { min:
 /** Indicators and setups the bot cannot compute every minute (n4-01.md). */
 export const BOT_UNSUPPORTED = { 'level.nearestSupport': 'levels', 'level.nearestResistance': 'levels', daysToEarnings: 'earnings (the earnings blackout covers it)', 'breadth.above50': 'breadth' };
 export const BOT_UNSUPPORTED_SETUPS = ['earnings-drift'];
+/** 'HH:MM' → minutes after midnight, or null when it is not HH:MM. */
 export const hhmm = (s) => (HHMM_RE.test(String(s || '')) ? +s.slice(0, 2) * 60 + +s.slice(3) : null);
 
 function checkV2(spec, e) {
@@ -216,7 +217,7 @@ function checkBot(spec, e) {
 /** A stable hash of the fields that change what a strategy trades (not its words): two versions with one id must
  *  differ here, or the "edit" changed nothing. FNV-1a over canonical JSON, hex. */
 export function specHash(spec) {
-  const skip = new Set(['name', 'thesis', 'invalidation', 'edge', 'version', 'from', 'to']);
+  const skip = new Set('name thesis invalidation edge version from to'.split(' '));   // words, and the backtest span
   const canon = (x) => (Array.isArray(x) ? '[' + x.map(canon).join(',') + ']' : x && typeof x === 'object'
     ? '{' + Object.keys(x).filter((k) => x[k] !== undefined).sort().map((k) => JSON.stringify(k) + ':' + canon(x[k])).join(',') + '}' : JSON.stringify(x));
   const s = canon(Object.fromEntries(Object.entries(spec || {}).filter(([k]) => !skip.has(k))));

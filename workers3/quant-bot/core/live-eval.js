@@ -36,6 +36,7 @@ function needOf(r, tf) {
   return (SMOOTHED.has(r.ind) ? n * 4 : n) + extra + (r.op === 'crossesAbove' || r.op === 'crossesBelow' ? 1 : 0);
 }
 
+/** Bars the window needs for every rule of `spec` to read as it would on the full history. */
 export function warmupOf(spec) {
   let need = 14 * 4;   // the ATR(14) every stop and size reads
   let setupNeed = 0;
@@ -43,6 +44,7 @@ export function warmupOf(spec) {
   return Math.max(setupNeed, MIN_WINDOW, need + 2);
 }
 
+/** The window's first bar: `need` back, moved to a session's first bar, with the previous session whole. */
 export function windowStart(bars, need, intraday) {
   let s = Math.max(0, bars.length - need);
   if (!intraday || s === 0) return s;

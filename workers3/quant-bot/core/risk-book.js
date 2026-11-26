@@ -41,10 +41,15 @@ export function riskPct(conviction, L = LIMITS) {
   return c == null ? L.riskMinPct : L.riskMinPct + (L.riskMaxPct - L.riskMinPct) * c;
 }
 
+/** A position's dollars at its price. */
 export const notional = (p) => Math.abs(p.qty) * p.price;
+/** Dollars in open positions, long and short. */
 export const deployed = (state) => (state.positions || []).reduce((a, p) => a + notional(p), 0);
+/** Dollars in open shorts. */
 export const shortExposure = (state) => (state.positions || []).filter((p) => p.side === 'short').reduce((a, p) => a + notional(p), 0);
+/** Dollars in open positions of one style. */
 export const styleDeployed = (state, style) => (state.positions || []).filter((p) => p.style === style).reduce((a, p) => a + notional(p), 0);
+/** Dollars lost if every stop filled (a position with no stop counts whole). */
 export const openRisk = (state) => (state.positions || []).reduce((a, p) => a + (p.stop != null ? Math.abs(p.qty) * Math.abs(p.price - p.stop) : notional(p)), 0);
 
 /** The dollars still free for a new position of this style and side, and which cap binds. */
