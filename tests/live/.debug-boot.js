@@ -6,7 +6,7 @@ const { quantApi, driver, PAGE_SETUP } = require('./quant-mock.js');
   const api = quantApi();
   const c = await connect({ mock: api.mock });
   const logs = [];
-  await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Log.enable');
+  await c.send('Network.enable'); await c.send('Network.clearBrowserCache'); await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Log.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.consoleAPICalled') logs.push(m.params.type + ': ' + m.params.args.map((a) => a.value || a.description || '').join(' ').slice(0, 300));
