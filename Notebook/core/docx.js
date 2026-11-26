@@ -2491,18 +2491,26 @@ function aiRunWholeDoc(ctx, tool) {
     if (!data || !data.ok || !data.html) { docxToast(tool.name + ' failed: ' + ((data && data.error) || 'try again'), true); return; }
     // Split into sections BEFORE restoring, so each section gets back its own
     // images -- including any its tokens lost (see aiRestoreImages).
-    var pieces;
+    var raw = [];
     if (multi) {
-      pieces = [];
       for (var i = 0; i < chunks.length; i++) {
         var re = new RegExp('\\[\\[SEC' + i + 'S\\]\\]([\\s\\S]*?)\\[\\[SEC' + i + 'E\\]\\]');
         var m = data.html.match(re);
         if (!m) { docxToast(tool.name + ' couldn\'t process multiple new sections at once — try one section at a time (select it first).', true); return; }
-        pieces.push(aiRestoreImages(m[1], chunks[i].imgs));
+        raw.push(m[1]);
       }
     } else {
-      pieces = [aiRestoreImages(data.html, allImgs)];
+      raw = [data.html];
     }
+    var fixes = 0;
+    if (tool.id === 'format') {
+      for (var w = 0; w < raw.length; w++) {
+        var kept = aiKeepWording(chunks[w].text, raw[w]);
+        if (!kept) { docxToast(tool.name + ' changed too much of your wording, so nothing was applied. Please try again.', true); return; }
+        raw[w] = kept.html; fixes += kept.fixes;
+      }
+    }
+    var pieces = raw.map(function(h, i) { return aiRestoreImages(h, multi ? chunks[i].imgs : allImgs); });
 
     ctx.history.commit();          // snapshot the pre-run content (so Undo restores it)
     for (var j = 0; j < newRuns.length; j++) {
@@ -2518,7 +2526,7 @@ function aiRunWholeDoc(ctx, tool) {
     if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $...$ / $$...$$ math
     ctx.history.commit();          // snapshot the new content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast(tool.name + ' done — press Undo to revert.');
+    docxToast(tool.name + ' done' + (fixes ? ' (' + fixes + ' wording change' + (fixes > 1 ? 's' : '') + ' by the AI put back as you wrote ' + (fixes > 1 ? 'them' : 'it') + ')' : '') + '. Press Undo to revert.');
   }).catch(function(e) {
     _aiFinish(ctx, app, ed, overlay, wasEditable);
     docxToast((e && e._timedOut) ? tool.name + ' timed out — please try again.' : tool.name + ' failed: network error.', true);
@@ -2545,7 +2553,13 @@ function aiRunSelection(ctx, range, tool) {
       return;
     }
     if (!data || !data.ok || !data.html) { docxToast(tool.name + ' failed: ' + ((data && data.error) || 'try again'), true); return; }
-    var restored = aiRestoreImages(data.html, extracted.imgs);
+    var answer = data.html;
+    if (tool.id === 'format') {
+      var kept = aiKeepWording(extracted.text, answer);
+      if (!kept) { docxToast(tool.name + ' changed too much of your wording, so nothing was applied. Please try again.', true); return; }
+      answer = kept.html;
+    }
+    var restored = aiRestoreImages(answer, extracted.imgs);
     var clean = window._docxCleanHTML(restored);
     if (window._docxMathify) clean = window._docxMathify(clean);   // $...$ text -> math elements (after sanitize)
     if (!clean || !clean.trim()) { docxToast(tool.name + ' returned nothing — selection unchanged.', true); return; }
