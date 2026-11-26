@@ -313,6 +313,8 @@ async function open(dev, profile) {
     console.log('\n4. A finite repeat through each task dialog');
     for (const [profile, width, docPath, inputId] of [
       ['tony', 1280, 'dashboards/main', 'th-span-days'],
+      ['tony', 390, 'dashboards/main', 'th-span-days'],
+      ['veda', 1280, 'dashboards/vedasdash', 'vd-span-days'],
       ['veda', 390, 'dashboards/vedasdash', 'vd-span-days']
     ]) {
       ok(await open(A, profile), profile + ' opens for finite repeat');
@@ -320,12 +322,12 @@ async function open(dev, profile) {
       await A.send('Emulation.setDeviceMetricsOverride', { width, height: 820, deviceScaleFactor: 1, mobile: width === 390 });
       await A.evalJs(`window.${profile==='tony'?'_thVoice':'_vdVoice'}.setEdit(true); window.${profile==='tony'?'_thVoice':'_vdVoice'}.weekView(false); ${profile==='tony'?'window._thVoice.nav("taskhub");':''} 1`);
       await A.evalJs(`(() => {${JSON.stringify(profile==='tony'?['root']:['veda-root','task-view'])}.forEach(id=>{const p=document.getElementById(id);if(p)p.style.display='';});const o=document.getElementById('profile-overlay');if(o)o.style.display='none';return true;})()`);
-      console.log('        add controls: ' + await A.evalJs(`(() => { const a=[...document.querySelectorAll('button[aria-label="Add a task or event"]')],b=[...document.querySelectorAll('button')].filter(x=>x.textContent.trim()==='+ Add');return JSON.stringify({all:a.length,visible:a.filter(x=>x.getClientRects().length).length,addText:b.length,visibleText:b.filter(x=>x.getClientRects().length).length,profile:window._activeProfile});})()`));
       ok(await A.evalJs(`(() => { const b=[...document.querySelectorAll('button')].find(x=>(x.getAttribute('aria-label')==='Add a task or event'||x.textContent.trim()==='+ Add')&&x.getClientRects().length); if(!b)return false;b.click();return true;})()`), profile + ' add control is visible at ' + width + 'px');
       ok(await A.until(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Next X days'&&b.getClientRects().length)`, 30), profile + ' offers Next X days');
+      ok(await A.evalJs(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Alternating Seq')`), profile + ' has no alternating sequence option');
       await A.evalJs(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Next X days'&&x.getClientRects().length);b.click();return true;})()`);
       ok(await A.until(`!!document.getElementById(${JSON.stringify(inputId)})`, 30), profile + ' shows the day count');
-      const title = 'Finite repeat ' + profile;
+      const title = 'Finite repeat ' + profile + ' ' + width;
       await A.evalJs(`(() => { const title=document.querySelector('textarea[placeholder="Enter title..."]'); const count=document.getElementById(${JSON.stringify(inputId)}); if(!title||!count)return false; const ta=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;ta.call(title,${JSON.stringify(title)});title.dispatchEvent(new Event('input',{bubbles:true}));const num=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;num.call(count,'4');count.dispatchEvent(new Event('input',{bubbles:true}));return true;})()`);
       await A.evalJs(`(() => { let p=document.getElementById(${JSON.stringify(inputId)});while(p&&getComputedStyle(p).position!=='fixed')p=p.parentElement;const b=[...p.querySelectorAll('button')].find(x=>x.textContent.trim()==='Save');b.click();return true;})()`);
       let series=[];
