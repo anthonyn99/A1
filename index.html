@@ -6931,6 +6931,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
   const[time,setTime]=useState("");const[repeat,setRepeat]=useState("none");
   const[repeatDays,setRepeatDays]=useState([]);const[endDate,setEndDate]=useState(null);
+  const[spanDays,setSpanDays]=useState(7);
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
   // Alternating sequence state
@@ -6945,7 +6946,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     if(!open)return;
     setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");
     setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
-    setRepeat(initial?.altSeqId?"altSeq":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
+    setRepeat(initial?.repeatSpanDays?"span":initial?.altSeqId?"none":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
+    setSpanDays(initial?.repeatSpanDays||7);
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
@@ -6972,6 +6974,9 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   if(!open)return null;
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
+    if(repeat==="span"&&(!Number.isInteger(Number(spanDays))||Number(spanDays)<2||Number(spanDays)>730)){alert("Choose 2 to 730 days.");return;}
+    const repeatMode=repeat==="span"?"daily":repeat;
+    const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
     // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
     const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
     if(repeat==="altSeq"){
@@ -7003,7 +7008,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     }
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,
       ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
-      ...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),
+      ...(repeat!=="none"?{repeat:repeatMode,repeatDays,repeatEndDate:repeatEnd,repeatId:initial?.repeatId||uid(),...(repeat==="span"?{repeatSpanDays:Number(spanDays)}:{})}:{repeat:"none"}),
       ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
       ...aiF,
 };
@@ -7025,7 +7030,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     if(wasRepeating&&repeat==="none"){
       onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");onClose();
     } else if(isNowRepeating&&wasNotRepeating&&initial?.id){
-      onSave(startDateKey,{...item,_originalId:initial.id},{mode:repeat,days:repeatDays,endDate});onClose();
+      onSave(startDateKey,{...item,_originalId:initial.id},{mode:repeatMode,days:repeatDays,endDate:repeatEnd});onClose();
     } else if(titleChanged||typeChanged||notifyChanged){
       onSave(startDateKey,notifyChanged?{...item,_notifyEdit:true}:item,"titleEditChoice");
     } else if(!isNowRepeating||!endDate){
@@ -7033,7 +7038,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     } else if(initial?.id&&wasRepeating){
       onSave(startDateKey,item,null);onClose();
     } else {
-      onSave(startDateKey,item,{mode:repeat,days:repeatDays,endDate});onClose();
+      onSave(startDateKey,item,{mode:repeatMode,days:repeatDays,endDate:repeatEnd});onClose();
     }
     // A flagged task is prepped as soon as it is saved, whatever its date; the
     // background run only covers today and tomorrow. Skipped when the kit is
