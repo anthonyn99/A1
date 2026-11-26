@@ -92,8 +92,8 @@ const ok = (ph, name, cond, extra) => {
           var scrolls=[document.scrollingElement,...(function*(n){while(n){if(n.scrollHeight>n.clientHeight+2)yield n;n=n.parentElement;}})(e.parentElement)];
           return {top:e.getBoundingClientRect().top, scrolls:scrolls.map(n=>n.scrollTop)};`);
         ok('TR5', `switching ${kind} notifications keeps the viewport still`, Math.abs(alertAfter.top-alertBefore.top)<=2 && alertBefore.scrolls.length===alertAfter.scrolls.length && alertBefore.scrolls.every((v,i)=>Math.abs(v-alertAfter.scrolls[i])<=2), {before:alertBefore,after:alertAfter});
-        await js(`document.querySelector('${sel}').click(); 1`);
-        await until(`document.querySelector('${sel}').checked`, 5000);
+        await js(`window.__alertToggleOld=document.querySelector('${sel}'); window.__alertToggleOld.click(); 1`);
+        await until(`document.querySelector('${sel}') !== window.__alertToggleOld && document.querySelector('${sel}').checked`, 5000);
       }
       const controlClick = await js(`var b=document.querySelector('[data-ctl-sub=neo]'); b.scrollIntoView({block:'nearest',inline:'nearest'});
         var r=b.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,purple:getComputedStyle(document.querySelector('.ctl-subs .is-on')).backgroundColor};`);
