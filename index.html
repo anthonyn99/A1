@@ -10037,8 +10037,8 @@ function App(){
         const parts=dk2.split("-");
         const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
         const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
+        if(ri.replaceSeries&&item.repeatId){Object.keys(next).forEach(k=>{if(k>=dk2){next[k]=(next[k]||[]).filter(t=>t.repeatId!==item.repeatId);if(!next[k].length)delete next[k];}});}
         if(item._originalId){
-          if(ri.replaceSeries&&item.repeatId){Object.keys(next).forEach(k=>{if(k>=dk2){next[k]=(next[k]||[]).filter(t=>t.repeatId!==item.repeatId);if(!next[k].length)delete next[k];}});}
           const oArr=[...(next[dk2]||[])];
           const oIdx=oArr.findIndex(t=>t.id===item._originalId);
           if(oIdx>=0)oArr.splice(oIdx,1);
