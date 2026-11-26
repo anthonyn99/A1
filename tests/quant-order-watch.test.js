@@ -46,7 +46,7 @@ const NOW = Date.UTC(2026, 10, 23, 15, 0);   // Monday 10:00 New York
   ok('trading switches by default: filled, partly filled and rejected on; his own cancels quiet; both brokers on', c0.trading.filled && c0.trading.partial && !c0.trading.canceled && c0.trading.rejected && c0.trading.alpaca && c0.trading.webull);
   ok('a stored config keeps its switches; junk falls back', A.configOf({ trading: { filled: false, webull: false, canceled: 'yes' } }).trading.filled === false && A.configOf({ trading: { webull: false } }).trading.webull === false && A.configOf({ trading: { canceled: 'yes' } }).trading.canceled === false);
   ok('a standing rule for `order` when he has none (B10)', A.standingRules(c0, [], ['order']).length === 1);
-  ok('Send every kind once now includes a filled order (12 kinds)', A.TEST_KINDS.length === 12 && A.TEST_KINDS.some((t) => t.kind === 'order' && /^Filled: /.test(t.title)));
+  ok('Send every kind once now includes a filled order (13 with N8's Neo Cortex brief)', A.TEST_KINDS.length === 13 && A.TEST_KINDS.some((t) => t.kind === 'order' && /^Filled: /.test(t.title)));
   ok('the cron runs the watch beside the check; POST /alerts/orders-check runs it on demand', /orderWatch\.watch\(env, t\)/.test(src) && /'\/alerts\/orders-check'/.test(src));
 
   console.log('\nEvents and words');
