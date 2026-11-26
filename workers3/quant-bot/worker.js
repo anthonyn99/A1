@@ -124,7 +124,8 @@ export async function keyOk(req, env) {
 
 /** N8: a kill or a finished research run can come outside the cron's hours: hand its alert over at once. */
 async function alertNow(env, res) {
-  if (res.ok) { try { await flushOutbox(env, Date.now()); } catch (e) { console.warn('Neo Cortex alerts:', e.message); } }
+  // Also after a refused or partial kill (502: halted, something left open): its guard event is in the journal.
+  try { await flushOutbox(env, Date.now()); } catch (e) { console.warn('Neo Cortex alerts:', e.message); }
   return res;
 }
 
