@@ -133,8 +133,28 @@ const ROUTES = {
   'POST /strategies/stage': async (req, env) => postStage(env, await req.json().catch(() => null)),
 };
 
+// N6: TradeHub's page calls quant-bot directly (Control ▸ Neo Cortex, N7's tab); the same origins as quant-api.
+const ORIGINS = [/^https:\/\/a1-priv\.av1\.workers\.dev$/, /^https:\/\/anthonyn99\.github\.io$/, /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/];
+export function corsHeaders(req) {
+  const o = req.headers.get('origin') || '';
+  if (!ORIGINS.some((re) => re.test(o))) return { vary: 'Origin' };
+  return { 'access-control-allow-origin': o, 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS', 'access-control-allow-headers': 'authorization, content-type, if-none-match',
+    'access-control-expose-headers': 'etag', 'access-control-max-age': '86400', vary: 'Origin' };
+}
+
 export default {
   async fetch(req, env) {
+    const cors = corsHeaders(req);
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    const res = await handle(req, env);
+    const out = new Response(res.body, res);
+    for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
+    return out;
+  },
+};
+
+async function handle(req, env) {
+  {
     const url = new URL(req.url);
     if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N5 lifecycle' });
     const tony = await keyOk(req, env);
@@ -155,5 +175,5 @@ export default {
       if (url.pathname === '/probe/alpaca') return await probeAlpaca(env, url);
       return json({ error: 'not found' }, 404);
     } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
-  },
-};
+  }
+}
