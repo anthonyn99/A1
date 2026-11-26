@@ -109,8 +109,8 @@ export function setupSeries(S, name, dir = 'long') {
     const earnings = S.earnings || null;
     for (let i = S.lastSetupOnly ? Math.max(1, S.bars.length - 1) : 1; i < S.bars.length; i++) for (const c of detectSwing({ symbol: S.symbol, bars: { '1d': S.bars }, i, earnings, rs: S.rank3m ? { rank3m: S.rank3m } : null })) if (c.setup === name && c.dir === dir) out[i] = 1;
   } else if (DAY_SETUPS.includes(name) && S.tf === '5m') {
-    const lv = dayLevels(S);
-    for (let i = S.lastSetupOnly ? S.bars.length - 1 : 0; i < S.bars.length; i++) for (const c of detectDay({ symbol: S.symbol, bars: { '5m': S.bars }, i, levels: lv(i) })) if (c.setup === name && c.dir === dir) out[i] = 1;
+    const lv = name === 'sweep' || name === 'level-reaction' ? dayLevels(S) : () => null;
+    for (let i = S.lastSetupOnly ? S.bars.length - 1 : 0; i < S.bars.length; i++) for (const c of detectDay({ symbol: S.symbol, setup: name, bars: { '5m': S.bars }, i, levels: lv(i) })) if (c.setup === name && c.dir === dir) out[i] = 1;
   }
   S.cache.set(key, out);
   return out;

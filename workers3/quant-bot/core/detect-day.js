@@ -67,7 +67,7 @@ export function prepDay(bars) {
     piv: pivots(rb, PIVOT_W, PIVOT_W),
     memo: new Map(),
   };
-  if (rb.length && Object.hasOwn(rb[rb.length - 1], 'closedRvol')) p.rvol[p.rvol.length - 1] = rb[rb.length - 1].closedRvol;
+  for (let k = 0; k < rb.length; k++) if (Object.hasOwn(rb[k], 'closedRvol')) p.rvol[k] = rb[k].closedRvol;
   // VWAP starts again at each open (the regular bars carry no pre-market).
   {
     let pv = 0, vol = 0;
@@ -202,7 +202,7 @@ export function detectDay(ctx) {
   const p = prepDay(bars), k = p.at[ctx.i];
   if (k < 0 || p.minute[k] === OPEN) return [];
   const out = [];
-  for (const setup of Object.keys(DET)) {
+  for (const setup of ctx.setup ? [ctx.setup] : DAY_SETUPS) {
     const c = raw(p, setup, k, ctx.levels);
     if (!c) continue;
     // Once a session each way: not if it already fired earlier today.
