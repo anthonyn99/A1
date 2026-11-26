@@ -392,7 +392,7 @@ export async function getTrades({ DB }, url) {
   const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 30, 1), 365), since = Date.now() - days * 86_400_000;
   const { results } = await DB.prepare(
     "SELECT o.client_id, o.strategy, o.version, o.symbol, o.side, o.entry_price, o.stop, o.opened, f.side AS fside, f.qty, f.price, f.ts FROM bot_order_intents o JOIN bot_fills f ON f.client_id = o.client_id " +
-    "WHERE o.status = 'closed' AND f.ts >= ? ORDER BY f.ts LIMIT 5000").bind(since).all();
+    "WHERE o.status = 'closed' AND o.client_id IN (SELECT client_id FROM bot_fills GROUP BY client_id HAVING MAX(ts) >= ? ORDER BY MAX(ts) DESC LIMIT 1000) ORDER BY f.ts").bind(since).all();
   const by = new Map();
   for (const r of results) {
     const t = by.get(r.client_id) || { id: r.client_id, strategy: r.strategy, version: r.version, symbol: r.symbol, side: r.side, entry: r.entry_price, stop: r.stop, opened: r.opened, qty: 0, cash: 0, closed: 0 };
