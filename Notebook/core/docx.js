@@ -1931,6 +1931,7 @@ var AI_REFINE_DEFAULT_PROMPT = [
   '- Keep the author\'s voice and tone. A personal piece stays personal; do not make it sound corporate or generic.',
   '- Do not invent anything. Add no new ideas, details, examples, claims, feelings, reasons or sentences that are not already in the document. Refining is not expanding: the result should be about the same length.',
   '- Do not drop anything. Keep every point, detail, name, initial, title, number, date, URL, code snippet, equation and citation (correct only obvious errors in them).',
+  '- Keep titles and headings complete, including who or what they are for: "essay for v" becomes "Essay for V", never just "Essay".',
   '- Clarify ambiguous wording only where the intended meaning is clear from the document itself.',
   '- Choose the best presentation automatically:',
   '  - Plain, polished paragraphs if the document is primarily narrative.',
