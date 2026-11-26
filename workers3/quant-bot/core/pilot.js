@@ -63,7 +63,7 @@ export function decide(spec, { contexts = {}, run = 'r0000', held = {}, equity =
   return { orders, closes, notes };
 }
 
-/** Stop, target and size for an entry at the close of bar i: simulate.js's formulas (it uses the next open). */
+/** Stop and target prices computed at the signal bar's close. */
 export function entryPrices(S, i, side, { stopX, targetX }) {
   const b = S.bars[i], px = b.c, a = atr(S.bars, 14)[i], long = side === 'long', sgn = long ? 1 : -1;
   let stop = null;
@@ -83,6 +83,7 @@ export function entryPrices(S, i, side, { stopX, targetX }) {
   return { price: px, stop, target, riskPS };
 }
 
+/** Size the manual paper pilot entry from its prices and allocation limits. */
 export function planEntry(spec, S, i, side, { stopX, targetX, equity, limits = {} }) {
   const { price: px, stop, target, riskPS } = entryPrices(S, i, side, { stopX, targetX });
   const k = spec.sizing.kind, v = riskValueOf(spec.sizing);
