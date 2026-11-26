@@ -13,12 +13,18 @@
 //   costs?: { slippageCents, fees: 'webull' | 'none' }, benchmark?: 'SPY' }
 // Rule: core/strategy-rules.js. Stop = { stop: 'atr' | 'percent' | 'level', value };
 // Target = { target: 'r' | 'percent' | 'level', value }; TimeExit = { bars }.
+//
+// v2 (Neo Cortex, docs/TradeHub/quant/n4-01.md) adds, all optional for v1:
+//   id, version (immutable once published), thesis, invalidation, edge (words only),
+//   window: { start, end } 'HH:MM' New York (when entries may open), flattenBy 'HH:MM' (only earlier than
+//   the defaults), earningsBlackout (default true), sizing { kind: 'conviction', min, max } (% of the book).
+// checkStrategy(spec, { bot: true }) also refuses what the bot must not or cannot run.
 import { INDICATORS, OP_TEXT, checkRule, argsOf } from './strategy-rules.js';
 import { SECTORS } from './universe.js';
 
-export const STRATEGY_V = 1;
+export const STRATEGY_V = 1, STRATEGY_V2 = 2;
 export const HORIZONS = ['day', 'swing', 'invest'], TIMEFRAMES = ['1d', '1h', '15m', '5m'], SIDES = ['long', 'short', 'both'];
-export const SIZINGS = ['equal', 'fixedRisk', 'percent'], REBALANCES = ['none', 'weekly', 'monthly'], LISTS = ['watchlist', 'sp100', 'sectors', 'indexes'];
+export const SIZINGS = ['equal', 'fixedRisk', 'percent', 'conviction'], REBALANCES = ['none', 'weekly', 'monthly'], LISTS = ['watchlist', 'sp100', 'sectors', 'indexes'];
 export const SECTOR_FUNDS = SECTORS.map((s) => s.sym);
 export const MAX_YEARS_DAILY = 20, INTRADAY_START = '2016-01-04', CAPITAL = 100_000;
 const SYM_RE = /^\^?[A-Z0-9][A-Z0-9.\-]{0,9}$/, DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,6 +60,11 @@ export function withDefaults(spec = {}, { today = null } = {}) {
     if (missing) { out[k] = k === 'to' ? today : d[k]; if (k !== 'v' && k !== 'name') assumed.push(k); }
   }
   if (out.sizing && out.sizing.kind === 'equal') out.sizing = { kind: 'equal', value: null };
+  if (out.v === STRATEGY_V2) {
+    // v2: the earnings blackout is on unless switched off; a day strategy opens entries 09:35-15:30 unless told.
+    if (out.earningsBlackout == null) { out.earningsBlackout = true; assumed.push('earningsBlackout'); }
+    if (out.window == null && out.horizon === 'day' && out.timeframe !== '1d') { out.window = { ...DAY_WINDOW }; assumed.push('window'); }
+  }
   return { spec: out, assumed };
 }
 const hasUniverse = (u) => !!(u && ((u.symbols && u.symbols.length) || (u.sectors && u.sectors.length) || (u.lists && u.lists.length)));
@@ -63,10 +74,13 @@ export const isStop = (x) => !!(x && x.stop != null), isTarget = (x) => !!(x && 
 
 /** Every reason `spec` cannot run, in words a person can read → `{ ok, errors }`.
  *  Check a spec after withDefaults (a missing field is a default, not an error). */
-export function checkStrategy(spec) {
+export function checkStrategy(spec, { bot = false } = {}) {
   const e = [];
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return { ok: false, errors: ['a strategy must be an object'] };
-  if (spec.v !== STRATEGY_V) e.push(`version must be ${STRATEGY_V}`);
+  if (spec.v !== STRATEGY_V && spec.v !== STRATEGY_V2) e.push(`version must be ${STRATEGY_V} or ${STRATEGY_V2}`);
+  if (spec.v === STRATEGY_V2) checkV2(spec, e);
+  else if (spec.sizing && spec.sizing.kind === 'conviction') e.push('conviction sizing needs a v2 strategy');
+  if (bot) checkBot(spec, e);
   if (typeof spec.name !== 'string' || !spec.name.trim() || spec.name.length > 80) e.push('the name must be 1 to 80 characters');
   if (!HORIZONS.includes(spec.horizon)) e.push(`horizon must be ${HORIZONS.join(', ')}`);
   if (!TIMEFRAMES.includes(spec.timeframe)) e.push(`timeframe must be ${TIMEFRAMES.join(', ')}`);
@@ -124,13 +138,91 @@ export function checkStrategy(spec) {
   if (!s || !SIZINGS.includes(s.kind)) e.push(`sizing is ${SIZINGS.join(', ')}`);
   else if (s.kind === 'fixedRisk' && !(s.value > 0 && s.value <= 5)) e.push('fixed risk is a percent of the account from above 0 to 5');
   else if (s.kind === 'percent' && !(s.value > 0 && s.value <= 100)) e.push('percent sizing is from above 0 to 100% of the account');
-  if (s && s.kind === 'fixedRisk' && Array.isArray(ex) && !ex.some(isStop)) e.push('fixed-risk sizing needs a stop');
+  else if (s.kind === 'conviction' && !(s.min > 0 && s.max <= 5 && s.min <= s.max)) e.push('conviction sizing is { min, max }: percents of the book, above 0, up to 5, min no more than max');
+  if (s && (s.kind === 'fixedRisk' || s.kind === 'conviction') && Array.isArray(ex) && !ex.some(isStop)) e.push(`${s.kind === 'conviction' ? 'conviction' : 'fixed-risk'} sizing needs a stop`);
   if (!(Number.isInteger(spec.maxPositions) && spec.maxPositions >= 1 && spec.maxPositions <= 100)) e.push('max positions is a whole number from 1 to 100');
   if (!REBALANCES.includes(spec.rebalance)) e.push(`rebalance is ${REBALANCES.join(', ')}`);
   const c = spec.costs;
   if (!c || !(c.slippageCents >= 0 && c.slippageCents <= 50) || !['webull', 'none'].includes(c.fees)) e.push('costs are { slippageCents: 0 to 50, fees: webull or none }');
   if (!SYM_RE.test(String(spec.benchmark || ''))) e.push('the benchmark is a ticker such as SPY');
   return { ok: !e.length, errors: [...new Set(e)] };
+}
+
+/* ── v2 (Neo Cortex) ─────────────────────────────────────────────────────── */
+export const ID_RE = /^[a-z0-9][a-z0-9-]{2,39}$/, HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Day trades flatten by these (New York); a half day closes at 13:00, so 12:55 / 12:50. */
+export const FLATTEN = { long: '15:55', short: '15:50' }, FLATTEN_HALF = { long: '12:55', short: '12:50' };
+export const DAY_WINDOW = { start: '09:35', end: '15:30' };
+export const BOT_MAX_SYMBOLS = 40, BOT_MAX_POSITIONS = 6, BOT_RISK_BAND = { min: 0.25, max: 1.25 };
+/** Indicators and setups the bot cannot compute every minute (n4-01.md). */
+export const BOT_UNSUPPORTED = { 'level.nearestSupport': 'levels', 'level.nearestResistance': 'levels', daysToEarnings: 'earnings (the earnings blackout covers it)', 'breadth.above50': 'breadth' };
+export const BOT_UNSUPPORTED_SETUPS = ['earnings-drift'];
+export const hhmm = (s) => (HHMM_RE.test(String(s || '')) ? +s.slice(0, 2) * 60 + +s.slice(3) : null);
+
+function checkV2(spec, e) {
+  if (spec.id != null && !ID_RE.test(String(spec.id))) e.push('the id is 3 to 40 lowercase letters, digits or dashes');
+  if (spec.version != null && !(Number.isInteger(spec.version) && spec.version >= 1)) e.push('the version is a whole number from 1');
+  for (const [k, n] of [['thesis', 600], ['invalidation', 300], ['edge', 200]]) if (spec[k] != null && (typeof spec[k] !== 'string' || spec[k].length > n)) e.push(`${k} is text of up to ${n} characters`);
+  if (spec.earningsBlackout != null && typeof spec.earningsBlackout !== 'boolean') e.push('earningsBlackout is true or false');
+  const w = spec.window;
+  if (w != null) {
+    const a = hhmm(w.start), b = hhmm(w.end);
+    if (spec.timeframe === '1d') e.push('an entry window is for intraday strategies');
+    else if (a == null || b == null) e.push('the entry window is { start, end } as HH:MM New York time');
+    else if (a >= b || a < 9 * 60 + 30 || b > 16 * 60) e.push('the entry window must run forwards inside 09:30-16:00');
+  }
+  if (spec.flattenBy != null) {
+    const f = hhmm(spec.flattenBy), lim = hhmm(spec.side === 'short' ? FLATTEN.short : FLATTEN.long);
+    if (f == null) e.push('flattenBy is HH:MM New York time');
+    else if (f > lim) e.push(`flattenBy can only be earlier than ${spec.side === 'short' ? FLATTEN.short : FLATTEN.long}`);
+    else if (spec.horizon !== 'day') e.push('flattenBy is for day trades');
+  }
+}
+
+/** Every rule of the spec (entry, nested groups, exit rules), and the references inside them. */
+export function rulesOf(spec) {
+  const out = [], add = (r) => { if (!r) return; if (r.any || r.all) (r.any || r.all).forEach(add); else { out.push(r); if (r.than && typeof r.than === 'object' && !Array.isArray(r.than)) out.push(r.than); } };
+  const en = spec.entry || {};
+  (en.all || []).forEach(add); (en.any || []).forEach(add);
+  ((spec.exit && spec.exit.any) || []).filter((x) => !isStop(x) && !isTarget(x) && !isTime(x)).forEach(add);
+  return out;
+}
+
+function checkBot(spec, e) {
+  if (spec.v !== STRATEGY_V2) e.push('the bot runs v2 strategies only');
+  if (!ID_RE.test(String(spec.id || '')) || !(Number.isInteger(spec.version) && spec.version >= 1)) e.push('the bot needs an id and a version');
+  if (spec.side === 'both') e.push('the bot books one side per strategy: write a long and a short strategy');
+  if (spec.side === 'short' && spec.horizon !== 'day') e.push('a short is a day trade only (Tony\'s rule): set horizon day');
+  const ex = (spec.exit && spec.exit.any) || [];
+  if (!ex.some(isStop)) e.push('every bot position needs a stop resting at the broker');
+  if (spec.horizon === 'swing' && !ex.some(isTime)) e.push('a swing strategy needs a time exit (its longest hold)');
+  const u = spec.universe || {};
+  if ((u.lists && u.lists.length) || (u.sectors && u.sectors.length)) e.push('the bot trades named symbols only (publishing resolves the watchlist)');
+  if (!(u.symbols && u.symbols.length)) e.push('the bot needs symbols');
+  else if (u.symbols.length > BOT_MAX_SYMBOLS) e.push(`the bot trades at most ${BOT_MAX_SYMBOLS} symbols per strategy`);
+  if (Number.isInteger(spec.maxPositions) && spec.maxPositions > BOT_MAX_POSITIONS) e.push(`at most ${BOT_MAX_POSITIONS} positions (the risk book's cap)`);
+  const s = spec.sizing || {};
+  if (s.kind === 'conviction') { if (!(s.min >= BOT_RISK_BAND.min && s.max <= BOT_RISK_BAND.max)) e.push(`conviction sizing stays inside ${BOT_RISK_BAND.min}-${BOT_RISK_BAND.max}% of the book`); }
+  else if (s.kind === 'fixedRisk') { if (!(s.value >= BOT_RISK_BAND.min && s.value <= BOT_RISK_BAND.max)) e.push(`fixed risk stays inside ${BOT_RISK_BAND.min}-${BOT_RISK_BAND.max}% of the book`); }
+  else e.push('the bot sizes by conviction (or a fixed risk inside the band)');
+  if (spec.rebalance && spec.rebalance !== 'none') e.push('the bot does not rebalance');
+  for (const r of rulesOf(spec)) {
+    if (r.setup != null && BOT_UNSUPPORTED_SETUPS.includes(r.setup)) e.push(`the bot cannot run the ${r.setup} setup`);
+    if (r.ind && BOT_UNSUPPORTED[r.ind]) e.push(`the bot cannot compute ${BOT_UNSUPPORTED[r.ind]} every minute (${r.ind})`);
+    if (r.ind === 'relStrength' && argsOf('relStrength', r.args)[1] === 'sector') e.push('the bot compares relative strength with SPY only');
+  }
+}
+
+/** A stable hash of the fields that change what a strategy trades (not its words): two versions with one id must
+ *  differ here, or the "edit" changed nothing. FNV-1a over canonical JSON, hex. */
+export function specHash(spec) {
+  const skip = new Set(['name', 'thesis', 'invalidation', 'edge', 'version', 'from', 'to']);
+  const canon = (x) => (Array.isArray(x) ? '[' + x.map(canon).join(',') + ']' : x && typeof x === 'object'
+    ? '{' + Object.keys(x).filter((k) => x[k] !== undefined).sort().map((k) => JSON.stringify(k) + ':' + canon(x[k])).join(',') + '}' : JSON.stringify(x));
+  const s = canon(Object.fromEntries(Object.entries(spec || {}).filter(([k]) => !skip.has(k))));
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, '0');
 }
 
 /* ── plain words ─────────────────────────────────────────────────────────── */
@@ -174,7 +266,8 @@ export function describeParts(spec) {
   const verb = spec.side === 'short' ? 'sell short' : 'buy';
   const ex = ((spec.exit && spec.exit.any) || []).map(exitText);
   const s = spec.sizing || {};
-  const size = s.kind === 'fixedRisk' ? `Risk ${fmtNum(s.value)}% of the account a trade` : s.kind === 'percent' ? `Put ${fmtNum(s.value)}% of the account in each trade` : 'Split the account equally';
+  const size = s.kind === 'conviction' ? `Risk ${fmtNum(s.min)}% to ${fmtNum(s.max)}% of the book a trade, more as measured conviction rises`
+    : s.kind === 'fixedRisk' ? `Risk ${fmtNum(s.value)}% of the account a trade` : s.kind === 'percent' ? `Put ${fmtNum(s.value)}% of the account in each trade` : 'Split the account equally';
   const u = spec.universe || {}, names = [...(u.lists || []).map((l) => LIST_TEXT[l]), ...(u.sectors || []).map((x) => (SECTORS.find((y) => y.sym === x) || {}).name + ' stocks'), ...(u.symbols && u.symbols.length ? [u.symbols.slice(0, 8).join(', ') + (u.symbols.length > 8 ? ` and ${u.symbols.length - 8} more` : '')] : [])];
   const span = (spec.from === 'max' ? 'from the earliest bar' : `from ${spec.from}`) + (spec.to ? ` to ${spec.to}` : ' to today');
   const c = spec.costs || {};
