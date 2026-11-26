@@ -3,7 +3,7 @@ import { isTradingDay } from '../core/holidays.js';
 import { checkStrategy } from '../core/strategy.js';
 import { deployed } from '../core/risk-book.js';
 import { paperBroker } from './alpaca.js';
-import { candidate, checkCandidate, shardsFor, usesDaySetup } from './evaluate.js';
+import { candidate, checkCandidate, exitReason, shardsFor, usesDaySetup } from './evaluate.js';
 import { readMarketContext, earningsGuard } from './context.js';
 import { loadBars, loadVolume, marketClock, objects } from './market.js';
 import { reconcile } from './reconcile.js';
@@ -37,17 +37,19 @@ const due = (session, tf) => {
 };
 
 /** Called as a named Worker entrypoint, with at most ten symbols and no broker writes. */
-export async function inspectShard(env, symbols, rows, now, session, { cache = globalThis.caches?.default, broker = paperBroker(env), volumeOf } = {}) {
+export async function inspectShard(env, symbols, rows, now, session, { cache = globalThis.caches?.default, broker = paperBroker(env), volumeOf, managed = [] } = {}) {
   if (!symbols.length || symbols.length > 10) throw new Error('A shard needs one to ten symbols');
   const work = rows.filter(({ spec }) => due(session, spec.timeframe) && spec.universe.symbols.some((s) => symbols.includes(s)));
-  if (!work.length) return [];
-  const tf = new Set(work.map(({ spec }) => spec.timeframe));
-  if (work.some(({ spec }) => usesDaySetup(spec))) tf.add('1d');
+  const exits = managed.filter((row) => symbols.includes(row.sym) && due(session, row.spec.timeframe));
+  const all = [...work, ...exits];
+  if (!all.length) return [];
+  const tf = new Set(all.map(({ spec }) => spec.timeframe));
+  if (all.some(({ spec }) => usesDaySetup(spec))) tf.add('1d');
   const groups = await Promise.all([...tf].map(async (frame) => {
     const bars = await loadBars(broker, [...symbols, 'SPY'], frame, now, session, cache);
     return [frame, Object.fromEntries(Object.entries(bars).map(([symbol, values]) => [symbol, objects(values)]))];
   }));
-  const volumeSymbols = symbols.filter((symbol) => work.some(({ spec }) => spec.universe.symbols.includes(symbol) && usesDaySetup(spec)));
+  const volumeSymbols = symbols.filter((symbol) => all.some(({ spec }) => spec.universe.symbols.includes(symbol) && usesDaySetup(spec)));
   const volume = volumeOf ? Object.assign({}, ...(await Promise.all(volumeSymbols.map((symbol) => volumeOf(symbol, session.date))))) : await loadVolume(broker, volumeSymbols, session.date, cache);
   const data = { bars: Object.fromEntries(groups), volume };
   const outcomes = [];
@@ -57,6 +59,13 @@ export async function inspectShard(env, symbols, rows, now, session, { cache = g
       const signal = candidate(row, symbol, data, { now, session });
       if (signal) outcomes.push({ symbol, strategy: row.id, version: row.version, ...signal });
     }
+  }
+  for (const row of exits) {
+    const symbol = row.sym, frame = row.spec.timeframe;
+    const why = exitReason(row, row.spec, data.bars[frame]?.[symbol], {
+      now, session, daily: data.bars['1d']?.[symbol], bench: data.bars[frame]?.SPY, volume: volume[symbol],
+    });
+    if (why) outcomes.push({ exit: true, id: row.id, why });
   }
   return outcomes;
 }

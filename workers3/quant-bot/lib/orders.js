@@ -30,9 +30,11 @@ export async function liveIntents(db) {
 
 async function updateOrder(db, row, order) {
   const held = Number(order.filled_qty) > 0;
-  const status = held ? 'held' : ENDED.has(order.status) ? 'failed' : 'working';
+  const status = row.close_id ? 'closing' : held ? 'held' : ENDED.has(order.status) ? 'failed' : 'working';
+  const preceding = row.order_body ? JSON.parse(row.order_body).legs || [] : [];
+  const legs = [...new Map([...preceding, ...(order.legs || [])].map((leg) => [leg.id, leg])).values()];
   await db.prepare("UPDATE bot_order_intents SET broker_id = ?, opened = COALESCE(opened, ?), order_body = ?, status = ? WHERE client_id = ?")
-    .bind(order.id, held ? Date.parse(order.filled_at || order.updated_at) || row.requested : null, JSON.stringify(order), status, row.client_id).run();
+    .bind(order.id, held ? Date.parse(order.filled_at || order.updated_at) || row.requested : null, JSON.stringify({ ...order, legs }), status, row.client_id).run();
 }
 
 export async function submitEntry(db, broker, p, row, qty, now) {
