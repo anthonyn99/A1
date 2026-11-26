@@ -1,7 +1,7 @@
 import { LIMITS, tighten } from '../core/risk-book.js';
 import { nyClock } from '../core/clock.js';
 import { json } from './lab.js';
-import { LIFE_DEFAULTS, lifeSettings, patchLife } from './lifecycle.js';
+import { LIFE_DEFAULTS, lifeSettings, patchLife } from './life-rules.js';
 
 const MODELS = new Set(['haiku', 'sonnet', 'opus', 'fable'].map((model) => 'claude_code/' + model));
 const MODES = ['off', 'shadow', 'paper'];
