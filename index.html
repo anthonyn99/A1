@@ -18705,9 +18705,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       const horizonEnd=Math.max(at,now)+HORIZON_MS;
       const base=new Date(item.notifyAt);
       const baseH=base.getHours(),baseM=base.getMinutes();
+      const spanEnd=item.repeatSpanDays&&item.repeatEndDate?new Date(item.repeatEndDate.year,item.repeatEndDate.month,item.repeatEndDate.day,23,59,59,999).getTime():Infinity;
       const MAX_OCC=60;
       const addOcc=(dt)=>{
-        if(dt.getTime()>=now-10000){
+        if(dt.getTime()>=now-10000&&dt.getTime()<=spanEnd){
           const occId=(repId||item.id)+'_'+dt.getTime();
           occurrences.push({id:occId,notifyAt:dt.toISOString()});
         }
@@ -18739,7 +18740,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         }
       }
       // If nothing matched (e.g. weekly but base day not in repDays), fall back to single
-      if(!occurrences.length){
+      if(!occurrences.length&&spanEnd===Infinity){
         occurrences.push({id:item.id,notifyAt:item.notifyAt});
       }
     }
