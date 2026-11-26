@@ -316,6 +316,7 @@ async function open(dev, profile) {
       ok(await open(A, profile), profile + ' opens for finite repeat');
       await A.send('Emulation.setDeviceMetricsOverride', { width, height: 820, deviceScaleFactor: 1, mobile: width === 390 });
       await A.evalJs(`window.${profile==='tony'?'_thVoice':'_vdVoice'}.setEdit(true); window.${profile==='tony'?'_thVoice':'_vdVoice'}.weekView(false); ${profile==='tony'?'window._thVoice.nav("taskhub");':''} 1`);
+      console.log('        add controls: ' + await A.evalJs(`(() => { const a=[...document.querySelectorAll('button[aria-label="Add a task or event"]')];return JSON.stringify({all:a.length,visible:a.filter(x=>x.getClientRects().length).length,profile:window._activeProfile,root:document.getElementById('root')?.style.display});})()`));
       ok(await A.evalJs(`(() => { const b=[...document.querySelectorAll('button[aria-label="Add a task or event"]')].find(x=>x.getClientRects().length); if(!b)return false;b.click();return true;})()`), profile + ' add control is visible at ' + width + 'px');
       ok(await A.until(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Next X days'&&b.getClientRects().length)`, 30), profile + ' offers Next X days');
       await A.evalJs(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='Next X days'&&x.getClientRects().length);b.click();return true;})()`);
