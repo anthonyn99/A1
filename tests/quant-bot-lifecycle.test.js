@@ -151,7 +151,7 @@ test('review: keep, retire, three kill rules, conviction logged, once a day and 
   assert.equal(keeper.trades, 15); assert.equal(keeper.wins, 10); assert.equal(keeper.paper_days, 1);
   assert.ok(keeper.conviction > 0.5);
   const why = conn.prepare("SELECT why FROM bot_events WHERE kind = 'stage' AND strategy = 'keeper' ORDER BY id").all().map((r) => r.why);
-  assert.match(why[0], /Conviction 0\.00 → 0\.\d\d: 15 paper trades at 0\.67 R/);
+  assert.match(why[0], /Conviction 0\.00 → 0\.\d\d: 15 paper trades at 0\.50 R, backtest 0\.30 R, shrunk to 0\.30 R/);
   assert.match(why[1], /Kept after its trial/);
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'coldhand'").get().why, /90% upper bound 29\.\d%/);
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'deepdd'").get().why, /\$135\.00 from its peak, over 8% of its \$1500 sleeve/);
