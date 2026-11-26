@@ -42,7 +42,8 @@ function spec(id, version = 1, extra = {}) {
   return { v: 2, id, version, name: id, thesis: 'fixture', horizon: 'day', timeframe: '5m', side: 'long', maxPositions: 2,
     universe: { symbols: ['AMD'] }, entry: { all: [{ ind: 'close', op: '>', than: { ind: 'vwap' } }] },
     exit: { any: [{ stop: 'atr', value: 1.5 }, { target: 'r', value: 2 }] }, sizing: { kind: 'conviction', min: 0.25, max: 1 },
-    window: { start: '09:35', end: '15:30' }, flattenBy: null, earningsBlackout: true, ...extra };
+    window: { start: '09:35', end: '15:30' }, flattenBy: null, earningsBlackout: true, from: 'max', to: FRI, rebalance: 'none',
+    costs: { slippageCents: 1, fees: 'webull' }, benchmark: 'SPY', ...extra };
 }
 function addStrategy(conn, id, { version = 1, stage = 'gated', at = 1, report = { expectancyR: 0.3, trades: 80 } } = {}) {
   const s = spec(id, version);
@@ -133,7 +134,7 @@ test('review: keep, retire, three kill rules, conviction logged, once a day and 
   const { review } = await life;
   for (const id of ['keeper', 'loser', 'coldhand', 'deepdd', 'drifter']) { addStrategy(conn, id, { stage: 'paper' }); }
   conn.prepare("UPDATE strategies SET stage = 'active' WHERE id = 'drifter'").run();
-  for (let i = 0; i < 15; i++) addTrade(conn, 'keeper', i, i < 10 ? 10 : -5);       // 67%, PF 4, +0.67 R a trade
+  for (let i = 0; i < 15; i++) addTrade(conn, 'keeper', i, i < 10 ? 10 : -5);       // 67%, PF 4, +0.50 R a trade
   for (let i = 0; i < 15; i++) addTrade(conn, 'loser', i, i < 6 ? 5 : -5);         // 40%, PF 0.67: Wilson upper 61% (no kill)
   for (let i = 0; i < 12; i++) addTrade(conn, 'coldhand', i, i < 1 ? 5 : -2);      // 1 of 12: upper 30% < 40%
   for (let i = 0; i < 3; i++) addTrade(conn, 'deepdd', i, -45);                    // -$135 > 8% of the $1,500 day sleeve
