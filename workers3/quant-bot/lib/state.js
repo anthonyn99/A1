@@ -1,4 +1,4 @@
-import { LIMITS, tighten } from '../core/risk-book.js';
+import { LIMITS, tighten, checkLimits } from '../core/risk-book.js';
 import { nyClock } from '../core/clock.js';
 import { json } from './lab.js';
 import { LIFE_DEFAULTS, lifeSettings, patchLife } from './life-rules.js';
@@ -45,11 +45,12 @@ function updatedSettings(current, patch) {
         if (!object(value) || Object.entries(value).some(([style, share]) => !Object.hasOwn(LIMITS.styleShare, style) || !safeValue(style, share))) throw new Error('invalid style share');
       } else if (!safeValue(key, value)) throw new Error('invalid risk limit: ' + key);
     }
-    const { limits, loosened } = tighten(LIMITS, patch.limits);
-    if (loosened.length || limits.riskMinPct > limits.riskMaxPct || !Number.isInteger(limits.maxPositions)) throw new Error('invalid risk limits: ' + loosened.join(', '));
-    next.limits = { ...current.limits, ...Object.fromEntries(Object.keys(patch.limits).map((key) => [key, limits[key]])) };
-    if (patch.limits.styleShare) next.limits.styleShare = { ...current.limits.styleShare, ...patch.limits.styleShare };
-    if (next.limits.riskMinPct > next.limits.riskMaxPct) throw new Error('risk range is inverted');
+    // Tony 2026-11-26: any book and caps, raised or lowered; LIMITS are only the defaults. They must stay coherent
+    // (core/risk-book.js checkLimits: no leverage past the book, a position inside the deployed cap, ranges). Claude may
+    // only tighten the CURRENT limits (checked in putSettings).
+    next.limits = { ...current.limits, ...patch.limits, styleShare: { ...current.limits.styleShare, ...(patch.limits.styleShare || {}) } };
+    const why = checkLimits(next.limits);
+    if (why.length) throw new Error('invalid risk limits: ' + why.join('; '));
   }
   if ('lifecycle' in patch) next.lifecycle = patchLife(current.lifecycle, patch.lifecycle);
   if ('strategist' in patch) {
