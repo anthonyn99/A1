@@ -115,7 +115,7 @@ test('a scheduled half-day shadow replay journals the signal and counts one comp
   const { withDefaults } = await import('../workers3/quant-bot/core/strategy.js');
   const { runShadow } = await import('../workers3/quant-bot/lib/shadow.js');
   const spec = withDefaults({ v: 2, id: 'amd-swing', version: 1, name: 'AMD swing', thesis: 'Fixture thesis',
-    horizon: 'swing', timeframe: '1d', side: 'long', universe: { symbols: ['AMD'] },
+    horizon: 'swing', timeframe: '1d', side: 'long', maxPositions: 6, universe: { symbols: ['AMD'] },
     entry: { all: [{ ind: 'close', op: '>', than: 100 }] },
     exit: { any: [{ stop: 'percent', value: 2 }, { target: 'r', value: 2 }, { bars: 3 }] },
     sizing: { kind: 'fixedRisk', value: 0.25 } }, { today: '2026-11-27' }).spec;

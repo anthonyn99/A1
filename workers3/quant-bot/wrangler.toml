@@ -2,9 +2,12 @@ name = "quant-bot"
 # Neo Cortex's bot (worker.js), A1-Priv docs/TradeHub/quant-trading.md §N4. Account 3
 # ("Anthony Account 3"); deploys via .github/workflows/deploy-workers3.yml, else by hand:
 # CLOUDFLARE_ACCOUNT_ID=c7a5d105aef82380269d238c32868407 npx wrangler deploy. No account_id here on purpose.
-# N0: probes only, no cron (N4 adds `* 13-21 * * 1-5`). core/ is a COPY made by A1-Priv tools/sync-core.mjs.
-main = "worker.js"
+# core/ is copied by A1-Priv tools/sync-core.mjs.
+main = "service.js"
 compatibility_date = "2026-01-01"
+
+[triggers]
+crons = ["* 13-21 * * 1-5"]
 
 [[d1_databases]]
 binding = "DB"

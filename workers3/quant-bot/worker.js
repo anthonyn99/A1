@@ -1,7 +1,6 @@
 // Neo Cortex's bot worker (A1-Priv docs/TradeHub/quant-trading.md §N4), account 3.
 // N0 (docs/TradeHub/quant/n4-00.md): the probes. N3 (n4-03.md): the strategist's lab and
-// strategies (lib/lab.js). No cron and no order route yet: the bot itself (cron, risk book,
-// journal, kill switch) is N4.
+// strategies (lib/lab.js). N4 adds the shadow cron, portfolio risk checks and journal.
 //   /settings, /state, /today, /brief/:date                     lib/state.js (Tony’s key)
 //
 //   GET /health                       { ok, phase }
@@ -130,7 +129,7 @@ const ROUTES = {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N3 lab' });
+    if (url.pathname === '/health') return json({ ok: true, worker: 'quant-bot', phase: 'N4 shadow' });
     const tony = await keyOk(req, env);
     const brief = req.method === 'GET' && /^\/brief\/([^\/]+)$/.exec(url.pathname);
     const route = (brief && ((_req, bindings) => getBrief(bindings, brief[1]))) || ROUTES[`${req.method} ${url.pathname}`];
