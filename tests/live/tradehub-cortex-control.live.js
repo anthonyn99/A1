@@ -82,7 +82,7 @@ function fakeBot() {
     await setField('limits.book', 4000);
     ok('a changed limit is saved as Tony with its reason, and the page shows the new version', await until(`/Settings version 1/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.p === '/settings' && x.body.author === 'tony' && x.body.settings.limits && x.body.settings.limits.book === 4000 && /book/.test(x.body.reason)),
       JSON.stringify(bot.posted.slice(-1)));
-    ok('...the risk line follows the new book ($10.00 to $50.00)', await until(`/\\$10\\.00 to \\$50\\.00/.test(${q('[data-ncx-group="money"]')}.innerText)`, 4000));
+    ok('...the risk line follows the new book ($10 to $50)', await until(`/\\$10 to \\$50\\./.test(${q('[data-ncx-group="money"]')}.innerText)`, 4000));
     const before = bot.posted.length;
     await setField('limits.book', 9000);
     await sleep(500);
@@ -102,6 +102,7 @@ function fakeBot() {
     ok('Research now asks quant-bot for a run', await until(`true`, 100) && await (async () => { for (let i = 0; i < 30 && !bot.research; i++) await sleep(100); return bot.research === 1; })());
 
     console.log('\n4. The kill switch and History');
+    await until(`!document.querySelector('[data-ctl-pane="cortex"] .ncx-busy') && !!document.querySelector('[data-ctl-pane="cortex"] [data-ncx="kill"]') && !document.querySelector('[data-ctl-pane="cortex"] [data-ncx="kill"]').disabled`, 8000);
     await js(`${q('[data-ncx="kill"]')}.click(); 1`);
     ok('Kill asks first, in the pane', await until(`!!${q('[data-ncx-confirm="kill"]')}`, 3000) && bot.kills === 0);
     await js(`${q('[data-ncx-confirm="kill"] [data-ncx="cancel"]')}.click(); 1`);
