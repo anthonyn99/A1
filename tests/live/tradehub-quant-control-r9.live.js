@@ -19,6 +19,7 @@ const DESK_W = 1280 + 224;
   const api = quantApi();
   const c = await connect({ mock: api.mock });
   const errs = [];
+  await c.send('Network.enable'); await c.send('Network.clearBrowserCache');   // the shared profile's cache has been seen corrupt
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   c.ws.addEventListener('message', (ev) => {
@@ -33,10 +34,10 @@ const DESK_W = 1280 + 224;
   await size(DESK_W, 900);
   await boot({ quant: true });
   await tab('prompt');
-  ok('six sub-tabs: Watchlists, Prompts, Quant, Neo Quant, Rules, Alerts', await until(`[...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|') === 'Watchlists|Prompts|Quant|Neo Quant|Rules|Alerts'`, 10000),
+  ok('six sub-tabs: Watchlists, Prompts, Quant, Neo Quant, Neo Cortex, Alerts (Rules went in TR7, Neo Cortex came in N6)', await until(`[...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|') === 'Watchlists|Prompts|Quant|Neo Quant|Neo Cortex|Alerts'`, 10000),
     await js(`return [...document.querySelectorAll('[data-ctl-sub]')].map(function(b){return b.textContent;}).join('|');`));
   ok('...Watchlists first, only its section shown', (await shown()) === 'watchlists', await shown());
-  for (const [id, want] of [['prompts', 'prompts'], ['quant', 'quant'], ['neo', 'neo'], ['rules', 'rules'], ['alerts', 'alerts']]) {
+  for (const [id, want] of [['prompts', 'prompts'], ['quant', 'quant'], ['neo', 'neo'], ['cortex', 'cortex'], ['alerts', 'alerts']]) {
     await js(`document.querySelector('[data-ctl-sub="${id}"]').click(); 1`); await sleep(250);
     ok(`"${id}" shows only its section, its tab pressed`, (await shown()) === want && await js(`return document.querySelector('[data-ctl-sub="${id}"]').getAttribute('aria-selected') === 'true';`), await shown());
   }
@@ -49,8 +50,8 @@ const DESK_W = 1280 + 224;
   await boot({ keep: true }); await tab('prompt');
   ok('the last sub-tab is remembered after a reload', await until(`document.querySelector('[data-ctl-sub="alerts"]') && document.querySelector('[data-ctl-sub="alerts"]').getAttribute('aria-selected') === 'true'`, 10000) && (await shown()) === 'alerts', await shown());
   await tab('market'); await sleep(500);
-  await js(`window.tbControlShow('rules'); 1`); await tab('prompt');
-  ok('tbControlShow (the bell, Neo Quant) opens a section from another tab', await until(`(function(){ var b=document.querySelector('[data-ctl-sub="rules"]'); return b && b.getAttribute('aria-selected') === 'true'; })()`, 8000));
+  await js(`window.tbControlShow('cortex'); 1`); await tab('prompt');
+  ok('tbControlShow (the bell, Neo Quant) opens a section from another tab', await until(`(function(){ var b=document.querySelector('[data-ctl-sub="cortex"]'); return b && b.getAttribute('aria-selected') === 'true'; })()`, 8000));
   const said = JSON.parse(await js(`var R=(await import('/A1/TradeHub/neo/registry.js')).Registry; return JSON.stringify(await R.get('control').actions.section.run({ name: 'neo' }));`));
   ok('Neo Quant: "open Control\'s voice settings" (control.section neo)', await until(`document.querySelector('[data-ctl-sub="neo"]').getAttribute('aria-selected') === 'true'`, 5000) && /neo/.test(said.shown || ''), JSON.stringify(said));
   await js(`document.querySelector('[data-ctl-sub="watchlists"]').click(); 1`); await sleep(400);
