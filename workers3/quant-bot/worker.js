@@ -3,7 +3,7 @@
 // route is read-only. The bot itself (cron, risk book, journal, kill switch) is N4.
 //
 //   GET /health                       { ok, phase }
-//   GET /probe/cpu?n=40&keep=400&parse=1   one bot tick on synthetic 5-min bars (CPU is read from Cloudflare's analytics)
+//   GET /probe/cpu?n=40&keep=400&stage=full  one bot tick on synthetic 5-min bars (CPU is read from Cloudflare's analytics)
 //   GET /probe/d1                     the quantbot database answers
 //   GET /probe/alpaca?symbols=A,B     the bot's Alpaca paper account: account, clock, calendar, IEX 5-min bars, shortable
 // Auth: Authorization: Bearer <PROBE_KEY> (a secret set by the session; N4 replaces it with ALLOWED_KEYS).
@@ -42,14 +42,24 @@ export function synthBars(n, keep, now = Date.UTC(2026, 10, 25, 20, 0)) {
   return out;
 }
 
-export function tick({ n = 40, keep = 400, parse = false } = {}) {
+// stage (each includes the ones before it, so CPU differences isolate a step):
+//   synth   the synthetic bars only (the probe's own overhead)
+//   body    + the bars as an Alpaca-shaped JSON body (still overhead: the real bot receives it)
+//   parse   + JSON.parse of that body (what reading Alpaca's reply costs)
+//   full    + buildContexts + decide (one bot tick)
+//   engine  synth + buildContexts + decide, no JSON
+export function tick({ n = 40, keep = 400, stage = 'full' } = {}) {
   let bars = synthBars(n, keep);
-  // parse=1 also pays what reading Alpaca's reply costs: the same bars as a JSON body, parsed.
-  if (parse) { const body = JSON.stringify({ bars: Object.fromEntries(Object.entries(bars).map(([s, b]) => [s, b.map((x) => ({ t: new Date(x.t).toISOString(), o: x.o, h: x.h, l: x.l, c: x.c, v: x.v, n: 1200, vw: x.c }))])) });
-    const back = JSON.parse(body).bars; bars = Object.fromEntries(Object.entries(back).map(([s, b]) => [s, b.map((x) => ({ ...x, t: Date.parse(x.t) }))])); }
+  if (stage === 'synth') return { n, keep, stage };
+  if (stage !== 'engine') {
+    const body = JSON.stringify({ bars: Object.fromEntries(Object.entries(bars).map(([s, b]) => [s, b.map((x) => ({ t: new Date(x.t).toISOString(), o: x.o, h: x.h, l: x.l, c: x.c, v: x.v, n: 1200, vw: x.c }))])) });
+    if (stage === 'body') return { n, keep, stage, bytes: body.length };
+    const back = JSON.parse(body).bars; bars = Object.fromEntries(Object.entries(back).map(([s, b]) => [s, b.map((x) => ({ ...x, t: Date.parse(x.t) }))]));
+    if (stage === 'parse') return { n, keep, stage, bytes: body.length };
+  }
   const spec = withDefaults({ ...PROBE_SPEC }, { today: '2026-11-25' });
   const r = decide(spec, { contexts: buildContexts(spec, { bars, daily: {} }), capital: 5000, equity: 5000, at: Date.now() });
-  return { symbols: n, barsEach: keep, parse: !!parse, orders: r.orders.length, notes: r.notes.length };
+  return { n, keep, stage, orders: r.orders.length, notes: r.notes.length };
 }
 
 async function alpaca(env, base, p) {
@@ -90,7 +100,7 @@ export default {
     try {
       if (url.pathname === '/probe/cpu') {
         const n = Math.min(+url.searchParams.get('n') || 40, 80), keep = Math.min(+url.searchParams.get('keep') || 400, 2000);
-        return json(tick({ n, keep, parse: url.searchParams.get('parse') === '1' }));
+        return json(tick({ n, keep, stage: url.searchParams.get('stage') || 'full' }));
       }
       if (url.pathname === '/probe/d1') { const r = await env.DB.prepare('select 1 as one').first(); return json({ ok: true, d1: r }); }
       if (url.pathname === '/probe/alpaca') return await probeAlpaca(env, url);
