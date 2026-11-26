@@ -5,7 +5,8 @@
 //
 // state = { equity, peak, dayPnl, halted?, paused?, positions: [{ sym, side: 'long'|'short', qty, price, stop,
 //           style: 'day'|'swing'|'invest', strategy }] }   price = the latest price (or the entry before one)
-// Limits are Tony's (Control ▸ Neo Cortex, N6). Claude and Neo chat can only tighten them (tighten()).
+// Limits are Tony's (Control ▸ Neo Cortex, N6): any book and caps that pass checkLimits (LIMITS are only the defaults).
+// Claude and Neo chat can only tighten the current ones (tighten()).
 import { FLATTEN, FLATTEN_HALF, hhmm } from './strategy.js';
 
 export const LIMITS = Object.freeze({
@@ -15,6 +16,35 @@ export const LIMITS = Object.freeze({
 });
 // For each limit: does a SMALLER number make it stricter? (all of them do; shortsAllowed: false is stricter.)
 const CAPS = ['book', 'maxDeployed', 'riskMinPct', 'riskMaxPct', 'maxPosition', 'maxPositions', 'dailyLossPct', 'drawdownPct', 'maxShortExposure'];
+
+/** The plan's starting limits are DEFAULTS, not a ceiling (Tony 2026-11-26: "raise it to any amount or compress it to any
+ *  amount"): Tony sets any book and caps; these keep them coherent (no leverage past the book, nothing negative). */
+export const LIMIT_RANGES = Object.freeze({
+  book: [100, 100_000_000], maxDeployed: [50, 100_000_000], riskMinPct: [0.01, 5], riskMaxPct: [0.01, 5], maxPosition: [10, 100_000_000],
+  maxPositions: [1, 20], dailyLossPct: [0.1, 50], drawdownPct: [0.5, 90], maxShortExposure: [0, 100_000_000],
+});
+/** A full limits object → the reasons it is not usable ([] = fine). */
+export function checkLimits(L) {
+  const why = [];
+  for (const [k, [lo, hi]] of Object.entries(LIMIT_RANGES)) {
+    const v = L[k];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) why.push(`${k} must be ${lo} to ${hi}`);
+  }
+  if (!Number.isInteger(L.maxPositions)) why.push('maxPositions must be a whole number');
+  if (L.riskMinPct > L.riskMaxPct) why.push('the low-conviction risk is above the high-conviction risk');
+  if (L.maxDeployed > L.book) why.push('the most deployed at once cannot exceed the book (no leverage)');
+  if (L.maxPosition > L.maxDeployed) why.push('one position cannot exceed the most deployed at once');
+  if (L.maxShortExposure > L.maxDeployed) why.push('the short exposure cannot exceed the most deployed at once');
+  for (const [k, v] of Object.entries(L.styleShare || {})) if (typeof v !== 'number' || !(v >= 0 && v <= 1)) why.push(`styleShare.${k} must be 0 to 1`);
+  if (typeof L.shortsAllowed !== 'boolean' || typeof L.stopRequired !== 'boolean') why.push('shortsAllowed and stopRequired are true or false');
+  return why;
+}
+/** A new book with every dollar cap scaled by the same ratio (percent limits and shares already scale): the same
+ *  strategies size the same way on any capital. Caps are rounded to $10. */
+export function scaleLimits(L, book) {
+  const k = book / L.book, r = (x) => Math.max(10, Math.round(x * k / 10) * 10);
+  return { ...L, book, maxDeployed: Math.min(book, r(L.maxDeployed)), maxPosition: Math.min(book, r(L.maxPosition)), maxShortExposure: L.maxShortExposure ? Math.min(book, r(L.maxShortExposure)) : 0 };
+}
 
 /** `proposed` applied to `hard` only where it is stricter → { limits, loosened: [field] }. */
 export function tighten(hard = LIMITS, proposed = {}) {
