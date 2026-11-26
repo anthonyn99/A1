@@ -2377,23 +2377,24 @@ async function handleTaskPrep(body, env) {
 // The editable default prompt (the front-end shows/stores its own copy per journal;
 // this is only the fallback when the client doesn't send one).
 const DEFAULT_FORMAT_PROMPT = [
-  `You are an expert document formatter.`,
+  `You are an expert document formatter. You change how a document LOOKS, never what it SAYS.`,
   ``,
-  `Your task is to intelligently reformat the provided document without changing its meaning, tone, facts, wording, or intent in ANY way.`,
+  `Your task is to format the provided document for readability while keeping every word exactly as the author wrote it.`,
   ``,
-  `Rules:`,
-  `- Preserve ALL content. Never summarize, remove, invent, or rewrite information except for minor grammar, punctuation, spacing, capitalization, and formatting improvements.`,
-  `- Choose the best presentation automatically:`,
-  `  - Plain clean paragraphs if the document is primarily narrative.`,
-  `  - Markdown headings, lists, tables, quotes, code blocks, callouts, etc. only when they genuinely improve readability.`,
-  `  - Mix paragraphs and Markdown naturally when appropriate.`,
-  `- Create a logical document structure with clear sections where beneficial.`,
-  `- Merge broken lines into proper paragraphs.`,
-  `- Fix spacing, indentation, numbering, bullet consistency, and overall layout.`,
-  `- Preserve code, URLs, equations, and special formatting.`,
-  `- Format ALL mathematics as Markdown math: inline math wrapped in single dollar signs like $E = mc^2$, and block/display equations wrapped in double dollar signs on their own lines like $$ ... $$. Convert any plain-text math (e.g. "E = mc^2", "integral from 0 to infinity", "x^2 + y^2 = z^2") into proper LaTeX inside those delimiters. Never leave math unformatted.`,
-  `- If tables communicate information better, convert suitable content into Markdown tables.`,
-  `- Do not over-format. Simplicity is preferred.`,
+  `The words are locked:`,
+  `- Keep every word, number and punctuation mark exactly as written, in the same order. Do not fix spelling, grammar, punctuation or capitalization. Do not rephrase, reword, shorten, expand, summarize, translate or reorder anything.`,
+  `- Do not add words of your own: no new titles, headings, labels, introductions or closing lines. A heading may only be made from a line that is already in the document.`,
+  `- Do not remove anything, including repeated text, filler words and typos.`,
+  ``,
+  `What you may change (layout only):`,
+  `- Turn existing lines that act as titles into headings.`,
+  `- Turn existing lists (lines starting with -, *, 1., a) and so on) into proper bulleted, numbered or check lists; the list marker itself may be dropped because the list shows it.`,
+  `- Turn existing tabular text into a table, with the same words in the cells.`,
+  `- Merge lines that were broken mid-sentence back into paragraphs, and split paragraphs only where there is already a clear break.`,
+  `- Keep any bold, italic, underline, strikethrough or code the document already has, on the same words.`,
+  `- Wrap math that is already written in the document in Markdown math delimiters (inline $ ... $, display $$ ... $$) without changing its symbols.`,
+  `- Preserve code, URLs and special formatting exactly.`,
+  `- Do not over-format. Simplicity is preferred; plain clean paragraphs are right for narrative writing.`,
   `- Never wrap the entire document in a code block.`,
   ``,
   `Images:`,
@@ -2403,7 +2404,7 @@ const DEFAULT_FORMAT_PROMPT = [
   `- Output reasonable display sizes based on importance (large for primary images, medium for supporting images, small for icons or references).`,
   `- Do not remove, duplicate, or describe images.`,
   ``,
-  `Output only the fully formatted document.`,
+  `Output only the formatted document, with the author's words untouched.`,
 ].join('\n');
 
 // Fixed output contract appended AFTER the (user-editable) prompt so the result is
@@ -2411,20 +2412,70 @@ const DEFAULT_FORMAT_PROMPT = [
 const FORMAT_OUTPUT_CONTRACT = [
   ``,
   `──────────  OUTPUT CONTRACT (obey exactly, overrides any conflicting instruction above)  ──────────`,
-  `Return ONLY an HTML fragment representing the formatted document. No markdown code fences, no <html>/<head>/<body> wrappers, no commentary before or after.`,
+  `Return ONLY an HTML fragment representing the resulting document. No markdown code fences, no <html>/<head>/<body> wrappers, no commentary before or after.`,
   `Allowed tags ONLY: h1 h2 h3 h4 p ul ol li blockquote pre code strong em u s a table thead tbody tr th td hr br. "Markdown headings/lists/tables/etc" from the rules above means: express them with these HTML tags.`,
   `For checklists use exactly: <ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box"><span class="docx-cl-text">TASK</span></li></ul> (add the "checked" attribute and class "done" on <li> for completed items).`,
   `MATH: write math as plain LaTeX between dollar-sign delimiters directly in the text — inline as $ ... $ and display equations as $$ ... $$ (these dollar delimiters are REQUIRED and will be rendered; do NOT wrap math in any HTML tag).`,
   `Never wrap the whole document in <pre>/<code>. Do not add inline style attributes. Do not output <img> tags or scripts.`,
   `EMBEDDED TOKENS: the document may contain opaque tokens written EXACTLY like [[IMG1]], [[IMG2]], … Each stands in for something already fully-formed that you cannot see or edit — an image, a file attachment, or an existing hyperlink. Keep EVERY token exactly once, verbatim: never rename, merge, split, or invent one, never delete one, never describe or guess what it represents, never turn it into visible text. You MAY move a token to a better position in the flow for readability. Put each token on its own line UNLESS it is clearly an inline element (e.g. a link token inside a sentence), in which case keep it inline. Only for a token you know is an actual image may you optionally append a display-size hint before the closing brackets — |large, |medium, or |small (e.g. [[IMG1|large]]); never add a size hint to a token that isn't an image.`,
   ``,
-  `DOCUMENT TO FORMAT (between the fences):`,
+  `EXISTING INLINE FORMATTING: the document may already contain the inline tags <strong> <em> <u> <s> <code>. They are the author's own bold, italic, underline, strikethrough and code: keep them on the same words unless the rules above say otherwise.`,
+  ``,
+  `DOCUMENT (between the fences):`,
   `<<<`,
 ];
 
-function buildFormatPrompt(text, customPrompt) {
+// AI Format only ever changes layout. This rule rides with EVERY AI Format run,
+// whatever its (editable) prompt says, and the editor puts back any word that
+// still changed (Notebook/core/docx.js aiKeepWording).
+const FORMAT_ONLY_RULE = `FORMAT ONLY (overrides anything above): you may change layout only. Every word, number and punctuation mark of the document must appear in your output exactly as written and in the same order: no spelling, grammar, punctuation or capitalization fixes, no rewording, no added titles or headings of your own, nothing removed.`;
+
+function buildFormatPrompt(text, customPrompt, tool) {
   const base = (customPrompt && String(customPrompt).trim()) ? String(customPrompt).trim() : DEFAULT_FORMAT_PROMPT;
-  return [base, ...FORMAT_OUTPUT_CONTRACT, text, `>>>`].join('\n');
+  const lock = tool === 'format' ? ['', FORMAT_ONLY_RULE] : [];
+  return [base, ...lock, ...FORMAT_OUTPUT_CONTRACT, text, `>>>`].join('\n');
+}
+
+// How much of the author's wording an AI Format answer changed: word edits
+// (Myers) over sent words, list markers / tokens / math $ ignored -- the same
+// rules as the editor's aiKeepWording. 0 = every word kept; 1+ = past the cap.
+const WD_SYM = /^(?:[-*+>\u2022\u25e6\u25aa\u25ab\u2023\u00b7\u2013\u2014])$/;
+const WD_START = /^(?:\d{1,3}[.)]|[a-zA-Z][.)]|\(\d{1,3}\)|\(?[ivxIVX]{1,4}[.)])$/;
+function wdWords(lines) {
+  const out = [];
+  for (const line of lines) {
+    let first = true;
+    for (const w of line.match(/\S+/g) || []) {
+      const k = w.replace(/\[\[[^\]]*\]\]/g, '').replace(/\$/g, '');
+      if (!k) continue;
+      const start = first; first = false;
+      if (WD_SYM.test(k) || (start && WD_START.test(k))) continue;
+      out.push(k);
+    }
+  }
+  return out;
+}
+const wdDecode = (s) => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+  .replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+export function formatWordDrift(text, html) {
+  const a = wdWords(String(text).replace(/<\/?(?:strong|em|u|s|code)>/gi, '').split('\n'));
+  const b = wdWords(wdDecode(String(html)
+    .replace(/<(?:\/?(?:p|div|h[1-6]|li|ul|ol|blockquote|pre|table|thead|tbody|tr|td|th)\b[^>]*|br\s*\/?|hr\s*\/?)>/gi, '\n')
+    .replace(/<[^>]*>/g, '')).split('\n'));
+  const n = a.length, m = b.length;
+  if (!n) return 0;
+  const cap = Math.max(20, Math.ceil(n * 0.3)), off = cap + 1;
+  const v = new Int32Array(2 * cap + 3);
+  for (let d = 0; d <= cap; d++) {
+    for (let k = -d; k <= d; k += 2) {
+      let x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v[off + k] = x;
+      if (x >= n && y >= m) return d / n;
+    }
+  }
+  return 1;
 }
 
 const FORMAT_SCHEMA = {
@@ -2476,7 +2527,7 @@ function formatBudgets(len) {
 // image, file or link the model cannot see) and every [[SECnS]]/[[SECnE]]
 // section marker must survive, or the editor loses that image or cannot put
 // the sections back. AI Format only restructures, so its text cannot shrink
-// much either; Refine and custom tools may legitimately shorten, so only the
+// much and its words cannot change (formatWordDrift); Refine and custom tools may legitimately shorten, so only the
 // tokens bind them. A failing answer is kept as the fallback while the next
 // model gets a chance (runStaggered's `soft`).
 export function formatKeepsContent(text, html, tool) {
@@ -2492,6 +2543,9 @@ export function formatKeepsContent(text, html, tool) {
     const plain = (s) => s.replace(/\[\[[^\]]+\]\]/g, '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, '').length;
     const before = plain(String(text));
     if (before > 80 && plain(html) < before * 0.6) return false;
+    // AI Format may not reword: an answer that changed more than a stray word
+    // in fifty waits while the next model tries (the editor restores the rest).
+    if (formatWordDrift(text, html) > 0.02) return false;
   }
   return true;
 }
@@ -2508,7 +2562,7 @@ async function handleFormat(body, env) {
   // One pipeline for AI Format, AI Refine and every user-created tool — they
   // differ only by the prompt the client sends. `tool` is carried for logging.
   const tool = String(body.tool || 'format').slice(0, 60);
-  const prompt = buildFormatPrompt(clipped, body.prompt);
+  const prompt = buildFormatPrompt(clipped, body.prompt, tool);
   const { timeoutMs, deadlineMs } = formatBudgets(clipped.length);
 
   try {
