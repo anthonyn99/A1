@@ -2216,6 +2216,156 @@ function aiRestoreImages(html, imgs) {
   return out;
 }
 
+/* ═══════════ AI Format keeps your words ═══════════
+   AI Format may only change layout. Its prompt says so, the worker prefers the
+   model answer that kept the words, and this is the last line: the answer's
+   words are lined up against the words that were sent (a word diff), and any
+   word the model changed, added or dropped is put back exactly as the author
+   wrote it, inside the structure the model chose. Compared per word: [[IMGn]] /
+   [[SECn]] tokens and math $ signs don't count, and list markers (-, *, 1., a))
+   are free because a list shows them itself. */
+var _AI_INLINE_TAGS = { B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', U: 'u', S: 's', STRIKE: 's', DEL: 's', CODE: 'code' };
+var _AI_SYM_MARK = /^(?:[-*+>•◦▪▫‣·–—])$/;
+var _AI_START_MARK = /^(?:\d{1,3}[.)]|[a-zA-Z][.)]|\(\d{1,3}\)|\(?[ivxIVX]{1,4}[.)])$/;
+var _AI_BLOCK_TAG = /^(?:P|DIV|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|TABLE|THEAD|TBODY|TR|TD|TH|HR|BR)$/;
+var _AI_TOKEN_RE = /\[\[[^\]]*\]\]/g;
+function _aiWordKey(w) { return String(w).replace(_AI_TOKEN_RE, '').replace(/\$/g, ''); }
+function _aiIsMarker(k, atStart) { return _AI_SYM_MARK.test(k) || (atStart && _AI_START_MARK.test(k)); }
+
+// The words that were sent, in order (inline tags carried for the model are not words).
+function _aiSentWords(text) {
+  var out = [];
+  String(text).replace(/<\/?(?:strong|em|u|s|code)>/gi, '').split('\n').forEach(function(line) {
+    var first = true;
+    (line.match(/\S+/g) || []).forEach(function(w) {
+      var k = _aiWordKey(w);
+      if (!k) return;
+      var start = first; first = false;
+      if (_aiIsMarker(k, start)) return;
+      out.push({ w: w.replace(_AI_TOKEN_RE, ''), k: k });
+    });
+  });
+  return out;
+}
+// The answer's words, each pointing at its place in a text node.
+function _aiAnswerWords(root) {
+  var toks = [], atStart = true;
+  (function walk(n) {
+    for (var c = n.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 3) {
+        var re = /\S+/g, m;
+        while ((m = re.exec(c.data))) {
+          var k = _aiWordKey(m[0]);
+          if (!k) continue;
+          var start = atStart; atStart = false;
+          if (_aiIsMarker(k, start)) continue;
+          toks.push({ node: c, s: m.index, e: m.index + m[0].length, w: m[0], k: k });
+        }
+      } else if (c.nodeType === 1) {
+        var blk = _AI_BLOCK_TAG.test(c.tagName);
+        if (blk) atStart = true;
+        walk(c);
+        if (blk) atStart = true;
+      }
+    }
+  })(root);
+  return toks;
+}
+// Myers word diff of keys a (sent) against b (answer). Returns ops
+// ['=', ai, bi] | ['-', ai] (a sent word the answer lost) | ['+', bi] (an answer
+// word that wasn't sent), or null past maxD edits.
+function _aiWordDiff(a, b, maxD) {
+  var n = a.length, m = b.length, max = n + m, off = max + 1;
+  var v = new Int32Array(2 * max + 3), trace = [], D = -1;
+  v[off + 1] = 0;
+  outer:
+  for (var d = 0; d <= max; d++) {
+    if (d > maxD) return null;
+    for (var k = -d; k <= d; k += 2) {
+      var x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+      var y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v[off + k] = x;
+      if (x >= n && y >= m) { trace.push(v.slice(off - d, off + d + 1)); D = d; break outer; }
+    }
+    trace.push(v.slice(off - d, off + d + 1));
+  }
+  var ops = [], cx = n, cy = m;
+  for (var dd = D; dd > 0; dd--) {
+    var vp = trace[dd - 1], ck = cx - cy;
+    var get = function(kk) { return vp[kk + dd - 1]; };
+    var pk = (ck === -dd || (ck !== dd && get(ck - 1) < get(ck + 1))) ? ck + 1 : ck - 1;
+    var px = get(pk), py = px - pk;
+    while (cx > px && cy > py) { ops.push(['=', cx - 1, cy - 1]); cx--; cy--; }
+    if (cx === px) ops.push(['+', cy - 1]); else ops.push(['-', cx - 1]);
+    cx = px; cy = py;
+  }
+  while (cx > 0 && cy > 0) { ops.push(['=', cx - 1, cy - 1]); cx--; cy--; }
+  return ops.reverse();
+}
+function _aiCutToken(t) {
+  var d = t.node.data, s = t.s, e = t.e;
+  var keep = (t.w.match(_AI_TOKEN_RE) || []).join('');   // an image token glued to the word stays
+  if (!keep) { if (s > 0 && /\s/.test(d[s - 1])) s--; else if (e < d.length && /\s/.test(d[e])) e++; }
+  t.node.data = d.slice(0, s) + keep + d.slice(e);
+}
+// sentText: exactly what went to the model. html: its answer (tokens still in).
+// Returns { html, fixes } with every word back as written, or null when the
+// answer is too far from the words to line up (the caller then refuses it).
+function aiKeepWording(sentText, html) {
+  var tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  var root = tpl.content;
+  var sent = _aiSentWords(sentText), toks = _aiAnswerWords(root);
+  var ops = _aiWordDiff(sent.map(function(x) { return x.k; }), toks.map(function(x) { return x.k; }),
+                        Math.min(3000, Math.max(60, Math.ceil((sent.length + toks.length) * 0.6))));
+  if (!ops) return null;
+  // Group the edits into hunks between matching words.
+  var hunks = [], cur = null, lastB = -1;
+  ops.forEach(function(op) {
+    if (op[0] === '=') { cur = null; lastB = op[2]; return; }
+    if (!cur) { cur = { ins: [], out: [], prevB: lastB }; hunks.push(cur); }
+    if (op[0] === '-') cur.ins.push(sent[op[1]].w); else cur.out.push(op[1]);
+  });
+  if (!hunks.length) return { html: html, fixes: 0 };
+  var touched = [];
+  for (var h = hunks.length - 1; h >= 0; h--) {
+    var hk = hunks[h];
+    var del = hk.out.filter(function(i) { return !_AI_SYM_MARK.test(toks[i].k) && !_AI_START_MARK.test(toks[i].k) || hk.ins.length; });
+    var text = hk.ins.join(' ');
+    for (var j = del.length - 1; j >= (text ? 1 : 0); j--) { touched.push(toks[del[j]].node); _aiCutToken(toks[del[j]]); }
+    if (!text) continue;
+    if (del.length) {
+      var t0 = toks[del[0]], lastW = toks[del[del.length - 1]].w;
+      var lead = /^\$/.test(text) ? '' : (t0.w.match(/^\$+/) || [''])[0];
+      var trail = /\$$/.test(text) ? '' : (lastW.match(/\$+$/) || [''])[0];
+      var keep = (t0.w.match(_AI_TOKEN_RE) || []).join('');
+      t0.node.data = t0.node.data.slice(0, t0.s) + lead + text + trail + keep + t0.node.data.slice(t0.e);
+    } else if (hk.prevB >= 0) {
+      var p = toks[hk.prevB];
+      p.node.data = p.node.data.slice(0, p.e) + ' ' + text + p.node.data.slice(p.e);
+    } else if (toks.length) {
+      var f = toks[0];
+      f.node.data = f.node.data.slice(0, f.s) + text + ' ' + f.node.data.slice(f.s);
+    } else {
+      var para = document.createElement('p'); para.textContent = text; root.appendChild(para);
+    }
+  }
+  // A heading or item the model invented is empty now: drop it (and a list left empty).
+  touched.forEach(function(node) {
+    var el = node.parentNode;
+    while (el && el !== root && el.nodeType === 1) {
+      var up = el.parentNode;
+      if (!/\S/.test(el.textContent || '') && !el.querySelector('input, br, hr, img') && /^(?:P|H[1-6]|LI|UL|OL|BLOCKQUOTE|STRONG|EM|U|S|CODE|SPAN|TD|TH|TR)$/.test(el.tagName) && !/^(?:TD|TH|TR)$/.test(el.tagName)) { up.removeChild(el); el = up; }
+      else break;
+    }
+  });
+  var box = document.createElement('div');
+  box.appendChild(root);
+  return { html: box.innerHTML, fixes: hunks.length };
+}
+window._docxAiKeepWording = aiKeepWording;   // for tests
+
 // Shared network call for both the whole-document and selection paths. Keeps
 // a hard client-side timeout: without it, a stalled connection or a hung
 // worker leaves the fetch promise pending forever, so the overlay never
