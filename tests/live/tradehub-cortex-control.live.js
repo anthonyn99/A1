@@ -118,7 +118,8 @@ function fakeBot() {
         await js(`return [...document.querySelectorAll('[data-ctl-pane="cortex"] *')].filter(function(e){ var r=e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).slice(0,4).map(function(e){return e.className+':'+Math.round(e.getBoundingClientRect().right);}).join(' ');`));
     }
     ok('no page errors', errs.length === 0, errs.join(' | '));
-  } catch (e) { fail++; console.log('  FAIL crashed: ' + (e && e.stack || e)); }
+  } catch (e) { fail++; console.log('  FAIL crashed: ' + (e && e.stack || e) + '
+  page errors: ' + errs.slice(0, 5).join(' | ')); }
   console.log(`\n${pass} passed, ${fail} failed`);
   try { await c.close(); } catch (e) {}
   process.exit(fail ? 1 : 0);
