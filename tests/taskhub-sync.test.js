@@ -314,6 +314,8 @@ async function open(dev, profile) {
       ['veda', 390, 'dashboards/vedasdash', 'vd-span-days']
     ]) {
       ok(await open(A, profile), profile + ' opens for finite repeat');
+      await A.evalJs(`window.${profile==='tony'?'_profileGoTony':'_profileGoVeda'}(); 1`);
+      ok(await A.until(`window._activeProfile===${JSON.stringify(profile)}`, 30), profile + ' is the visible profile');
       await A.send('Emulation.setDeviceMetricsOverride', { width, height: 820, deviceScaleFactor: 1, mobile: width === 390 });
       await A.evalJs(`window.${profile==='tony'?'_thVoice':'_vdVoice'}.setEdit(true); window.${profile==='tony'?'_thVoice':'_vdVoice'}.weekView(false); ${profile==='tony'?'window._thVoice.nav("taskhub");':''} 1`);
       console.log('        add controls: ' + await A.evalJs(`(() => { const a=[...document.querySelectorAll('button[aria-label="Add a task or event"]')];return JSON.stringify({all:a.length,visible:a.filter(x=>x.getClientRects().length).length,profile:window._activeProfile,root:document.getElementById('root')?.style.display});})()`));
