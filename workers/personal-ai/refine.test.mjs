@@ -179,10 +179,7 @@ await t('AI Format may not change the wording; Refine may', () => {
   ok(W.formatKeepsContent(DOC, reworded, 'refine'), 'Refine was held to the words');
 });
 await t('formatWordDrift: layout, list markers, entities and existing inline tags are free', () => {
-  const sent = 'Groceries
-- eggs & milk
-1. call <strong>mom</strong>
-E=mc^2 is neat';
+  const sent = 'Groceries\n- eggs & milk\n1. call <strong>mom</strong>\nE=mc^2 is neat';
   eq(W.formatWordDrift(sent, '<h2>Groceries</h2><ul><li>eggs &amp; milk</li></ul><ol><li>call <strong>mom</strong></li></ol><p>$E=mc^2$ is neat</p>'), 0);
   ok(W.formatWordDrift(sent, '<h2>Shopping list</h2><ul><li>Eggs and milk.</li></ul><ol><li>Call mom.</li></ol><p>$E=mc^2$ is neat</p>') > 0.3);
 });
