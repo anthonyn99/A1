@@ -9,6 +9,14 @@ compatibility_date = "2026-01-01"
 [triggers]
 crons = ["* 13-21 * * 1-5"]
 
+[[durable_objects.bindings]]
+name = "EXECUTION"
+class_name = "CortexExecution"
+
+[[migrations]]
+tag = "n4_execution"
+new_sqlite_classes = ["CortexExecution"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "quantbot"

@@ -237,3 +237,33 @@ test('reconciles a transport-uncertain entry and records one fill on repeat poll
   assert.equal(events[0].kind, 'entry');
   assert.equal(events[0].price, 101);
 });
+
+test('a half-day short flattens at 12:50 even when an evaluation shard fails', async (t) => {
+  const { DB, conn, request } = await fixture(t);
+  conn.exec(fs.readFileSync(path.join(__dirname, '../workers3/quant-bot/migrations/0003_market_context.sql'), 'utf8'));
+  const { submitEntry, liveIntents } = await import('../workers3/quant-bot/lib/orders.js');
+  const { paperCycle } = await import('../workers3/quant-bot/lib/paper-cycle.js');
+  const at = Date.parse('2026-11-27T17:50:00Z');
+  const plan = { strategy: 'amd-short', version: 1, symbol: 'AMD', price: 101, stop: 104, target: null,
+    barTime: at - 30 * 60000, why: 'Fixture short', thesis: 'Fixture', style: 'day', side: 'short' };
+  const spec = { id: plan.strategy, horizon: 'day', side: 'short' };
+  await submitEntry(DB, { submit: async () => ({ id: 'parent', status: 'filled', filled_qty: '3', filled_at: new Date(at - 20 * 60000).toISOString(), legs: [] }) }, plan, { spec }, 3, at - 25 * 60000);
+  const { DEFAULTS } = await state;
+  conn.prepare('INSERT INTO bot_settings (version, at, author, reason, body) VALUES (1, ?, ?, ?, ?)').run(at, 'tony', 'Fixture paper mode', JSON.stringify({ ...DEFAULTS, mode: 'paper' }));
+  const calls = [];
+  const broker = {
+    account: async () => ({ equity: '100010', last_equity: '100000', buying_power: '100000' }),
+    positions: async () => [{ symbol: 'AMD', side: 'short', qty: '-3', current_price: '100' }],
+    orders: async () => [], fills: async () => [],
+    close: async (symbol) => { calls.push(symbol); return { id: 'closing' }; },
+    submit: async () => assert.fail('the stale research path must not open a new order'),
+  };
+  const inputs = { now: at, session: { date: '2026-11-27', minutes: 12 * 60 + 50, open: true, half: true, closeMin: 780 },
+    rows: [], outcomes: [], exits: [], dataError: 'fixture bars unavailable' };
+  const result = await paperCycle({ DB }, inputs, broker, () => at);
+  assert.equal(result.skipped, 'stale-data');
+  assert.deepEqual(calls, ['AMD']);
+  assert.equal((await liveIntents(DB))[0].status, 'closing');
+  const { events } = await (await request('/today?day=2026-11-27')).json();
+  assert.match(events[0].why, /flatten time/);
+});
