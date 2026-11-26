@@ -146,7 +146,8 @@ export default {
   async fetch(req, env) {
     const cors = corsHeaders(req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-    const res = await handle(req, env);
+    let res;
+    try { res = await handle(req, env); } catch (e) { res = json({ error: String(e && e.message || e) }, 500); }
     const out = new Response(res.body, res);
     for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
     return out;
