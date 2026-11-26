@@ -92,7 +92,7 @@ export default {
         const n = Math.min(+url.searchParams.get('n') || 40, 80), keep = Math.min(+url.searchParams.get('keep') || 400, 2000);
         return json(tick({ n, keep, parse: url.searchParams.get('parse') === '1' }));
       }
-      if (url.pathname === '/probe/d1') { const r = await env.DB.prepare('select 1 as one, sqlite_version() as v').first(); return json({ ok: true, d1: r }); }
+      if (url.pathname === '/probe/d1') { const r = await env.DB.prepare('select 1 as one').first(); return json({ ok: true, d1: r }); }
       if (url.pathname === '/probe/alpaca') return await probeAlpaca(env, url);
       return json({ error: 'not found' }, 404);
     } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
