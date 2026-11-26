@@ -31,7 +31,7 @@ function fakeBot() {
       const c = current();
       if (body.version !== c.version) return { status: 409, json: { ok: false, error: 'the settings changed, reload and retry' } };
       const next = merge(c.settings, body.settings);
-      if (next.limits.book > 5000 || next.limits.maxDeployed > 3000) return { status: 400, json: { ok: false, error: 'invalid risk limits: book' } };
+      if (next.limits.maxDeployed > next.limits.book || next.limits.maxPosition > next.limits.maxDeployed) return { status: 400, json: { ok: false, error: 'invalid risk limits: no leverage past the book' } };
       if (next.mode === 'paper' && c.settings.mode !== 'paper' && (body.confirmPaper !== true || s.shadowSessions < 2)) return { status: 409, json: { ok: false, error: 'paper needs two shadow sessions and Tony’s confirmation' } };
       s.versions.push({ version: c.version + 1, at: Date.parse('2026-11-27T15:00:00Z') + s.versions.length * 60000, author: body.author, reason: body.reason, settings: next });
       return { json: { ok: true, version: c.version + 1, settings: next } };
@@ -76,28 +76,32 @@ function fakeBot() {
       await js(`return [...document.querySelectorAll('[data-ctl-pane="cortex"] [data-ncx-group]')].map(function(g){return g.dataset.ncxGroup;}).join(',') + ' | ' + (document.querySelector('[data-ctl-pane="cortex"]')||{}).innerText;`));
     ok('...two columns on a wide screen', await js(`var c=${q('.ncx-col')}, d=document.querySelectorAll('[data-ctl-pane="cortex"] .ncx-col')[1]; return !!d && Math.abs(c.getBoundingClientRect().top - d.getBoundingClientRect().top) < 2 && d.getBoundingClientRect().left > c.getBoundingClientRect().right;`));
     ok('...mode Shadow pressed; Paper locked with the reason (0 of 2 shadow sessions)', await js(`var p=${q('[data-ncx-mode="paper"]')}; return ${q('[data-ncx-mode="shadow"]')}.getAttribute('aria-checked') === 'true' && p.disabled && /0 of 2/.test(${q('[data-ncx-group="status"]')}.innerText);`));
-    ok('...the money fields show the plan\'s values and their ceilings', await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '5000' && /up to \\$5,000/.test(${q('[data-ncx-group="money"]')}.innerText) && /\\$12\\.50 to \\$62\\.50/.test(${q('[data-ncx-group="money"]')}.innerText);`));
+    ok('...the money fields show the plan\'s values as defaults (no ceiling)', await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '5000' && /default \\$5,000/.test(${q('[data-ncx-group="money"]')}.innerText) && /\\$12\\.50 to \\$62\\.50/.test(${q('[data-ncx-group="money"]')}.innerText);`));
 
     console.log('\n2. Saving');
     await setField('limits.book', 4000);
-    ok('a changed limit is saved as Tony with its reason, and the page shows the new version', await until(`/Settings version 1/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.p === '/settings' && x.body.author === 'tony' && x.body.settings.limits && x.body.settings.limits.book === 4000 && /book/.test(x.body.reason)),
+    ok('a changed limit is saved as Tony with its reason, and the page shows the new version', await until(`/Settings version 1/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.p === '/settings' && x.body.author === 'tony' && x.body.settings.limits && x.body.settings.limits.book === 4000 && x.body.settings.limits.maxDeployed === 2400 && x.body.settings.limits.maxPosition === 1200 && /book .*scaled/.test(x.body.reason)),
       JSON.stringify(bot.posted.slice(-1)));
     ok('...the risk line follows the new book ($10 to $50)', await until(`/\\$10 to \\$50\\./.test(${q('[data-ncx-group="money"]')}.innerText)`, 4000));
     const before = bot.posted.length;
-    await setField('limits.book', 9000);
+    await setField('limits.maxDeployed', 9000);
     await sleep(500);
-    ok('a value over the ceiling is refused on the page, nothing sent, the field restored', bot.posted.length === before && await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '4000';`));
+    ok('deploying more than the book is refused on the page (no leverage), nothing sent, the field restored', bot.posted.length === before && await js(`return ${q('[data-ncx-field="limits.maxDeployed"]')}.value === '2400';`));
+    await setField('limits.book', 250000);
+    ok('any book can be set: $250,000 scales the caps to $150,000 deployed and $75,000 a position', await until(`/Settings version 2/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.limits && x.body.settings.limits.book === 250000 && x.body.settings.limits.maxDeployed === 150000 && x.body.settings.limits.maxPosition === 75000));
+    await setField('limits.book', 4000);
+    await until(`/Settings version 3/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000);
     await setField('limits.styleShare.invest', 0);
-    ok('a style at 0% is saved as a share of 0 (long-term off)', await until(`/Settings version 2/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.limits && x.body.settings.limits.styleShare && x.body.settings.limits.styleShare.invest === 0));
+    ok('a style at 0% is saved as a share of 0 (long-term off)', await until(`/Settings version 4/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.limits && x.body.settings.limits.styleShare && x.body.settings.limits.styleShare.invest === 0));
     await setField('lifecycle.kill.sleeveDD', 6);
-    ok('a lifecycle rule saves as a nested patch', await until(`/Settings version 3/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.lifecycle && x.body.settings.lifecycle.kill && x.body.settings.lifecycle.kill.sleeveDD === 6));
+    ok('a lifecycle rule saves as a nested patch', await until(`/Settings version 5/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.lifecycle && x.body.settings.lifecycle.kill && x.body.settings.lifecycle.kill.sleeveDD === 6));
 
     console.log('\n3. The strategist');
     ok('the model lists show today\'s model per unit, Fable marked', await until(`/Latest Opus · Opus 5\\.5/.test(${q('[data-ncx-field="strategist.premarket"]')}.innerText) && /Latest Fable · Fable 5\\.2 · needs credits/.test(${q('[data-ncx-field="strategist.premarket"]')}.innerText)`, 6000),
       await js(`return ${q('[data-ncx-field="strategist.premarket"]')}.innerText;`));
     ok('...the last run is shown', await js(`return /Last run: premarket .* ok, 2 proposals/.test(${q('[data-ncx-lastrun]')}.innerText);`), await js(`return ${q('[data-ncx-lastrun]')}.innerText;`));
     await setField('strategist.postclose', 'claude_code/opus');
-    ok('...picking a model saves it', await until(`/Settings version 4/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.strategist && x.body.settings.strategist.postclose === 'claude_code/opus'));
+    ok('...picking a model saves it', await until(`/Settings version 6/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.strategist && x.body.settings.strategist.postclose === 'claude_code/opus'));
     await js(`${q('[data-ncx="research"]')}.click(); 1`);
     ok('Research now asks quant-bot for a run', await until(`true`, 100) && await (async () => { for (let i = 0; i < 30 && !bot.research; i++) await sleep(100); return bot.research === 1; })());
 
@@ -110,9 +114,9 @@ function fakeBot() {
     await js(`${q('[data-ncx="kill"]')}.click(); 1`); await until(`!!${q('[data-ncx-confirm="kill"] [data-ncx="yes"]')}`, 3000);
     await js(`${q('[data-ncx-confirm="kill"] [data-ncx="yes"]')}.click(); 1`);
     ok('...Kill now sends the confirmed kill and shows the halt and the report', await until(`/Halted: Tony pressed the kill switch/.test(${q('[data-ncx-group="status"]')}.innerText) && !!${q('[data-ncx-killreport]')}`, 6000) && bot.kills === 1);
-    ok('History lists the changes, newest first, by you', await js(`var t=${q('[data-ncx-group="history"]')}.innerText; return /v4/.test(t) && t.indexOf('v4') < t.indexOf('v1') && /You ·/.test(t);`));
+    ok('History lists the changes, newest first, by you', await js(`var t=${q('[data-ncx-group="history"]')}.innerText; return /v6/.test(t) && t.indexOf('v6') < t.indexOf('v1') && /You ·/.test(t);`));
     await js(`${q('[data-ncx="undo"]')}.click(); 1`);
-    ok('Undo saves the previous version\'s settings as a new version', await until(`/Settings version 5/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && (() => { const x = bot.posted.filter((y) => y.p === '/settings').pop(); return /undo v4/.test(x.body.reason) && x.body.settings.strategist.postclose === 'claude_code/sonnet'; })());
+    ok('Undo saves the previous version\'s settings as a new version', await until(`/Settings version 7/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && (() => { const x = bot.posted.filter((y) => y.p === '/settings').pop(); return /undo v6/.test(x.body.reason) && x.body.settings.strategist.postclose === 'claude_code/sonnet'; })());
 
     console.log('\n5. Tablet and phone');
     for (const [w, label] of [[820, 'tablet'], [390, 'phone']]) {
