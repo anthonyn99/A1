@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS strategy_life (
   since INTEGER NOT NULL,           -- when it entered this stage
   prior_stage TEXT,                 -- the stage a pause returns to
   shadow_day TEXT,                  -- the session it is shadowing
+  shadow_passes INTEGER NOT NULL DEFAULT 0,
   shadow_fails INTEGER NOT NULL DEFAULT 0,
   paper_days INTEGER NOT NULL DEFAULT 0,
   last_day TEXT,                    -- the last session counted in paper_days

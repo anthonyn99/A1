@@ -253,7 +253,8 @@ export async function review(env, at, { force = false } = {}) {
         why: `Conviction ${before.toFixed(2)} → ${conv.conviction.toFixed(2)}: ${st.rTrades} paper trades at ${conv.ePaper == null ? 'n/a' : conv.ePaper.toFixed(2)} R, backtest ${Number.isFinite(row.report?.expectancyR) ? row.report.expectancyR.toFixed(2) : 'n/a'} R, shrunk to ${conv.e.toFixed(2)} R` });
     }
     const cur = { ...row, paper_days: paperDays, last_day: tradedToday ? day : row.last_day, conviction: conv.conviction };
-    let verdict = row.stage === 'paused' ? null : killReason(st, row, life, limits) && { stage: 'killed', why: killReason(st, row, life, limits) };
+    const killed = row.stage === 'paused' ? null : killReason(st, row, life, limits);
+    let verdict = killed ? { stage: 'killed', why: killed } : null;
     if (!verdict && row.stage === 'paper') verdict = trialVerdict(st, paperDays, life);
     if (verdict) await move(db, cur, verdict.stage, verdict.why, at);
     out.push({ id: row.id, version: row.version, stage: verdict ? verdict.stage : row.stage, ...st, pf: st.pf === Infinity ? null : st.pf, paperDays, conviction: conv.conviction, why: verdict?.why || null });
@@ -299,13 +300,12 @@ export async function postReplay(env, body, at = Date.now()) {
     const nums = r.signals ? `${r.matched} of ${r.signals} signals matched (${Math.round(r.matched / r.signals * 100)}%; ${r.missedLive} missed live, ${r.extraLive} extra)` : 'neither side fired';
     if (row.stage === 'shadow' && row.shadow_day === body.day) {
       if (agree && !errored) {
-        const passes = await db.prepare('UPDATE strategy_life SET matched = matched + ?, signals = signals + ?, updated = ? WHERE id = ? AND version = ?').bind(r.matched, r.signals, at, r.id, r.version).run();
-        void passes;
-        const done = await db.prepare("SELECT COUNT(*) AS n FROM bot_replays p WHERE p.id = ? AND p.version = ? AND (p.signals = 0 OR p.matched * 100 >= p.signals * ?)").bind(r.id, r.version, life.matchMin).first();
-        if (Number(done.n) >= life.shadowSessions) {
+        await db.prepare('UPDATE strategy_life SET shadow_passes = shadow_passes + 1, updated = ? WHERE id = ? AND version = ?').bind(at, r.id, r.version).run();
+        const done = await db.prepare('SELECT shadow_passes AS n FROM strategy_life WHERE id = ? AND version = ?').bind(r.id, r.version).first();
+        if (Number(done?.n) >= life.shadowSessions) {
           await move(db, row, 'paper', `Shadow session ${body.day} passed: ${nums}. Paper trial starts`, at, { shadow_day: null });
           out.push({ id: r.id, version: r.version, stage: 'paper' });
-        } else out.push({ id: r.id, version: r.version, stage: 'shadow', passed: Number(done.n) });
+        } else out.push({ id: r.id, version: r.version, stage: 'shadow', passed: Number(done?.n) });
       } else {
         const fails = (Number(row.shadow_fails) || 0) + 1, why = errored ? `the ${body.day} session had a data or broker error` : `decisions disagreed: ${nums}`;
         if (fails >= 2) { await move(db, row, 'retired', `Retired after two failed shadow sessions: ${why}`, at); out.push({ id: r.id, version: r.version, stage: 'retired' }); }
@@ -373,10 +373,10 @@ export async function getLifecycle({ DB }) {
   });
   const by = new Map();
   for (const s of strategies) for (const k of s.setups.length ? s.setups : ['rules']) {
-    const a = by.get(k) || { setup: k, strategies: 0, trades: 0, weighted: 0 };
-    a.strategies++; a.trades += s.trades; a.weighted += s.conviction * Math.max(1, s.trades); by.set(k, a);
+    const a = by.get(k) || { setup: k, strategies: 0, trades: 0, weighted: 0, weight: 0 }, w = Math.max(1, s.trades);
+    a.strategies++; a.trades += s.trades; a.weighted += s.conviction * w; a.weight += w; by.set(k, a);
   }
-  const setups = [...by.values()].map((a) => ({ setup: a.setup, strategies: a.strategies, trades: a.trades, conviction: Math.round(a.weighted / Math.max(1, a.trades || a.strategies) * 1000) / 1000 }));
+  const setups = [...by.values()].map((a) => ({ setup: a.setup, strategies: a.strategies, trades: a.trades, conviction: Math.round(a.weighted / a.weight * 1000) / 1000 }));
   const last = await DB.prepare('SELECT day, at, body FROM bot_reviews ORDER BY day DESC LIMIT 1').first();
   return json({ ok: true, strategies, setups, review: last ? { day: last.day, at: last.at, ...JSON.parse(last.body) } : null });
 }
