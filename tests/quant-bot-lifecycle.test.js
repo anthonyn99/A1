@@ -299,7 +299,7 @@ test('N7 review: /trades keeps a trade whose entry is older than the window (the
 test('any capital: Tony raises or lowers the book and every cap; incoherent limits are refused; Claude still only tightens', async (t) => {
   const { request } = await fixture(t);
   const put = (author, limits, version) => request('/settings', { method: 'PUT', body: { version, author, reason: 'fixture', settings: { limits } } });
-  const big = await put('tony', { book: 250000, maxDeployed: 150000, maxPosition: 40000, maxShortExposure: 60000, maxPositions: 12, riskMaxPct: 2 }, 0);
+  const big = await put('tony', { book: 250000, maxDeployed: 150000, maxPosition: 40000, maxShortExposure: 60000, maxPositions: 12, riskMaxPct: 1 }, 0);
   assert.equal(big.status, 200, JSON.stringify(big));
   assert.equal(big.settings.limits.book, 250000);
   const small = await put('tony', { book: 800, maxDeployed: 600, maxPosition: 300, maxShortExposure: 200 }, 1);
