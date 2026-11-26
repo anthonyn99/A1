@@ -19844,7 +19844,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       if(_ch)lsSet(CANCEL_KEY,JSON.stringify(_c));
     }catch(e){}
     // Local poll registration (shows banner when tab is open)
-    regUpsert({id:item.id,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:item.notifyAt,anchorAt:item.notifyAt,repeat:item.notifyRepeat||'none',repeatDays:item.notifyRepeatDays||[],repeatId:item.notifyRepeatId||null,dash:item.dashboard||'all'});
+    regUpsert({id:item.id,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:item.notifyAt,anchorAt:item.notifyAt,repeat:item.notifyRepeat||'none',repeatDays:item.notifyRepeatDays||[],repeatId:item.notifyRepeatId||null,repeatEndAt:item.repeatSpanDays&&item.repeatEndDate?new Date(item.repeatEndDate.year,item.repeatEndDate.month,item.repeatEndDate.day,23,59,59,999).getTime():null,dash:item.dashboard||'all'});
     // FCM push registration (delivers when tab is closed).
     // FCM module is <script type="module"> — loads async; may not have set
     // window._fcmScheduleNotif when user saves a task right after page load.
