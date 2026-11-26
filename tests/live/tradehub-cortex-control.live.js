@@ -52,7 +52,8 @@ function fakeBot() {
     { id: 'claude_code/sonnet', backend_type: 'cli', resolved_label: 'Sonnet 5.5', needs_credits: false, routable: true },
     { id: 'claude_code/haiku', backend_type: 'cli', resolved_label: 'Haiku 5.5', needs_credits: false, routable: true },
     { id: 'claude_code/fable', backend_type: 'cli', resolved_label: 'Fable 5.2', needs_credits: true, routable: true }];
-  const mock = { patterns: [...api.mock.patterns, BOT + '/*'], handle: (req) => (req.url.startsWith(BOT) ? bot.handle(req) : api.mock.handle(req)) };
+  const base = api.mock.handle.bind(api.mock);
+  const mock = Object.assign(Object.create(Object.getPrototypeOf(api.mock)), api.mock, { patterns: [...api.mock.patterns, BOT + '/*'], handle: (req) => (req.url.startsWith(BOT) ? bot.handle(req) : base(req)) });
   const c = await connect({ mock });
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable');
