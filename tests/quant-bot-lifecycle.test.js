@@ -261,3 +261,16 @@ test('admission keeps the union of symbols inside the 40 a tick can evaluate; he
   assert.equal(shards[0][0], 'ZZZ');
   assert.ok(shards.slice(0, 4).flat().includes('ZZZ'));
 });
+
+test('N6: TradeHub origins get CORS (preflight included); other origins do not', async () => {
+  const { default: app } = await worker;
+  const ok = await app.fetch(new Request('https://x/health', { headers: { origin: 'https://a1-priv.av1.workers.dev' } }), {});
+  assert.equal(ok.headers.get('access-control-allow-origin'), 'https://a1-priv.av1.workers.dev');
+  assert.equal(ok.headers.get('access-control-expose-headers'), 'etag');
+  const pre = await app.fetch(new Request('https://x/settings', { method: 'OPTIONS', headers: { origin: 'http://localhost:5173' } }), {});
+  assert.equal(pre.status, 204);
+  assert.match(pre.headers.get('access-control-allow-methods'), /PUT/);
+  const bad = await app.fetch(new Request('https://x/health', { headers: { origin: 'https://evil.example' } }), {});
+  assert.equal(bad.headers.get('access-control-allow-origin'), null);
+  assert.equal((await app.fetch(new Request('https://x/state', { headers: { origin: 'https://a1-priv.av1.workers.dev' } }), {})).status, 401);
+});
