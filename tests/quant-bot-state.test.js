@@ -15,7 +15,7 @@ async function fixture(t) {
   const conn = new DatabaseSync(':memory:');
   t.after(() => conn.close());
   const dir = path.join(__dirname, '..', 'workers3/quant-bot/migrations');
-  for (const sql of ['0001_lab.sql', '0002_bot_state.sql', '0002_bot_state.sql', '0003_market_context.sql', '0004_kill_latch.sql', '0005_order_intents.sql', '0006_lifecycle.sql']) conn.exec(fs.readFileSync(path.join(dir, sql), 'utf8'));
+  for (const sql of ['0001_lab.sql', '0002_bot_state.sql', '0002_bot_state.sql', '0003_market_context.sql', '0004_kill_latch.sql', '0005_order_intents.sql', '0006_lifecycle.sql', '0007_session_slots.sql']) conn.exec(fs.readFileSync(path.join(dir, sql), 'utf8'));
   function bind(sql, ...args) {
     const query = conn.prepare(sql);
     return {

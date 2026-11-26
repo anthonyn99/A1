@@ -1,6 +1,6 @@
 import { nyClock } from '../core/clock.js';
 import { isTradingDay } from '../core/holidays.js';
-import { liveStrategies } from './lifecycle.js';
+import { liveStrategies, noteSlot } from './lifecycle.js';
 import { deployed } from '../core/risk-book.js';
 import { paperBroker } from './alpaca.js';
 import { candidate, checkCandidate, exitReason, shardsFor, usesDaySetup } from './evaluate.js';
@@ -120,7 +120,10 @@ export async function runShadow(env, at, dispatch, { cache = globalThis.caches?.
     }
     const groups = shardsFor(rows).slice(0, 4);
     outcomes = (await Promise.all(groups.map((symbols) => dispatch(symbols, rows, now, session)))).flat();
-    if (checkpoint) await markCheckpoint(db, at, session, status, book, rows.length);
+    if (checkpoint) {
+      await markCheckpoint(db, at, session, status, book, rows.length);
+      if (rows.length) await noteSlot(db, session.date, Math.floor((session.minutes - session.openMin) / 15));
+    }
     else if (status.errors) await db.prepare('UPDATE bot_state SET errors = 0 WHERE id = 1').run();
   } catch (error) {
     await storeFailure(db, status, at, error.message);

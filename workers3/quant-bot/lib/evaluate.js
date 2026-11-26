@@ -11,8 +11,10 @@ const SHARD = 10;
 const r2 = (value) => Math.round(value * 100) / 100;
 const leaves = (block) => (block?.all || block?.any) ? [...(block.all || []), ...(block.any || [])].flatMap(leaves) : block ? [block] : [];
 
+/** Symbols in shards of ten, held positions first (their exits must never fall past the tick's 4-shard cap). */
 export function shardsFor(strategies, held = []) {
-  const symbols = [...new Set([...strategies.flatMap(({ spec }) => spec.universe.symbols), ...held.map(({ sym }) => sym)])].sort();
+  const own = [...new Set(held.map(({ sym }) => sym))].sort();
+  const symbols = [...new Set([...own, ...[...new Set(strategies.flatMap(({ spec }) => spec.universe.symbols))].sort()])];
   const out = [];
   for (let i = 0; i < symbols.length; i += SHARD) out.push(symbols.slice(i, i + SHARD));
   return out;

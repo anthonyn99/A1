@@ -3,6 +3,7 @@ import { reconcile } from './reconcile.js';
 import { activeProtection, closeIntent, liveIntents, paperEntries, restoreProtection, syncIntents } from './orders.js';
 import { logEvent, readBotState, readSettings } from './state.js';
 import { readMarketContext } from './context.js';
+import { noteSlot } from './lifecycle.js';
 
 const MIN = 60000;
 const bySymbol = (positions) => new Map(positions.map((row) => [row.symbol, row]));
@@ -88,6 +89,7 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
     if (marketCurrent && protective && !status.halted && !config.settings.paused && status.errors < 3 && book.risk.state === 'ok' &&
         positions.every((row) => managed.has(row.symbol))) {
       await paperEntries(db, broker, outcomes, rows, { ...book, positions: [...book.positions, ...book.pending] }, calendar, session, scheduledAt);
+      if (rows.length && (session.minutes - session.openMin) % 15 === 1) await noteSlot(db, session.date, Math.floor((session.minutes - session.openMin) / 15));
     }
     return { checked: true };
   } catch (error) {
