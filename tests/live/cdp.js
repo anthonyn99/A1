@@ -217,6 +217,8 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
             { name: 'Access-Control-Allow-Origin', value: '*' },
             { name: 'Access-Control-Allow-Headers', value: '*' },
             { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, PATCH, DELETE, OPTIONS' },
+            { name: 'Access-Control-Expose-Headers', value: '*' },
+            ...Object.entries((v && v.headers) || {}).map(([name, value]) => ({ name, value: String(value) })),
           ],
           body: Buffer.from(v && v.text != null ? v.text : v && v.json != null ? JSON.stringify(v.json) : '').toString('base64'),
         }));
@@ -230,6 +232,8 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
             { name: 'Access-Control-Allow-Origin', value: '*' },
             { name: 'Access-Control-Allow-Headers', value: '*' },
             { name: 'Access-Control-Allow-Methods', value: 'POST, GET, PUT, PATCH, DELETE, OPTIONS' },
+            { name: 'Access-Control-Expose-Headers', value: '*' },
+            ...Object.entries(r.headers || {}).map(([name, value]) => ({ name, value: String(value) })),   // a test's own (an ETag)
           ],
           body: Buffer.from(r.text != null ? r.text : r.json == null ? '' : JSON.stringify(r.json)).toString('base64'),
         });
