@@ -115,10 +115,10 @@ test('replay: a matching shadow day goes to paper, a disagreement shadows again,
   // a day the bot did not fully evaluate (paused at noon) judges nothing
   cover(conn, FRI, 5);
   const unjudged = await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [{ id: 'bad-one', version: 1, signals: 3, matched: 0, missedLive: 3, extraLive: 0 }] } });
-  assert.match(unjudged.results[0].unjudged, /evaluated 5 of 12 checkpoints/);
+  assert.match(unjudged.results[0].unjudged, /evaluated 5 of 13 checkpoints/);
   assert.equal(conn.prepare("SELECT shadow_fails FROM strategy_life WHERE id = 'bad-one'").get().shadow_fails, 0);
   conn.prepare("DELETE FROM bot_replays").run();
-  cover(conn, FRI, 12);
+  cover(conn, FRI, 14);
   const res = await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [
     { id: 'good-one', version: 1, signals: 10, matched: 9, missedLive: 1, extraLive: 0 },
     { id: 'bad-one', version: 1, signals: 10, matched: 5, missedLive: 3, extraLive: 2 },
@@ -168,7 +168,7 @@ test('review: keep, retire, three kill rules, conviction logged, once a day and 
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'coldhand'").get().why, /90% upper bound 30\.1%/);
   assert.match(conn.prepare("SELECT why FROM strategy_life WHERE id = 'deepdd'").get().why, /\$135\.00 from its peak, over 8% of its \$1500 sleeve/);
   // the drift rule: an active strategy whose live decisions disagree on over 25% of 10+ signals
-  cover(conn, FRI, 12);
+  cover(conn, FRI, 14);
   await request('/lifecycle/replay', { method: 'POST', body: { day: FRI, results: [{ id: 'drifter', version: 1, signals: 12, matched: 8, missedLive: 4, extraLive: 0 }] } });
   assert.equal(stageOf(conn, 'drifter'), 'killed');
   const view = await request('/lifecycle');
