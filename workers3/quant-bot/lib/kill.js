@@ -42,6 +42,8 @@ export async function flattenPaper(env, { broker: client } = {}) {
     problems.push(error.message);
   }
   const flat = positions?.length === 0 && orders?.length === 0;
-  if (flat) await db.prepare('UPDATE bot_state SET kill_pending = 0 WHERE id = 1 AND halted = ?').bind(HALTED).run();
-  return json({ ok: flat, halted: true, canceled, closing, positions, orders, problems }, flat ? 200 : 502);
+  const result = { ok: flat, halted: true, canceled, closing, positions, orders, problems };
+  await db.prepare("UPDATE bot_state SET kill_pending = ?, snapshot = json_patch(COALESCE(snapshot,'{}'), ?) WHERE id = 1 AND halted = ?")
+    .bind(flat ? 0 : 1, JSON.stringify({ killReport: result }), HALTED).run();
+  return json(result, flat ? 200 : 502);
 }

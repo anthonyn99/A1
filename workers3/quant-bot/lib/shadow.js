@@ -83,7 +83,7 @@ async function markCheckpoint(db, at, session, previous, book, count) {
   const slot = Math.floor((session.minutes - session.openMin) / 15);
   const snapshots = previous.date === session.date ? previous.shadowSlots || [] : [];
   const shadowSlots = [...new Set([...snapshots, ...(count > 0 && book.risk.state === 'ok' ? [slot] : [])])];
-  const next = { date: session.date, market: 'open', half: session.half, shadowSlots,
+  const next = { ...(previous.killReport ? { killReport: previous.killReport } : {}), date: session.date, market: 'open', half: session.half, shadowSlots,
     startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, strategies: count, guard: book.risk, buyingPower: book.buyingPower };
@@ -95,7 +95,7 @@ async function finishSession(db, at, session, previous) {
   if (previous.date !== session.date || previous.market !== 'open') return;
   const remainingSlots = Math.ceil((session.closeMin - session.openMin) / 15);
   const next = { ...previous, market: 'closed' };
-  for (const field of ['halted', 'lastCheck', 'errors']) delete next[field];
+  for (const field of ['halted', 'lastCheck', 'errors', 'killPending']) delete next[field];
   const statements = [db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ? WHERE id = 1').bind(at, JSON.stringify(next))];
   if (!previous.errors && !previous.halted && (previous.shadowSlots || []).length >= remainingSlots) {
     statements.push(db.prepare('INSERT OR IGNORE INTO bot_shadow_sessions (day, checked) VALUES (?, ?)').bind(session.date, at));

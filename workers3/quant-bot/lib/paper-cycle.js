@@ -19,7 +19,7 @@ async function failure(db, status, now, reason) {
 async function markRisk(db, session, status, book, at) {
   const frame = Math.floor(at / (15 * MIN));
   const fresh = frame !== Math.floor((status.lastCheck || 0) / (15 * MIN));
-  const state = { date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
+  const state = { ...(status.killReport ? { killReport: status.killReport } : {}), date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
     startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, guard: book.risk, buyingPower: book.buyingPower };

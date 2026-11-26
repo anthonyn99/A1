@@ -15,12 +15,12 @@ import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest,
 import { getSettings, putSettings, getState, getToday, getBrief } from './lib/state.js';
 import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
+import { ALPACA_PAPER, ALPACA_DATA } from './lib/alpaca.js';
 import { buildContexts } from './core/simulate.js';
 import { decide } from './core/pilot.js';
 
 // Order code may call only these (quant-trading.md §1 rule 2); N0 calls only read paths.
-export const ALPACA_PAPER = 'https://paper-api.alpaca.markets';
-export const ALPACA_DATA = 'https://data.alpaca.markets';
+export { ALPACA_PAPER, ALPACA_DATA };
 
 const json = (body, status = 200) => new Response(JSON.stringify(body, null, 1), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
