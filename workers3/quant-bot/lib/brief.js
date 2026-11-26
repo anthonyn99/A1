@@ -10,7 +10,6 @@ import { paperBroker } from './alpaca.js';
 import { json } from './lab.js';
 
 export const NUMBERS_AFTER = 20, CLAUDE_DEADLINE = 75;
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const r2 = (x) => Math.round(x * 100) / 100;
 const money = (x) => (x < 0 ? '-$' : '$') + Math.abs(x).toFixed(2);
 const pct = (x) => (x > 0 ? '+' : '') + x.toFixed(2) + '%';
