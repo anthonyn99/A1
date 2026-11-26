@@ -6979,33 +6979,6 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
     // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
     const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
-    if(repeat==="altSeq"){
-      const validTitles=altSeqTitles.map(s=>s.trim()).filter(Boolean);
-      if(validTitles.length<2){alert("Alternating sequence needs at least 2 steps.");return;}
-      if(!endDate){alert("Please set an end date.");return;}
-      const isEdit=!!(initial?.altSeqId);
-      if(isEdit){
-        // Editing an existing altSeq item — treat as title edit choice for the seq
-        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,
-          ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
-          altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,
-          altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
-          ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
-          ...aiF,
-        };
-        onSave(startDateKey,item,"altSeqEdit");onClose();
-      } else {
-        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,
-          ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
-          altSeqTitles:validTitles,
-          altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
-          ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:null}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
-          ...aiF,
-        };
-        onSave(startDateKey,baseItem,{mode:"altSeq",titles:validTitles,endDate});onClose();
-      }
-      return;
-    }
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,
       ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
       ...(repeat!=="none"?{repeat:repeatMode,repeatDays,repeatEndDate:repeatEnd,repeatId:initial?.repeatId||uid(),...(repeat==="span"?{repeatSpanDays:Number(spanDays)}:{})}:{repeat:"none"}),
@@ -7077,7 +7050,6 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
       React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
         React.createElement("div",{style:lbl},"Repeat"),
         initial?.repeatId&&initial?.repeat&&initial.repeat!=="none"&&React.createElement("div",{style:{fontSize:11,color:T.ERR,fontWeight:600,marginBottom:10,padding:"7px 12px",background:T.ERR+"14",borderRadius:4,border:"1px solid "+T.ERR+"30"}},"⚠ Repeating task — 'No Repeat' will cancel future occurrences."),
-        initial?.altSeqId&&React.createElement("div",{style:{fontSize:11,color:T.AC,fontWeight:600,marginBottom:10,padding:"7px 12px",background:T.AC+"14",borderRadius:4,border:"1px solid "+T.AC+"30"}},"🔁 Part of an alternating sequence."),
         React.createElement("div",{style:{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}},
           React.createElement("button",{type:"button",style:tb(repeat==="none",!!initial?.repeatId),onClick:()=>setRepeat("none")},"No repeat"),
           React.createElement("button",{type:"button",style:tb(repeat==="daily",false),onClick:()=>setRepeat("daily")},"Every day"),
@@ -15401,21 +15373,6 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     const repeatEnd=repeat==="span"?thSpanEndDate(startDateKey,Number(spanDays)):endDate;
     // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
     const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
-    if(repeat==="altSeq"){
-      const validTitles=altSeqTitles.map(s=>s.trim()).filter(Boolean);
-      if(validTitles.length<2){alert("Alternating sequence needs at least 2 steps.");return;}
-      if(!endDate){alert("Please set an end date.");return;}
-      const isEdit=!!(initial?.altSeqId);
-      const notifyFields=notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null};
-      if(isEdit){
-        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields,...aiF};
-        onSave(startDateKey,item,"altSeqEdit");onClose();
-      } else {
-        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields,...aiF};
-        onSave(startDateKey,baseItem,{mode:"altSeq",titles:validTitles,endDate});onClose();
-      }
-      return;
-    }
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat:repeatMode,repeatDays,repeatEndDate:repeatEnd,repeatId:initial?.repeatId||uid(),...(repeat==="span"?{repeatSpanDays:Number(spanDays)}:{})}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),...aiF};
     // A repeating task must keep its reminder on EVERY future occurrence. If the
     // user didn't set an explicit notify repeat, the reminder inherits the task's
@@ -15472,7 +15429,6 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       RC("div",{style:{marginTop:4,marginBottom:12,borderTop:"1px solid "+BD,paddingTop:12}},
         RC("div",{style:lbl},"Repeat"),
         initial?.repeatId&&initial?.repeat&&initial.repeat!=="none"&&RC("div",{style:{fontSize:11,color:"#f85149",fontWeight:600,marginBottom:8,padding:"6px 10px",background:"rgba(248,81,73,.08)",borderRadius:4,border:"1px solid rgba(248,81,73,.2)",display:"flex",gap:6,alignItems:"flex-start"}},RC(VdIcon,{name:"alert",size:13,style:{marginTop:1}}),RC("span",null,"This is a repeating task. Selecting \"No repeat\" will delete all future occurrences from this date onward.")),
-        initial?.altSeqId&&RC("div",{style:{fontSize:11,color:A,fontWeight:600,marginBottom:8,padding:"6px 10px",background:A+"18",borderRadius:4,border:"1px solid "+A+"40",display:"flex",gap:6,alignItems:"center"}},RC(VdIcon,{name:"repeat",size:13}),RC("span",null,"Part of an alternating sequence.")),
         RC("div",{style:{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}},
           [["none","No repeat"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"],...(type==="task"?[["span","Next X days"]]:[])].map(([v,l])=>RC("button",{key:v,onClick:()=>setRepeat(v),style:tb(repeat===v,v==="none"&&!!(initial?.repeatId||initial?.altSeqId))},l))),
         repeat==="weekly"&&RC("div",{style:{marginBottom:10}},RC("div",{style:lbl},"Repeat on"),RC(VedaDayPicker,{selected:repeatDays,onChange:setRepeatDays})),
