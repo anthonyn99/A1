@@ -80,7 +80,7 @@ function fakeBot() {
     console.log('\n2. Drawers');
     await js(`document.querySelector('[data-ncx-event="1"]').click(); 1`);
     ok('a move opens its drawer: the reason, the thesis, the strategy', await until(`(function(){ var d=document.querySelector('[data-ncx-drawer]'); return d && /opening range high 162\\.10/.test(d.innerText) && /Semis lead in risk-on/.test(d.innerText) && /Semis opening-range breakout · active/.test(d.innerText); })()`, 5000));
-    ok('...with a small chart of the day (entry, stop and target lines)', await until(`!!document.querySelector('[data-ncx-drawer] .ncx-mc .ncx-mc-stop') && !!document.querySelector('[data-ncx-drawer] .ncx-mc .ncx-mc-target')`, 8000), await js(`var d=document.querySelector('[data-ncx-drawer]'); return d ? d.innerText.slice(-200) : 'none';`));
+    ok('...with a small chart of the day (entry, stop and target lines)', await until(`!!document.querySelector('[data-ncx-drawer] .ncx-mc .ncx-mc-stop') && !!document.querySelector('[data-ncx-drawer] .ncx-mc .ncx-mc-target')`, 8000), await js(`var d=document.querySelector('[data-ncx-drawer]'); return d ? d.querySelector('.ncx-mcbox').innerHTML.slice(0,300) : 'none';`));
     ok('...A1\'s dim and blur behind it', await js(`var s=document.querySelector('[data-ncx-scrim]'); var cs=getComputedStyle(s); return /blur/.test(cs.backdropFilter || cs.webkitBackdropFilter || '');`));
     await js(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 1`);
     ok('...Escape closes it', await until(`!document.querySelector('[data-ncx-drawer]')`, 3000));
