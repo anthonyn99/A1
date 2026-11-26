@@ -145,6 +145,11 @@ def stored_windows(slot: str, agent: str = "claude") -> dict:
     from ..code.agents import limits
     wins = limits.aged(limits.usage(agent, slot))
     if agent == "codex":
+        # A slot can keep an old Free-plan 30-day reading after upgrading to
+        # Plus/Pro. That old future timestamp must not suppress fresh 5-hour
+        # reads or put a reset card on the wrong day.
+        if plan_of(slot, agent) != "free":
+            wins.pop("30d", None)
         return {kind: wins[key] for key, kind in CODEX_WINDOWS.items() if key in wins}
     return wins
 
