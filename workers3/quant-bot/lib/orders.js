@@ -169,7 +169,13 @@ export async function paperEntries(db, broker, outcomes, rows, exposure, calenda
   const byId = new Map(rows.filter((row) => ['paper', 'active'].includes(row.stage)).map((row) => [row.id, row]));
   for (const p of outcomes) {
     const row = byId.get(p.strategy);
-    if (p.skip || !row || p.version !== row.version) continue;
+    if (!row || p.version !== row.version) continue;
+    if (p.skip) {
+      const bar = p.barTime || Math.floor(now / (15 * MIN));
+      await logEvent(db, { key: 'skip-' + clientId({ ...p, barTime: bar }), ts: now, kind: 'skip', symbol: p.symbol,
+        strategy: p.strategy, version: p.version, why: p.skip });
+      continue;
+    }
     const [settings, status] = await Promise.all([readSettings(db), readBotState(db)]);
     const controls = settings.settings;
     if (controls.mode !== 'paper' || controls.paused || status.halted || status.killPending || status.errors >= 3) return;

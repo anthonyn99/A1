@@ -43,7 +43,7 @@ export function reconcile(account, held, open, managed, previous, limits) {
   const bookEquity = limits.book + equity - startingEquity;
   const peak = Math.max(previous.peak ?? limits.book, bookEquity);
   const dayPnl = equity - lastEquity;
-  const state = { equity: bookEquity, peak, dayPnl, halted: previous.halted, paused: account.trading_blocked === true,
+  const state = { equity: bookEquity, peak, dayPnl, halted: previous.halted, paused: account.trading_blocked === true || previous.dayPaused === true,
     positions: [...positions, ...pending], buyingPower, startingEquity };
   return { ...state, positions, pending, risk: guard(state, limits) };
 }

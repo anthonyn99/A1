@@ -16,14 +16,19 @@ async function failure(db, status, now, reason) {
     ts: now, kind: 'guard', why: 'The paper broker failed three checks. New entries paused. ' + reason });
 }
 
-async function markRisk(db, session, status, book, at) {
+export async function notePaperFailure(env, at, reason) {
+  await failure(env.DB, await readBotState(env.DB), at, reason);
+}
+
+async function markRisk(db, session, status, book, limits, at) {
   const frame = Math.floor(at / (15 * MIN));
   const fresh = frame !== Math.floor((status.lastCheck || 0) / (15 * MIN));
-  const state = { ...(status.killReport ? { killReport: status.killReport } : {}), date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
+  const pauseDay = status.pauseDay === session.date || book.dayPnl <= -limits.book * limits.dailyLossPct / 100 ? session.date : null;
+  const state = { pauseDay, ...(status.killReport ? { killReport: status.killReport } : {}), date: session.date, market: session.open ? 'open' : 'closed', half: session.half,
     startingEquity: book.startingEquity, equity: book.equity, peak: book.peak, dayPnl: book.dayPnl,
     deployed: deployed({ positions: [...book.positions, ...book.pending] }), positions: book.positions,
     pending: book.pending, guard: book.risk, buyingPower: book.buyingPower };
-  if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || !status.peak || book.peak > status.peak) {
+  if (fresh || (book.risk.state === 'halt' && !status.halted) || status.errors || pauseDay !== (status.pauseDay || null) || !status.peak || book.peak > status.peak) {
     await db.prepare('UPDATE bot_state SET last_check = ?, snapshot = ?, errors = 0, halted = COALESCE(halted, ?) WHERE id = 1')
       .bind(at, JSON.stringify(state), book.risk.state === 'halt' ? book.risk.why : null).run();
   }
@@ -56,7 +61,7 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
       broker.account(), broker.positions(), broker.orders(), liveIntents(db), readMarketContext(db),
     ]);
     const refreshed = await syncIntents(db, broker, known, positions, orders, scheduledAt);
-    const book = reconcile(account, positions, orders, refreshed, status, config.settings.limits);
+    const book = reconcile(account, positions, orders, refreshed, { ...status, dayPaused: status.pauseDay === session.date }, config.settings.limits);
     const raw = bySymbol(positions), exitReasons = new Map(exits.map((row) => [row.id, row.why]));
     const working = new Map(orders.map((order) => [order.client_order_id, order]));
     let protective = true;
@@ -77,7 +82,7 @@ export async function paperCycle(env, input, broker, clock = Date.now) {
       await failure(db, status, scheduledAt, dataError);
       return { skipped: 'stale-data', reason: dataError };
     }
-    await markRisk(db, session, status, book, scheduledAt);
+    await markRisk(db, session, status, book, config.settings.limits, scheduledAt);
     const marketCurrent = session.open && clock() - scheduledAt < MIN;
     const managed = new Set(refreshed.map((row) => row.symbol));
     if (marketCurrent && protective && !status.halted && !config.settings.paused && status.errors < 3 && book.risk.state === 'ok' &&
