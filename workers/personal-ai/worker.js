@@ -2547,6 +2547,17 @@ export function formatKeepsContent(text, html, tool) {
     // in fifty waits while the next model tries (the editor restores the rest).
     if (formatWordDrift(text, html) > 0.02) return false;
   }
+  if (tool === 'refine') {
+    // Refine rewrites, but adds nothing and loses nothing: every number, URL,
+    // quote and code name survives (refineMissing, MAGI Refine's check), and an
+    // answer far longer than what was sent has invented sentences (live
+    // 2026-11-26: an 85-word essay came back at 150 with new claims in it).
+    const plainOf = (s) => wdDecode(String(s).replace(/\[\[[^\]]+\]\]/g, ' ').replace(/<[^>]*>/g, ' '));
+    const sent = plainOf(text), got = plainOf(html);
+    if (refineMissing(sent, got).length) return false;
+    const words = (s) => (s.match(/\S+/g) || []).length;
+    if (words(got) > words(sent) * 1.35 + 12) return false;
+  }
   return true;
 }
 

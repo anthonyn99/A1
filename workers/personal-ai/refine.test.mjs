@@ -196,6 +196,12 @@ await t('AI Format always carries the format-only rule; other tools never do', a
   ok(!CALLS[1].prompt.includes('FORMAT ONLY'), 'refine got the lock');
   ok(CALLS[1].prompt.startsWith('Rewrite it.'), 'custom prompt not used');
 });
+await t('Refine may not invent sentences or lose a number', () => {
+  const sent = 'i want to get into med school by 2029 because my mom is a nurse';
+  ok(W.formatKeepsContent(sent, '<p>I want to get into medical school by 2029 because my mom is a nurse.</p>', 'refine'));
+  ok(!W.formatKeepsContent(sent, '<p>I want to get into medical school because my mom is a nurse.</p>', 'refine'), 'a lost year passed');
+  ok(!W.formatKeepsContent(sent, '<p>I want to get into medical school by 2029. My mother, a dedicated nurse, has shown me the profound impact of compassionate care on patients and families, and her example drives my commitment to serving the community.</p>', 'refine'), 'a padded answer passed');
+});
 await t("Tony's tools use his key; Veda's use hers", async () => {
   GEMINI = html(HTML);
   await post('/journal/format', { profile: 'tony', text: DOC, tool: 'format' });
