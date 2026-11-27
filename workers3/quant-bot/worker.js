@@ -16,6 +16,7 @@
 import { withDefaults } from './core/strategy.js';
 import { getRuns, postRun, getStrategies, postStrategy, getRequest, postRequest, claimRequest } from './lib/lab.js';
 import { getSettings, putSettings, getState, getToday, getBrief } from './lib/state.js';
+import { getAccount } from './lib/account.js';
 import { putMarketContext } from './lib/context.js';
 import { killBot } from './lib/kill.js';
 import { getLifecycle, getFires, postReplay, postStage, getTrades } from './lib/lifecycle.js';
@@ -135,6 +136,7 @@ const ROUTES = {
   'PUT /market/context': async (req, env) => putMarketContext(env, await req.json().catch(() => null)),
   'GET /settings': (req, env, url) => getSettings(env, url), 'PUT /settings': async (req, env) => putSettings(env, await req.json().catch(() => null)),
   'GET /state': (req, env) => getState(env), 'GET /today': getToday,
+  'GET /account': (req, env) => getAccount(req, env),
   'GET /lab/runs': (req, env, url) => getRuns(env, url), 'POST /lab/runs': async (req, env) => alertNow(env, await postRun(env, await req.json())),
   'GET /strategies': (req, env, url) => getStrategies(env, url), 'POST /strategies': async (req, env) => postStrategy(env, await req.json()),
   'GET /research/request': (req, env) => getRequest(env), 'POST /research/request': async (req, env) => postRequest(env, await req.json().catch(() => ({}))),
