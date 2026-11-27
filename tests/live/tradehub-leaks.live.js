@@ -19,7 +19,7 @@
 // Run: CDP_PORT=93xx node tests/live/tradehub-leaks.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, bigJournal, PAGE_SETUP, WATCHLIST } = require('./quant-mock.js');
+const { quantApi, driver, bigJournal, PAGE_SETUP, WATCHLIST, CLOCK } = require('./quant-mock.js');
 const SOAK_MIN = Number(process.env.SOAK_MIN) || 0;
 const REAL = !!process.env.REAL || SOAK_MIN > 0;
 // Tony's Main had 35 tickers (R0); the mock answers bars and quotes for any symbol.
@@ -33,6 +33,48 @@ const ok = (name, cond, extra) => {
 const ALL = ['portfolio', 'market', 'charts', 'scanner', 'neo', 'trading', 'journal', 'catalysts', 'playbook', 'prompt', 'news', 'analysis'];
 const TABS = process.env.TABS ? process.env.TABS.split(',') : ALL;
 const LEAK_MIN = Number(process.env.LEAK_MIN) || 3, WARM_S = Number(process.env.WARM_S) || 45, CYCLES = Number(process.env.CYCLES) || 40;
+const BOT = 'https://quant-bot.anthony-account-3.workers.dev';
+
+function cortexMock(api) {
+  let today = 0;
+  const events = Array.from({ length: 80 }, (_, i) => event(80 - i));
+  function event(id) { return { id, ts: CLOCK - 60000, kind: 'shadow', sym: 'NVDA', side: 'long', qty: 4, price: 130, strategy: 'test', version: 1, why: 'Trade signal recorded in shadow.' }; }
+  const values = {
+    '/state': { market: 'open', mode: 'shadow', positions: [], lastCheck: CLOCK, shadowSessions: 1 },
+    '/settings': { version: 0, history: [], settings: { mode: 'shadow', limits: { book: 5000, maxDeployed: 3000, styleShare: {} }, strategist: {}, lifecycle: {} } },
+    '/lifecycle': { strategies: [] }, '/lab/runs': { runs: [{ id: 'r1', session: 'premarket', started: CLOCK, outcome: 'ok' }] },
+    '/briefs': { briefs: [] }, '/trades': { trades: [{ strategy: 'test', symbol: 'NVDA', opened: CLOCK, pnl: 12, r: 0.5 }] },
+  };
+  const mock = { ...api.mock, patterns: [...api.mock.patterns, BOT + '/*'], handle(req) {
+    if (!req.url.startsWith(BOT + '/')) return api.mock.handle(req);
+    if (req.method === 'OPTIONS') return { status: 204, text: '' };
+    const u = new URL(req.url), p = u.pathname;
+    if (p === '/today') {
+      events.unshift(event(80 + ++today));
+      return { json: { ok: true, day: u.searchParams.get('day'), events: events.slice(0, 200) }, headers: { etag: '"journal-' + today + '"' } };
+    }
+    if (p.startsWith('/brief/')) return { json: { ok: true, brief: null } };
+    if (values[p]) return { json: { ok: true, ...values[p] } };
+    return { status: 404, json: { error: 'Unexpected request ' + p } };
+  } };
+  return { mock, today: () => today };
+}
+
+// Count timer IDs without retaining callbacks or DOM. Tab exit can then be compared to the warmed baseline.
+const TRACK_TIMERS = `(() => {
+  const active = new Set();
+  const st = window.setTimeout.bind(window), si = window.setInterval.bind(window);
+  const ct = window.clearTimeout.bind(window), ci = window.clearInterval.bind(window);
+  window.setTimeout = (fn, ms, ...args) => {
+    if (typeof fn !== 'function') return st(fn, ms, ...args);
+    const id = st((...a) => { active.delete(id); fn(...a); }, ms, ...args);
+    active.add(id); return id;
+  };
+  window.setInterval = (...args) => { const id = si(...args); active.add(id); return id; };
+  window.clearTimeout = (id) => { active.delete(id); ct(id); };
+  window.clearInterval = (id) => { active.delete(id); ci(id); };
+  window.__activeTimers = () => active.size;
+})();`;
 
 /** Object counts by constructor name from a heap snapshot (CDP HeapProfiler). */
 async function census(c) {
@@ -43,12 +85,13 @@ async function census(c) {
   await c.send('HeapProfiler.takeHeapSnapshot', { reportProgress: false });
   c.ws.removeEventListener('message', onMsg);
   const snap = JSON.parse(buf), meta = snap.snapshot.meta, F = meta.node_fields, nf = F.length;
-  const iType = F.indexOf('type'), iName = F.indexOf('name'), iSize = F.indexOf('self_size'), types = meta.node_types[0];
+  const iType = F.indexOf('type'), iName = F.indexOf('name'), iSize = F.indexOf('self_size'), iDetached = F.indexOf('detachedness'), types = meta.node_types[0];
   const counts = new Map();
   for (let i = 0; i < snap.nodes.length; i += nf) {
     const t = types[snap.nodes[i + iType]];
     if (t !== 'object' && t !== 'native' && t !== 'closure') continue;
-    const name = (t === 'closure' ? 'closure ' : '') + snap.strings[snap.nodes[i + iName]];
+    let name = (t === 'closure' ? 'closure ' : '') + snap.strings[snap.nodes[i + iName]];
+    if (t === 'native' && iDetached >= 0 && snap.nodes[i + iDetached] === 2 && !name.startsWith('Detached ')) name = 'Detached ' + name;
     const e = counts.get(name) || { n: 0, size: 0 };
     e.n++; e.size += snap.nodes[i + iSize]; counts.set(name, e);
   }
@@ -57,10 +100,13 @@ async function census(c) {
 
 (async () => {
   const api = quantApi();
-  const c = await connect({ mock: api.mock });
+  const bot = TABS.includes('cortex') ? cortexMock(api) : null;
+  const c = await connect({ mock: bot ? bot.mock : api.mock });
+  try {
   const errs = [];
   await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Performance.enable'); await c.send('HeapProfiler.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
+  if (bot) await c.send('Page.addScriptToEvaluateOnNewDocument', { source: TRACK_TIMERS });
   c.ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
@@ -71,7 +117,8 @@ async function census(c) {
     await c.send('HeapProfiler.collectGarbage'); await sleep(400); await c.send('HeapProfiler.collectGarbage');
     const m = Object.fromEntries((await c.send('Performance.getMetrics')).result.metrics.map((x) => [x.name, x.value]));
     const canv = await js(`return document.querySelectorAll('canvas').length;`);
-    return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), committedMB: +(m.JSHeapTotalSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, canvases: canv };
+    return { heapMB: +(m.JSHeapUsedSize / 1048576).toFixed(1), committedMB: +(m.JSHeapTotalSize / 1048576).toFixed(1), nodes: m.Nodes, listeners: m.JSEventListeners, canvases: canv,
+      ...(bot ? { timers: await js('return window.__activeTimers();') } : {}) };
   };
   await size(1504, 900);
   await boot({
@@ -136,13 +183,65 @@ async function census(c) {
     ok('[TR8] no uncaught errors', errs.length === 0, errs.slice(0, 3).join(' | '));
     await js("window.__ws.auto(0); 1");
     console.log(pass + ' passed, ' + fail + ' failed');
-    c.ws.close();
-    process.exit(fail ? 1 : 0);
+    process.exitCode = fail ? 1 : 0;
+    return;
+  }
+
+  if (bot) {
+    const app = (id) => `window._tbOps.app.page() === '${id}'`;
+    const click = (s) => js(`document.querySelector(${JSON.stringify(s)}).click(); 1`);
+    const must = async (expr) => { if (!await until(expr, 8000)) throw new Error('Missing: ' + expr); };
+    const detached = (snap) => [...snap].filter(([n]) => n.startsWith('Detached ')).reduce((n, [, e]) => n + e.n, 0);
+    const open = async () => {
+      await tab('cortex');
+      await must(`document.querySelector('[data-ncx-event]')`);
+      for (const id of ['lab', 'scorecard']) {
+        await js(`const s = document.querySelector('[data-cortex-tab] [data-lay-add]'); if (Array.from(s.options).some(o => o.value === '${id}')) { s.value = '${id}'; s.dispatchEvent(new Event('change', { bubbles: true })); } 1`);
+        await must(`document.querySelector('[data-ncx-card=${id}]')`);
+      }
+      await must(`document.querySelector('[data-ncx-runs]') && document.querySelector('[data-ncx-vs]')`);
+    };
+    const exercise = async () => {
+      for (const id of ['lab', 'scorecard']) {
+        const s = `[data-cortex-tab] [data-card=${id}] [data-act=collapse]`;
+        await click(s); await sleep(400); await click(s);
+      }
+      await tab('prompt');
+      await must(`document.querySelector('[data-ctl-sub=cortex]')`);
+      await click('[data-ctl-sub=cortex]');
+      await must(`document.querySelector('[data-cortex-control] [data-ncx-group=money]')`);
+    };
+    const park = async () => { await tab('portfolio'); await must(app('portfolio')); await sleep(2500); };
+    await open(); await exercise(); await park();
+    const parked0 = await sample(), detached0 = detached(await census(c));
+    await open(); await sleep(WARM_S * 1000);
+    const start = await sample(), startReads = bot.today();
+    const deadline = Date.now() + LEAK_MIN * 60_000;
+    console.log('N10 Cortex baseline ' + JSON.stringify({ open: start, parked: parked0, detached: detached0, reads: startReads }));
+    let cycles = 0;
+    while (Date.now() < deadline) {
+      await sleep(Math.min(60_000, deadline - Date.now()));
+      await exercise(); await open();
+      if (++cycles % 15 === 0) console.log(`N10 Cortex cycle ${cycles}, journal reads ${bot.today()}`);
+    }
+    const end = await sample();
+    const reads = bot.today() - startReads;
+    await park();
+    const parked1 = await sample(), detached1 = detached(await census(c));
+    const subscribers = await js(`const m = await import('/A1/TradeHub/data/cortex.js'); return m.getCortexStore().subscriberCount();`);
+    const afterExit = bot.today(); await sleep(31_000);
+    console.log('N10 Cortex final ' + JSON.stringify({ open: end, parked: parked1, detached: detached1, reads, cycles, subscribers }));
+    ok('Cortex heap after GC stays within 10%', end.heapMB <= start.heapMB * 1.1);
+    ok('Cortex journal keeps polling through the run', reads >= Math.floor(LEAK_MIN));
+    ok('No extra detached DOM after leaving Cortex', detached1 <= detached0, `${detached0} → ${detached1}`);
+    ok('Listeners and timers return to baseline', parked1.listeners <= parked0.listeners && parked1.timers <= parked0.timers);
+    ok('Cortex unsubscribes and stops polling after leaving', subscribers === 0 && bot.today() === afterExit);
   }
 
   console.log(`\n1. Each tab alone (${WARM_S} s warm-up, then ${LEAK_MIN} min of ticks)`);
   const table = [];
   for (const id of TABS) {
+    if (id === 'cortex') continue;
     await tab(id); await sleep(WARM_S * 1000);
     const a = await sample();
     await sleep(LEAK_MIN * 60_000);
@@ -216,6 +315,6 @@ async function census(c) {
   await js(`window.__ws.auto(0); 1`);
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
-  c.ws.close();
-  process.exit(fail ? 1 : 0);
+  process.exitCode = fail ? 1 : 0;
+  } finally { await c.close(); }
 })().catch((e) => { console.error(e); process.exit(1); });
