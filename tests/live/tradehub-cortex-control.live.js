@@ -76,13 +76,13 @@ function fakeBot() {
       await js(`return [...document.querySelectorAll('[data-ctl-pane="cortex"] [data-ncx-group]')].map(function(g){return g.dataset.ncxGroup;}).join(',') + ' | ' + (document.querySelector('[data-ctl-pane="cortex"]')||{}).innerText;`));
     ok('...two columns on a wide screen', await js(`var c=${q('.ncx-col')}, d=document.querySelectorAll('[data-ctl-pane="cortex"] .ncx-col')[1]; return !!d && Math.abs(c.getBoundingClientRect().top - d.getBoundingClientRect().top) < 2 && d.getBoundingClientRect().left > c.getBoundingClientRect().right;`));
     ok('...mode Shadow pressed; Paper locked with the reason (0 of 2 shadow sessions)', await js(`var p=${q('[data-ncx-mode="paper"]')}; return ${q('[data-ncx-mode="shadow"]')}.getAttribute('aria-checked') === 'true' && p.disabled && /0 of 2/.test(${q('[data-ncx-group="status"]')}.innerText);`));
-    ok('...the money fields show the plan\'s values as defaults (no ceiling)', await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '5000' && /default \\$5,000/.test(${q('[data-ncx-group="money"]')}.innerText) && /\\$12\\.50 to \\$62\\.50/.test(${q('[data-ncx-group="money"]')}.innerText);`));
+    ok('...the money fields show the plan\'s values as defaults (no ceiling)', await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '5000' && /Default \\$5,000/.test(${q('[data-ncx-group="money"]')}.innerText) && /\\$12\\.50 to \\$62\\.50/.test(${q('[data-ncx-group="money"]')}.innerText);`));
 
     console.log('\n2. Saving');
     await setField('limits.book', 4000);
     ok('a changed limit is saved as Tony with its reason, and the page shows the new version', await until(`/Version 1 ·/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.p === '/settings' && x.body.author === 'tony' && x.body.settings.limits && x.body.settings.limits.book === 4000 && x.body.settings.limits.maxDeployed === 2400 && x.body.settings.limits.maxPosition === 1200 && /book .*scaled/.test(x.body.reason)),
       JSON.stringify(bot.posted.slice(-1)));
-    ok('...the risk line follows the new book ($10 to $50)', await until(`/\\$10 to \\$50\\./.test(${q('[data-ncx-group="money"]')}.innerText)`, 4000));
+    ok('...the risk line follows the new book ($10 to $50)', await until(`/\\$10 to \\$50 at risk/.test(${q('[data-ncx-group="money"]')}.innerText)`, 4000));
     const before = bot.posted.length;
     await setField('limits.maxDeployed', 9000);
     await sleep(500);
