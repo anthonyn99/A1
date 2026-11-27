@@ -35,13 +35,13 @@ const TABS = process.env.TABS ? process.env.TABS.split(',') : ALL;
 const LEAK_MIN = Number(process.env.LEAK_MIN) || 3, WARM_S = Number(process.env.WARM_S) || 45, CYCLES = Number(process.env.CYCLES) || 40;
 const BOT = 'https://quant-bot.anthony-account-3.workers.dev';
 
-function cortexMock(api) {
+function cortexMock(api, settings) {
   let today = 0;
   const events = Array.from({ length: 80 }, (_, i) => event(80 - i));
   function event(id) { return { id, ts: CLOCK - 60000, kind: 'shadow', sym: 'NVDA', side: 'long', qty: 4, price: 130, strategy: 'test', version: 1, why: 'Trade signal recorded in shadow.' }; }
   const values = {
     '/state': { market: 'open', mode: 'shadow', positions: [], lastCheck: CLOCK, shadowSessions: 1 },
-    '/settings': { version: 0, history: [], settings: { mode: 'shadow', limits: { book: 5000, maxDeployed: 3000, styleShare: {} }, strategist: {}, lifecycle: {} } },
+    '/settings': { version: 0, history: [], settings },
     '/lifecycle': { strategies: [] }, '/lab/runs': { runs: [{ id: 'r1', session: 'premarket', started: CLOCK, outcome: 'ok' }] },
     '/briefs': { briefs: [] }, '/trades': { trades: [{ strategy: 'test', symbol: 'NVDA', opened: CLOCK, pnl: 12, r: 0.5 }] },
   };
@@ -100,7 +100,7 @@ async function census(c) {
 
 (async () => {
   const api = quantApi();
-  const bot = TABS.includes('cortex') ? cortexMock(api) : null;
+  const bot = TABS.includes('cortex') ? cortexMock(api, (await import('../../workers3/quant-bot/lib/state.js')).DEFAULTS) : null;
   const c = await connect({ mock: bot ? bot.mock : api.mock });
   try {
   const errs = [];
