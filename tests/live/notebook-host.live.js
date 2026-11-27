@@ -84,6 +84,20 @@ async function side(c, name, errs) {
     ok('her faces are loaded for a host that has none', await js(`return !!document.querySelector('link[data-notebook-fonts]');`));
   }
 
+  console.log(`\n[${name}] Interrupted image upload recovery`);
+  const capK = K[0].toUpperCase() + K.slice(1);
+  const recovered = JSON.parse(await js(`
+    var key=${JSON.stringify(S + '_img_interrupted')}, src='data:image/png;base64,'+'R'.repeat(4096);
+    await window.JGuard.keepImage(key, src);
+    var html='<img src="${K}-fbimg://'+key+'" data-${K}key="'+key+'">';
+    var out=await window._fbRehydrate${capK}PageImages(html);
+    var fromLocal=out.indexOf(src)>=0;
+    await window.JGuard.dropImage(key);
+    return JSON.stringify({fromLocal:fromLocal,removed:(await window.JGuard.getImage(key))===''});
+  `));
+  ok('a missing cloud image is restored from the pending-image vault', recovered.fromLocal, JSON.stringify(recovered));
+  ok('the recovery copy can be removed after cloud confirmation', recovered.removed, JSON.stringify(recovered));
+
   console.log(`\n[${name}] Writing`);
   await js(`${$('new-entry-btn')}.click(); 1`); await sleep(400);
   // Page is the one template (2026-11-17): + makes a page straight away.

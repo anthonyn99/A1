@@ -20,6 +20,15 @@ Notebook gained `folder` / `Notebook.folder`, `Notebook.importPages` and
 editor's own box, and two instance fixes (Tony's tabular numerals, a reset
 line-height). See [../V1/notebook.md](../V1/notebook.md).
 
+**2026-11-27:** Fixed intermittent, unrecoverable broken page images on every
+Notebook side and instance. The local cache had treated an assigned image key as
+proof its first cloud upload had landed; a close or failed request could therefore
+leave only a pointer to a document that never existed. Cache slimming now waits for
+confirmed bytes, first-upload bytes have a local IndexedDB recovery copy, and a
+missing cloud image rehydrates from that copy so the normal save can retry. Held by
+`tests/journal-images.test.js` and the real-browser recovery checks in
+`tests/live/notebook-host.live.js`.
+
 A new journal ask: change `Notebook/` (MyJournal's names stay `tj`-prefixed, so instances keep
 working). Prove it with `node tests/live/notebook-baseline.live.js` (index, vs tag `notebook-p0`;
 add an `EXPECTED` rule for each deliberate difference), `tests/live/notebook-host.live.js`
