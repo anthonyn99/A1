@@ -507,6 +507,28 @@ async function retry(env, rules, now, send) {
   return out;
 }
 
+/** Standing rules have no alerts row. Claim each failed fire before sending so overlapping runs cannot resend it twice. */
+async function retryStanding(env, now, send, cfg) {
+  const pending = "pushed = 0 AND rule_id LIKE 'std:%' AND COALESCE(why, '') NOT LIKE 'retried:%' AND COALESCE(why, '') NOT IN ('muted', 'quiet rule', 'quiet hours', 'outside market hours')";
+  let rows;
+  try {
+    rows = (await env.DB.prepare(`SELECT id, rule_id, trigger_key, title, body, url, kind FROM alert_fires WHERE at BETWEEN ? AND ? AND ${pending} ORDER BY at, id LIMIT 10`)
+      .bind(now - 30 * 60_000, now).all()).results || [];
+  } catch (e) { if (noTable(e)) return []; throw e; }
+  if (!rows.length) return [];
+  cfg ||= await readCfg(env);
+  const out = [];
+  for (const r of rows) {
+    const claim = await env.DB.prepare(`UPDATE alert_fires SET why = 'retried: delivery unconfirmed' WHERE id = ? AND ${pending}`).bind(r.id).run();
+    if (claim.meta.changes !== 1) continue;
+    const res = await send(env, { title: r.title, body: r.body, url: r.url, kind: r.kind, card: !!cfg.cards[r.kind], tag: 'tbq-' + tagOf(r.rule_id + '|' + r.trigger_key) });
+    await env.DB.prepare('UPDATE alert_fires SET pushed = ?, why = ?, devices = ? WHERE id = ?')
+      .bind(res.ok ? 1 : 0, res.ok ? null : clip('retried: ' + (res.error || ''), 200), JSON.stringify(res.devices || []), r.id).run();
+    out.push({ rule: r.rule_id, retried: true, pushed: !!res.ok });
+  }
+  return out;
+}
+
 /* ── standing rules (B10) ──────────────────────────────────────────────── */
 // B0 found that every kind fired only through a rule in the table and nothing made one, so with every kind ticked
 // "On" and no rules (Tony's screen) no signal, graded, regime, catalyst or data alert could ever reach him. Now a kind
@@ -532,7 +554,10 @@ function priceItem(r, q, ev) {
 }
 /** The cron's work. → { skipped } or { rules, quotes, fired, writes }. */
 export async function check(env, now = Date.now(), { force = false, send = push } = {}) {
-  if (!force && !inSession(now)) return { skipped: 'closed' };
+  if (!force && !inSession(now)) {
+    const retried = await retryStanding(env, now, send);
+    return retried.length ? { skipped: 'closed', retried } : { skipped: 'closed' };
+  }
   // The first read: the rules the check evaluates, and any rule (signal, graded and regime
   // too) holding a failed send to retry. Before 0013 there is no `state` column: nothing to do.
   let rows;
@@ -554,10 +579,11 @@ export async function check(env, now = Date.now(), { force = false, send = push 
   }
   const cfg = configOf(parse(meta.alert_cfg, {}));
   rules.push(...standingRules(cfg, rules, ['catalyst', 'data']));
-  if (!rules.length) return { rules: 0, fired: [] };
   const items = [], writes = [];
   const out = { rules: rules.length, quotes: 0, fired: [], retried: [] };
   out.retried = await retry(env, rules.filter((r) => r.state && r.state.retry), now, send);
+  out.retried.push(...await retryStanding(env, now, send, cfg));
+  if (!rules.length) return out.retried.length ? out : { rules: 0, fired: [] };
   const live = rules.filter((r) => r.kind !== 'signal' && r.kind !== 'graded' && r.kind !== 'regime');
   // Price rules: one batched quote call for their symbols (the Phase 1 chain). The
   // ledger is read with the context above and not written back: these calls are

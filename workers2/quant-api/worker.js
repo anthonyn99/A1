@@ -124,11 +124,11 @@ export default {
       return json({ ok: false, error: e.message || String(e), ...(e.extra || {}) }, e.status || 500, cors);
     }
   },
-  // The alert check: every minute; outside a New York session it returns before any read.
+  // Every minute. Outside a New York session, only standing push retries run.
   async scheduled(event, env, ctx) {
     const t = (event && event.scheduledTime) || Date.now();
-    if (!alerts.inSession(t)) return;
     ctx.waitUntil(alerts.check(env, t).catch((e) => console.warn('alert check:', e.message || e)));
+    if (!alerts.inSession(t)) return;
     // T7: a paper order filled, partly filled, cancelled or rejected → an alert (one read per broker; nothing when off).
     ctx.waitUntil(orderWatch.watch(env, t).catch((e) => console.warn('order watch:', e.message || e)));
   },

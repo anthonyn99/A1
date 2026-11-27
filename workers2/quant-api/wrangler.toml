@@ -13,9 +13,9 @@ database_name = "quant"
 database_id = "25323b25-f012-4320-85f3-2f1de7a0881c"
 migrations_dir = "migrations"
 
-# The alert check (lib/alerts.js, Phase 14): every minute; it returns before any
-# read unless New York is in a session (04:00 to 20:00 on a trading day), so at
-# most 960 runs a day do work. Account 2's other workers have no cron (checked
+# The alert check (lib/alerts.js, Phase 14): every minute. Outside the New York
+# session (04:00 to 20:00 on a trading day), only standing push retries run.
+# Account 2's other workers have no cron (checked
 # 2026-11-16), so this is 1 of its 5 slots.
 [triggers]
 crons = ["* * * * *"]
