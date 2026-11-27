@@ -218,9 +218,17 @@ async function census(c) {
       await click('[data-ctl-sub=cortex]');
       await must(`document.querySelector('[data-cortex-control] [data-ncx-group=money]')`);
     };
-    const park = async () => { await tab('portfolio'); await must(app('portfolio')); await sleep(2500); };
-    await open(); await exercise(); await open(); await park();
-    const parked0 = await sample(), detached0 = detached(await census(c));
+    const park = async () => {
+      await tab('portfolio'); await must(app('portfolio'));
+      const afterExit = bot.today();
+      await sleep(31_000);
+      return bot.today() === afterExit;
+    };
+    // Warm the same mount and unmount paths the timed cycles exercise. Take open and parked
+    // samples at matching points, after temporary work from the last transition has finished.
+    for (let i = 0; i < 6; i++) { await open(); await exercise(); }
+    await open(); await park();
+    const parked0 = await sample(), snapshot0 = await census(c), detached0 = detached(snapshot0);
     await open(); await sleep(WARM_S * 1000);
     const start = await sample(), startReads = bot.today();
     const deadline = Date.now() + LEAK_MIN * 60_000;
@@ -233,18 +241,22 @@ async function census(c) {
       await exercise(); await open();
       if (++cycles % 15 === 0) console.log(`N10 Cortex cycle ${cycles}, journal reads ${bot.today()}`);
     }
-    const end = await sample();
     const reads = bot.today() - startReads;
-    await park();
-    const parked1 = await sample(), detached1 = detached(await census(c));
+    await sleep(WARM_S * 1000);
+    const end = await sample(), stopped = await park();
+    const parked1 = await sample(), snapshot1 = await census(c), detached1 = detached(snapshot1);
     const subscribers = await js(`const m = await import('/A1/TradeHub/data/cortex.js'); return m.getCortexStore().subscriberCount();`);
-    const afterExit = bot.today(); await sleep(31_000);
     console.log('N10 Cortex final ' + JSON.stringify({ open: end, parked: parked1, detached: detached1, reads, polls, cycles, subscribers }));
+    if (end.heapMB > start.heapMB * 1.1) {
+      const growth = [...snapshot1].map(([name, e]) => [name, e.size - (snapshot0.get(name)?.size || 0)])
+        .sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, bytes]) => [name, Math.round(bytes / 1024)]);
+      console.log('N10 Cortex parked heap growth by constructor (KB) ' + JSON.stringify(growth));
+    }
     ok('Cortex heap after GC stays within 10%', end.heapMB <= start.heapMB * 1.1);
     ok('Cortex journal keeps polling through the run', polls >= Math.max(1, Math.floor(LEAK_MIN)));
     ok('No extra detached DOM after leaving Cortex', detached1 <= detached0, `${detached0} → ${detached1}`);
     ok('Listeners and timers return to baseline', parked1.listeners <= parked0.listeners && parked1.timers <= parked0.timers);
-    ok('Cortex unsubscribes and stops polling after leaving', subscribers === 0 && bot.today() === afterExit);
+    ok('Cortex unsubscribes and stops polling after leaving', subscribers === 0 && stopped);
   }
 
   console.log(`\n1. Each tab alone (${WARM_S} s warm-up, then ${LEAK_MIN} min of ticks)`);
