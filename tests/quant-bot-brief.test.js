@@ -184,7 +184,7 @@ test('outbox: the first flush only learns; then new moves, changes, guards, runs
   assert.equal(sent.length, 1);
 });
 
-test('outbox: a 5xx or a network error keeps the cursor (tried again), a 4xx moves on; no secret = nothing sent', async (t) => {
+test('outbox: a 5xx, a network error or a secret mismatch keeps the cursor (tried again), a 400 moves on; no secret = nothing sent', async (t) => {
   const { flushOutbox } = await import('../workers3/quant-bot/lib/outbox.js');
   const { conn, env } = await fixture(t);
   await flushOutbox(env, 1);   // learn the empty journal
@@ -201,8 +201,39 @@ test('outbox: a 5xx or a network error keeps the cursor (tried again), a 4xx mov
   await flushOutbox(env, 5, { fetchFn: ok });
   assert.deepEqual(seen, [['drawdown']]);   // the same item, once, after the outage
   conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, why) VALUES (?,?,?,?,?)').run('g3', ny(MON, '11:10'), MON, 'guard', 'stale');
-  assert.match((await flushOutbox(env, 6, { fetchFn: async () => new Response('{"ok":false,"error":"bad secret"}', { status: 401 }) })).error, /401: bad secret/);
+  assert.equal((await flushOutbox(env, 6, { fetchFn: async () => new Response('{"ok":false,"error":"bad secret"}', { status: 401 }) })).error, 'quant-api 401');
   await flushOutbox(env, 7, { fetchFn: ok });
-  assert.equal(seen.length, 1);   // the 4xx batch is not resent
+  assert.deepEqual(seen, [['drawdown'], ['stale']]);   // the two secrets matched again: the batch goes out
+  conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, why) VALUES (?,?,?,?,?)').run('g4', ny(MON, '11:15'), MON, 'guard', 'malformed');
+  assert.match((await flushOutbox(env, 8, { fetchFn: async () => new Response('{"ok":false,"error":"bad item"}', { status: 400 }) })).error, /400: bad item/);
+  await flushOutbox(env, 9, { fetchFn: ok });
+  assert.equal(seen.length, 2);   // a 400 batch is not resent
   assert.equal(calls, 1);
+});
+
+test('outbox review: shadow verdict stages read right, Tony\'s settings saves stay quiet, a late run is announced once, a broken brief never blocks', async (t) => {
+  const { flushOutbox, stageOf } = await import('../workers3/quant-bot/lib/outbox.js');
+  assert.equal(stageOf('stage-semis-orb-3-shadowpass-2026-11-26'), 'shadowpass');
+  assert.equal(stageOf('stage-semis-orb-3-killed-1795700000000'), 'killed');
+  assert.equal(stageOf('nope'), 'changed');
+  const { conn, env } = await fixture(t);
+  env.CORTEX_SECRET = 'x';
+  await flushOutbox(env, 1);
+  const seen = [];
+  const ok = async (u, init) => { seen.push(JSON.parse(init.body).items.map((i) => i.title)); return new Response('{"ok":true,"fired":[]}', { status: 200 }); };
+  const ev = (k, kind, extra = {}) => conn.prepare('INSERT INTO bot_events (event_key, ts, day, kind, strategy, why) VALUES (?,?,?,?,?,?)').run(k, ny(MON, '16:05'), MON, kind, extra.strategy ?? null, 'w');
+  ev('stage-s1-3-shadowpass-' + MON, 'stage', { strategy: 's1' });
+  ev('settings-12', 'edit');
+  const run = (id, ended) => conn.prepare("INSERT INTO lab_runs (id, session, day, started, ended, outcome, summary, results) VALUES (?,?,?,?,?,?,?,?)").run(id, 'now', MON, 1, ended, 'no-edge', 's', '[]');
+  run('late-b', ny(MON, '12:00'));
+  conn.prepare('INSERT INTO bot_briefs (day, at, body) VALUES (?,?,?)').run('2026-11-27', 1, '{broken');
+  conn.prepare('INSERT INTO bot_briefs (day, at, body) VALUES (?,?,?)').run(MON, 1, JSON.stringify({ day: MON, ready: true, headline: 'h' }));
+  await flushOutbox(env, 2, { fetchFn: ok });
+  assert.deepEqual(seen[0], ['Neo Cortex: s1 → shadowpass', 'Neo Cortex research ready', 'Neo Cortex brief ready']);   // no "edited" for settings-12
+  run('late-a', ny(MON, '11:00'));   // posted after, but its PC clock says it ended earlier
+  await flushOutbox(env, 3, { fetchFn: ok });
+  assert.deepEqual(seen[1], ['Neo Cortex research ready']);
+  await flushOutbox(env, 4, { fetchFn: ok });
+  assert.equal(seen.length, 2);   // each run once
+  assert.equal(conn.prepare('SELECT brief_day FROM bot_outbox').get().brief_day, '2026-11-27');   // past the broken row
 });
