@@ -432,7 +432,10 @@ function _bjCacheChars() {
 }
 function _bjSlimHtml(h) {
   return h.replace(/<[^>]*\bdata-bjkey="([^"]+)"[^>]*>/g, function (tag, key) {
-    return tag.replace(/\b(src|href)="data:[^"]*"/, '$1="bj-fbimg://' + key + '"');
+    return tag.replace(/\b(src|href)="(data:[^"]*)"/, function (all, attr, src) {
+      if (!window._fbCanSlimPageImage || !window._fbCanSlimPageImage(key, src)) return all;
+      return attr + '="bj-fbimg://' + key + '"';
+    });
   });
 }
 function _bjWriteCache() {

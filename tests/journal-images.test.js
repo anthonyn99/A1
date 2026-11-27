@@ -81,6 +81,44 @@ const tjRehydrate = grab('window._fbRehydrateTonyPageImages = async (html) => {'
       'A separate document plus a fetch to save a few hundred bytes is a bad trade.');
   });
 
+section('The local cache never points at an image before its upload lands');
+
+const APP_TJ = fs.readFileSync(path.join(__dirname, '..', 'Notebook/apps/myjournal.js'), 'utf8');
+const APP_BJ = fs.readFileSync(path.join(__dirname, '..', 'Notebook/apps/brainstorm.js'), 'utf8');
+function grabFrom(src, marker) {
+  const old = HTML;
+  const i = src.indexOf(marker);
+  if (i < 0) throw new Error('not found: ' + marker);
+  let d = 0, started = false, j = i;
+  for (; j < src.length; j++) {
+    if (src[j] === '{') { d++; started = true; }
+    else if (src[j] === '}') { d--; if (started && d === 0) { j++; break; } }
+  }
+  return src.slice(i, j);
+}
+[
+  ['MyJournal', APP_TJ, 'function _tjSlimHtml(h) {', '_tjSlimHtml', '_fbCanSlimTonyPageImage', 'tj'],
+  ['Brainstorm', APP_BJ, 'function _bjSlimHtml(h) {', '_bjSlimHtml', '_fbCanSlimPageImage', 'bj'],
+].forEach(([label, src, marker, fn, gate, scheme]) => {
+  const box = { window: {} };
+  vm.createContext(box);
+  vm.runInContext(grabFrom(src, marker) + '; globalThis.slim = ' + fn + ';', box);
+  const data = 'data:image/png;base64,' + 'Z'.repeat(4000);
+  const html = '<img src="' + data + '" data-' + scheme + 'key="image-key">';
+  t(label + ': pending image bytes stay in the cache', box.slim(html) === html);
+  box.window[gate] = () => false;
+  t(label + ': a failed upload still keeps the bytes', box.slim(html) === html);
+  box.window[gate] = (key, bytes) => key === 'image-key' && bytes === data;
+  const slim = box.slim(html);
+  t(label + ': only a confirmed upload becomes a pointer',
+    slim.includes(scheme + '-fbimg://image-key') && !slim.includes(data));
+});
+
+t('the Firebase layer makes a durable local copy before each first image upload',
+  (HTML.match(/await window\.JGuard\.keepImage\(imgKey, src\)/g) || []).length === 2);
+t('both rehydrators fall back to the local safety copy',
+  (HTML.match(/await window\.JGuard\.getImage\(imgKey\)/g) || []).length >= 4);
+
 section('Parsing is inert and fetches nothing');
 
 // A detached <div> is still live: assigning innerHTML makes the browser try to

@@ -230,6 +230,11 @@ function install(F) {
     };
     const _jImgSeen = (key, src) => _jImgSent.get(key) === _jImgSig(src);
     const _jImgMark = (key, src) => { if (key && src) _jImgSent.set(key, _jImgSig(src)); };
+    // Cache slimming is allowed only for bytes this connection has positively
+    // stored/read. A data-*key merely names an intended image document; it is
+    // assigned before the first upload and is not proof that the document exists.
+    window._fbCanSlimPageImage = (key, src) => _jImgSeen(key, src);
+    window._fbCanSlimTonyPageImage = (key, src) => _jImgSeen(key, src);
     const _jImgGet = async (ref) => {
       try {
         const c = await getDocFromCache(ref);
@@ -342,11 +347,15 @@ function install(F) {
       // to keep the inline data URI so nothing is lost.
       const put = async (imgKey, src) => {
         if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) return true;
+        // Finish the local recovery write before attempting the network. If the
+        // tab dies during this first upload, rehydration can still recover bytes.
+        if (window.JGuard && window.JGuard.keepImage) await window.JGuard.keepImage(imgKey, src);
         // The document id is the key itself, unprefixed (Backup/backup.js relies on it).
         const imgRef = doc(db(), 'dashboards', imgKey);
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'BJ img ' + imgKey);
           if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
+          if (window.JGuard && window.JGuard.dropImage) window.JGuard.dropImage(imgKey);
           return true;
         } catch(err) {
           console.warn('BJ image upload failed, keeping inline:', imgKey, err.message);
@@ -759,9 +768,16 @@ function install(F) {
           const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
           if (snap.exists() && snap.data().img) {
             img.setAttribute(attr, snap.data().img);
+          } else if (window.JGuard && window.JGuard.getImage) {
+            const local = await window.JGuard.getImage(imgKey);
+            if (local) img.setAttribute(attr, local);
           }
         } catch(err) {
           console.warn('BJ image rehydrate failed:', imgKey, err.message);
+          if (window.JGuard && window.JGuard.getImage) {
+            const local = await window.JGuard.getImage(imgKey);
+            if (local) img.setAttribute(attr, local);
+          }
         }
       }));
       return div.innerHTML;
@@ -954,11 +970,13 @@ function install(F) {
       // to keep the inline data URI so nothing is lost.
       const put = async (imgKey, src) => {
         if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) return true;
+        if (window.JGuard && window.JGuard.keepImage) await window.JGuard.keepImage(imgKey, src);
         // The document id is the key itself, unprefixed (Backup/backup.js relies on it).
         const imgRef = doc(db(), 'dashboards', imgKey);
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
           if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
+          if (window.JGuard && window.JGuard.dropImage) window.JGuard.dropImage(imgKey);
           return true;
         } catch(err) {
           console.warn('TJ image upload failed, keeping inline:', imgKey, err.message);
@@ -1234,7 +1252,17 @@ function install(F) {
           const imgRef = doc(db(), 'dashboards', imgKey);
           const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
           if (snap.exists() && snap.data().img) img.setAttribute(attr, snap.data().img);
-        } catch(err) { console.warn('TJ image rehydrate failed:', imgKey, err.message); }
+          else if (window.JGuard && window.JGuard.getImage) {
+            const local = await window.JGuard.getImage(imgKey);
+            if (local) img.setAttribute(attr, local);
+          }
+        } catch(err) {
+          console.warn('TJ image rehydrate failed:', imgKey, err.message);
+          if (window.JGuard && window.JGuard.getImage) {
+            const local = await window.JGuard.getImage(imgKey);
+            if (local) img.setAttribute(attr, local);
+          }
+        }
       }));
       return div.innerHTML;
     };

@@ -358,6 +358,13 @@ store named `tony_journal`. An unprefixed name would be shared by every instance
 | Local cache | `localStorage['<store>_v3']`, `docx_*_<key>`, `<key>_unlocked*_<id>` |
 | Locks | taskhub-reminders worker, `jKey(<key>, entryId)` |
 
+An image key is assigned before its first upload, so the key alone never proves
+the image document exists. The local cache keeps the inline bytes until `fb.js`
+has confirmed those exact bytes in Firestore. First-upload bytes also wait in the
+`a1_jguard` IndexedDB image store; a missing/failed cloud read recovers from that
+copy, and a confirmed upload removes it. This prevents a close, refresh or network
+failure during the first upload from leaving an unrecoverable `fbimg://` pointer.
+
 **AI tools** (AI Format, AI Refine, custom tools) all post to personal-ai
 `/journal/format` with the mount's `aiProfile`, so each side runs on its own
 person's Gemini key (`TONY_` / `VEDA_GEMINI_KEY`, the same keys MAGI's Refine

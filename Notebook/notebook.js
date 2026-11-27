@@ -170,6 +170,7 @@ function rewriteBj(text, cfg) {
     .replace(/_fb(Save|Flush|Load|Resync|Delete)Journal/g, '_fb$1' + C + 'Journal')
     .replace(/_fbMigrateJournalIfNeeded/g, '_fbMigrate' + C + 'JournalIfNeeded')
     .replace(/_fbRehydratePageImages/g, '_fbRehydrate' + C + 'PageImages')
+    .replace(/_fbCanSlimPageImage/g, '_fbCanSlim' + C + 'PageImage')
     .replace(/Brainstorm(?=[A-Z])/g, C)
     .replace(/(^|[^A-Z])BJ(?![a-z])/g, '$1' + K.toUpperCase())
     .replace(/(^|[^A-Za-z])bj(?![a-z])/g, '$1' + K);

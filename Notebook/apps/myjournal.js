@@ -480,7 +480,12 @@ function _tjCacheChars() {
 }
 function _tjSlimHtml(h) {
   return h.replace(/<[^>]*\bdata-tjkey="([^"]+)"[^>]*>/g, function (tag, key) {
-    return tag.replace(/\b(src|href)="data:[^"]*"/, '$1="tj-fbimg://' + key + '"');
+    return tag.replace(/\b(src|href)="(data:[^"]*)"/, function (all, attr, src) {
+      // The key is assigned before upload starts. Keep the bytes until fb.js has
+      // confirmed this exact image, or an interrupted first upload is unrecoverable.
+      if (!window._fbCanSlimTonyPageImage || !window._fbCanSlimTonyPageImage(key, src)) return all;
+      return attr + '="tj-fbimg://' + key + '"';
+    });
   });
 }
 function _tjWriteCache() {

@@ -329,8 +329,12 @@ function _bakOpen() {
   if (_bakDb) return Promise.resolve(_bakDb);
   return new Promise(function (res) {
     var rq;
-    try { rq = indexedDB.open('a1_jguard', 1); } catch (e) { _bakDbFail = true; return res(null); }
-    rq.onupgradeneeded = function (e) { try { e.target.result.createObjectStore('bak'); } catch (x) {} };
+    try { rq = indexedDB.open('a1_jguard', 2); } catch (e) { _bakDbFail = true; return res(null); }
+    rq.onupgradeneeded = function (e) {
+      var d = e.target.result;
+      try { if (!d.objectStoreNames.contains('bak')) d.createObjectStore('bak'); } catch (x) {}
+      try { if (!d.objectStoreNames.contains('img')) d.createObjectStore('img'); } catch (x) {}
+    };
     rq.onsuccess = function (e) { _bakDb = e.target.result; res(_bakDb); };
     rq.onerror = rq.onblocked = function () { _bakDbFail = true; res(null); };
   });
@@ -347,6 +351,48 @@ function _bakIdb(mode, fn) {
       } catch (e) { res(null); }
     });
   });
+}
+
+/* New page images get a second, local-only safety copy before their first cloud
+ * upload. The journal cache cannot safely replace bytes with an fbimg:// pointer
+ * until that upload has actually landed: a closed tab or failed request otherwise
+ * leaves a pointer to a document that never existed. Successful uploads remove the
+ * safety copy; a rehydration miss can use it and let the normal save retry. */
+var _imgMem = {};
+function _imgIdb(mode, fn) {
+  return _bakOpen().then(function (db) {
+    if (!db) return null;
+    return new Promise(function (res) {
+      try {
+        var tx = db.transaction('img', mode), out = { v: null };
+        fn(tx.objectStore('img'), out);
+        tx.oncomplete = function () { res(out.v === null ? true : out.v); };
+        tx.onerror = tx.onabort = function () { res(null); };
+      } catch (e) { res(null); }
+    });
+  });
+}
+function keepImage(key, src) {
+  if (!key || typeof src !== 'string' || src.indexOf('data:') !== 0) return Promise.resolve(false);
+  _imgMem[key] = src;
+  return _imgIdb('readwrite', function (st) { st.put({ src: src, at: Date.now() }, key); })
+    .then(function (ok) { return !!ok; });
+}
+function getImage(key) {
+  if (_imgMem[key]) return Promise.resolve(_imgMem[key]);
+  return _imgIdb('readonly', function (st, out) {
+    var g = st.get(key);
+    g.onsuccess = function () { out.v = g.result || false; };
+  }).then(function (v) {
+    var src = v && typeof v.src === 'string' ? v.src : '';
+    if (src) _imgMem[key] = src;
+    return src;
+  });
+}
+function dropImage(key) {
+  if (!key) return Promise.resolve(false);
+  delete _imgMem[key];
+  return _imgIdb('readwrite', function (st) { st.delete(key); }).then(function (ok) { return !!ok; });
 }
 function _bakPut(k, list) {
   return _bakIdb('readwrite', function (st) { st.put(list, k); });
@@ -486,6 +532,7 @@ window.JGuard = {
   emptyHtml: emptyHtml, emptyText: emptyText, emptyData: emptyData, emptyEntry: emptyEntry,
   wouldLose: wouldLose, sig: sig, same: same, size: size,
   backup: backup, latestBackup: latestBackup, histRecover: histRecover, recover: recover,
+  keepImage: keepImage, getImage: getImage, dropImage: dropImage,
   markCleared: markCleared, clearedAt: clearedAt,
   // Manual escape hatch from the console: JGuard.versions('tj', entryId)
   versions: function (app, id) {
