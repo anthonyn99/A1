@@ -99,7 +99,7 @@ const round2 = (x) => Math.round(x * 100) / 100;
    One order model (the shape above) for every broker; each broker declares what it can do, and
    checkFor() adds its own refusals to checkOrder's. The page reaches a broker only through quant-api
    /trade/:broker/…; "live" is a mode the code knows and refuses until a future batch builds it. */
-export const BROKERS = ['alpaca', 'webull'];
+export const BROKERS = ['alpaca', 'webull', 'cortex'];
 export const MODES = ['paper', 'live'];
 export const LIVE_BUILT = false;
 export const CAPABILITIES = {
@@ -109,11 +109,14 @@ export const CAPABILITIES = {
   webull: { label: 'Webull', types: TYPES, tifs: TIFS, classes: CLASSES, fractional: false, notional: false, trailingTifs: ['day'],
     extended: 'limit orders', sessions: ['core', 'all'], clientIdMax: 32, defaultCapital: 1000000, runs: false,
     note: 'Webull paper (sandbox): day orders and brackets go in only during market hours; a GTC order can be placed, changed and cancelled any time; trailing stops are day orders.' },
+  cortex: { label: 'Neo Cortex', readOnly: true, types: [], tifs: [], classes: [], fractional: false, notional: false, trailingTifs: [],
+    extended: false, sessions: [], clientIdMax: 0, runs: false },
 };
 /** quant-api's address for a broker's route; throws for live (not built) or an unknown broker. */
 export function tradePath(broker, rest = '', mode = 'paper') {
   if (mode === 'live' && !LIVE_BUILT) throw new Error('live trading is not built yet: paper only');
   if (!BROKERS.includes(broker)) throw new Error('no such broker: ' + broker);
+  if (CAPABILITIES[broker].readOnly) throw new Error('Neo Cortex is read-only');
   return '/trade/' + broker + rest;
 }
 /** checkOrder plus what this broker refuses, in words → { ok, errors }. */
@@ -121,6 +124,7 @@ export function checkFor(broker, o, ctx = {}) {
   const base = checkOrder(o, ctx), e = [...base.errors], cap = CAPABILITIES[broker];
   if (ctx.mode === 'live' && !LIVE_BUILT) e.push('live trading is not built yet: paper only');
   if (!cap) return { ok: false, errors: [...e, 'no such broker: ' + broker] };
+  if (cap.readOnly) return { ok: false, errors: [cap.label + ' is read-only'] };
   if (o && typeof o === 'object') {
     const qty = num(o.qty);
     if (!cap.notional && o.notional != null) e.push(`${cap.label} takes a share count, not a dollar amount`);
