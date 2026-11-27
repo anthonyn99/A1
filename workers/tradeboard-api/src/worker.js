@@ -567,7 +567,7 @@ function flattenOrderGroups(list) {
 }
 const listOf = raw => (Array.isArray(raw) ? raw : (raw?.data || raw?.orders || raw?.items || []));
 
-async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxCalls = 12 } = {}) {
+async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxCalls = 16 } = {}) {
   /* Day numbers (UTC). The end is TOMORROW: Webull's end date is exclusive, and
      sent as today none of today's orders came back (Tony, 2026-11-04: PLTR
      165 → 175 bracket, not pulled). Adjacent windows share one boundary, so
