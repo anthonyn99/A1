@@ -4,11 +4,11 @@
 // switches (cfg.cortex: trades, changes, guards, research, brief; Control ▸ Alerts ▸ Neo Cortex) decide what is pushed;
 // more than BURST trades in one minute become one summary push. Then lib/alerts.js fire(): once per key, quiet hours,
 // the bell (alert_fires), the push to Tony's devices.
-import { readCfg, fire, standingRules, push, pageUrl } from './alerts.js';
+import { readCfg, fire, standingRules, push, pageUrl, tagOf } from './alerts.js';
 import { json, fail } from './http.js';
 
 export const TYPES = ['trades', 'changes', 'guards', 'research', 'brief'];
-export const BURST = 3, ITEMS_MAX = 200;
+export const BURST = 3, ITEMS_MAX = 250;   // quant-bot sends at most 200 journal rows + 30 runs + 5 briefs
 const KEY_RE = /^[\w:.\-]{1,80}$/, ROUTE_RE = /^cortex:[\w:.\-]{0,80}$/;
 const clip = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -37,7 +37,8 @@ export function fold(items, tz = 'America/Denver') {
     if (list.length <= BURST) continue;
     list.forEach((x) => folded.add(x));
     const at = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(new Date(m * 60_000));
-    out.push({ key: 'sum:' + list[0].key, type: 'trades', ts: m * 60_000, symbol: null, route: 'cortex:today',
+    // The key covers every folded trade: a resent minute with one more trade is a new summary, never a silent duplicate.
+    out.push({ key: 'sum:' + tagOf(list.map((x) => x.key).sort().join('|')), type: 'trades', ts: m * 60_000, symbol: null, route: 'cortex:today',
       title: `Neo Cortex: ${list.length} trades at ${at}`, body: clip(list.map((x) => x.title.replace(/^Neo Cortex:\s*/, '')).join(' · '), 400) });
   }
   return [...items.filter((x) => !folded.has(x)), ...out];
@@ -49,6 +50,7 @@ export async function cortexAlerts(env, req, now = Date.now(), { send = push } =
   if (!same(req.headers.get('x-cortex-secret'), env.CORTEX_SECRET)) throw fail(401, 'bad secret');
   let body = null;
   try { body = await req.json(); } catch (e) { throw fail(400, 'a JSON body is needed'); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw fail(400, 'the body is { items: [...] }');
   const items = itemsOf(body);
   const cfg = await readCfg(env);
   if (cfg.kinds.cortex === false) return json({ ok: true, skipped: 'Neo Cortex alerts are off', fired: [] });
