@@ -51,7 +51,7 @@ async function n10a({ js, until, tab, shot }, width) {
   await until(`document.querySelector('[data-pp-trade] [data-order-ticket]')`);
   await js(`document.querySelector('[data-trade-new]').click(); 1`);
   await select('cortex');
-  ok('N10A', 'the book, equity, day P&L and deployed cap show', await until(`(() => { const t = document.querySelector('[data-pp-account]')?.textContent || ''; return ['\x245,040.00', '\x245,000.00', '\x2425.00', '\x24800.00 of \x243,000.00'].every(v => t.includes(v)); })()`));
+  ok('N10A', 'the book, equity, day P&L and deployed cap show', await until(`(() => { const t = document.querySelector('[data-pp-account]')?.textContent || ''; return ['\x245,040.00', '\x245,000', '\x2425.00', '\x24800.00 of \x243,000.00'].every(v => t.includes(v)); })()`), await js(`document.querySelector('[data-pp-account]')?.textContent`));
   ok('N10A', 'the saved broker choice, position, and working order with its stop show', await until(`localStorage.getItem('tb_trade_broker') === 'cortex' && document.querySelector('[data-pp-pos=NVDA]') && document.querySelector('[data-pp-ord=cortex-limit]') && document.querySelector('[data-pp-leg=cortex-stop]')`));
   ok('N10A', 'Trading has no order actions and tells Tony where to pause or kill the bot', await js(`return !document.querySelector(${JSON.stringify(controls)}) && !!document.querySelector('[data-pp-trade]') && document.querySelector('[data-pp-meta]').textContent === 'Neo Cortex trades this account on its own. Pause or kill it on the Neo Cortex tab.';`));
   await shot('n10a-trading-' + width);
