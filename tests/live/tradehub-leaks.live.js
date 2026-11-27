@@ -318,5 +318,7 @@ async function census(c) {
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exitCode = fail ? 1 : 0;
-  } finally { await c.close(); }
+  } finally {
+    try { await c.send('Page.navigate', { url: 'about:blank' }); } finally { c.ws.close(); }
+  }
 })().catch((e) => { console.error(e); process.exit(1); });

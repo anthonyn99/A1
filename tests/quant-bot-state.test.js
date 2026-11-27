@@ -79,10 +79,12 @@ test('Trading reads the dedicated paper account with nested orders, and caches o
     assert.ok(Object.hasOwn(bodies, route.pathname + route.search));
     return Response.json(bodies[route.pathname + route.search]);
   });
-  mock.property(globalThis, 'caches', { default: {
+  const priorCache = Object.getOwnPropertyDescriptor(globalThis, 'caches');
+  t.after(() => { if (priorCache) Object.defineProperty(globalThis, 'caches', priorCache); else delete globalThis.caches; });
+  globalThis.caches = { default: {
     async match(req) { return entries.get(req.url)?.clone(); },
     async put(req, res) { expiry.push(res.headers.get('cache-control')); entries.set(req.url, res.clone()); },
-  } });
+  } };
   conn.prepare('UPDATE bot_state SET snapshot = ? WHERE id = 1').run(JSON.stringify({ startingEquity: 100000 }));
   const changes = () => conn.prepare('SELECT total_changes() AS n').get().n;
   const before = changes();
