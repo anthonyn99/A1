@@ -4,11 +4,13 @@
 // start_date/end_date, so History, the FIFO realized P&L and the Journal sync
 // only ever saw one week, and a week without a sync lost those fills for good
 // (2026-11-03 audit). This runs the real worker code against a fake Webull:
-//   1. the summary asks for 30 days, one page
-//   2. the journal sync pages on with last_client_order_id, stops on a short or
-//      repeated page, and never duplicates an order
+//   1. 30 days are read in windows of at most 7 days, newest first
+//   2. against a Webull that answers like the real one (no time order, 100
+//      groups at most) every order comes back: a full window is split, a full
+//      single day pages with the cursor, and a short budget says complete:false
+//      (2026-11-27: the paged read lost the 8:35 TSLA buy, its sell read NO BASIS)
 //   3. an endpoint that refuses the date range (4xx) falls back to the bare call
-//   4. a 429 is NOT treated as a refused range
+//   4. a 429 is retried once, never treated as a refused range
 //   5. fees in Webull's current shape (commission object, fees[]) are read
 //   6. the leftover order/detail debug probe is gone
 //
@@ -75,40 +77,77 @@ const order = (id, extra) => ({ client_order_id: 'c' + id, order_id: 'o' + id, s
 const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL', orders: [order(id, extra)] });
 
 (async () => {
-  console.log('summary: 30 days, one page');
+  console.log('summary: 30 days, read in windows');
   {
     const { m, env, calls } = load(() => ({ body: { data: [group(1), group(2)] } }));
     const out = await m.fetchHistoryRaw('A1', env, {});
     const h = calls.filter(c => c.path === '/openapi/trade/order/history');
-    ok('one history call', h.length === 1, h.length);
-    ok('start_date and end_date sent', /^\d{4}-\d{2}-\d{2}$/.test(h[0].q.start_date) && /^\d{4}-\d{2}-\d{2}$/.test(h[0].q.end_date), JSON.stringify(h[0].q));
-    const span = (Date.parse(h[0].q.end_date) - Date.parse(h[0].q.start_date)) / 86400000;
-    ok('window is 30 days, through tomorrow (Webull\'s end date is exclusive: today\'s orders were missed)', span === 31 && h[0].q.end_date === new Date(Date.now() + 86400000).toISOString().slice(0, 10), span + ' ' + h[0].q.end_date);
-    ok('page_size 100', h[0].q.page_size === '100');
-    ok('two orders flattened', out.length === 2, out.length);
+    const day = s => Date.parse(s) / 86400000;
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    ok('start_date and end_date sent on every call, no cursor', h.every(c => /^\d{4}-\d{2}-\d{2}$/.test(c.q.start_date) && /^\d{4}-\d{2}-\d{2}$/.test(c.q.end_date) && !c.q.last_client_order_id), JSON.stringify(h.map(c => c.q)));
+    ok('windows of at most 7 days, newest first, the first ending tomorrow (Webull\'s end date is exclusive)', h[0].q.end_date === tomorrow && h.every(c => day(c.q.end_date) - day(c.q.start_date) <= 7) && h.every((c, i) => !i || c.q.end_date === h[i - 1].q.start_date), JSON.stringify(h.map(c => [c.q.start_date, c.q.end_date])));
+    ok('together they cover 30 days through tomorrow', day(h[0].q.end_date) - day(h[h.length - 1].q.start_date) === 31, h.length);
+    ok('page_size 100', h.every(c => c.q.page_size === '100'));
+    ok('two orders, each once, and the read says it is complete', out.length === 2 && out.complete === true, out.length);
   }
 
-  console.log('journal sync: pages, stops, never duplicates');
-  {
-    const full = Array.from({ length: 100 }, (_, i) => group(i));
-    const { m, env, calls } = load((p, q) => {
-      if (!q.last_client_order_id) return { body: { data: full } };
-      if (q.last_client_order_id === 'c99') return { body: { data: [group(99), group(100), group(101)] } };   // overlaps by one
-      return { body: { data: [] } };
+  console.log('a Webull that answers like the real one: unordered, 100 groups at most (TSLA, 2026-11-27)');
+  // 11/27: a 30-day read returned 255 of the month's orders in no time order; the
+  // cursor repeated page one and page three was refused. The 8:35 TSLA buy never
+  // came back, so the 8:37 sell that closed it read NO BASIS.
+  const realistic = (n, refuseCursor) => {
+    const today = Math.floor(Date.now() / 86400000);
+    const all = Array.from({ length: n }, (_, i) => {
+      const d = today - (i % 31);
+      return group('r' + i, { place_time_at: new Date(d * 86400000 + 15 * 3600000 + i * 1000).toISOString() });
     });
-    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxPages: 3 });
-    const h = calls.filter(c => c.path === '/openapi/trade/order/history');
-    ok('second page asked with the last group as cursor', h[1] && h[1].q.last_client_order_id === 'c99', h[1] && JSON.stringify(h[1].q));
-    ok('short page ends the paging', h.length === 2, h.length);
-    ok('102 distinct orders, the overlap not repeated', out.length === 102 && new Set(out.map(o => o.order_id)).size === 102, out.length);
+    all.push(group('tsla-buy', { symbol: 'TSLA', place_time_at: new Date(today * 86400000 + 15 * 3600000 + 35 * 60000).toISOString() }));
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    return (p, q) => {
+      if (p !== '/openapi/trade/order/history') return { body: [{ account_id: 'A1' }] };
+      if (q.last_client_order_id && refuseCursor) return { status: 429, body: { message: 'Too many requests' } };
+      const s = Date.parse(q.start_date), e = Date.parse(q.end_date);
+      const hit = all.filter(g => { const t = Date.parse(g.orders[0].place_time_at); return t >= s && t < e; });
+      hit.sort(() => rnd() - 0.5);
+      return { body: { data: hit.slice(0, 100) } };
+    };
+  };
+  {
+    const { m, env, calls } = load(realistic(400));
+    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 16 });
+    ok('every one of 401 orders comes back, once', out.length === 401 && new Set(out.map(o => o.order_id)).size === 401, out.length + ' in ' + calls.length + ' calls');
+    ok('the 8:35 TSLA buy is among them', out.some(o => o.order_id === 'otsla-buy'));
+    ok('and the read says it is complete', out.complete === true);
+    ok('a full window was split, not paged', calls.filter(c => c.path.includes('history')).length > 5 && !calls.some(c => c.q.last_client_order_id));
   }
   {
-    // An endpoint that ignores the cursor hands page one back: must stop, not loop.
-    const full = Array.from({ length: 100 }, (_, i) => group(i));
-    const { m, env, calls } = load(() => ({ body: { data: full } }));
-    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxPages: 3 });
-    ok('a repeated page stops the paging', calls.length === 2, calls.length);
-    ok('and adds nothing', out.length === 100, out.length);
+    const { m, env } = load(realistic(400));
+    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 3 });
+    ok('a budget too small to read it all says so (complete: false)', out.complete === false, out.length);
+  }
+  {
+    // One day holding 150 groups: the cursor is the only way left, and it is refused.
+    const today = Math.floor(Date.now() / 86400000);
+    const many = Array.from({ length: 150 }, (_, i) => group('d' + i, { place_time_at: new Date(today * 86400000 + 15 * 3600000).toISOString() }));
+    const { m, env, calls } = load((p, q) => {
+      if (q.last_client_order_id === 'cd99') return { body: { data: many.slice(100) } };
+      if (q.last_client_order_id) return { body: { data: [] } };
+      const s = Date.parse(q.start_date), e = Date.parse(q.end_date), t = today * 86400000;
+      return { body: { data: t >= s && t < e ? many.slice(0, 100) : [] } };
+    });
+    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 16 });
+    ok('a single full day pages on with the cursor and gets all 150', out.length === 150 && calls.some(c => c.q.last_client_order_id === 'cd99'), out.length);
+    ok('…and ends complete on the short page', out.complete === true);
+  }
+
+  console.log('journal sync: an order missing from an earlier read is added on the next');
+  {
+    const { m, env, kv } = load(realistic(400));
+    kv.set('journal', JSON.stringify({ trades: [] }));
+    const res = await m.syncJournalFromWebull(env);
+    const j = JSON.parse(kv.get('journal')).trades;
+    ok('the sync holds every order, the TSLA buy too', j.length === 401 && j.some(t => t.id === 'otsla-buy'), j.length);
+    ok('and reports the history as complete', res.historyComplete === true);
   }
 
   console.log("today's bracket order reaches the Journal (Tony, 2026-11-04)");
@@ -137,7 +176,7 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
   {
     const { m, env, calls } = load(() => ({ status: 429, body: { message: 'rate' } }));
     let threw = false; try { await m.fetchHistoryRaw('A1', env, {}); } catch (e) { threw = e.status === 429; }
-    ok('a 429 is thrown, not retried as a refused range', threw && calls.length === 1, calls.length);
+    ok('a 429 is retried once after a pause, then thrown, never taken as a refused range', threw && calls.length === 2 && calls.every(c => c.q.start_date), calls.length);
   }
   {
     // fetchOrders keeps its old contract: a failure is [] (the UI reports errors per section).
@@ -192,8 +231,8 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     kv.set('journal', JSON.stringify({ trades: [entry('o5'), entry('o6'), entry('o7', { feeChecked: true }), entry('o8', { commission: 0.05 })] }));
     const r1 = await call('POST', '/api/journal/fees');
     ok('call 1 reads order history once for the missing ids', r1.ok && r1.phase === 'ids' && r1.idsFound === 2, JSON.stringify(r1).slice(0, 200));
-    const h = calls.find(c => c.path === '/openapi/trade/order/history');
-    ok('…two years back', h && (Date.parse(h.q.end_date) - Date.parse(h.q.start_date)) / 86400000 === 731, h && JSON.stringify(h.q));
+    const hs = calls.filter(c => c.path === '/openapi/trade/order/history');
+    ok('…two years back, in windows', hs.length > 1 && (Date.parse(hs[0].q.end_date) - Date.parse(hs[hs.length - 1].q.start_date)) / 86400000 === 731, hs.length && JSON.stringify(hs.map(c => [c.q.start_date, c.q.end_date])));
     const r2 = await call('POST', '/api/journal/fees');
     const j = JSON.parse(kv.get('journal')).trades;
     ok('call 2 reads the fees', r2.ok && r2.phase === 'fees' && r2.updated === 1 && r2.remaining === 0, JSON.stringify({ ...r2, data: undefined }));
