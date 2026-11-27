@@ -100,6 +100,7 @@ function fakeBot() {
 
     console.log('\n4. Analysis ▸ Debrief ▸ Neo Cortex');
     await js(`
+      window.__errs=[]; window.addEventListener('error',function(e){window.__errs.push(String(e.error&&e.error.stack||e.message));});
       localStorage.setItem('tb_debrief_tab', 'cortex');
       window._fbWatchDebriefAuto = function(cb){ cb({}); return function(){}; };
       window._fbLoadMarketCal=async()=>({events:[],generatedAt:Date.now()});
@@ -108,7 +109,7 @@ function fakeBot() {
       host.__root=ReactDOM.createRoot(host);
       host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){}, promptText:'', searches:[]}));
       1`);
-    ok('Debrief has a Neo Cortex tab', await until(`!!document.querySelector('.dbr-tabs [data-dkey="cortex"]')`, 8000));
+    ok('Debrief has a Neo Cortex tab', await until(`!!document.querySelector('.dbr-tabs [data-dkey="cortex"]')`, 8000), await js('return JSON.stringify(window.__errs);'));
     await js(`document.querySelector('.dbr-tabs [data-dkey="cortex"]').click(); 1`);
     ok('...it draws the newest ready brief with its own day picker', await until(`(function(){ var b=document.querySelector('[data-dbr-cortex] [data-ncx-brief]'); return b && /Claude's review/i.test(b.innerText) && !!b.querySelector('[data-ncx-briefday]'); })()`, 10000),
       await js(`var b=document.querySelector('[data-dbr-cortex]'); return b ? b.innerText : 'none';`));
