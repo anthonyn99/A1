@@ -138,7 +138,7 @@ const ok = (name, cond, extra) => {
   ok('Control ▸ Alerts has a Devices button', await js(`return !!document.querySelector('[data-tal-devices]');`));
   ok('Beacon loads from TradeHub\'s own site (/a1/dm/core.js): Brave Shields blocks a third-party beacon.js', await js(`return [...document.scripts].some(function(s){return s.getAttribute('src') === '/a1/dm/core.js';}) && ![...document.scripts].some(function(s){return /github\\.io\\/A1\\/Beacon\\/beacon\\.js/.test(s.src);});`));
   ok('Beacon is mounted as tradehub', await until(`window.Beacon && window.Beacon.deviceId && !!window.Beacon.deviceId()`, 15000));
-  await js(`document.querySelector('[data-tal-devices]').click(); 1`);
+  await js(`document.querySelector('[data-tal-devices-panel]').click(); 1`);
   const PANEL = `(document.querySelector('beacon-panel') && document.querySelector('beacon-panel').shadowRoot)`;
   ok('…it opens Beacon\'s panel with TradeHub\'s alerts at the top: this device not registered, a Register button', await until(`${PANEL} && ${PANEL}.querySelector('[data-alerts-head] [data-alerts-reg]')`, 15000)
     && /not registered for TradeHub alerts/.test(await js(`return ${PANEL}.querySelector('[data-alerts-head]').textContent;`)), await js(`var r=${PANEL}; return r ? r.querySelector('[data-body]').innerText.slice(0,300) : 'no panel';`));
