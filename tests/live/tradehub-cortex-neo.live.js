@@ -32,7 +32,7 @@ function fakeBot() {
       if (p === '/strategies/stage') return { json: { ok: true, id: body.id, version: body.version, stage: body.stage } };
       if (p === '/bot/kill') return { json: { ok: true, halted: true, positions: [], orders: [], problems: [] } };
     }
-    if (p === '/state') return { json: { ok: true, mode: 'paper', paused: false, market: 'open', date: u.searchParams.get('day'), equity: 5031.5, dayPnl: 31.5, deployed: 0, positions: [], shadowSessions: 2, halted: null, lastCheck: now - 60000, limits: { book: 5000, maxDeployed: 3000 } } };
+    if (p === '/state') return { json: { ok: true, mode: 'paper', paused: false, market: 'open', date: '2026-11-30', equity: 5031.5, dayPnl: 31.5, deployed: 0, positions: [], shadowSessions: 2, halted: null, lastCheck: now - 60000, limits: { book: 5000, maxDeployed: 3000 } } };
     if (p === '/today') return { json: { ok: true, day: u.searchParams.get('day'), events: events.slice().reverse() }, headers: { etag: '"x"' } };
     if (p === '/lifecycle') return { json: life };
     if (p === '/strategies') return { json: { ok: true, strategies: [] } };
@@ -73,7 +73,7 @@ function fakeBot() {
         const reg = await js(`var e=window.__tbNeoApp.registry.get('cortex'); return JSON.stringify({ r: Object.keys(e.readers).sort(), a: Object.keys(e.actions).sort(), c: [e.actions.pause.confirm, e.actions.kill.confirm] });`);
         ok('the page\'s entry: six readers, four actions, pause and kill ask first', reg === JSON.stringify({ r: ['brief', 'settings', 'status', 'strategy', 'today', 'why'], a: ['kill', 'open', 'pause', 'research'], c: [true, true] }), reg);
         const st = await read('cortex.status');
-        ok('status: mode, day P&L, shadow sessions from the bot', st.mode === 'paper' && st.dayPnl === 31.5 && st.shadowSessions === 2, JSON.stringify(st));
+        ok('status: mode, the bot's day, day P&L, no positions, shadow sessions', st.mode === 'paper' && st.day === '2026-11-30' && st.dayPnl === 31.5 && st.positions === 'none' && st.shadowSessions === 2, JSON.stringify(st));
         const t = await read('cortex.today');
         ok('today: the summary first, the trades with their reasons, the brief\'s headline', /made 2 moves: 1 entry, 1 exit\. Brief: Up \$31\.50/.test(t.summary) && t.trades.length === 2 && /Target 2R/.test(t.trades[1].why), JSON.stringify(t));
         const why = await read('cortex.why', { symbol: 'NVDA' });
