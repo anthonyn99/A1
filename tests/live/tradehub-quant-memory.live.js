@@ -76,7 +76,7 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
 
   console.log('\nDrive');
   const dv = await text('[data-me-drive]');
-  ok('connected, the account, the newest backup', /Connected/i.test(dv) && /tony@example\.com/.test(dv) && /d1-2026-11-12\.json\.gz \(51 KB\)/.test(dv), dv);
+  ok('connected, the account, the newest backup', /Connected/i.test(dv) && /tony@example\.com/.test(dv) && /Last backup/i.test(dv) && /51 KB/.test(dv) && /d1-2026-11-12\.json\.gz/.test(await js(`return document.querySelector('[data-me-backup]').title;`)), dv);
   ok('the Playbook snapshot goes to Drive on a day a page changed (once)', await until(`true`, 1500) && (api.posted.drive || []).some((x) => /^TradeHub\/playbook\/\d{4}-\d{2}-\d{2}\.json$/.test(x.path) && /Never average down/.test(x.body)) && (api.posted.drive || []).length === 1, JSON.stringify((api.posted.drive || []).map((x) => x.path)));
   await stubDialogs('');
   await js(`document.querySelector('[data-me-disconnect]').click(); 1`);
