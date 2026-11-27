@@ -535,13 +535,25 @@ function extractFee(r) {
 
 /* ORDER HISTORY WINDOW. Webull's history endpoint answers the LAST 7 DAYS unless
    it is given start_date/end_date (yyyy-MM-dd), 10 rows a page unless page_size is
-   set, and pages on with last_client_order_id. Called bare, History, the FIFO
-   realized P&L and the Journal sync only ever saw one week: a week without a
-   sync (PC off, travel) lost those fills from the journal for good.
-   Each extra page is one more call against Webull's 2-per-2s history limit, so
-   pages are spaced and capped. */
+   set. Called bare, History, the FIFO realized P&L and the Journal sync only ever
+   saw one week: a week without a sync lost those fills for good.
+
+   READ IN WINDOWS, NEVER BY PAGING (2026-11-27). Given a date range, Webull
+   returns at most page_size (100) order GROUPS, in no time order, and its
+   last_client_order_id cursor means nothing on an unordered list: page two
+   repeated most of page one, page three was usually refused (429), and orders
+   simply never came back. The 30-day read held 255 of the month's orders and
+   was missing the 11/27 TSLA buy at 8:35 (1 @ 398.74), so the 8:37 sell that
+   closed it read NO BASIS. A window with fewer than 100 groups is complete, so
+   the range is read in windows of HISTORY_WINDOW_DAYS, newest first, and a
+   window that comes back full is split in half and read again until every
+   window fits. The result carries `complete: false` when the call budget ran
+   out or a window failed, so the caller can say so instead of trusting it. */
 const HISTORY_DAYS = 30;
-const HISTORY_PAGE_GAP_MS = 1100;
+const HISTORY_PAGE_SIZE = 100;
+const HISTORY_WINDOW_DAYS = 7;
+const HISTORY_PAGE_GAP_MS = 1100;   // history allows 2 calls per 2 s
+const DAY_MS = 86400000;
 const ymd = d => d.toISOString().slice(0, 10);
 
 function flattenOrderGroups(list) {
@@ -555,52 +567,93 @@ function flattenOrderGroups(list) {
 }
 const listOf = raw => (Array.isArray(raw) ? raw : (raw?.data || raw?.orders || raw?.items || []));
 
-async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxPages = 1 } = {}) {
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86400000);
-  /* end_date is TOMORROW (UTC). Webull's end date is exclusive: sent as today,
-     none of today's orders came back, so the Journal only ever caught up the
-     next day (Tony, 2026-11-04: PLTR 165 → 175, bracket, not pulled). If an
-     account refuses a future date, the 4xx fallback below is Webull's own
-     7-day default, which does include today. */
-  const base = { account_id: accountId, page_size: 100, start_date: ymd(start), end_date: ymd(new Date(end.getTime() + 86400000)) };
-  let raw;
-  try {
-    raw = await wb('GET', '/openapi/trade/order/history', { query: base }, env);
-  } catch (e) {
-    /* A 4xx here means this account's endpoint refused the date range. Fall back
-       to the call that has always worked (Webull's own 7-day default) rather
-       than losing History entirely. 401/429/5xx are not about the parameters. */
-    if (!(e.status >= 400 && e.status < 500) || e.status === 401 || e.status === 429) throw e;
-    console.warn('[orders/history] date range refused (' + e.status + '), using the 7-day default');
-    raw = await wb('GET', '/openapi/trade/order/history', { query: { account_id: accountId, page_size: 100 } }, env);
-    return flattenOrderGroups(listOf(raw));
-  }
-  let groups = listOf(raw);
-  const seen = new Set(flattenOrderGroups(groups).map(o => o.order_id || o.client_order_id));
-  for (let page = 1; page < maxPages && groups.length; page++) {
-    const last = groups[groups.length - 1];
-    const cursor = last && (last.client_order_id || (last.orders && last.orders[0] && last.orders[0].client_order_id));
-    if (!cursor) break;
-    await delay(HISTORY_PAGE_GAP_MS);
-    let next;
-    try { next = listOf(await wb('GET', '/openapi/trade/order/history', { query: { ...base, last_client_order_id: cursor } }, env)); }
-    catch (e) { console.warn('[orders/history] page', page + 1, 'failed:', e.message); break; }
-    /* Stop when a page brings nothing new: an endpoint that ignores the cursor
-       hands back page one again, and that must not loop or duplicate rows. */
-    const fresh = next.filter(g => flattenOrderGroups([g]).some(o => !seen.has(o.order_id || o.client_order_id)));
-    if (!fresh.length) break;
-    flattenOrderGroups(fresh).forEach(o => seen.add(o.order_id || o.client_order_id));
-    groups = groups.concat(fresh);
-    if (next.length < 100) break;
-  }
+async function fetchHistoryRaw(accountId, env, { days = HISTORY_DAYS, maxCalls = 12 } = {}) {
+  /* Day numbers (UTC). The end is TOMORROW: Webull's end date is exclusive, and
+     sent as today none of today's orders came back (Tony, 2026-11-04: PLTR
+     165 → 175 bracket, not pulled). Adjacent windows share one boundary, so
+     whatever day Webull's dates mean, together they cover the whole range. */
+  const endDay = Math.floor(Date.now() / DAY_MS) + 1;
+  const startDay = endDay - days - 1;
+  const dayStr = n => ymd(new Date(n * DAY_MS));
+  const query = (s, e, extra) => ({ account_id: accountId, page_size: HISTORY_PAGE_SIZE, start_date: dayStr(s), end_date: dayStr(e), ...extra });
+  /* Long ranges (the 2-year fee-id pass) start with wider windows, leaving half
+     the budget for splits. */
+  const width = Math.max(HISTORY_WINDOW_DAYS, Math.ceil((endDay - startDay) / Math.max(1, Math.floor(maxCalls / 2))));
+  const todo = [];   // a stack, oldest first: pop() reads the newest window
+  for (let s = startDay; s < endDay; s += width) todo.push([s, Math.min(s + width, endDay)]);
+
   const out = [], ids = new Set();
-  for (const o of flattenOrderGroups(groups)) {
-    const id = o.order_id || o.client_order_id;
-    if (id && ids.has(id)) continue;
-    if (id) ids.add(id);
-    out.push(o);
+  const take = groups => {
+    let fresh = 0;
+    for (const o of flattenOrderGroups(groups)) {
+      const id = o.order_id || o.client_order_id;
+      if (id && ids.has(id)) continue;
+      if (id) ids.add(id);
+      out.push(o); fresh++;
+    }
+    return fresh;
+  };
+  let calls = 0, complete = true;
+  const ask = async q => {
+    if (calls++) await delay(HISTORY_PAGE_GAP_MS);
+    try { return listOf(await wb('GET', '/openapi/trade/order/history', { query: q }, env)); }
+    catch (e) {
+      if (e.status !== 429) throw e;
+      await delay(2 * HISTORY_PAGE_GAP_MS);   // one retry: the limit is per 2 s
+      calls++;
+      return listOf(await wb('GET', '/openapi/trade/order/history', { query: q }, env));
+    }
+  };
+
+  while (todo.length) {
+    if (calls >= maxCalls) { complete = false; break; }
+    const [s, e] = todo.pop();
+    let groups;
+    try { groups = await ask(query(s, e)); }
+    catch (err) {
+      if (!out.length && calls <= 2) {
+        /* A 4xx on the first window means this account's endpoint refused the
+           date range. Fall back to the call that has always worked (Webull's
+           own 7-day default) rather than losing History entirely. 401/429/5xx
+           are not about the parameters: those are thrown. */
+        if (!(err.status >= 400 && err.status < 500) || err.status === 401 || err.status === 429) throw err;
+        console.warn('[orders/history] date range refused (' + err.status + '), using the 7-day default');
+        const raw = await wb('GET', '/openapi/trade/order/history', { query: { account_id: accountId, page_size: HISTORY_PAGE_SIZE } }, env);
+        const flat = flattenOrderGroups(listOf(raw));
+        flat.complete = false;
+        return flat;
+      }
+      console.warn('[orders/history] window', dayStr(s), 'to', dayStr(e), 'failed:', err.message);
+      complete = false;
+      continue;
+    }
+    take(groups);
+    if (groups.length < HISTORY_PAGE_SIZE) continue;   // the window is whole
+    if (e - s > 1) {
+      const mid = s + Math.floor((e - s) / 2);
+      todo.push([s, mid], [mid, e]);                   // the newer half is read first
+      continue;
+    }
+    /* One day with 100+ order groups: the cursor is all that is left. Page on
+       while pages bring something new; the day counts as complete only when a
+       page comes back short. */
+    let page = groups, whole = false;
+    for (let n = 0; n < 3 && calls < maxCalls; n++) {
+      const last = page[page.length - 1];
+      const cursor = last && (last.client_order_id || (last.orders && last.orders[0] && last.orders[0].client_order_id));
+      if (!cursor) break;
+      let next;
+      try { next = await ask(query(s, e, { last_client_order_id: cursor })); }
+      catch (err) { console.warn('[orders/history] day', dayStr(s), 'page', n + 2, 'failed:', err.message); break; }
+      const fresh = take(next);
+      if (next.length < HISTORY_PAGE_SIZE) { whole = true; break; }
+      if (!fresh) break;
+      page = next;
+    }
+    if (!whole) complete = false;
   }
+  if (!complete) console.warn('[orders/history] incomplete:', calls, 'calls,', todo.length, 'window(s) unread');
+  out.complete = complete;
   return out;
 }
 
@@ -680,7 +733,7 @@ async function syncJournalFromWebull(env) {
     const accountId = await getAccountId(env);
     await delay(500);
     // 30 days, up to 3 pages: a missed week (or three) of syncs still lands.
-    const orders  = await fetchOrders(accountId, 'history', env, { days: HISTORY_DAYS, maxPages: 3 });
+    const orders  = await fetchOrders(accountId, 'history', env, { days: HISTORY_DAYS, maxCalls: 16 });
     const journal = await loadJournal(env);
     /* Build lookup by every known id variant: entry.id, orderId, leg._wbId, leg orderId */
     const knownIds = new Set();
@@ -1469,7 +1522,7 @@ async function handleRequest(request, env) {
       const journal = await loadJournal(env);
       const lacking = journal.trades.filter(t => entryNeedsFee(t) && !t.clientOrderId);
       if (lacking.length && !(await env.TB_KV.get('fee_ids_read'))) {
-        const hist = await fetchOrders(accountId, 'history', env, { days: 730, maxPages: 10 });
+        const hist = await fetchOrders(accountId, 'history', env, { days: 730, maxCalls: 20 });
         const coidById = new Map(hist.filter(o => o.orderId && o.clientOrderId).map(o => [o.orderId, o.clientOrderId]));
         let n = 0;
         for (const t of lacking) { const c = coidById.get(t.id); if (c) { t.clientOrderId = c; n++; } }
