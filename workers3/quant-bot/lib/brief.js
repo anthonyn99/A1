@@ -8,6 +8,7 @@ import { closeOf } from './lifecycle.js';
 import { readSettings, readBotState } from './state.js';
 import { paperBroker } from './alpaca.js';
 import { json } from './lab.js';
+import { stageOf } from './outbox.js';
 
 export const NUMBERS_AFTER = 20, CLAUDE_DEADLINE = 75;
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -48,11 +49,9 @@ export function tally(trades) {
 
 /** The day's stage moves (not conviction updates) and Gate edits, as { id, stage, why }. */
 export async function dayChanges(db, day) {
-  const { results } = await db.prepare("SELECT event_key, kind, strategy, why FROM bot_events WHERE day = ? AND kind IN ('stage', 'edit') AND event_key NOT LIKE 'conviction-%' ORDER BY ts, id").bind(day).all();
-  return results.map((e) => {
-    const m = /^stage-.+-\d+-([a-z]+)-\d+$/.exec(e.event_key);
-    return { id: e.strategy, stage: e.kind === 'edit' ? 'edited' : m ? m[1] : 'changed', why: e.why };
-  });
+  // Not conviction updates, not Tony's own settings saves (edit events keyed settings-<version>).
+  const { results } = await db.prepare("SELECT event_key, kind, strategy, why FROM bot_events WHERE day = ? AND kind IN ('stage', 'edit') AND event_key NOT LIKE 'conviction-%' AND event_key NOT LIKE 'settings-%' ORDER BY ts, id").bind(day).all();
+  return results.map((e) => ({ id: e.strategy, stage: e.kind === 'edit' ? 'edited' : stageOf(e.event_key), why: e.why }));
 }
 
 /** SPY's change on `day` from Alpaca's daily bars (null when the bar is not there). */
