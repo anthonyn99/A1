@@ -74,7 +74,10 @@ function fakeBot() {
     await js(`document.querySelector('[data-ctl-sub="cortex"]').click(); 1`);
     ok('...it draws its groups: Status, Money, Styles, Shorts, Strategist, Lifecycle, Alerts, History', await until(`[...document.querySelectorAll('[data-ctl-pane="cortex"] [data-ncx-group]')].map(function(g){return g.dataset.ncxGroup;}).join(',') === 'status,money,styles,shorts,strategist,lifecycle,alerts,history'`, 10000),
       await js(`return [...document.querySelectorAll('[data-ctl-pane="cortex"] [data-ncx-group]')].map(function(g){return g.dataset.ncxGroup;}).join(',') + ' | ' + (document.querySelector('[data-ctl-pane="cortex"]')||{}).innerText;`));
-    await sleep(600); await shot('cortex-control-1280'); await js('window.scrollTo(0, 700); document.querySelector('.tb-main, main') && document.querySelector('.tb-main, main').scrollTo(0, 700); 1'); await shot('cortex-control-1280-b'); await js('window.scrollTo(0, 0); document.querySelector('.tb-main, main') && document.querySelector('.tb-main, main').scrollTo(0, 0); 1');
+    // Screenshots only with SHOTS_DIR: the top, then scrolled to Lifecycle.
+    await sleep(600); await shot('cortex-control-1280');
+    await js(`${q('[data-ncx-group="shorts"]')}.scrollIntoView({block:'start'}); 1`); await sleep(200); await shot('cortex-control-1280-b');
+    await js(`${q('[data-ncx-group="status"]')}.scrollIntoView({block:'start'}); 1`);
     ok('...two columns on a wide screen', await js(`var c=${q('.ncx-col')}, d=document.querySelectorAll('[data-ctl-pane="cortex"] .ncx-col')[1]; return !!d && Math.abs(c.getBoundingClientRect().top - d.getBoundingClientRect().top) < 2 && d.getBoundingClientRect().left > c.getBoundingClientRect().right;`));
     ok('...mode Shadow pressed; Paper locked with the reason (0 of 2 shadow sessions)', await js(`var p=${q('[data-ncx-mode="paper"]')}; return ${q('[data-ncx-mode="shadow"]')}.getAttribute('aria-checked') === 'true' && p.disabled && /0 of 2/.test(${q('[data-ncx-group="status"]')}.innerText);`));
     ok('...the money fields show the plan\'s values as defaults (no ceiling)', await js(`return ${q('[data-ncx-field="limits.book"]')}.value === '5000' && /Default \\$5,000/.test(${q('[data-ncx-group="money"]')}.innerText) && /\\$12\\.50 to \\$62\\.50/.test(${q('[data-ncx-group="money"]')}.innerText);`));
