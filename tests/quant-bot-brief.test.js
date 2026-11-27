@@ -235,5 +235,5 @@ test('outbox review: shadow verdict stages read right, Tony\'s settings saves st
   assert.deepEqual(seen[1], ['Neo Cortex research ready']);
   await flushOutbox(env, 4, { fetchFn: ok });
   assert.equal(seen.length, 2);   // each run once
-  assert.equal(conn.prepare('SELECT brief_day FROM bot_outbox').get().brief_day, '2026-11-27');   // past the broken row
+  assert.equal(conn.prepare('SELECT brief_day FROM bot_outbox').get().brief_day, MON);   // past the broken row of the 27th
 });
