@@ -67,12 +67,12 @@ function fakeBot() {
     await size(1280 + 224, 900);
     await boot({ quant: true });
     await tab('cortex');
-    ok('the brief: Ready, the day\'s P&L against SPY, trades, risk used', await until(`${card('brief')} && /Ready/.test(${card('brief')}.innerText) && /\\+\\$84\\.20/.test(${card('brief')}.innerText) && /SPY \\+0\\.41%/.test(${card('brief')}.innerText) && /\\$1,940\\.00/.test(${card('brief')}.innerText)`, 10000), await js(`return ${card('brief')} && ${card('brief')}.innerText;`));
+    ok('the brief: Ready, the day\'s P&L against SPY, trades, risk used', await until(`${card('brief')} && /Ready/i.test(${card('brief')}.innerText) && /\\+\\$84\\.20/.test(${card('brief')}.innerText) && /SPY \\+0\\.41%/.test(${card('brief')}.innerText) && /\\$1,940\\.00/.test(${card('brief')}.innerText)`, 10000), await js(`return ${card('brief')} && ${card('brief')}.innerText;`));
     ok('...best and worst, what changed, each strategy', await js(`var t=${card('brief')}.innerText; return /AMD · \\+\\$31\\.80 \\(2\\.0R\\)/.test(t) && /gap-fade/.test(t) && /killed/i.test(t) && /semis-orb/.test(t) && /4 today/.test(t);`), await js(`return ${card('brief')}.innerText;`));
-    ok('...Claude\'s review and tomorrow\'s line-up', await js(`var t=${card('brief')}.innerText; return /Claude's review/.test(t) && /half size until 10:00/.test(t) && /Semis ORB v2/.test(t);`));
+    ok('...Claude\'s review and tomorrow\'s line-up', await js(`var t=${card('brief')}.innerText; return /Claude's review/i.test(t) && /half size until 10:00/.test(t) && /Semis ORB v2/.test(t);`));
     ok('...no week block on an ordinary day', await js(`return !${card('brief')}.querySelector('[data-ncx-week]');`));
     await js(`var s=${card('brief')}.querySelector('[data-ncx-briefday]'); s.value=${JSON.stringify(FRI)}; s.dispatchEvent(new Event('change',{bubbles:true})); 1`);
-    ok('the history picker: Friday\'s brief carries the week', await until(`!!${card('brief')}.querySelector('[data-ncx-week]') && /This week/.test(${card('brief')}.innerText) && /\\+\\$240\\.50/.test(${card('brief')}.innerText)`, 8000), await js(`return ${card('brief')}.innerText;`));
+    ok('the history picker: Friday\'s brief carries the week', await until(`!!${card('brief')}.querySelector('[data-ncx-week]') && /This week/i.test(${card('brief')}.innerText) && /\\+\\$240\\.50/.test(${card('brief')}.innerText)`, 8000), await js(`return ${card('brief')}.innerText;`));
     ok('...and Today moved to that day too (one day for the tab)', await js(`return document.querySelector('[data-ncx-day]').value === ${JSON.stringify(FRI)};`));
 
     console.log('\n2. Deep links from a push');
@@ -110,7 +110,7 @@ function fakeBot() {
       1`);
     ok('Debrief has a Neo Cortex tab', await until(`!!document.querySelector('.dbr-tabs [data-dkey="cortex"]')`, 8000));
     await js(`document.querySelector('.dbr-tabs [data-dkey="cortex"]').click(); 1`);
-    ok('...it draws the newest ready brief with its own day picker', await until(`(function(){ var b=document.querySelector('[data-dbr-cortex] [data-ncx-brief]'); return b && /Claude's review/.test(b.innerText) && !!b.querySelector('[data-ncx-briefday]'); })()`, 10000),
+    ok('...it draws the newest ready brief with its own day picker', await until(`(function(){ var b=document.querySelector('[data-dbr-cortex] [data-ncx-brief]'); return b && /Claude's review/i.test(b.innerText) && !!b.querySelector('[data-ncx-briefday]'); })()`, 10000),
       await js(`var b=document.querySelector('[data-dbr-cortex]'); return b ? b.innerText : 'none';`));
 
     console.log('\n5. Tablet and phone');
