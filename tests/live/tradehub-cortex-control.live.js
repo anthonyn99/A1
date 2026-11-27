@@ -103,7 +103,7 @@ function fakeBot() {
     console.log('\n3. The strategist');
     ok('the model lists show today\'s model per unit, Fable marked', await until(`/Latest Opus · Opus 5\\.5/.test(${q('[data-ncx-field="strategist.premarket"]')}.innerText) && /Latest Fable · Fable 5\\.2 · needs credits/.test(${q('[data-ncx-field="strategist.premarket"]')}.innerText)`, 6000),
       await js(`return ${q('[data-ncx-field="strategist.premarket"]')}.innerText;`));
-    ok('...the last run is shown', await js(`return /Last run: premarket, .* · ok · 2 proposals/.test(${q('[data-ncx-lastrun]')}.innerText);`), await js(`return ${q('[data-ncx-lastrun]')}.innerText;`));
+    ok('...the last run is shown', await js(`return /Last run: Before the open, .* · ok · 2 proposals/.test(${q('[data-ncx-lastrun]')}.innerText);`), await js(`return ${q('[data-ncx-lastrun]')}.innerText;`));
     await setField('strategist.postclose', 'claude_code/opus');
     ok('...picking a model saves it', await until(`/Version 6 ·/.test(${q('[data-ncx-group="status"]')}.innerText)`, 6000) && bot.posted.some((x) => x.body.settings && x.body.settings.strategist && x.body.settings.strategist.postclose === 'claude_code/opus'));
     await js(`${q('[data-ncx="research"]')}.click(); 1`);
