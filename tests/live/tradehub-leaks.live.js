@@ -218,9 +218,11 @@ async function census(c) {
     const start = await sample(), startReads = bot.today();
     const deadline = Date.now() + LEAK_MIN * 60_000;
     console.log('N10 Cortex baseline ' + JSON.stringify({ open: start, parked: parked0, detached: detached0, reads: startReads }));
-    let cycles = 0;
+    let cycles = 0, polls = 0;
     while (Date.now() < deadline) {
+      const before = bot.today();
       await sleep(Math.min(60_000, deadline - Date.now()));
+      polls += bot.today() - before;
       await exercise(); await open();
       if (++cycles % 15 === 0) console.log(`N10 Cortex cycle ${cycles}, journal reads ${bot.today()}`);
     }
@@ -230,9 +232,9 @@ async function census(c) {
     const parked1 = await sample(), detached1 = detached(await census(c));
     const subscribers = await js(`const m = await import('/A1/TradeHub/data/cortex.js'); return m.getCortexStore().subscriberCount();`);
     const afterExit = bot.today(); await sleep(31_000);
-    console.log('N10 Cortex final ' + JSON.stringify({ open: end, parked: parked1, detached: detached1, reads, cycles, subscribers }));
+    console.log('N10 Cortex final ' + JSON.stringify({ open: end, parked: parked1, detached: detached1, reads, polls, cycles, subscribers }));
     ok('Cortex heap after GC stays within 10%', end.heapMB <= start.heapMB * 1.1);
-    ok('Cortex journal keeps polling through the run', reads >= Math.floor(LEAK_MIN));
+    ok('Cortex journal keeps polling through the run', polls >= Math.max(1, Math.floor(LEAK_MIN)));
     ok('No extra detached DOM after leaving Cortex', detached1 <= detached0, `${detached0} → ${detached1}`);
     ok('Listeners and timers return to baseline', parked1.listeners <= parked0.listeners && parked1.timers <= parked0.timers);
     ok('Cortex unsubscribes and stops polling after leaving', subscribers === 0 && bot.today() === afterExit);
