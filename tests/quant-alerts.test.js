@@ -617,6 +617,9 @@ globalThis.fetch = async (url, opts = {}) => {
     const titles = r.body.fired.map((f) => f.title);
     ok('more than 3 trades in one minute = one summary push; a lone trade in another minute stays its own', r.body.fired.length === 2 && titles.includes('Neo Cortex: 5 trades at 8:00 AM') && titles.includes('Neo Cortex: ev:c1'), JSON.stringify(titles));
     ok('fold keeps three in a minute as three', CX.fold(burst.slice(0, 3)).length === 3);
+    r = await post({ items: [...burst, it('ev:b6', 'trades', { ts: MON_10 + 5006, title: 'Neo Cortex: Buy 6 AMD' })] });
+    ok('review: the same minute resent with one more trade is a new summary (never swallowed by the old key)', r.body.fired.length === 1 && /6 trades/.test(r.body.fired[0].title), JSON.stringify(r.body.fired));
+    ok('review: a body that is not an object is a 400 (quant-bot does not retry it forever)', (await post(null)).status === 400);
     // The switches: Control ▸ Alerts ▸ Neo Cortex.
     await call(e, 'PUT', '/alerts/config', { config: { cortex: { trades: false } } });
     r = await post({ items: [it('ev:9', 'trades'), it('brief:2026-11-16', 'brief', { route: 'cortex:brief:2026-11-16' })] });
