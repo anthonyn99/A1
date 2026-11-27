@@ -339,6 +339,19 @@
       "delete": false
     },
     {
+      "id": "tradehub-morning-market-slot",
+      "store": "localStorage",
+      "program": "tradehub",
+      "origin": "a1-priv",
+      "category": "unused",
+      "capDays": 0,
+      "exact": ["tb_morning_market_slot"],
+      "owner": "TradeHub's morning Market check, once a morning until 2026-11-27",
+      "reason": "Marked the Market snapshot done for the 6 AM slot, which came before the premarket slot was due, so the snapshot waited for a Market visit. The check now asks the loader whether the slot due now is missing; nothing reads this key. A number, no user data.",
+      "delete": true,
+      "approved": "2026-11-02: Tony approved deletion so the cleanup runs on its own; this key is a retired timestamp flag"
+    },
+    {
       "id": "moved-programs-old-origin",
       "store": "localStorage",
       "program": "index",
