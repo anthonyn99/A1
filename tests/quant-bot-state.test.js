@@ -60,6 +60,51 @@ test('requires Tony’s key on worker routes and defaults to shadow', async (t) 
   assert.equal((await (await request('/brief/2026-11-27')).json()).brief, null);
 });
 
+test('Trading reads the dedicated paper account with nested orders, and caches only after authorization', async (t) => {
+  const { DB, conn } = await fixture(t);
+  const { default: app, sha256Hex } = await worker;
+  const { mock } = t;
+  const entries = new Map(), expiry = [];
+  mock.method(globalThis, 'fetch', async (url, opts) => {
+    assert.equal(new URL(url).origin, 'https://paper-api.alpaca.markets');
+    assert.equal(opts.method, 'GET');
+    assert.equal(opts.headers['APCA-API-KEY-ID'], 'paper-fixture');
+    const bodies = {
+      '/v2/account': { equity: '100045', last_equity: '100015', cash: '99500', buying_power: '90000' },
+      '/v2/positions': [{ symbol: 'NVDA', side: 'long', qty: '4', avg_entry_price: '130', current_price: '135', market_value: '540', unrealized_pl: '20', unrealized_plpc: '0.038', unrealized_intraday_pl: '10' }],
+      '/v2/orders?status=open&nested=true&limit=500': [{ id: 'group', symbol: 'NVDA', side: 'buy', status: 'filled', legs: [{ id: 'stop', type: 'stop', stop_price: '120', side: 'sell', status: 'new' }] },
+        { id: 'entry', symbol: 'AMD', side: 'buy', type: 'limit', limit_price: '100', qty: '6', filled_qty: '0', status: 'new' }],
+    };
+    const route = new URL(url);
+    assert.ok(Object.hasOwn(bodies, route.pathname + route.search));
+    return Response.json(bodies[route.pathname + route.search]);
+  });
+  mock.property(globalThis, 'caches', { default: {
+    async match(req) { return entries.get(req.url)?.clone(); },
+    async put(req, res) { expiry.push(res.headers.get('cache-control')); entries.set(req.url, res.clone()); },
+  } });
+  conn.prepare('UPDATE bot_state SET snapshot = ? WHERE id = 1').run(JSON.stringify({ startingEquity: 100000 }));
+  const changes = () => conn.prepare('SELECT total_changes() AS n').get().n;
+  const before = changes();
+  const env = { DB, ALLOWED_KEYS: await sha256Hex(key), PROBE_KEY: 'probe', BOT_ALPACA_KEY: 'paper-fixture', BOT_ALPACA_SECRET: 'secret-fixture' };
+  const read = (secret) => app.fetch(new Request('https://quant-bot.test/account', { headers: secret ? { authorization: 'Bearer ' + secret } : {} }), env);
+  assert.equal((await read()).status, 401);
+  assert.equal((await read('probe')).status, 401);
+  assert.equal(globalThis.fetch.mock.callCount(), 0);
+  const response = await read(key), body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(body.book, { capital: 5000, bp_cap: 3000 });
+  assert.deepEqual(body.account, { equity: 5045, cash: 4500, buying_power: 1860, day_pnl: 30, deployed: 1140, booked: true, broker_equity: 100045 });
+  assert.deepEqual(body.positions, [{ symbol: 'NVDA', side: 'long', qty: 4, avg: 130, price: 135, value: 540, pnl: 20, pnlPct: 0.038, dayPnl: 10 }]);
+  assert.equal(body.orders[0].legs[0].id, 'stop');
+  assert.equal((await read()).status, 401);
+  assert.deepEqual(await (await read(key)).json(), body);
+  assert.equal(globalThis.fetch.mock.callCount(), 3);
+  assert.deepEqual(expiry, ['public, max-age=20']);
+  assert.equal(changes(), before);
+});
+
 test('audits each valid settings version and rejects a stale update or unsafe limit', async (t) => {
   const { DB, request } = await fixture(t);
   const { putSettings } = await state;
