@@ -109,6 +109,22 @@ test('journal deduplicates events, filters by time and honors ETags', async (t) 
   assert.deepEqual((await next.json()).events.map((e) => e.sym), ['AMD', 'NVDA']);
 });
 
+test('N9: /today keeps only the asked kinds, counts the whole day and tags bookkeeping rows', async (t) => {
+  const { DB, request } = await fixture(t);
+  const now = Date.parse('2026-11-27T15:00:00Z');
+  const { logEvent } = await state;
+  for (let i = 0; i < 3; i++) await logEvent(DB, { kind: 'shadow', key: 'sh-' + i, ts: now + i, symbol: 'AMD', strategy: 's', version: 1, why: 'would short' });
+  await logEvent(DB, { kind: 'entry', key: 'fill-1', ts: now - 5, symbol: 'NVDA', strategy: 's', version: 1, why: 'ORB' });
+  await logEvent(DB, { kind: 'stage', key: 'conviction-s-1-2026-11-27', ts: now + 9, strategy: 's', version: 1, why: 'conviction 0.4' });
+  await logEvent(DB, { kind: 'stage', key: 'stage-s-1-shadowpass-2026-11-27', ts: now + 10, strategy: 's', version: 1, why: 'passed' });
+  const r = await (await request('/today?day=2026-11-27&kinds=entry,stage&counts=1')).json();
+  assert.deepEqual(r.events.map((e) => [e.kind, e.tag]), [['stage', null], ['stage', 'conviction'], ['entry', null]]);
+  assert.deepEqual(r.counts, { shadow: 3, entry: 1, stage: 2 });
+  assert.equal((await request('/today?day=2026-11-27&kinds=entry,bogus')).status, 400);
+  const plain = await (await request('/today?day=2026-11-27')).json();
+  assert.equal(plain.events.length, 6); assert.equal(plain.counts, undefined);
+});
+
 
 test('a scheduled half-day shadow replay journals the signal and counts one completed session', async (t) => {
   const { DB, conn, request } = await fixture(t);
