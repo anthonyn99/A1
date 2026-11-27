@@ -663,7 +663,7 @@ async function fetchOrders(accountId, type = 'open', env, opts = {}) {
       ? flattenOrderGroups(listOf(await wb('GET', '/openapi/trade/order/open', { query: { account_id: accountId, page_size: 100 } }, env)))
       : await fetchHistoryRaw(accountId, env, opts);
 
-    return flat.map(r => ({
+    const rows = flat.map(r => ({
       orderId:   r.order_id         || r.client_order_id,
       clientOrderId: r.client_order_id,
       ticker:    r.symbol           || r.ticker?.symbol || r.instrument?.symbol || '',
@@ -683,7 +683,9 @@ async function fetchOrders(accountId, type = 'open', env, opts = {}) {
       createdAt: r.place_time_at       || r.create_time,
       filledAt:  r.filled_time_at      || r.filled_time,
     }));
-  } catch(e) { console.error('[orders]', e.message); return []; }
+    rows.complete = flat.complete !== false;   // false: History could not read every window
+    return rows;
+  } catch(e) { console.error('[orders]', e.message); const none = []; none.complete = false; return none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -840,7 +842,7 @@ async function syncJournalFromWebull(env) {
       await saveJournal(env, journal);
       console.log(`[journal] Synced ${added} new trade(s)/fee patch(es), ${fees.updated} fee(s) read`);
     }
-    return { trades: journal.trades, feesRemaining: fees.remaining };
+    return { trades: journal.trades, feesRemaining: fees.remaining, historyComplete: orders.complete !== false };
   } catch(e) {
     console.error('[journal] sync error:', e.message);
     return null;
@@ -1505,7 +1507,7 @@ async function handleRequest(request, env) {
   if (path === '/api/journal/sync' && method === 'POST') {
     const res = await syncJournalFromWebull(env);
     const journal = await loadJournal(env);
-    return json({ ok: true, data: journal.trades, feesRemaining: (res && res.feesRemaining) || 0 });
+    return json({ ok: true, data: journal.trades, feesRemaining: (res && res.feesRemaining) || 0, historyComplete: !!(res && res.historyComplete) });
   }
 
   // ── Journal: read fees for past orders (POST /api/journal/fees) ──────────
