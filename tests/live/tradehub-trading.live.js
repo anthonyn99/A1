@@ -3,7 +3,7 @@
 // and each phase's session turns its checks green. Selectors here are the contract those phases build to:
 //   T2  the nav tab "Trading" (data-navid="trading"; the old #paper links still land there), the header's
 //       Paper | Live switch ([data-trade-mode="paper"] on, [data-trade-mode="live"] dimmed and disabled),
-//       the broker dropdown ([data-trade-broker], Alpaca and Webull), cards reading only that broker
+//       the broker dropdown ([data-trade-broker]), cards reading only that broker
 //   T3  "New Order" ([data-trade-new]) opens the ticket ([data-order-ticket]) with type pills
 //       ([data-ot-type] x5) and Review → Confirm; the Trade card (.lay-card[data-card="trade"], Add card ▸ Trade) is the same ticket
 //   T4  Trading's Add card lists every Market card
@@ -18,11 +18,13 @@
 //   TR1 a waiting take profit dropped from the chart (only that leg; the line goes at once)
 //   T7  Control ▸ Alerts has a Trading section ([data-al-trading]: events + brokers); Trading's Alerts button ([data-trade-alerts])
 //       goes there; an order alert's link (#alert=trading:<broker>) opens Trading on that broker
+//   N10A Neo Cortex account, positions and orders in Trading and on Charts, all read-only
 //
 // Run: CDP_PORT=93xx node tests/live/tradehub-trading.live.js    PHASES=T2,T3 runs only those tags.
 'use strict';
 const { connect, sleep } = require('./cdp.js');
-const { quantApi, driver, PAGE_SETUP, CLOCK } = require('./quant-mock.js');
+const { quantApi, driver, PAGE_SETUP, CLOCK, KEY } = require('./quant-mock.js');
+const BOT = 'https://quant-bot.anthony-account-3.workers.dev';
 
 const ONLY = (process.env.PHASES || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 const want = (ph) => !ONLY.length || ONLY.includes(ph);
@@ -35,9 +37,64 @@ const ok = (ph, name, cond, extra) => {
   else { fail++; byPhase[ph].fail++; console.log(`  FAIL [${ph}] ${name}` + (extra !== undefined ? '  -> ' + String(extra).slice(0, 400) : '')); }
 };
 
+async function n10a({ js, until, tab, shot }, width) {
+  const select = async (broker) => {
+    await js(`const s = document.querySelector('[data-trade-broker]'); s.value = '${broker}'; s.dispatchEvent(new Event('change', { bubbles: true }));`);
+  };
+  const controls = '[data-trade-new],[data-pp-kill],[data-pp-order],[data-pp-close],[data-pp-reprice],[data-pp-cancel],[data-pp-legprice],[data-pp-legx],[data-trade-capital-edit],[data-trade-reset],[data-order-ticket]';
+  const chart = `document.querySelector('[data-lay=charts] .ch')`;
+  const menu = `document.querySelector('[data-chart-order-menu]')`;
+  const rightClick = () => js(`const cv = ${chart}.querySelector('canvas'), r = cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));`);
+  await tab('trading');
+  ok('N10A', 'Neo Cortex is third in the broker list', await until(`Array.from(document.querySelector('[data-trade-broker]')?.options || [], o => o.textContent).join() === 'Alpaca,Webull,Neo Cortex'`));
+  await js(`const s = document.querySelector('[data-trading-tab] [data-lay-add]'); s.value = 'trade'; s.dispatchEvent(new Event('change', { bubbles: true }));`);
+  await until(`document.querySelector('[data-pp-trade] [data-order-ticket]')`);
+  await js(`document.querySelector('[data-trade-new]').click(); 1`);
+  await select('cortex');
+  ok('N10A', 'the book, equity, day P&L and deployed cap show', await until(`(() => { const t = document.querySelector('[data-pp-account]')?.textContent || ''; return ['\x245,040.00', '\x245,000.00', '\x2425.00', '\x24800.00 of \x243,000.00'].every(v => t.includes(v)); })()`));
+  ok('N10A', 'the saved broker choice, position, and working order with its stop show', await until(`localStorage.getItem('tb_trade_broker') === 'cortex' && document.querySelector('[data-pp-pos=NVDA]') && document.querySelector('[data-pp-ord=cortex-limit]') && document.querySelector('[data-pp-leg=cortex-stop]')`));
+  ok('N10A', 'Trading has no order actions and tells Tony where to pause or kill the bot', await js(`return !document.querySelector(${JSON.stringify(controls)}) && !!document.querySelector('[data-pp-trade]') && document.querySelector('[data-pp-meta]').textContent === 'Neo Cortex trades this account on its own. Pause or kill it on the Neo Cortex tab.';`));
+  await shot('n10a-trading-' + width);
+
+  await tab('charts');
+  await js(`window._tbOps.charts.open('NVDA'); 1`);
+  const ready = await until(`${chart}?.dataset.ch === 'NVDA' && ${chart}?.__orders?.lines().length === 3`, 10000);
+  ok('N10A', 'Charts draws the position, limit and stop without drag, price or cancel controls', ready && await js(`const ch = ${chart}; return ch.__orders.lines().every(l => !l.field) && ch.querySelectorAll('[data-cho-line]').length === 3 && !ch.querySelector('.is-drag, [data-cho-cancel], [data-cho-protect], button[data-cho-px]');`));
+  if (ready) {
+    await js(`const l = ${chart}.querySelector('[data-cho-line=cortex-limit]');
+      for (const [type, y] of [['pointerdown', 40], ['pointermove', 80], ['pointerup', 80]]) l.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, button: 0, clientY: y }));`);
+    ok('N10A', 'dragging a Neo Cortex line leaves its price in place and opens no editor', await js(`return ${chart}.__orders.lines().find(l => l.key === 'cortex-limit').price === 166 && !document.querySelector('[data-chart-order-dialog]');`));
+    await rightClick();
+    ok('N10A', 'the chart’s right-click menu offers only Alert here', await until(`${menu} && Array.from(${menu}.querySelectorAll('[data-com]'), b => b.textContent).join() === 'Alert here'`, 5000));
+    await shot('n10a-charts-' + width);
+    await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));`);
+  }
+  await tab('trading'); await select('alpaca');
+  ok('N10A', 'switching back restores Alpaca and its ticket, Trade card, book and Close controls', await until(`!!document.querySelector('[data-trade-new]') && !!document.querySelector('[data-pp-trade] [data-order-ticket]') && !!document.querySelector('[data-trade-capital-edit]') && !!document.querySelector('[data-trade-reset]') && !!document.querySelector('[data-pp-close]') && !document.querySelector('[data-pp-ord=cortex-limit]')`, 7000));
+  await tab('charts'); await js(`window._tbOps.charts.open('NVDA'); 1`);
+  if (await until(`${chart}?.dataset.ch === 'NVDA' && ${chart}.querySelector('canvas')`, 8000)) await rightClick();
+  ok('N10A', 'Alpaca brings back the order menu', await until(`${menu}?.querySelector('[data-com=ticket]')`, 5000));
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));`);
+  await tab('portfolio');
+}
+
 (async () => {
   const api = quantApi();
-  const c = await connect({ mock: api.mock });
+  const mock = { ...api.mock, patterns: [...api.mock.patterns, BOT + '/*'], handle(req) {
+    if (!req.url.startsWith(BOT + '/')) return api.mock.handle(req);
+    if (req.method === 'OPTIONS') return { status: 204, text: '' };
+    if ((req.headers.Authorization || req.headers.authorization) !== 'Bearer ' + KEY) return { status: 401, json: { error: 'unauthorized' } };
+    if (req.method !== 'GET' || new URL(req.url).pathname !== '/account') return { status: 404, json: { error: 'Unexpected Neo Cortex request' } };
+    return { json: {
+      account: { equity: 5040, cash: 4400, buying_power: 2200, booked: true, broker_equity: 100040, day_pnl: 25, deployed: 800 },
+      book: { capital: 5000, bp_cap: 3000 },
+      positions: [{ symbol: 'NVDA', side: 'long', qty: 4, avg: 160, price: 165, value: 660, pnl: 20, pnlPct: 0.03125, dayPnl: 10 }],
+      orders: [{ id: 'cortex-limit', symbol: 'NVDA', side: 'sell', type: 'limit', qty: '4', limit_price: '166', time_in_force: 'gtc', status: 'new', order_class: 'oco',
+        legs: [{ id: 'cortex-stop', side: 'sell', type: 'stop', qty: '4', stop_price: '158', status: 'new' }] }],
+    } };
+  } };
+  const c = await connect({ mock });
+  try {
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   const { js, until, size, boot, tab, shot } = driver(c);
@@ -59,6 +116,7 @@ const ok = (ph, name, cond, extra) => {
       ],
     }];
     await boot({ quant: true, ls: want('TR7') ? { tradehub_control_sub: 'rules' } : {} });
+    if (ONLY.length === 1 && want('N10A')) { await n10a({ js, until, tab, shot }, w); continue; }
 
     if (want('N3')) {
       await js("localStorage.setItem('tradehub_scanner_view', JSON.stringify({view:'backtest',horizon:'swing'})); 1");
@@ -947,10 +1005,13 @@ const ok = (ph, name, cond, extra) => {
       await js(`var b=document.querySelector('[data-card="x-trading-account"] [data-act="hide"]'); if(b) b.click(); 1`);
       ok('T9', 'no sideways scroll', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`));
     }
+    if (want('N10A')) await n10a({ js, until, tab, shot }, w);
   }
 
   console.log('\nBy phase: ' + Object.entries(byPhase).map(([k, v]) => `${k} ${v.pass}/${v.pass + v.fail}`).join(', '));
   console.log(`${pass} passed, ${fail} failed`);
-  c.ws.close();
-  process.exit(fail ? 1 : 0);
+  process.exitCode = fail ? 1 : 0;
+  } finally {
+    try { await c.send('Page.navigate', { url: 'about:blank' }); } finally { c.ws.close(); }
+  }
 })().catch((e) => { console.error(e); process.exit(1); });
