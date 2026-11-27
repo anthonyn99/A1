@@ -38,7 +38,8 @@ const BOT = 'https://quant-bot.anthony-account-3.workers.dev';
 
 function cortexMock(api, settings) {
   let today = 0;
-  const events = Array.from({ length: 80 }, (_, i) => event(80 - i));
+  // Match the worker's 200-row window, with a new event replacing the oldest on every read.
+  const events = Array.from({ length: 200 }, (_, i) => event(200 - i));
   function event(id) { return { id, ts: CLOCK - 60000, kind: 'shadow', sym: 'NVDA', side: 'long', qty: 4, price: 130, strategy: 'test', version: 1, why: 'Trade signal recorded in shadow.' }; }
   const values = {
     '/state': { market: 'open', mode: 'shadow', positions: [], lastCheck: CLOCK, shadowSessions: 1 },
@@ -51,8 +52,8 @@ function cortexMock(api, settings) {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const u = new URL(req.url), p = u.pathname;
     if (p === '/today') {
-      events.unshift(event(80 + ++today));
-      return { json: { ok: true, day: u.searchParams.get('day'), events: events.slice(0, 200) }, headers: { etag: '"journal-' + today + '"' } };
+      events.unshift(event(200 + ++today)); events.pop();
+      return { json: { ok: true, day: u.searchParams.get('day'), events }, headers: { etag: '"journal-' + today + '"' } };
     }
     if (p.startsWith('/brief/')) return { json: { ok: true, brief: null } };
     if (values[p]) return { json: { ok: true, ...values[p] } };
@@ -218,7 +219,7 @@ async function census(c) {
       await must(`document.querySelector('[data-cortex-control] [data-ncx-group=money]')`);
     };
     const park = async () => { await tab('portfolio'); await must(app('portfolio')); await sleep(2500); };
-    await open(); await exercise(); await park();
+    await open(); await exercise(); await open(); await park();
     const parked0 = await sample(), detached0 = detached(await census(c));
     await open(); await sleep(WARM_S * 1000);
     const start = await sample(), startReads = bot.today();
