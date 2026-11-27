@@ -113,16 +113,30 @@ export async function getState({ DB }) {
     limits: { book: settings.settings.limits.book, maxDeployed: settings.settings.limits.maxDeployed } });
 }
 
+// The day's journal, newest first, at most 200 rows. Options (N9, Neo Quant's reader): kinds=entry,exit,… keeps only
+// those kinds (so a busy shadow day cannot push the trades out); counts=1 adds the whole day's count by kind. A row's
+// tag marks bookkeeping that is not a strategy change: 'conviction' (the nightly update) or 'settings' (a settings save).
 export async function getToday(req, { DB }, url, now = Date.now()) {
   const day = url.searchParams.get('day') || nyClock(now).date;
   const since = Number(url.searchParams.get('since') || 0);
+  const kinds = (url.searchParams.get('kinds') || '').split(',').filter(Boolean);
+  const counts = url.searchParams.get('counts') === '1';
   if (!DAY.test(day) || !Number.isSafeInteger(since) || since < 0) return error('day must be YYYY-MM-DD and since must be a timestamp');
+  if (kinds.length > KINDS.size || kinds.some((k) => !KINDS.has(k))) return error('kinds are ' + [...KINDS].join(', '));
   const newest = await DB.prepare('SELECT MAX(id) AS id FROM bot_events WHERE day = ? AND ts >= ?').bind(day, since).first();
-  const etag = '"neo-' + day + '-' + since + '-' + (newest.id || 0) + '"';
+  const etag = '"neo-' + day + '-' + since + '-' + (newest.id || 0) + (kinds.length ? '-' + kinds.join('.') : '') + (counts ? '-c' : '') + '"';
   const headers = { 'cache-control': 'no-cache', 'content-type': 'application/json; charset=utf-8', etag };
   if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
-  const { results } = await DB.prepare('SELECT id, ts, kind, symbol AS sym, side, qty, price, strategy, version, why, thesis FROM bot_events WHERE day = ? AND ts >= ? AND id <= ? ORDER BY ts DESC, id DESC LIMIT 200').bind(day, since, newest.id || 0).all();
-  return new Response(JSON.stringify({ ok: true, day, events: results }), { headers });
+  const only = kinds.length ? ' AND kind IN (' + kinds.map(() => '?').join(', ') + ')' : '';
+  const { results } = await DB.prepare("SELECT id, ts, kind, symbol AS sym, side, qty, price, strategy, version, why, thesis, " +
+    "CASE WHEN event_key LIKE 'conviction-%' THEN 'conviction' WHEN event_key LIKE 'settings-%' THEN 'settings' ELSE NULL END AS tag " +
+    'FROM bot_events WHERE day = ? AND ts >= ? AND id <= ?' + only + ' ORDER BY ts DESC, id DESC LIMIT 200').bind(day, since, newest.id || 0, ...kinds).all();
+  const body = { ok: true, day, events: results };
+  if (counts) {
+    const c = await DB.prepare('SELECT kind, COUNT(*) AS n FROM bot_events WHERE day = ? AND ts >= ? AND id <= ? GROUP BY kind').bind(day, since, newest.id || 0).all();
+    body.counts = Object.fromEntries(c.results.map((r) => [r.kind, r.n]));
+  }
+  return new Response(JSON.stringify(body), { headers });
 }
 
 export async function getBrief({ DB }, day) {
