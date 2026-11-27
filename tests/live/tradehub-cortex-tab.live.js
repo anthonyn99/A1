@@ -104,7 +104,7 @@ function fakeBot() {
     const cat = JSON.parse(await js(`var C=await import('/A1/TradeHub/ui/card-catalog.js'); return JSON.stringify(C.TABS.find(function(t){return t.tab==='cortex';}).cards.map(function(c){return c.id;}));`));
     ok('the card catalog offers Lab and Scorecard on every tab', cat.includes('lab') && cat.includes('scorecard'), JSON.stringify(cat));
     const labHtml = await js(`var L=await import('/A1/TradeHub/ui/cortex-lab.js'); var el=document.createElement('div'); L.labCard(el, { runs: ${JSON.stringify((await (async () => [])()) || [])}.concat([{ id: 'r', session: 'premarket', model: 'm', started: Date.now(), outcome: 'ok', results: [{ id: 'x', name: 'Gap fade', pass: false, reasons: ['under the 30 trades'] }] }]) }); return el.innerText;`);
-    ok('...Lab lists a run with each proposal refused and why', /premarket/.test(labHtml) && /Refused/.test(labHtml) && /under the 30 trades/.test(labHtml), labHtml);
+    ok('...Lab lists a run with each proposal refused and why', /Before the open/.test(labHtml) && /Refused/.test(labHtml) && /under the 30 trades/.test(labHtml), labHtml);
     await tab('cortex');
     await until(`!!${card('status')}`, 6000);
     await js(`[...document.querySelectorAll('[aria-label="Display mode"]')].find(function(x){return x.offsetParent;}).click(); 1`);
