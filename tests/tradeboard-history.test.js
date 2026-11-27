@@ -113,15 +113,15 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
     };
   };
   {
-    const { m, env, calls } = load(realistic(400));
-    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 16 });
-    ok('every one of 401 orders comes back, once', out.length === 401 && new Set(out.map(o => o.order_id)).size === 401, out.length + ' in ' + calls.length + ' calls');
+    const { m, env, calls } = load(realistic(500));
+    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 24 });
+    ok('every one of 501 orders comes back, once', out.length === 501 && new Set(out.map(o => o.order_id)).size === 501, out.length + ' in ' + calls.length + ' calls');
     ok('the 8:35 TSLA buy is among them', out.some(o => o.order_id === 'otsla-buy'));
     ok('and the read says it is complete', out.complete === true);
     ok('a full window was split, not paged', calls.filter(c => c.path.includes('history')).length > 5 && !calls.some(c => c.q.last_client_order_id));
   }
   {
-    const { m, env } = load(realistic(400));
+    const { m, env } = load(realistic(500));
     const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 3 });
     ok('a budget too small to read it all says so (complete: false)', out.complete === false, out.length);
   }
@@ -135,18 +135,18 @@ const group = (id, extra) => ({ client_order_id: 'c' + id, combo_type: 'NORMAL',
       const s = Date.parse(q.start_date), e = Date.parse(q.end_date), t = today * 86400000;
       return { body: { data: t >= s && t < e ? many.slice(0, 100) : [] } };
     });
-    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 16 });
+    const out = await m.fetchHistoryRaw('A1', env, { days: 30, maxCalls: 24 });
     ok('a single full day pages on with the cursor and gets all 150', out.length === 150 && calls.some(c => c.q.last_client_order_id === 'cd99'), out.length);
     ok('…and ends complete on the short page', out.complete === true);
   }
 
   console.log('journal sync: an order missing from an earlier read is added on the next');
   {
-    const { m, env, kv } = load(realistic(400));
+    const { m, env, kv } = load(realistic(500));
     kv.set('journal', JSON.stringify({ trades: [] }));
     const res = await m.syncJournalFromWebull(env);
     const j = JSON.parse(kv.get('journal')).trades;
-    ok('the sync holds every order, the TSLA buy too', j.length === 401 && j.some(t => t.id === 'otsla-buy'), j.length);
+    ok('the sync holds every order, the TSLA buy too', j.length === 501 && j.some(t => t.id === 'otsla-buy'), j.length);
     ok('and reports the history as complete', res.historyComplete === true);
   }
 

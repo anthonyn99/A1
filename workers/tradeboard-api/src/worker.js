@@ -735,7 +735,7 @@ async function syncJournalFromWebull(env) {
     const accountId = await getAccountId(env);
     await delay(500);
     // 30 days, up to 3 pages: a missed week (or three) of syncs still lands.
-    const orders  = await fetchOrders(accountId, 'history', env, { days: HISTORY_DAYS, maxCalls: 16 });
+    const orders  = await fetchOrders(accountId, 'history', env, { days: HISTORY_DAYS, maxCalls: 24 });
     const journal = await loadJournal(env);
     /* Build lookup by every known id variant: entry.id, orderId, leg._wbId, leg orderId */
     const knownIds = new Set();
