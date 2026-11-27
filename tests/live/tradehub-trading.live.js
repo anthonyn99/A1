@@ -95,7 +95,7 @@ async function n10a({ js, until, tab, shot }, width) {
   } };
   const c = await connect({ mock });
   try {
-  await c.send('Page.enable'); await c.send('Runtime.enable');
+  await c.send('Network.enable'); await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   const { js, until, size, boot, tab, shot } = driver(c);
   const vis = (sel) => `(function(){var e=document.querySelector('${sel}'); return !!(e && e.offsetParent);})()`;
@@ -115,7 +115,8 @@ async function n10a({ js, until, tab, shot }, width) {
         { id: 'a-tr5', at: CLOCK - 86396000, role: 'a', text: 'VERDICT: WAIT for the report.', verdict: 'WAIT' },
       ],
     }];
-    await boot({ quant: true, ls: want('TR7') ? { tradehub_control_sub: 'rules' } : {} });
+    try { await boot({ quant: true, ls: want('TR7') ? { tradehub_control_sub: 'rules' } : {} }); }
+    catch (error) { if (errors.length) console.error(errors.slice(0, 3).join('\n')); throw error; }
     if (ONLY.length === 1 && want('N10A')) { await n10a({ js, until, tab, shot }, w); continue; }
 
     if (want('N3')) {

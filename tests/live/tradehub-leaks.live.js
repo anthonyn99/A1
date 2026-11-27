@@ -16,6 +16,7 @@
 // pan to the chart's cap. Every sample also prints the committed heap (JSHeapTotalSize, closer to the
 // browser's figure Tony read) beside the used heap, and the work-out counts the stream connections made.
 // SOAK_MIN=60 runs the TR8 Trading / Charts / Market loop with a snapshot every 15 minutes.
+// LEAK_MIN=60 TABS=cortex runs the N10 journal polling and card cleanup check.
 // Run: CDP_PORT=93xx node tests/live/tradehub-leaks.live.js
 'use strict';
 const { connect, sleep } = require('./cdp.js');
@@ -104,7 +105,7 @@ async function census(c) {
   const c = await connect({ mock: bot ? bot.mock : api.mock });
   try {
   const errs = [];
-  await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Performance.enable'); await c.send('HeapProfiler.enable');
+  await c.send('Network.enable'); await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Performance.enable'); await c.send('HeapProfiler.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
   if (bot) await c.send('Page.addScriptToEvaluateOnNewDocument', { source: TRACK_TIMERS });
   c.ws.addEventListener('message', (ev) => {
@@ -121,11 +122,16 @@ async function census(c) {
       ...(bot ? { timers: await js('return window.__activeTimers();') } : {}) };
   };
   await size(1504, 900);
-  await boot({
-    quant: true,
-    ...(REAL ? { watchlist: MAIN35 } : {}),
-    ...(SOAK_MIN > 0 ? { docs: { 'dashboards/tradeboard_journal': bigJournal(800) } } : {}),
-  });
+  try {
+    await boot({
+      quant: true,
+      ...(REAL ? { watchlist: MAIN35 } : {}),
+      ...(SOAK_MIN > 0 ? { docs: { 'dashboards/tradeboard_journal': bigJournal(800) } } : {}),
+    });
+  } catch (error) {
+    if (errs.length) console.error(errs.slice(0, 3).join('\n'));
+    throw error;
+  }
   if (REAL) console.log(`  (REAL: ${MAIN35.length} tickers on the watchlist)`);
   ok('the app is up with Quant on', await until(`document.querySelector('.tbq-on')`, 10000));
   await js(`window.__ws.auto(100); 1`);
