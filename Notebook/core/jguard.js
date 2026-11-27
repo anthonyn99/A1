@@ -329,12 +329,8 @@ function _bakOpen() {
   if (_bakDb) return Promise.resolve(_bakDb);
   return new Promise(function (res) {
     var rq;
-    try { rq = indexedDB.open('a1_jguard', 2); } catch (e) { _bakDbFail = true; return res(null); }
-    rq.onupgradeneeded = function (e) {
-      var d = e.target.result;
-      try { if (!d.objectStoreNames.contains('bak')) d.createObjectStore('bak'); } catch (x) {}
-      try { if (!d.objectStoreNames.contains('img')) d.createObjectStore('img'); } catch (x) {}
-    };
+    try { rq = indexedDB.open('a1_jguard', 1); } catch (e) { _bakDbFail = true; return res(null); }
+    rq.onupgradeneeded = function (e) { try { e.target.result.createObjectStore('bak'); } catch (x) {} };
     rq.onsuccess = function (e) { _bakDb = e.target.result; res(_bakDb); };
     rq.onerror = rq.onblocked = function () { _bakDbFail = true; res(null); };
   });
@@ -358,9 +354,20 @@ function _bakIdb(mode, fn) {
  * until that upload has actually landed: a closed tab or failed request otherwise
  * leaves a pointer to a document that never existed. Successful uploads remove the
  * safety copy; a rehydration miss can use it and let the normal save retry. */
-var _imgMem = {};
+var _imgMem = {}, _imgDb = null, _imgDbFail = false;
+function _imgOpen() {
+  if (_imgDbFail) return Promise.resolve(null);
+  if (_imgDb) return Promise.resolve(_imgDb);
+  return new Promise(function (res) {
+    var rq;
+    try { rq = indexedDB.open('a1_notebook_images', 1); } catch (e) { _imgDbFail = true; return res(null); }
+    rq.onupgradeneeded = function (e) { try { e.target.result.createObjectStore('img'); } catch (x) {} };
+    rq.onsuccess = function (e) { _imgDb = e.target.result; res(_imgDb); };
+    rq.onerror = rq.onblocked = function () { _imgDbFail = true; res(null); };
+  });
+}
 function _imgIdb(mode, fn) {
-  return _bakOpen().then(function (db) {
+  return _imgOpen().then(function (db) {
     if (!db) return null;
     return new Promise(function (res) {
       try {
