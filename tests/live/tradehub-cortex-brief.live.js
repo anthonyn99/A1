@@ -99,12 +99,14 @@ function fakeBot() {
     ok('the bell\'s notification center has a Neo Cortex filter', /"kinds":\["cortex"\]/.test(filters), filters);
 
     console.log('\n4. Analysis ▸ Debrief ▸ Neo Cortex');
+    await until('window.tbDebrief && window.MagiBrief', 20000);   // as tradehub-debrief.live.js: Debrief draws MAGI's answer with MagiBrief
+    await js(`window.MagiBrief.setView('brief'); 1`);
     await js(`
       window.__errs=[]; window.addEventListener('error',function(e){window.__errs.push(String(e.error&&e.error.stack||e.message));});
       localStorage.setItem('tb_debrief_tab', 'cortex');
       window._fbWatchDebriefAuto = function(cb){ cb({}); return function(){}; };
       window._fbLoadMarketCal=async()=>({events:[],generatedAt:Date.now()});
-      window._fbLoadTBNews=async()=>({events:[],generatedAt:Date.now()});
+      window._fbLoadTBNews=async()=>({events:[{aiAnalyzed:false}],generatedAt:Date.now()});
       var host=document.createElement('div'); host.id='__dbr'; document.body.appendChild(host);
       host.__root=ReactDOM.createRoot(host);
       host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){}, promptText:'', searches:[]}));
