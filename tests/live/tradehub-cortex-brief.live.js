@@ -57,7 +57,12 @@ function fakeBot() {
   await c.send('Network.enable'); await c.send('Network.clearBrowserCache');
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_SETUP });
-  c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); });
+  const cons = [];   // console errors: React reports a render failure there, with the component
+  c.ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') cons.push(m.params.args.map((a) => a.value || a.description || '').join(' ').slice(0, 600));
+  });
   const { js, until, size, boot, tab } = driver(c);
   const card = (id) => `document.querySelector('[data-ncx-card="${id}"]')`;
   const route = (r) => js(`var A=await import('/A1/TradeHub/ui/alerts.js'); A.routeAlert(${JSON.stringify(r)}); return 1;`);
@@ -111,7 +116,7 @@ function fakeBot() {
       host.__root=ReactDOM.createRoot(host);
       host.__root.render(React.createElement(window.tbDebrief.Debrief, {onClose:function(){}, promptText:'', searches:[]}));
       1`);
-    ok('Debrief has a Neo Cortex tab', await until(`!!document.querySelector('.dbr-tabs [data-dkey="cortex"]')`, 8000), await js('return JSON.stringify(window.__errs);'));
+    ok('Debrief has a Neo Cortex tab', await until(`!!document.querySelector('.dbr-tabs [data-dkey="cortex"]')`, 8000), await js('return JSON.stringify(window.__errs) + " dbr:" + !!document.querySelector(".dbr");') + ' console: ' + cons.slice(-3).join(' || '));
     await js(`document.querySelector('.dbr-tabs [data-dkey="cortex"]').click(); 1`);
     ok('...it draws the newest ready brief with its own day picker', await until(`(function(){ var b=document.querySelector('[data-dbr-cortex] [data-ncx-brief]'); return b && /Claude's review/i.test(b.innerText) && !!b.querySelector('[data-ncx-briefday]'); })()`, 10000),
       await js(`var b=document.querySelector('[data-dbr-cortex]'); return b ? b.innerText : 'none';`));
