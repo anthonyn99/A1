@@ -26,7 +26,7 @@ const DESK_W = 1280 + 224;
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
   });
-  const { js, until, size, boot, tab } = driver(c);
+  const { js, until, size, boot, tab, shot } = driver(c);
   const shown = () => js(`return [...document.querySelectorAll('[data-ctl-pane]')].filter(function(p){ return !p.hidden && p.offsetParent; }).map(function(p){ return p.dataset.ctlPane; }).join(',');`);
   const click = async (sel) => { const r = JSON.parse(await js(`var e=document.querySelector('${sel}'); if(!e) return 'null'; e.scrollIntoView({block:'center'}); var b=e.getBoundingClientRect(); return JSON.stringify({x:b.left+b.width/2,y:b.top+b.height/2});`)); if (!r) return false; await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y }); await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 }); await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x, y: r.y, button: 'left', clickCount: 1 }); return true; };
 
@@ -41,8 +41,10 @@ const DESK_W = 1280 + 224;
     await js(`document.querySelector('[data-ctl-sub="${id}"]').click(); 1`); await sleep(250);
     ok(`"${id}" shows only its section, its tab pressed`, (await shown()) === want && await js(`return document.querySelector('[data-ctl-sub="${id}"]').getAttribute('aria-selected') === 'true';`), await shown());
   }
+  await js(`document.querySelector('[data-ctl-sub="quant"]').click(); 1`); await sleep(900); await shot('control-quant-1280');
   ok('Quant: the switch and the data status together', await js(`var p=document.querySelector('[data-ctl-pane="quant"]'); return !!p.querySelector('.ctl-quant') && !!p.querySelector('.ctl-status');`));
   await js(`document.querySelector('[data-ctl-sub="neo"]').click(); 1`); await sleep(300);
+  await sleep(900); await shot('control-neo-1280');
   ok('Neo Quant: voice and memory side by side on a wide screen', await js(`var p=document.querySelector('[data-ctl-pane="neo"]'), v=p.querySelector('.ctl-voice').getBoundingClientRect(), m=p.querySelector('.ctl-memory').getBoundingClientRect(); return Math.abs(v.top - m.top) < 2 && m.left > v.right;`));
   await js(`document.querySelector('[data-ctl-sub="alerts"]').click(); 1`); await sleep(300);
   // 2026-11-27: masonry columns (no hole beside a tall section): two columns, and sections in both.
