@@ -123,7 +123,7 @@ const ok = (name, cond, extra) => {
   await boot({ quant: true });
   await js(`window.tbControlShow('alerts'); 1`);   // R9: Control ▸ Alerts is its own section
   await tab('prompt');
-  ok('the card is there', await until(`document.querySelector('[data-tal-control] [data-tal-kinds]')`, 15000));
+  ok('the card is there', await until(`document.querySelector('[data-tal-control] [data-tal-group]')`, 15000));
   ok('eight kinds (T7: your paper orders, N8: Neo Cortex), each with "market hours only" and "TaskHub card"', await js(`return document.querySelectorAll('[data-tal-kind]').length === 8 && document.querySelectorAll('[data-tal-market]').length === 8 && document.querySelectorAll('[data-tal-card]').length === 8;`));
   ok('the defaults: TaskHub cards on for "took hit target or stop" and catalysts', await js(`return document.querySelector('[data-tal-card="graded"]').checked && document.querySelector('[data-tal-card="catalyst"]').checked && !document.querySelector('[data-tal-card="price"]').checked;`));
   const rules = await js(`return [...document.querySelectorAll('[data-tal-rule]')].map(function(r){return r.innerText.split('\\n')[0];}).join(' | ');`);
