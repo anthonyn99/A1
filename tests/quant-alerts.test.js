@@ -88,11 +88,13 @@ globalThis.fetch = async (url, opts = {}) => {
   ok('Thanksgiving (Thursday 2026-11-26) out', !A.inSession(NY(2026, 11, 26, 10)));
   ok('Good Friday 2027 (03-26) out', !A.inSession(Date.UTC(2027, 2, 26, 14)));
   {
-    const env = mkEnv(); let waited = 0;
-    await Wk.scheduled({ scheduledTime: NY(2026, 11, 21, 10) }, env, { waitUntil() { waited++; } });
-    ok('the cron on a Saturday: no work, not one D1 read', env.DB.reads === 0 && waited === 0);
-    await Wk.scheduled({ scheduledTime: NY(2026, 11, 26, 12) }, env, { waitUntil() { waited++; } });
-    ok('the cron on a holiday: no work either', env.DB.reads === 0 && waited === 0);
+    const env = mkEnv();
+    for (const [day, time] of [['Saturday', NY(2026, 11, 21, 10)], ['a holiday', NY(2026, 11, 26, 12)]]) {
+      const jobs = []; env.DB.log = [];
+      await Wk.scheduled({ scheduledTime: time }, env, { waitUntil(p) { jobs.push(p); } });
+      await Promise.all(jobs);
+      ok(`cron on ${day}: only looks for pending standing retries`, jobs.length === 1 && env.DB.log.length === 1 && /FROM alert_fires/.test(env.DB.log[0]));
+    }
   }
 
   console.log('\nprice rules (pure)');
@@ -211,7 +213,7 @@ globalThis.fetch = async (url, opts = {}) => {
   ok('first run: learns NVDA\'s side, fires nothing, 1 quote call', c.fired.length === 0 && W.yahooCalls === 1 && c.quotes === 1, c);
   env.DB.reads = 0; env.DB.writes = 0;
   c = await A.check(env, MON_10 + 60000);
-  ok('a quiet minute: no D1 write at all, exactly 2 reads (rules, context)', c.fired.length === 0 && env.DB.writes === 0 && env.DB.reads === 2, { reads: env.DB.reads, writes: env.DB.writes });
+  ok('a quiet minute: no D1 writes, one read each for rules, context and standing retries', c.fired.length === 0 && env.DB.writes === 0 && env.DB.reads === 3, { reads: env.DB.reads, writes: env.DB.writes });
   W.prices = { NVDA: 171 };
   c = await A.check(env, MON_10 + 120000);
   ok('"holds above": the first check above fires nothing (a state write only)', c.fired.length === 0 && c.writes >= 1);
@@ -633,6 +635,42 @@ globalThis.fetch = async (url, opts = {}) => {
     r = await post({ items: [it('ev:d1', 'trades')], dry: true }, 'cx-secret', e3);
     ok('a dry batch (quant-bot\'s probe) says what would fire and pushes or keeps nothing', r.body.dry === true && r.body.would[0] === 'Neo Cortex: ev:d1' && W.pushes.length === p0 && e3.DB.sql.prepare('SELECT COUNT(*) AS n FROM alert_fires').get().n === 0);
     ok('Send every kind once has a Neo Cortex example', A.TEST_KINDS.some((t) => t.kind === 'cortex' && /^cortex:brief:/.test(t.url)));
+
+    const e4 = { ...mkEnv(), CORTEX_SECRET: 'cx-secret' }, afterHours = NY(2026, 11, 21, 10);
+    const write = (key, at = afterHours) => CX.cortexAlerts(e4, new Request('https://quant-api.test/alerts/cortex', {
+      method: 'POST', headers: { 'x-cortex-secret': e4.CORTEX_SECRET }, body: JSON.stringify({ items: [it(key, 'brief')] }),
+    }), at);
+    const get = (key) => e4.DB.sql.prepare('SELECT pushed, why, devices FROM alert_fires WHERE trigger_key = ?').get('cx:' + key);
+    const cron = async (now) => {
+      const jobs = [];
+      await Wk.scheduled({ scheduledTime: now }, e4, { waitUntil(p) { jobs.push(p); } });
+      await Promise.all(jobs);
+    };
+    W.pushFail = true;
+    await write('send-again');
+    const saved = W.pushes.at(-1).body, before = W.pushes.length;
+    W.pushFail = false;
+    await Promise.all([cron(afterHours + 60_000), cron(afterHours + 60_000)]);
+    ok('N10: cron resends the same standing alert once, including off-hours and concurrent checks', W.pushes.length === before + 1 && JSON.stringify(W.pushes.at(-1).body) === JSON.stringify(saved) && get('send-again').pushed === 1 && get('send-again').devices === '["Tony PC","Pixel"]');
+    W.pushFail = true;
+    await write('fail-again', MON_10);
+    await write('old-failure', MON_10 - 31 * 60_000);
+    const beforeFailed = W.pushes.length;
+    await A.check(e4, MON_10 + 60_000);
+    await A.check(e4, MON_10 + 120_000);
+    ok('N10: a second failure is marked retried and no third push occurs; old failures are skipped', W.pushes.length === beforeFailed + 1 && get('fail-again').why === 'retried: down' && get('old-failure').why === 'down');
+    W.pushFail = false;
+    await call(e4, 'PUT', '/alerts/config', { config: { quiet: { on: true, from: '00:00', to: '23:59', tz: 'UTC' } } });
+    const beforeHeld = W.pushes.length;
+    await write('held');
+    await cron(afterHours + 60_000);
+    ok('N10: a quiet-hours hold never sends or retries', W.pushes.length === beforeHeld && get('held').why === 'quiet hours');
+    await call(e4, 'PUT', '/alerts/config', { config: { quiet: { on: false } } });
+    const beforeSuccess = e4.DB.writes;
+    await write('first-success');
+    const firstSuccess = e4.DB.writes;
+    await cron(afterHours + 60_000);
+    ok('N10: first-attempt success uses the existing writes and the retry pass writes nothing', firstSuccess - beforeSuccess === 3 && e4.DB.writes === firstSuccess && get('first-success').pushed === 1);
   }
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
