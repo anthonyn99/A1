@@ -612,6 +612,31 @@ const doc = (store, owner) => store.docs['dashboards/beacon_' + owner] || {};
   }
 
   // ═════════════════════════════════════════════════════════════════════════
+  console.log('\nA program that replaces its Firestore client (TradeHub, 2026-11-27)');
+  {
+    // TradeHub terminates its client when the tab hides and makes a new one. A kept connection then failed every read,
+    // and the panel said "No devices" with the device registered.
+    const st = fakeStore();
+    let client = { dead: false };
+    const fsx = Object.assign({}, st.fs, {
+      doc: (db, ...p) => Object.assign(st.fs.doc(db, ...p), { db }),
+      getDoc: async (ref) => { if (ref.db && ref.db.dead) throw new Error('The client has already been terminated.'); return st.fs.getDoc(ref); },
+    });
+    const w = device(st, { ls: { th_device_id: 'dev_th1' } });
+    w.Beacon.config({ firebase: async () => ({ db: client, fs: fsx }) });
+    w.Beacon.mount('tradehub', { delay: 999999, profile: 'tony' });
+    const r = await w.Beacon.checkIn('tradehub', true);
+    let l = await w.Beacon.list('tony');
+    ok('it checks in and lists the device', r.wrote && l.devices.some((d) => d.id === 'dev_th1'), [r, l.devices.map((d) => d.id)]);
+    client.dead = true; client = { dead: false };   // the tab hid: terminated, a new client made
+    l = await w.Beacon.list('tony');
+    ok('after the client is replaced, the list still reads (the getter is asked again, never kept)', l.devices.some((d) => d.id === 'dev_th1'));
+    client.dead = true;   // terminated and nothing new: unreadable
+    let threw = false; try { await w.Beacon.list('tony'); } catch (e) { threw = true; }
+    ok('unreadable documents are an error (the panel says it could not reach them), never an empty list', threw);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
   console.log('\nThe files');
   {
     const files = fs.readdirSync(path.join(ROOT, 'Beacon')).sort();
