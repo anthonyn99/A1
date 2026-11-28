@@ -21,6 +21,7 @@ import { ic } from './icons.js';
 import * as v2 from './lesson-v2.js';
 import * as v2ui from './lesson-v2-ui.js';
 import { sheet } from './pipeline-ui.js';
+import * as bm from './bookmarks.js';
 
 const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
   figure: 'Figure', source: 'From the document', cards: 'Key cards', pretest: 'Warm up', retry: 'Retry' };
@@ -158,7 +159,8 @@ export async function open(fileId, topicId, opts = {}) {
   deck.markLessonRead(doc.classId, bd.noteIdFor(fileId, topicId));
   const blocks = lessonBlocks(topic);
   let resumeAt = topic.progress && !topic.progress.done ? Math.min(topic.progress.block || 0, blocks.length) : 0;
-  if (opts.block != null) resumeAt = Math.max(0, Math.min(blocks.length - 1, opts.block));
+  if (opts.bookmark) resumeAt = bm.findStep(blocks, opts.bookmark);
+  else if (opts.block != null) resumeAt = Math.max(0, Math.min(blocks.length - 1, opts.block));
   else if (opts.page != null) {
     // The block nearest a source page: the figure block of that page, or the
     // last figure before it. Lessons carry no other page marks.
@@ -166,7 +168,7 @@ export async function open(fileId, topicId, opts = {}) {
     blocks.forEach((b, k) => { if ((b.kind === 'figure' || b.type === 'figure') && b.page && b.page <= opts.page) at = k; });
     if (at >= 0) resumeAt = at;
   }
-  const pre = opts.block != null || opts.page != null || opts.sheet ? [] : preScreens(topic);
+  const pre = opts.bookmark || opts.block != null || opts.page != null || opts.sheet ? [] : preScreens(topic);
   // A retry starts the sitting; a warm-up only ever shows on a first open.
   const screen = pre.length ? 0 : resumeAt;
   S = { fileId, topicId, screen, answers: {}, checked: {}, shown: {}, orig: {}, pre: pre.length, preScreens: pre,
@@ -192,6 +194,38 @@ export function leave() { if (S && S.v) v2ui.stopPlay(S.v); flush(); setFull(fal
  * (appended to <body>) still show. Refused (iOS, no gesture) = class only. */
 let _full = false;
 const fullBtn = () => `<button class="sl-full-btn" data-full title="${_full ? 'Exit full screen (F)' : 'Full screen (F)'}" aria-label="${_full ? 'Exit full screen' : 'Full screen'}">${ic(_full ? 'shrink' : 'expand')}</button>`;
+
+// ── Bookmarks: a step, or a passage selected in one (bookmarks.js) ────────
+/** The lesson step on `screen`, or null (a warm-up, a retry, the key cards, the cheat sheet). */
+function stepAt(c, screen) {
+  if (!S || S.sheet) return null;
+  const item = c.blocks[screen];
+  const block = blockOf(screen);
+  if (!item || block < 0 || item._retryOf != null || item.kind === 'source') return null;
+  return { item, block };
+}
+function bmBtn(c, screen) {
+  const at = stepAt(c, screen);
+  if (!at) return '';
+  const on = !!bm.stepMark(c.topic.bookmarks, at.block);
+  return `<button class="sl-full-btn sl-bm-btn${on ? ' on' : ''}" data-bookmark aria-pressed="${on}" title="${on ? 'Remove bookmark (B)' : 'Bookmark this step (B)'}" aria-label="${on ? 'Remove bookmark' : 'Bookmark this step'}">${ic('bookmark')}</button>`;
+}
+function toggleStepBookmark() {
+  const c = cur();
+  const at = c && stepAt(c, Math.min(S.screen, c.blocks.length));
+  if (!at) return;
+  const was = !!bm.stepMark(c.topic.bookmarks, at.block);
+  bd.setBookmarks(S.fileId, S.topicId, bm.toggleStep(c.topic.bookmarks, at.block, at.item));
+  if (window.showNotif) window.showNotif('bookmark', was ? 'Bookmark removed' : 'Bookmarked', was ? '' : 'Find it under Bookmarks in the document.');
+  render();
+}
+function addPassageBookmark(text) {
+  const c = cur();
+  const at = c && stepAt(c, Math.min(S.screen, c.blocks.length));
+  if (!at) return;
+  bd.setBookmarks(S.fileId, S.topicId, bm.add(c.topic.bookmarks, bm.make(at.block, at.item, text)));
+  if (window.showNotif) window.showNotif('bookmark', 'Passage bookmarked', 'Find it under Bookmarks in the document.');
+}
 
 function setFull(on) {
   const shell = document.getElementById('study-root');
@@ -243,7 +277,7 @@ function render() {
   root.innerHTML = `
     <div class="sl-top">
       <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
-      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${fullBtn()}</div>
+      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${bmBtn(c, screen)}${fullBtn()}</div>
     </div>
     <h1 class="sl-title">${esc(topic.title)}</h1>
     ${topic.summary ? `<div class="sl-sub">${esc(topic.summary)}</div>` : ''}
@@ -317,7 +351,7 @@ function renderV2(root, c) {
   root.innerHTML = `
     <div class="sl-top">
       <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
-      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${fullBtn()}</div>
+      <div class="sl-top-r"><div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>${bmBtn(c, screen)}${fullBtn()}</div>
     </div>
     <h1 class="sl-title">${esc(L.title || topic.title)}</h1>
     ${L.summary || topic.summary ? `<div class="sl-sub">${esc(L.summary || topic.summary)}</div>` : ''}
@@ -544,6 +578,7 @@ function wire(root, c, screen, total) {
   on('[data-next]', () => go(screen + 1));
   on('[data-back]', () => backToDocument(c.doc));
   on('[data-full]', () => setFull(!_full));
+  on('[data-bookmark]', () => toggleStepBookmark());
   on('[data-topic]', (e) => { const id = e.currentTarget.dataset.topic; if (id) { flush(); open(c.doc.fileId, id); } });
   on('[data-step]', () => { S.shown[screen] = (S.shown[screen] || 1) + 1; render(); });
   on('[data-allsteps]', () => { S.shown[screen] = 999; render(); });
@@ -664,15 +699,17 @@ function onSelect() {
   hideSelBar();
   const bar = document.createElement('div');
   bar.className = 'sl-selbar';
-  bar.style.cssText = `position:fixed;z-index:9000;left:${Math.max(8, Math.min(window.innerWidth - 190, s.rect.left))}px;` +
+  bar.style.cssText = `position:fixed;z-index:9000;left:${Math.max(8, Math.min(window.innerWidth - 280, s.rect.left))}px;` +
     `top:${Math.max(8, s.rect.top - 44)}px;display:flex;gap:4px;background:var(--bg4,#25232b);border:1px solid var(--border,rgba(255,255,255,.09));` +
     'border-radius:8px;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,.35)';
-  bar.innerHTML = '<button data-sel="card" class="sl-inline-btn" style="padding:6px 10px">＋ Card</button><button data-sel="cloze" class="sl-inline-btn" style="padding:6px 10px">＋ Cloze</button>';
+  bar.innerHTML = '<button data-sel="card" class="sl-inline-btn" style="padding:6px 10px">＋ Card</button><button data-sel="cloze" class="sl-inline-btn" style="padding:6px 10px">＋ Cloze</button>' +
+    (stepAt(cur() || { blocks: [] }, S.screen) ? '<button data-sel="bookmark" class="sl-inline-btn" style="padding:6px 10px">Bookmark</button>' : '');
   bar.addEventListener('mousedown', (e) => e.preventDefault());       // keep the selection
   bar.querySelectorAll('[data-sel]').forEach((b) => b.addEventListener('click', () => {
     const c = cur();
     hideSelBar();
     if (!c) return;
+    if (b.dataset.sel === 'bookmark') { addPassageBookmark(s.text); window.getSelection && window.getSelection().removeAllRanges(); return; }
     newCard(c, b.dataset.sel === 'cloze' ? clozeFrom(s.context, s.text) : `${s.text}\n---\n`);
   }));
   document.body.appendChild(bar);
@@ -706,6 +743,7 @@ document.addEventListener('keydown', (e) => {
       rerender: () => render(), record: (i, ok) => recordV2(c, i, ok),
     }, root)) return;
   }
+  if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleStepBookmark(); return; }
   if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setFull(!_full); return; }
   if (e.key === 'Escape' && _full && !document.fullscreenElement) { setFull(false); return; }
   const next = document.querySelector('#sos-lesson-root [data-next]');

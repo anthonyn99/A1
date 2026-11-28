@@ -74,6 +74,7 @@ var SOI = (function () {
     bolt:     I('<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>'),
     plug:     I('<path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/>'),
     star:     I('<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/>'),
+    bookmark: I('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'),
     undo:     I('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
     eye:      I('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'),
     flame:    I('<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.5 2 2.5-1-3 0-5.5 1-8Z"/>'),
@@ -89,7 +90,7 @@ var SOS_NOTIF = {
   cards: ['cards', '#B8A2C6'], calendar: ['calendar', '#B8A2C6'], bolt: ['bolt', '#B8A2C6'],
   plug: ['plug', '#F2C9A0'], file: ['doc', '#B8A2C6'], cloud: ['cloud', '#A9CBEF'],
   trash: ['trash', '#F2AFAF'], task: ['task', '#B8A2C6'], pencil: ['pencil', '#B8A2C6'],
-  bell: ['bell', '#B8A2C6'], download: ['download', '#A9CBEF'], timer: ['flame', '#B8A2C6']
+  bell: ['bell', '#B8A2C6'], download: ['download', '#A9CBEF'], timer: ['flame', '#B8A2C6'], bookmark: ['bookmark', '#B8A2C6']
 };
 var SOS_EMOJI_NOTIF = {
   '⚠️': 'alert', '⚠': 'alert', '✅': 'check', 'ℹ️': 'info', '🃏': 'cards', '🗓️': 'calendar', '📅': 'calendar',

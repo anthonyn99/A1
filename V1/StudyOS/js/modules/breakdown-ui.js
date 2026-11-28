@@ -15,7 +15,8 @@ import { escapeHtml as esc } from './md.js';
 import { isBreakable, isSlidesFile, isWordFile } from './pipeline.js';
 import * as prompts from './prompts.js';
 import { ic } from './icons.js';
-import { isV2 } from './lesson-v2.js';
+import { isV2, STEP_LABEL } from './lesson-v2.js';
+import * as bm from './bookmarks.js';
 import { printCheatSheets } from './lesson-v2-ui.js';
 const _open = new Set();              // fileIds whose topic list is expanded
 
@@ -320,11 +321,13 @@ async function renderPanel(panel, cls, mod, f) {
     const ins = doc.instructions && doc.instructions.text ? doc.instructions : null;
     const infoOpen = _info.has(f.id);
     const D = window.SOS && window.SOS.deck;
+    const marks = topics.reduce((n, t) => n + (t.status === 'ready' && t.bookmarks ? t.bookmarks.length : 0), 0);
     const important = D ? D.byNotePrefix(doc.classId, bd.notePrefixFor(f.id)).filter((c) => c.important && D.isActive(c)).length : 0;
     html.push(`<div class="bd-head"><div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${
       ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}${
       detail && !running ? ` <button class="bd-info" data-info title="How it was written and checked" aria-label="How it was written and checked" aria-expanded="${infoOpen}">${ic('info')}</button>` : ''}</div>${
-      important ? `<button class="bd-box bd-imp" data-important title="${important} card${important === 1 ? '' : 's'} you forgot — review them">${ic('star')}<span>Important</span></button>` : ''}</div>${
+      important ? `<button class="bd-box bd-imp" data-important title="${important} card${important === 1 ? '' : 's'} you forgot — review them">${ic('star')}<span>Important</span></button>` : ''}${
+      marks ? `<button class="bd-box" data-bookmarks title="Steps and passages you bookmarked">${ic('bookmark')}<span>Bookmarks (${marks})</span></button>` : ''}</div>${
       detail && infoOpen && !running ? `<div class="bd-detail">${esc(detail)}</div>` : ''}`);
     topics.forEach((t, i) => {
       const ok = t.status === 'ready';
@@ -392,6 +395,8 @@ async function renderPanel(panel, cls, mod, f) {
     if (D.studyQueue(scope, {}).length) R.startReview(scope, { anyNew: true });
     else R.startReview(scope, { mode: 'cram' });
   }));
+  const bms = panel.querySelector('[data-bookmarks]');
+  if (bms) bms.addEventListener('click', () => bookmarksSheet(f.id));
   const imp = panel.querySelector('[data-important]');
   if (imp) imp.addEventListener('click', () => {
     const R = window.SOS && window.SOS.review;
@@ -451,6 +456,48 @@ async function renderPanel(panel, cls, mod, f) {
 const _info = new Set();            // files whose ⓘ detail is open
 
 /** "~6 min · 9 steps · ✓ 3/4" for a v2 topic row. */
+// ── Bookmarks: every bookmark in a document, by topic (bookmarks.js) ─────
+const markLabel = (type) => STEP_LABEL[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : '');
+
+function bookmarksSheet(fileId) {
+  const s = sheet('Bookmarks', '', { wide: true });
+  const draw = () => {
+    const doc = bd.peek(fileId);
+    const topics = ((doc && doc.topics) || []).filter((t) => t.status === 'ready' && t.bookmarks && t.bookmarks.length);
+    if (!topics.length) { s.body.innerHTML = '<div class="bd-status">No bookmarks left.</div>'; return; }
+    s.body.innerHTML = topics.map((t) => `<div class="bm-topic">${esc(t.title)}</div>${[...t.bookmarks].sort((a, b) => a.block - b.block || a.at - b.at).map((b) => `
+      <div class="bm-row" role="button" tabindex="0" data-bm-open="${esc(t.id)}" data-bm="${esc(b.id)}">
+        <div class="bm-main">
+          <div class="bm-head">${esc(b.heading || `Step ${b.block + 1}`)}</div>
+          <div class="bm-meta">${esc([markLabel(b.type), b.page ? `page ${b.page}` : ''].filter(Boolean).join(' · '))}</div>
+          ${b.text ? `<div class="bm-quote">${esc(b.text)}</div>` : ''}
+        </div>
+        <button class="bm-del" data-bm-del="${esc(t.id)}" data-bm="${esc(b.id)}" title="Remove bookmark" aria-label="Remove bookmark">${ic('x')}</button>
+      </div>`).join('')}`).join('');
+    s.body.querySelectorAll('[data-bm-open]').forEach((row) => {
+      const go = () => {
+        const t = topics.find((x) => x.id === row.dataset.bmOpen);
+        const b = t && t.bookmarks.find((x) => x.id === row.dataset.bm);
+        if (!b) return;
+        s.close();
+        window.SOS && window.SOS.lessonUi && window.SOS.lessonUi.open(fileId, t.id, { bookmark: b });
+      };
+      row.addEventListener('click', (e) => { if (!e.target.closest('[data-bm-del]')) go(); });
+      row.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    });
+    s.body.querySelectorAll('[data-bm-del]').forEach((btn) => btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const t = topics.find((x) => x.id === btn.dataset.bmDel);
+      if (t) bd.setBookmarks(fileId, t.id, bm.remove(t.bookmarks, btn.dataset.bm));
+      draw();
+    }));
+  };
+  draw();
+  const done = document.createElement('button');
+  done.className = 'btn'; done.textContent = 'Close'; done.onclick = s.close;
+  s.footer.append(done);
+}
+
 function lessonMeta(t) {
   const steps = t.lesson.steps || [];
   const total = steps.filter((s) => s.check).length;

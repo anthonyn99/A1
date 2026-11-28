@@ -58,6 +58,19 @@ const CSS = `
 .sl-top-r { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .sl-full-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; font-size: 15px; line-height: 0; border-radius: 4px; }
 .sl-full-btn:hover { color: var(--accent2); }
+.sl-bm-btn.on { color: var(--accent2); }
+.sl-bm-btn.on svg { fill: currentColor; }
+/* Bookmarks sheet (breakdown-ui bookmarksSheet) */
+.bm-topic { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: .3px; margin: 14px 0 4px; }
+.bm-topic:first-child { margin-top: 0; }
+.bm-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.bm-row:hover, .bm-row:focus { background: var(--bg3); outline: none; }
+.bm-main { flex: 1; min-width: 0; }
+.bm-head { font-size: 13.5px; color: var(--text); line-height: 1.4; }
+.bm-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+.bm-quote { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--border2); }
+.bm-del { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; line-height: 0; border-radius: 4px; }
+.bm-del:hover { color: var(--text); }
 /* Full screen: just the lesson; the shell steps away (lesson-ui setFull). */
 #study-root.sl-full .sidebar, #study-root.sl-full .topbar, #study-root.sl-full #sos-pomo-banner { display: none !important; }
 #study-root.sl-full #view-lesson { padding-top: 40px; }

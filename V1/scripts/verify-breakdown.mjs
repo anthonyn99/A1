@@ -897,6 +897,45 @@ console.log('\nv2 lessons');
   await wait(400);
   s = await read();
   t('a v2 row\'s Sheet button opens its cheat sheet', s.type === 'Cheat sheet' && /Missing child = null/.test(s.text), s);
+  t('no bookmark button on the cheat sheet', !(await evalJs(`!!document.querySelector('#sos-lesson-root [data-bookmark]')`)));
+
+  console.log('\nbookmarks');
+  const marks = () => evalJs(`JSON.stringify(window.SOS.breakdown.peek('${V}').topics[1].bookmarks || [])`).then(JSON.parse);
+  await evalJs(`window.SOS.lessonUi.open('${V}', 't2', { block: 2 }); true;`);
+  await wait(300);
+  await evalJs(`document.querySelector('#sos-lesson-root [data-bookmark]').click(); true;`);
+  await wait(150);
+  let bms = await marks();
+  t('the bookmark button saves the step', bms.length === 1 && bms[0].block === 2 && bms[0].heading === 'The example tree' && bms[0].text === '', bms);
+  t('...and shows filled', await evalJs(`document.querySelector('#sos-lesson-root [data-bookmark]').classList.contains('on')`));
+  // A passage: select the step's heading, as a mouse would.
+  await evalJs(`(function(){ var h = document.querySelector('#sos-lesson-root .sl-card h2'); var r = document.createRange(); r.selectNodeContents(h);
+    var s = getSelection(); s.removeAllRanges(); s.addRange(r); document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); })(); true;`);
+  await wait(150);
+  t('the selection bar offers Bookmark', await evalJs(`!!document.querySelector('.sl-selbar [data-sel="bookmark"]')`));
+  await evalJs(`document.querySelector('.sl-selbar [data-sel="bookmark"]').click(); true;`);
+  await wait(150);
+  bms = await marks();
+  t('...which saves the passage on that step', bms.length === 2 && bms[1].block === 2 && bms[1].text === 'The example tree', bms);
+  await evalJs(`(function(){ window._sosBridge.revealModule('bd1', 'bdm1'); })(); true;`);
+  await wait(500);
+  await evalJs(`(function(){ if (!document.querySelector('[data-bd-panel="${V}"] .bd-head')) { var b = document.querySelector('[data-bd-file="${V}"]'); if (b) b.click(); } })(); true;`);
+  await wait(400);
+  const head = await evalJs(`(document.querySelector('[data-bd-panel="${V}"] [data-bookmarks]')||{}).textContent || ''`);
+  t('the topic list shows "Bookmarks (2)"', /Bookmarks \(2\)/.test(head), head);
+  await evalJs(`document.querySelector('[data-bd-panel="${V}"] [data-bookmarks]').click(); true;`);
+  await wait(300);
+  const rows = await evalJs(`[...document.querySelectorAll('.sos-ai-sheet .bm-row')].map(r => r.textContent.replace(/\\s+/g,' ').trim())`);
+  t('the sheet lists both, the passage quoted', rows.length === 2 && rows.some((r) => /Concept/.test(r)), rows);
+  await shot('13-bookmarks');
+  await evalJs(`document.querySelector('.sos-ai-sheet .bm-row').click(); true;`);
+  await wait(400);
+  s = await read();
+  t('tapping one opens the lesson at that step', /3 of 10/.test(s.count) && s.h2 === 'The example tree', s);
+  await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', bubbles: true })); true;`);
+  await wait(150);
+  bms = await marks();
+  t('B removes the step bookmark, the passage stays', bms.length === 1 && bms[0].text === 'The example tree', bms);
 
   // Screenshots for a look: scratch dir from the env, never the repo.
   const dir = process.env.SOS_SHOTS;

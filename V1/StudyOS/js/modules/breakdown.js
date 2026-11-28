@@ -1899,6 +1899,16 @@ export function setProgress(fileId, topicId, progress) {
   save(doc);
 }
 
+/** Replace a topic's bookmarks (bookmarks.js). A rewrite leaves them alone. */
+export function setBookmarks(fileId, topicId, list) {
+  const doc = _mem.get(fileId);
+  const topic = doc && doc.topics.find((t) => t.id === topicId);
+  if (!topic) return;
+  topic.bookmarks = list || [];
+  topic.updatedAt = Date.now();
+  save(doc);
+}
+
 /**
  * Continue breakdowns this device left running (the tab closed mid-run).
  * Only this device's: another device may be running its own right now, and
