@@ -76,6 +76,10 @@ function fakeBot() {
       await js(`return [...document.querySelectorAll('[data-ncx-event]')].map(function(e){return e.innerText.split('\\n').join(' ');}).join(' | ');`));
     ok('Strategies: both rows with stage and record', await js(`var t=${card('strategies')}.innerText; return /Semis opening-range breakout/.test(t) && /active/i.test(t) && /14 trades · 64% won · PF 1\\.80/.test(t) && /shadow/i.test(t);`), await js(`return ${card('strategies')}.innerText;`));
     ok('Daily brief: says when it is written (no brief yet)', await js(`return /written after the close/.test(${card('brief')}.innerText);`));
+    // Tony 2026-11-27: the gold PAPER badge only came after opening Trading (paper.css); the tab loads it itself now.
+    ok('the PAPER badge wears its outline, from the tab\'s own stylesheet', await js(`var b=document.querySelector('[data-cortex-tab] .pt-badge'), cs=getComputedStyle(b); return !!document.getElementById('tbq-paper-css') && cs.borderTopStyle === 'solid' && cs.fontWeight >= 700;`),
+      await js(`var cs=getComputedStyle(document.querySelector('[data-cortex-tab] .pt-badge')); return cs.borderTopStyle + ' ' + cs.fontWeight;`));
+    ok('the header has Trading\'s Paper | Live switch: Paper on, Live waiting', await js(`var p=document.querySelector('[data-cortex-tab] [data-cortex-mode="paper"]'), l=document.querySelector('[data-cortex-tab] [data-cortex-mode="live"]'); return !!p && !!l && p.getAttribute('aria-pressed') === 'true' && l.disabled && !!p.closest('.tr-mode');`));
 
     console.log('\n2. Drawers');
     await js(`document.querySelector('[data-ncx-event="1"]').click(); 1`);
