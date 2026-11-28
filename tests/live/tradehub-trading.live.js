@@ -37,44 +37,12 @@ const ok = (ph, name, cond, extra) => {
   else { fail++; byPhase[ph].fail++; console.log(`  FAIL [${ph}] ${name}` + (extra !== undefined ? '  -> ' + String(extra).slice(0, 400) : '')); }
 };
 
-async function n10a({ js, until, tab, shot }, width) {
-  const select = async (broker) => {
-    await js(`const s = document.querySelector('[data-trade-broker]'); s.value = '${broker}'; s.dispatchEvent(new Event('change', { bubbles: true }));`);
-  };
-  const controls = '[data-trade-new],[data-pp-kill],[data-pp-order],[data-pp-close],[data-pp-reprice],[data-pp-cancel],[data-pp-legprice],[data-pp-legx],[data-trade-capital-edit],[data-trade-reset],[data-order-ticket]';
-  const chart = `document.querySelector('[data-lay=charts] .ch')`;
-  const menu = `document.querySelector('[data-chart-order-menu]')`;
-  const rightClick = () => js(`const cv = ${chart}.querySelector('canvas'), r = cv.getBoundingClientRect(); cv.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));`);
+async function n10a({ js, until, tab }) {
+  // Tony 2026-11-27: Neo Cortex is not a broker. Trading offers real accounts only; Neo Cortex is its own tab.
   await tab('trading');
-  ok('N10A', 'Neo Cortex is third in the broker list', await until(`Array.from(document.querySelector('[data-trade-broker]')?.options || [], o => o.textContent).join() === 'Alpaca,Webull,Neo Cortex'`));
-  await js(`const s = document.querySelector('[data-trading-tab] [data-lay-add]'); s.value = 'trade'; s.dispatchEvent(new Event('change', { bubbles: true }));`);
-  await until(`document.querySelector('[data-pp-trade] [data-order-ticket]')`);
-  await js(`document.querySelector('[data-trade-new]').click(); 1`);
-  await select('cortex');
-  ok('N10A', 'the book, equity, day P&L and deployed cap show', await until(`(() => { const t = document.querySelector('[data-pp-account]')?.textContent || ''; return ['\x245,040.00', '\x245,000', '\x2425.00', '\x24800.00 of \x243,000.00'].every(v => t.includes(v)); })()`), await js(`document.querySelector('[data-pp-account]')?.textContent`));
-  ok('N10A', 'the saved broker choice, position, and working order with its stop show', await until(`localStorage.getItem('tb_trade_broker') === 'cortex' && document.querySelector('[data-pp-pos=NVDA]') && document.querySelector('[data-pp-ord=cortex-limit]') && document.querySelector('[data-pp-leg=cortex-stop]')`));
-  ok('N10A', 'Trading has no order actions and tells Tony where to pause or kill the bot', await js(`return !document.querySelector(${JSON.stringify(controls)}) && !!document.querySelector('[data-pp-trade]') && document.querySelector('[data-pp-meta]').textContent === 'Neo Cortex trades this account on its own. Pause or kill it on the Neo Cortex tab.';`));
-  await shot('n10a-trading-' + width);
-
-  await tab('charts');
-  await js(`window._tbOps.charts.open('NVDA'); 1`);
-  const ready = await until(`${chart}?.dataset.ch === 'NVDA' && ${chart}?.__orders?.lines().length === 3`, 10000);
-  ok('N10A', 'Charts draws the position, limit and stop without drag, price or cancel controls', ready && await js(`const ch = ${chart}; return ch.__orders.lines().every(l => !l.field) && ch.querySelectorAll('[data-cho-line]').length === 3 && !ch.querySelector('.is-drag, [data-cho-cancel], [data-cho-protect], button[data-cho-px]');`));
-  if (ready) {
-    await js(`const l = ${chart}.querySelector('[data-cho-line=cortex-limit]');
-      for (const [type, y] of [['pointerdown', 40], ['pointermove', 80], ['pointerup', 80]]) l.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, button: 0, clientY: y }));`);
-    ok('N10A', 'dragging a Neo Cortex line leaves its price in place and opens no editor', await js(`return ${chart}.__orders.lines().find(l => l.key === 'cortex-limit').price === 166 && !document.querySelector('[data-chart-order-dialog]');`));
-    await rightClick();
-    ok('N10A', 'the chart’s right-click menu offers only Alert here', await until(`${menu} && Array.from(${menu}.querySelectorAll('[data-com]'), b => b.textContent).join() === 'Alert here'`, 5000));
-    await shot('n10a-charts-' + width);
-    await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));`);
-  }
-  await tab('trading'); await select('alpaca');
-  ok('N10A', 'switching back restores Alpaca and its ticket, Trade card, book and Close controls', await until(`!!document.querySelector('[data-trade-new]') && !!document.querySelector('[data-pp-trade] [data-order-ticket]') && !!document.querySelector('[data-trade-capital-edit]') && !!document.querySelector('[data-trade-reset]') && !!document.querySelector('[data-pp-close]') && !document.querySelector('[data-pp-ord=cortex-limit]')`, 7000));
-  await tab('charts'); await js(`window._tbOps.charts.open('NVDA'); 1`);
-  if (await until(`${chart}?.dataset.ch === 'NVDA' && ${chart}.querySelector('canvas')`, 8000)) await rightClick();
-  ok('N10A', 'Alpaca brings back the order menu', await until(`${menu}?.querySelector('[data-com=ticket]')`, 5000));
-  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));`);
+  ok('N10A', 'the broker list is Alpaca and Webull, without Neo Cortex', await until(`Array.from(document.querySelector('[data-trade-broker]')?.options || [], o => o.textContent).join() === 'Alpaca,Webull'`),
+    await js(`return Array.from(document.querySelector('[data-trade-broker]')?.options || [], o => o.textContent).join();`));
+  ok('N10A', 'the header keeps Paper | Live (Live waiting)', await js(`var l=document.querySelector('[data-trading-tab] [data-trade-mode="live"]'); return !!l && l.disabled && document.querySelector('[data-trading-tab] [data-trade-mode="paper"]').getAttribute('aria-pressed') === 'true';`));
   await tab('portfolio');
 }
 

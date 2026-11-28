@@ -71,7 +71,8 @@ const PLAYBOOK = { savedAt: CLOCK - MIN, pages: [
   await tab('prompt');   // Control's tab id
   ok('Control mounts Memory & Drive', await until(`document.querySelector('[data-memory]') && document.querySelector('[data-me-drive-state]')`, 20000));
   ok('four cards on the grid: Drive, Memory, History, Search', await js(`return ['drive','memory','history','search'].every(function(id){return !!document.querySelector('[data-memory] .lay-card[data-card="'+id+'"]');});`));
-  ok('...with Add card and Reset layout in its header', await js(`var r=document.querySelector('[data-memory]'); return !!r.querySelector('[data-lay-reset]') && !!r.querySelector('[data-lay-add]');`));
+  // Tony 2026-11-27: just the Memory & Drive cards, nothing to add, remove, group or lay out.
+  ok('...and no Add card, Layout menu, remove or group buttons', await js(`var r=document.querySelector('[data-memory]'); return !r.querySelector('[data-lay-reset]') && !r.querySelector('[data-lay-add]') && !r.querySelector('[data-lay-add-open]') && !r.querySelector('[data-act="hide"]') && !r.querySelector('[data-act="group"]');`));
   await shot('memory-1280');
 
   console.log('\nDrive');
