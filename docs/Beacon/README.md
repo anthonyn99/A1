@@ -18,7 +18,7 @@ Every A1 program that has profiles or sends notifications:
 | MAGI | `magi` | the devices icon beside Help (sidebar; the drawer on a phone) | `html[data-profile]` | none |
 | Shield | `shield` | Devices ▸ All A1 devices ▸ Manage | `body[data-profile]` | none |
 | Shruti | `shruti` | Settings ▸ Profile ▸ Devices | `body[data-profile]` | none |
-| TradeHub (A1-Priv) | `tradehub` | Control ▸ Alerts ▸ Devices | always `tony` | its own `dashboards/tradehub_push_tony` (`devices.<id> = { token, on, ua, at }`), registered from the panel (`alerts`); its push worker `TradeHub/push-sw.js` (2026-11-21) |
+| TradeHub (A1-Priv) | `tradehub` | Control ▸ Alerts ▸ Devices | always `tony` | its own `dashboards/tradehub_push_tony` (`devices.<id> = { token, on, ua, at }`), registered from the panel (`alerts`); Beacon reads and writes through TradeHub's own Firestore (`firebase`, its live client); its push worker `TradeHub/push-sw.js` (2026-11-21) |
 | StudyOS (Veda) | `studyos` | none (no profiles; managed from TaskHub's Settings, 2026-11-17) | always `veda` | its own `studyos_fcm_tokens/<token>` |
 | ORCA (Veda's repo `DesktopORCA`, both UIs) | `orca` | the devices icon after the lock in the header | `body[data-profile]` (only rendered once a profile is open) | none; its lock is a server session, so `app/web/static/beacon-host.js` hands Beacon `lockState` (`/lock/status`) and `lockNow` (`/lock/lock`, then the gate) |
 
@@ -52,7 +52,7 @@ button.onclick = () => Beacon.open({ app: 'example' });   // the panel
 | `push()` | this device's push state: `{ on, coll, id, route, perm }`. `coll`/`id` name the token's Firestore doc, which Remove deletes. `route` is TaskHub's main (`none` = neutral). `perm` defaults to `Notification.permission` |
 | `fcm: true` | the program notifies through TaskHub's `fcm_tokens`, so the panel's program view also shows devices known only by such a token |
 | `pushList` | `{ coll, app, label, owner }`: a token collection of the program's own for the panel to read (StudyOS) |
-| `firebase` | `() => Promise<{ db, fs? }>`, the program's Firestore, or `'lifehub'` to wait for `window.LifeHubFirebase` (MAGI, Shruti, StudyOS). Default: `LifeHubFirebase` if set, else the page's `[DEFAULT]` app if it is A1's project, else a memory-cache app of Beacon's own |
+| `firebase` | `() => Promise<{ db, fs? }>`, the program's Firestore, or `'lifehub'` to wait for `window.LifeHubFirebase` (MAGI, Shruti, StudyOS). Default: `LifeHubFirebase` if set, else the page's `[DEFAULT]` app if it is A1's project, else a memory-cache app of Beacon's own. A function is called on every read and write, never kept, so a program that replaces its client (TradeHub terminates it when the tab hides) always hands over the live one |
 | `onRemoved()` | the program's own clean-up when this device is removed |
 | `lockState(profile)` | for a lock that is not Guardian's markers: resolves `[{ id, label, owner, open, bio }]`, added to the Guardian locks Beacon reads itself (ORCA) |
 | `lockNow(reason)` | locks this device the program's own way when a Lock or Remove arrives (ORCA ends its session); runs last, since it may leave the page. A page with `lockNow` carries out commands even without Guardian |
