@@ -244,6 +244,12 @@ function waitFor(fn, ms) {
 }
 var CONN = null;
 function connect() {
+  // A program's own Firestore getter is asked every time, never kept: TradeHub
+  // terminates its client when the tab hides and makes a new one, and a kept
+  // connection then failed every read and write, so the panel said "No devices"
+  // (Tony, 2026-11-27). Cheap: the getter only hands back what the page holds.
+  var hook = (OVERRIDE && OVERRIDE.firebase) || HOSTFB;
+  if (typeof hook === 'function') return openFirestore();
   if (!CONN) {
     CONN = openFirestore();
     CONN.catch(function () { CONN = null; });
@@ -551,6 +557,9 @@ async function list(profile, opts) {
   var c = await connect();
   var owners = [profile, 'neutral'];
   var docs = await Promise.all(owners.map(function (o) { return readDoc(c, o); }));
+  // Neither document could be read: say so (the panel's "Couldn't reach your
+  // devices"), never an empty list that looks like no devices.
+  if (docs.every(function (d) { return d === null; })) throw new Error('devices unreadable');
   var out = [], byId = {}, pending = {};
   owners.forEach(function (owner, i) {
     var d = docs[i] || {};
