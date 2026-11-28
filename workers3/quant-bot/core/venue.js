@@ -112,6 +112,8 @@ export const CAPABILITIES = {
   cortex: { label: 'Neo Cortex', readOnly: true, types: [], tifs: [], classes: [], fractional: false, notional: false, trailingTifs: [],
     extended: false, sessions: [], clientIdMax: 0, runs: false },
 };
+/** The brokers the Trading tab offers: real accounts only. Neo Cortex is read here (its own tab shows it), never picked as a broker. */
+export const TRADE_BROKERS = BROKERS.filter((b) => !CAPABILITIES[b].readOnly);
 /** quant-api's address for a broker's route; throws for live (not built) or an unknown broker. */
 export function tradePath(broker, rest = '', mode = 'paper') {
   if (mode === 'live' && !LIVE_BUILT) throw new Error('live trading is not built yet: paper only');
